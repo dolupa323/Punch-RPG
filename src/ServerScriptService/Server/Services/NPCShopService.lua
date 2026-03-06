@@ -28,6 +28,7 @@ local NPCShopData = require(DataFolder:WaitForChild("NPCShopData"))
 --========================================
 local playerGold = {}        -- [userId] = goldAmount
 local shopStock = {}         -- [shopId] = { [itemIndex] = remainingStock }
+local lastRestockTime = os.time()
 
 -- 상점 데이터 캐시
 local shopDataMap = {}       -- [shopId] = shopData
@@ -53,6 +54,20 @@ local function _loadShopData()
 		end
 	end
 	print(string.format("[NPCShopService] Loaded %d shops", count))
+end
+
+--- 모든 상점 재고 리필
+local function _restockShops()
+	for shopId, shop in pairs(shopDataMap) do
+		if not shopStock[shopId] then shopStock[shopId] = {} end
+		for i, item in ipairs(shop.buyList or {}) do
+			if item.stock and item.stock > 0 then
+				shopStock[shopId][i] = item.stock
+			end
+		end
+	end
+	lastRestockTime = os.time()
+	print("[NPCShopService] All shops restocked to initial levels.")
 end
 
 --========================================
@@ -508,6 +523,16 @@ function NPCShopService.Init(netController: any, dataService: any, inventoryServ
 	for _, player in ipairs(Players:GetPlayers()) do
 		task.spawn(_onPlayerAdded, player)
 	end
+	
+	-- [FIX] 상점 재고 리필 루프 (Phase 11)
+	task.spawn(function()
+		while true do
+			task.wait(30) -- 30초마다 체크
+			if os.time() - lastRestockTime >= (Balance.SHOP_RESTOCK_TIME or 3600) then
+				_restockShops()
+			end
+		end
+	end)
 	
 	initialized = true
 	print("[NPCShopService] Initialized")

@@ -181,6 +181,13 @@ local function performDodge()
 		return
 	end
 	
+	-- [FIX] 공중 구르기 방지 (클라이언트 사전 검사)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChild("Humanoid")
+	if not humanoid or humanoid.FloorMaterial == Enum.Material.Air then
+		return
+	end
+
 	-- 이미 구르기 중
 	if isDodging then
 		return

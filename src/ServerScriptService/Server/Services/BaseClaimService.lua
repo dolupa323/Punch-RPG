@@ -51,13 +51,24 @@ local function loadBases()
 	if worldState and worldState.bases then
 		local loadedCount = 0
 		for baseId, baseData in pairs(worldState.bases) do
-			-- Vector3 복원
-			if baseData.centerPosition then
-				local pos = baseData.centerPosition
-				baseData.centerPosition = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+			-- 파티션 데이터 로드
+			local ok, pData = SaveService.loadPartition(baseId)
+			if ok and pData then
+				-- Vector3 복원 및 캐싱
+				if baseData.centerPosition then
+					local pos = baseData.centerPosition
+					baseData.centerPosition = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+				end
+				bases[baseData.ownerId] = baseData
+				
+				-- BuildService에 해당 파티션 구조물 로드 요청
+				if BuildService then
+					BuildService.loadStructuresFromPartition(baseId)
+				end
+				loadedCount = loadedCount + 1
+			else
+				warn(string.format("[BaseClaimService] Failed to load partition for base %s", baseId))
 			end
-			bases[baseData.ownerId] = baseData
-			loadedCount = loadedCount + 1
 		end
 		print(string.format("[BaseClaimService] Loaded %d bases from world state", loadedCount))
 	end
@@ -133,6 +144,12 @@ function BaseClaimService.create(userId: number, position: Vector3): (boolean, s
 	}
 	
 	bases[userId] = baseClaim
+	
+	-- 파티션 초기화 (SaveService)
+	if SaveService then
+		SaveService.initPartition(baseId, userId)
+	end
+	
 	saveBase(baseClaim)
 	
 	-- 클라이언트 알림
@@ -195,11 +212,28 @@ function BaseClaimService.expand(userId: number): (boolean, string?)
 	local maxRadius = Balance.BASE_MAX_RADIUS or 100
 	local radiusIncrease = Balance.BASE_RADIUS_PER_LEVEL or 10
 	
-	if baseClaim.radius >= maxRadius then
+	local requestedRadius = math.min(baseClaim.radius + radiusIncrease, maxRadius)
+	if requestedRadius <= baseClaim.radius then
 		return false, Enums.ErrorCode.INVALID_STATE
 	end
+
+	-- [보안/기획] 중첩 검사 (Overlap Protection)
+	-- 확장 시에도 타 유저의 베이스 영역을 침범하지 않도록 확인
+	for otherUserId, otherBase in pairs(bases) do
+		if otherUserId ~= userId then
+			local dx = baseClaim.centerPosition.X - otherBase.centerPosition.X
+			local dz = baseClaim.centerPosition.Z - otherBase.centerPosition.Z
+			local dist = math.sqrt(dx * dx + dz * dz)
+			
+			local minSafeDist = requestedRadius + otherBase.radius
+			if dist < minSafeDist then
+				print(string.format("[BaseClaimService] Expand failed for player %d: Would overlap with player %d's base", userId, otherUserId))
+				return false, Enums.ErrorCode.COLLISION
+			end
+		end
+	end
 	
-	baseClaim.radius = math.min(baseClaim.radius + radiusIncrease, maxRadius)
+	baseClaim.radius = requestedRadius
 	baseClaim.level = baseClaim.level + 1
 	saveBase(baseClaim)
 	
@@ -250,14 +284,16 @@ function BaseClaimService.delete(userId: number): boolean
 		print(string.format("[BaseClaimService] Removed %d structures from base being deleted (%s)", #structureIds, baseClaim.id))
 	end
 	
-	-- 2. SaveService에서 제거
-	if SaveService and SaveService.updateWorldState then
+	-- 2. SaveService에서 제거 (월드 상태 및 파티션)
+	if SaveService then
 		SaveService.updateWorldState(function(state)
 			if state.bases then
 				state.bases[baseClaim.id] = nil
 			end
 			return state
 		end)
+		-- 파티션 영구 삭제
+		SaveService.deletePartition(baseClaim.id)
 	end
 	
 	-- 3. 메모리 정리

@@ -88,7 +88,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	
-	local targetFolderNames = {"ResourceNodes", "WorldDrops", "NPCs", "Facilities"}
+	local targetFolderNames = {"ResourceNodes", "NPCs", "Facilities"}
 	local folderObjects = {}
 	local includeList = {}
 	for _, name in ipairs(targetFolderNames) do
@@ -111,7 +111,6 @@ local function findNearbyInteractable(): (Instance?, string?)
 	
 	local typeMap = {
 		ResourceNodes = "resource",
-		WorldDrops = "drop",
 		NPCs = "npc",
 		Facilities = "facility"
 	}
@@ -129,7 +128,6 @@ local function findNearbyInteractable(): (Instance?, string?)
 				local check = part
 				while check and check ~= folder do
 					if check:GetAttribute("FacilityId") or 
-					   check:GetAttribute("DropId") or 
 					   check:GetAttribute("NPCId") or 
 					   check:GetAttribute("NodeId") or
 					   check:GetAttribute("ResourceNode") then
@@ -172,31 +170,7 @@ end
 --========================================
 
 
---- 월드 드롭 줍기
-local function pickupDrop(target: Instance)
-	local dropId = target:GetAttribute("DropId")
-	
-	-- GUID 형식의 Name인 경우 (이전 방식 호환)
-	if not dropId and target.Name:find("drop_") then
-		dropId = target.Name
-	end
-	
-	if not dropId then
-		warn("[InteractController] No DropId found for target:", target.Name)
-		return
-	end
-	
-	print("[InteractController] Picking up:", dropId)
-	
-	local success, data = NetClient.Request("WorldDrop.Loot.Request", {
-		dropId = dropId,
-	})
-	if success then
-		print("[InteractController] Pickup success!")
-	else
-		print("[InteractController] Pickup failed:", tostring(data))
-	end
-end
+-- pickupDrop function removed (moved to WorldDropController's ProximityPrompt)
 
 --- NPC 대화/상점
 local function interactNPC(target: Instance)
@@ -264,9 +238,6 @@ function InteractController.onInteractPress()
 		if currentTargetType == "resource" then
 			-- 채집은 이제 공격(좌클릭)으로 처리하므로 여기서는 무시하거나 안내만 함
 			print("[InteractController] 공격(좌클릭)으로 채집하세요.")
-		elseif currentTargetType == "drop" then
-			-- 드롭 줍기는 즉시
-			pickupDrop(currentTarget)
 		elseif currentTargetType == "npc" then
 			interactNPC(currentTarget)
 		elseif currentTargetType == "facility" then
@@ -291,28 +262,6 @@ local function onUpdate()
 				
 				if targetType == "resource" then
 					promptText = "" -- 안내문 삭제 (HP바로 대체)
-				elseif targetType == "drop" then
-					promptText = promptText .. "줍기"
-					
-					-- ItemId 속성을 사용하여 실제 아이템 이름 가져오기
-					local itemId = target:GetAttribute("ItemId")
-					if itemId then
-						local itemData = DataHelper.GetData("ItemData", itemId)
-						if itemData then 
-							targetName = itemData.name 
-						end
-					end
-					
-					-- 여전히 이름이 적절하지 않으면 (id 형태거나 MeshPart 등) "아이템"으로 처리
-					if type(targetName) == "string" and (
-						targetName:lower():find("^drop_") or 
-						targetName:find("_") or -- GUID나 ID 형태 체크
-						targetName == "MeshPart" or 
-						targetName == "Part" or
-						targetName == "Handle"
-					) then
-						targetName = "아이템"
-					end
 				elseif targetType == "npc" then
 					promptText = promptText .. "대화"
 				elseif targetType == "facility" then

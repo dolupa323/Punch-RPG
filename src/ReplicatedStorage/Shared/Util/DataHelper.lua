@@ -4,7 +4,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Data = ReplicatedStorage:WaitForChild("Data")
-local Validator = require(Shared.Types.Validator)
+local RunService = game:GetService("RunService")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Data = ReplicatedStorage:WaitForChild("Data")
 
 local DataHelper = {}
 
@@ -19,9 +21,29 @@ function DataHelper.GetTable(tableName: string)
 	
 	local module = Data:FindFirstChild(tableName)
 	if module and module:IsA("ModuleScript") then
-		local data = require(module)
-		-- Validator를 사용하여 맵 형태로 변환 (ID 중복 체크 포함)
-		local mapData = Validator.validateIdTable(data, tableName)
+		local rawData = require(module)
+		
+		-- [최적화] 무거운 Validator 대신 효율적인 매핑 로직 수행
+		-- 서버 Init에서 이미 검증되었으므로 클라이언트/서버 공히 신뢰함
+		local mapData = {}
+		
+		-- 1. 이미 맵 형태인지 확인 (첫 번째 키가 문자열이고 값이 테이블인 경우)
+		local firstKey, firstVal = next(rawData)
+		if firstKey and type(firstKey) == "string" and type(firstVal) == "table" then
+			mapData = rawData
+			-- id 필드 보장
+			for id, record in pairs(mapData) do
+				if not record.id then record.id = id end
+			end
+		else
+			-- 2. 배열 형태면 ID 기반 맵으로 변환
+			for _, record in ipairs(rawData) do
+				if record.id then
+					mapData[record.id] = record
+				end
+			end
+		end
+		
 		tableCache[tableName] = mapData
 		return mapData
 	end

@@ -32,6 +32,9 @@ local BuildController = require(Controllers.BuildController)
 local TechController = require(Controllers.TechController)
 local StorageController = require(Controllers.StorageController)
 local FacilityController = require(Controllers.FacilityController)
+local DragDropController = require(Controllers.DragDropController)
+
+local WindowManager = require(Client.Utils.WindowManager)
 
 local UIManager = {}
 
@@ -71,7 +74,7 @@ local selectedSlot = 1
 -- Panels
 local inventoryFrame, craftingOverlay, shopFrame, techOverlay, interactPrompt
 local actionContainer, hotbarFrame -- Store refs for visibility control
-local isInvOpen, isCraftOpen, isShopOpen, isTechOpen, isBuildOpen, isEquipmentOpen, isStorageOpen, isFacilityOpen = false, false, false, false, false, false, false, false
+-- [Refactor] 개별 상태 플래그를 WindowManager로 통합 관리 (유지보수 지옥 탈출)
 local cachedStats = {}
 local pendingStats = {}
 local activeDebuffs = {} -- { [debuffId] = {id, name, startTime, duration} }
@@ -89,20 +92,13 @@ end
 
 
 local function updateUIMode()
-	local anyOpen = isAnyWindowOpen()
+	local anyOpen = WindowManager.isAnyOpen()
 	InputManager.setUIOpen(anyOpen)
 	UIManager._setMainHUDVisible(not anyOpen)
 end
 
 local function closeAllWindows(except)
-	if isInvOpen and except ~= "INV" then UIManager.closeInventory() end
-	if isCraftOpen and except ~= "CRAFT" then UIManager.closeCrafting() end
-	if isShopOpen and except ~= "SHOP" then UIManager.closeShop() end
-	if isTechOpen and except ~= "TECH" then UIManager.closeTechTree() end
-	if isBuildOpen and except ~= "BUILD" then UIManager.closeBuild() end
-	if isEquipmentOpen and except ~= "EQUIP" then UIManager.closeEquipment() end
-	if isStorageOpen and except ~= "STORAGE" then UIManager.closeStorage() end
-	if isFacilityOpen and except ~= "FACILITY" then UIManager.closeFacility() end
+	WindowManager.closeOthers(except)
 end
 
 -- [중복 제거] openTechTree/closeTechTree/toggleTechTree는 하단에서 올바르게 정의됩니다.
@@ -176,11 +172,14 @@ end
 ----------------------------------------------------------------
 -- Public API: Equipment (장비창)
 ----------------------------------------------------------------
+----------------------------------------------------------------
+-- Public API: Equipment (장비창)
+----------------------------------------------------------------
 function UIManager.openEquipment()
-	if isEquipmentOpen then return end
-	closeAllWindows("EQUIP")
-	isEquipmentOpen = true
-	
+	WindowManager.open("EQUIP")
+end
+
+function UIManager._onOpenEquipment()
 	-- UI 상태 즉시 반영
 	EquipmentUI.SetVisible(true)
 	updateUIMode()
@@ -197,14 +196,15 @@ function UIManager.openEquipment()
 end
 
 function UIManager.closeEquipment()
-	if not isEquipmentOpen then return end
-	isEquipmentOpen = false
+	WindowManager.close("EQUIP")
+end
+
+function UIManager._onCloseEquipment()
 	EquipmentUI.SetVisible(false)
-	updateUIMode()
 end
 
 function UIManager.toggleEquipment()
-	if isEquipmentOpen then UIManager.closeEquipment() else UIManager.openEquipment() end
+	WindowManager.toggle("EQUIP")
 end
 ----------------------------------------------------------------
 -- Public API: Settings/Etc 
@@ -324,6 +324,7 @@ local function getItemIcon(itemId: string): string
 	-- 2. If it's not found in folders, we return an empty string to be safe.
 	return ""
 end
+UIManager.getItemIcon = getItemIcon
 
 function UIManager.refreshHotbar()
 	local items = InventoryController.getItems()
@@ -364,25 +365,22 @@ end
 ----------------------------------------------------------------
 -- Public API: Inventory
 ----------------------------------------------------------------
+----------------------------------------------------------------
+-- Public API: Inventory
+----------------------------------------------------------------
 function UIManager.openInventory(startTab)
-	if isInvOpen then 
-		if startTab then InventoryUI.SetTab(startTab) end
-		return 
-	end
-	
+	WindowManager.open("INV", startTab)
+end
+
+function UIManager._onOpenInventory(startTab)
 	-- 만약 단축키 등으로 직접 여는 것이라면 시설 정보 초기화
-	-- (openWorkbench를 통해 들어온 것이 아님을 보장)
 	if not startTab or startTab == "BAG" then
 		activeFacilityId = nil
 		activeStructureId = nil
 	end
 
-	closeAllWindows("INV")
-	isInvOpen = true
 	InventoryUI.SetVisible(true)
 	InventoryUI.SetTab(startTab or "BAG")
-	InputManager.setUIOpen(true)
-	UIManager._setMainHUDVisible(false)
 	UIManager.refreshInventory()
 	if startTab == "CRAFT" then
 		UIManager.refreshPersonalCrafting(true)
@@ -390,26 +388,20 @@ function UIManager.openInventory(startTab)
 end
 
 function UIManager.closeInventory()
-	if not isInvOpen then return end
-	
-	-- 드래그 상태 강제 초기화 (Drag & Drop Cleanup)
-	if isDragging then
-		isDragging = false
-		if dragDummy then
-			dragDummy:Destroy()
-			dragDummy = nil
-		end
-		pendingDragIdx = nil
-		draggingSlotIdx = nil
+	WindowManager.close("INV")
+end
+
+function UIManager._onCloseInventory()
+	-- 드래그 상태 강제 초기화
+	if DragDropController.isDragging() then
+		DragDropController.handleDragEnd()
 	end
 	
-	isInvOpen = false
 	InventoryUI.SetVisible(false)
-	updateUIMode()
 end
 
 function UIManager.toggleInventory(startTab)
-	if isInvOpen then UIManager.closeInventory() else UIManager.openInventory(startTab) end
+	WindowManager.toggle("INV", startTab)
 end
 
 function UIManager.refreshInventory()
@@ -431,7 +423,7 @@ function UIManager.refreshStats()
 	local totalPending = 0
 	for _, v in pairs(pendingStats) do totalPending = totalPending + v end
 	
-	if isEquipmentOpen then
+	if WindowManager.isOpen("EQUIP") then
 		local equipmentData = InventoryController.getEquipment and InventoryController.getEquipment() or {}
 		EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIcon, Enums)
 	end
@@ -456,133 +448,19 @@ function UIManager.onEquipmentSlotRightClick(slotName)
 end
 
 ----------------------------------------------------------------
--- Inventory Drag & Drop Logic
+-- [Refactor] Inventory Drag & Drop Logic (DragDropController로 이관)
 ----------------------------------------------------------------
-function UIManager.handleDragStart(idx, input)
-	if isDragging then return end
-	
-	local items = InventoryController.getItems()
-	local item = items[idx]
-	if not item or not item.itemId then return end
+function UIManager.handleDragStart(idx, input) DragDropController.handleDragStart(idx) end
+function UIManager.handleDragUpdate(input) DragDropController.handleDragUpdate() end
+function UIManager.handleDragEnd(input) DragDropController.handleDragEnd() end
+function UIManager.isDragging() return DragDropController.isDragging() end
 
-	pendingDragIdx = idx
-	dragStartPos = UserInputService:GetMouseLocation()
-end
-
-function UIManager.handleDragUpdate(input)
-	if pendingDragIdx and not isDragging then
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			local mousePos = UserInputService:GetMouseLocation()
-			if (mousePos - dragStartPos).Magnitude > DRAG_THRESHOLD then
-				isDragging = true
-				draggingSlotIdx = pendingDragIdx
-				pendingDragIdx = nil
-				
-				local items = InventoryController.getItems()
-				local item = items[draggingSlotIdx]
-				
-				-- Create dummy
-				if dragDummy then dragDummy:Destroy() end
-				dragDummy = Instance.new("ImageLabel")
-				dragDummy.Name = "DragDummy"
-				dragDummy.Size = UDim2.new(0, 56, 0, 56)
-				dragDummy.BackgroundTransparency = 0.4
-				dragDummy.Image = getItemIcon(item.itemId)
-				dragDummy.ZIndex = 2000
-				dragDummy.Parent = mainGui
-				
-				local corner = Instance.new("UICorner")
-				corner.CornerRadius = UDim.new(0, 8)
-				corner.Parent = dragDummy
-			end
-		end
-	end
-
-	if not isDragging or not dragDummy then return end
-	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		local inset = GuiService:GetGuiInset()
-		local mousePos = UserInputService:GetMouseLocation()
-		local actualX = mousePos.X - inset.X
-		local actualY = mousePos.Y - inset.Y
-		dragDummy.Position = UDim2.new(0, actualX - 28, 0, actualY - 28) -- Center dummy on mouse
-	end
-end
-
-function UIManager.handleDragEnd(input)
-	if not isDragging then 
-		pendingDragIdx = nil
-		return 
-	end
-	isDragging = false
-
-	if dragDummy then
-		dragDummy:Destroy()
-		dragDummy = nil
-	end
-
-	-- [개선] GetGuiObjectsAtPosition을 사용하여 UIScale 환경에서도 정확한 슬롯 감지
-	local mousePos = UserInputService:GetMouseLocation()
-	local foundSlot = nil
-	local foundType = nil -- "bag" or "hotbar"
-	
-	local guiObjects = playerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
-	
-	-- 감지된 GUI 객체들 중 슬롯 프레임 찾기
-	for _, obj in ipairs(guiObjects) do
-		-- 1. 인벤토리 슬롯 확인
-		if isInvOpen and invSlots then
-			for i, s in pairs(invSlots) do
-				if s.frame == obj or obj:IsDescendantOf(s.frame) then
-					foundSlot = i
-					foundType = "bag"
-					break
-				end
-			end
-		end
-		if foundSlot then break end
-		
-		-- 2. 핫바 슬롯 확인
-		if hotbarSlots then
-			for i, s in pairs(hotbarSlots) do
-				if s.frame == obj or obj:IsDescendantOf(s.frame) then
-					foundSlot = i
-					foundType = "hotbar"
-					break
-				end
-			end
-		end
-		if foundSlot then break end
-
-		-- 3. 장비 슬롯 확인
-		if isEquipmentOpen and equipSlots then
-			for slotName, s in pairs(equipSlots) do
-				if s.frame == obj or obj:IsDescendantOf(s.frame) then
-					foundSlot = slotName
-					foundType = "equip"
-					break
-				end
-			end
-		end
-		if foundSlot then break end
-	end
-
-	if foundSlot then
-		if foundType == "equip" then
-			-- 장비창으로 드래그: 장착 요청
-			print("[UIManager] Equipping item to slot:", foundSlot)
-			InventoryController.requestEquip(draggingSlotIdx, foundSlot)
-		elseif foundSlot ~= draggingSlotIdx then
-			-- 인벤토리/핫바 내 이동
-			print("[UIManager] Swapping:", draggingSlotIdx, "->", foundSlot)
-			InventoryController.swapSlots(draggingSlotIdx, foundSlot)
-		end
-	else
-		print("[UIManager] No valid target slot found")
-	end
-
-	draggingSlotIdx = nil
-	pendingDragIdx = nil
-end
+-- Controller에서 UI 요소에 접근하기 위한 Getter들
+function UIManager.getInvSlots() return invSlots end
+function UIManager.getHotbarSlots() return hotbarSlots end
+function UIManager.getEquipSlots() return equipSlots end
+function UIManager.isWindowOpen(winId) return WindowManager.isOpen(winId) end
+function UIManager.getIsMobile() return isMobile end
 
 function UIManager.isDragging()
 	return isDragging
@@ -1016,13 +894,8 @@ function UIManager._doCraft()
 					UIManager.refreshInventory()
 					UIManager.refreshPersonalCrafting() 
 				else
-					-- 대기 제작인 경우, craftTime만큼 더 기다림 (또는 서버 이벤트를 기다림)
-					-- 여기선 단순히 시간만큼 대기하거나, 이미 showCraftingProgress가 애니메이션 중이므로
-					-- 추가적인 stop 호출 없이 서버 이벤트(Craft.Completed)를 기다려도 됨.
-					-- 하지만 UX상 여기서 시간만큼 기다려주는 게 안전함.
-					task.wait(craftTime)
-					UIManager.stopCraftingProgress()
-					-- 완료 통보는 setupEventListeners의 Craft.Completed 에서 처리됨
+					-- [FIX] 대기 제작의 경우 여기서 task.wait() 하지 않음!
+					-- 서버에서 날아오는 Craft.Started와 Craft.Completed 이벤트를 통해 제어됨.
 				end
 			else
 				UIManager.stopCraftingProgress()
@@ -1036,19 +909,18 @@ end
 -- Public API: Tech Tree
 ----------------------------------------------------------------
 function UIManager.openTechTree()
-	if isTechOpen then return end
-	closeAllWindows("TECH")
-	isTechOpen = true
+	WindowManager.open("TECH")
+end
+
+function UIManager._onOpenTechTree()
 	TechUI.SetVisible(true)
-	InputManager.setUIOpen(true)
-	UIManager._setMainHUDVisible(false)
+	updateUIMode()
 	
 	-- Blur
-	if not isCraftOpen then
+	if not WindowManager.isOpen("CRAFT") then
 		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
 	end
 	
-	-- techPoints는 서버에서 받아야 하므로 백그라운드로 요청
 	task.spawn(function()
 		TechController.requestTechInfo()
 	end)
@@ -1057,15 +929,17 @@ function UIManager.openTechTree()
 end
 
 function UIManager.closeTechTree()
-	if not isTechOpen then return end
-	if blurEffect and not isCraftOpen then blurEffect:Destroy(); blurEffect = nil end
-	isTechOpen = false
+	WindowManager.close("TECH")
+end
+
+function UIManager._onCloseTechTree()
+	if blurEffect and not WindowManager.isOpen("CRAFT") then blurEffect:Destroy(); blurEffect = nil end
 	TechUI.SetVisible(false)
 	selectedTechId = nil
-	if not isInvOpen and not isShopOpen and not isCraftOpen and not isEquipmentOpen then
-		InputManager.setUIOpen(false) 
-		UIManager._setMainHUDVisible(true)
-	end
+end
+
+function UIManager.toggleTechTree()
+	WindowManager.toggle("TECH")
 end
 
 function UIManager.toggleTechTree()
@@ -1154,13 +1028,13 @@ end
 -- Public API: Shop
 ----------------------------------------------------------------
 function UIManager.openShop(shopId)
-	if isShopOpen then return end
-	closeAllWindows("SHOP")
-	isShopOpen = true
+	WindowManager.open("SHOP", shopId)
+end
+
+function UIManager._onOpenShop(shopId)
 	activeShopId = shopId
 	ShopUI.SetVisible(true)
-	InputManager.setUIOpen(true)
-	UIManager._setMainHUDVisible(false)
+	updateUIMode()
 	
 	ShopController.requestShopInfo(shopId, function(ok, shopInfo)
 		if ok then
@@ -1170,11 +1044,12 @@ function UIManager.openShop(shopId)
 end
 
 function UIManager.closeShop()
-	if not isShopOpen then return end
-	isShopOpen = false
+	WindowManager.close("SHOP")
+end
+
+function UIManager._onCloseShop()
 	activeShopId = nil
 	ShopUI.SetVisible(false)
-	updateUIMode()
 end
 
 function UIManager.refreshShop(shopId)
@@ -1213,14 +1088,14 @@ end
 -- Public API: Build (건축 설계도)
 ----------------------------------------------------------------
 function UIManager.openBuild()
-	if isBuildOpen then return end
-	closeAllWindows("BUILD")
-	isBuildOpen = true
+	WindowManager.open("BUILD")
+end
+
+function UIManager._onOpenBuild()
 	BuildUI.Refs.Frame.Visible = true
-	InputManager.setUIOpen(true)
-	UIManager._setMainHUDVisible(false)
+	updateUIMode()
 	
-	if not isCraftOpen and not isTechOpen then
+	if not WindowManager.isOpen("CRAFT") and not WindowManager.isOpen("TECH") then
 		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
 	end
 	
@@ -1228,15 +1103,16 @@ function UIManager.openBuild()
 end
 
 function UIManager.closeBuild()
-	if not isBuildOpen then return end
-	if blurEffect and not isCraftOpen and not isTechOpen then blurEffect:Destroy(); blurEffect = nil end
-	isBuildOpen = false
+	WindowManager.close("BUILD")
+end
+
+function UIManager._onCloseBuild()
+	if blurEffect and not WindowManager.isOpen("CRAFT") and not WindowManager.isOpen("TECH") then blurEffect:Destroy(); blurEffect = nil end
 	BuildUI.Refs.Frame.Visible = false
-	updateUIMode()
 end
 
 function UIManager.toggleBuild()
-	if isBuildOpen then UIManager.closeBuild() else UIManager.openBuild() end
+	WindowManager.toggle("BUILD")
 end
 
 function UIManager.refreshBuild()
@@ -1271,13 +1147,13 @@ end
 ----------------------------------------------------------------
 
 function UIManager.openStorage(storageId, data)
-	if isStorageOpen then return end
-	closeAllWindows("STORAGE")
-	isStorageOpen = true
+	WindowManager.open("STORAGE", storageId, data)
+end
+
+function UIManager._onOpenStorage(storageId, data)
 	currentStorageData = data
 	StorageUI.Refs.Frame.Visible = true
-	UIManager._setMainHUDVisible(false)
-	InputManager.setUIOpen(true)
+	updateUIMode()
 	
 	if not blurEffect then
 		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
@@ -1287,13 +1163,13 @@ function UIManager.openStorage(storageId, data)
 end
 
 function UIManager.closeStorage()
-	if not isStorageOpen then return end
+	WindowManager.close("STORAGE")
+end
+
+function UIManager._onCloseStorage()
 	if blurEffect then blurEffect:Destroy(); blurEffect = nil end
-	isStorageOpen = false
 	currentStorageData = nil
 	StorageUI.Refs.Frame.Visible = false
-	updateUIMode()
-	
 	-- 서버에 닫기 요청
 	StorageController.closeStorage()
 end
@@ -1314,14 +1190,14 @@ end
 ----------------------------------------------------------------
 
 function UIManager.openFacility(structureId, data)
-	if isFacilityOpen then return end
-	closeAllWindows("FACILITY")
-	isFacilityOpen = true
+	WindowManager.open("FACILITY", structureId, data)
+end
+
+function UIManager._onOpenFacility(structureId, data)
 	currentFacilityStructureId = structureId
 	currentFacilityData = data
 	FacilityUI.Refs.Frame.Visible = true
-	UIManager._setMainHUDVisible(false)
-	InputManager.setUIOpen(true)
+	updateUIMode()
 	
 	if not blurEffect then
 		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
@@ -1331,14 +1207,14 @@ function UIManager.openFacility(structureId, data)
 end
 
 function UIManager.closeFacility()
-	if not isFacilityOpen then return end
+	WindowManager.close("FACILITY")
+end
+
+function UIManager._onCloseFacility()
 	if blurEffect then blurEffect:Destroy(); blurEffect = nil end
-	isFacilityOpen = false
 	currentFacilityStructureId = nil
 	currentFacilityData = nil
 	FacilityUI.Refs.Frame.Visible = false
-	updateUIMode()
-	
 	FacilityController.closeFacility()
 end
 
@@ -1716,6 +1592,34 @@ local function setupEventListeners()
 		end
 	end)
 
+	-- [FIX] 제작 서버 이벤트 동기화 (Phase 11)
+	if NetClient.On then
+		NetClient.On("Craft.Started", function(data)
+			if data and data.craftTime then
+				UIManager.showCraftingProgress(data.craftTime)
+			end
+		end)
+		
+		NetClient.On("Craft.Completed", function(data)
+			UIManager.stopCraftingProgress()
+			
+			local itemName = "아이템"
+			if data and data.recipeId then
+				local recipe = DataHelper.GetData("RecipeData", data.recipeId)
+				if recipe then itemName = recipe.name end
+			end
+			
+			UIManager.notify(itemName .. " 제작 완료!", C.GREEN)
+			UIManager.refreshInventory()
+			UIManager.refreshPersonalCrafting()
+		end)
+		
+		NetClient.On("Craft.Cancelled", function(data)
+			UIManager.stopCraftingProgress()
+			UIManager.notify("제작이 취소되었습니다.", C.WHITE)
+		end)
+	end
+
 	-- Drag & Drop global listeners
 	UserInputService.InputChanged:Connect(function(input) UIManager.handleDragUpdate(input) end)
 	UserInputService.InputEnded:Connect(function(input) UIManager.handleDragEnd(input) end)
@@ -1801,8 +1705,21 @@ function UIManager.Init()
 	-- 알림 라벨 (사용 중단되거나 제거)
 	UIManager._notifyLabel = nil
 
+	-- [Refactor] WindowManager 창 등록 (관리 생산성 극대화)
+	WindowManager.onUpdate(updateUIMode)
+	WindowManager.register("INV", UIManager._onOpenInventory, UIManager._onCloseInventory)
+	WindowManager.register("EQUIP", UIManager._onOpenEquipment, UIManager._onCloseEquipment)
+	WindowManager.register("TECH", UIManager._onOpenTechTree, UIManager._onCloseTechTree)
+	WindowManager.register("SHOP", UIManager._onOpenShop, UIManager._onCloseShop)
+	WindowManager.register("BUILD", UIManager._onOpenBuild, UIManager._onCloseBuild)
+	WindowManager.register("STORAGE", UIManager._onOpenStorage, UIManager._onCloseStorage)
+	WindowManager.register("FACILITY", UIManager._onOpenFacility, UIManager._onCloseFacility)
+
+	-- [Refactor] DragDropController 초기화
+	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)
+
 	initialized = true
-	print("[UIManager] Initialized — Responsive Scale applied")
+	print("[UIManager] Initialized — WindowManager & Controllers decoupled")
 end
 
 function UIManager.hideAllLoading()

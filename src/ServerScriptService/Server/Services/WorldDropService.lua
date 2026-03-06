@@ -169,6 +169,13 @@ local function pruneOldestDrops()
 	end
 end
 
+--================ : OPTIMIZATION : Spatial Grid ================
+local GRID_SIZE = Balance.DROP_INACTIVE_DIST or 150
+
+local function getGridKey(pos: Vector3)
+	return math.floor(pos.X / GRID_SIZE), math.floor(pos.Z / GRID_SIZE)
+end
+
 --========================================
 -- Internal: Tick 처리 (1초마다)
 --========================================
@@ -176,14 +183,34 @@ local function processTick()
 	local now = tick()
 	local toRemove = {}
 	
-	-- 1. Despawn 타이머 체크
+	-- 1. 유저 위치 그리드 인덱싱 (O(P))
+	local activeGrids = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local gx, gz = getGridKey(hrp.Position)
+			-- 자신과 주변 8방향 그리드를 활성 상태로 표시
+			for x = -1, 1 do
+				for z = -1, 1 do
+					activeGrids[string.format("%d_%d", gx + x, gz + z)] = true
+				end
+			end
+		end
+	end
+
+	-- 2. 드롭 체크 (O(N))
 	for dropId, drop in pairs(drops) do
+		-- (1) Despawn 타이머 체크
 		if now >= drop.despawnAt then
 			table.insert(toRemove, { dropId = dropId, reason = "DESPAWN_TIMER" })
 		else
-			-- 2. Inactive 상태 갱신
-			local dist = getNearestPlayerDistance(drop.pos)
-			drop.inactive = dist > Balance.DROP_INACTIVE_DIST
+			-- (2) Inactive 상태 갱신 (O(1) Grid Lookup)
+			-- 유저 근처에 있으면 active, 없으면 inactive
+			local gx, gz = getGridKey(drop.pos)
+			local key = string.format("%d_%d", gx, gz)
+			
+			drop.inactive = not activeGrids[key]
 		end
 	end
 	
@@ -197,7 +224,7 @@ local function processTick()
 		end
 	end
 	
-	-- 3. Cap Prune
+	-- 3. Cap Prune (오래된 순 제거)
 	if dropCount > Balance.DROP_CAP then
 		pruneOldestDrops()
 	end

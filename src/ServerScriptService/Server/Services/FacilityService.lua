@@ -16,7 +16,9 @@ local BuildService
 local Balance
 local RecipeService
 local WorldDropService
+local TechService    -- Phase 6: 기술 해금 검증 (Relinquish 어뷰징 방지)
 local PalboxService  -- Phase 5-5: 팰 작업 배치
+local PalAIService   -- Phase 7-5: 팰 AI 및 비주얼
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
@@ -146,6 +148,14 @@ local function lazyUpdate(runtime)
 		return
 	end
 	
+	-- [보안/기획] 기술 해금 검증 (Relinquish 어뷰징 방지)
+	-- 시설 소유자가 해당 시설에 대한 기술 권한을 잃었으면 가동 중단
+	if TechService and not TechService.isFacilityUnlocked(runtime.ownerId, runtime.facilityId) then
+		runtime.state = Enums.FacilityState.IDLE
+		runtime.lastUpdateAt = now
+		return
+	end
+
 	local facilityData = DataService.getFacility(runtime.facilityId)
 	if not facilityData then
 		runtime.lastUpdateAt = now
@@ -160,98 +170,102 @@ local function lazyUpdate(runtime)
 		return
 	end
 	
-	-- 연료 기반 시설: 가동 가능한 시간 계산
-	local activeTime = deltaTime
-	if facilityData.fuelConsumption > 0 then
-		-- 현재 연소 중인 연료 시간이 부족하면 연료 슬롯에서 가져오기
-		if runtime.currentFuel < deltaTime * facilityData.fuelConsumption then
-			while runtime.fuelSlot and runtime.fuelSlot.count > 0 and runtime.currentFuel < deltaTime * facilityData.fuelConsumption do
-				local itemData = DataService.getItem(runtime.fuelSlot.itemId)
-				if itemData and itemData.fuelValue then
-					runtime.currentFuel = runtime.currentFuel + itemData.fuelValue
-					runtime.fuelSlot.count = runtime.fuelSlot.count - 1
-					if runtime.fuelSlot.count <= 0 then
-						runtime.fuelSlot = nil
-					end
-				else
-					break 
+	-- [수정] 연료 차감 로직을 생산 로직과 통합 (아이템 생산 시간만큼만 연료 차감)
+	local recipe = runtime.currentRecipeId and DataService.getRecipe(runtime.currentRecipeId)
+	local effectiveCraftTime = 1
+	if recipe then
+		local creatureBonus = 0
+		if runtime.assignedPalUID and runtime.assignedPalOwnerId and PalboxService then
+			local pal = PalboxService.getPal(runtime.assignedPalOwnerId, runtime.assignedPalUID)
+			if pal and pal.stats then
+				local minHunger = Balance.PAL_MIN_WORK_HUNGER or 15
+				local minSan = Balance.PAL_MIN_WORK_SAN or 20
+				if (pal.stats.hunger or 0) >= minHunger and (pal.stats.san or 0) >= minSan then
+					creatureBonus = ((pal.workPower or 1) - 1) * 0.5
 				end
+			elseif pal and pal.workPower then
+				creatureBonus = (pal.workPower - 1) * 0.5
 			end
 		end
+		local context = { facilityId = runtime.facilityId, creatureBonus = creatureBonus }
+		effectiveCraftTime = math.max(0.1, RecipeService.calculateCraftTime(runtime.currentRecipeId, context))
+	end
+
+	-- 생산 가능한 최대 개수 (재료 및 슬롯 제한 기준)
+	local maxCanProduceByInput = (runtime.inputSlot and runtime.inputSlot.count or 0)
+	if maxCanProduceByInput > 0 and recipe and facilityData.hasOutputSlot then
+		local totalOutput = 0
+		for _, count in pairs(runtime.outputSlot) do totalOutput = totalOutput + count end
+		local remainingOutputCap = (Balance.MAX_FACILITY_OUTPUT or 1000) - totalOutput
 		
-		-- 최종적으로 버틸 수 있는 시간
-		local fuelCapTime = runtime.currentFuel / facilityData.fuelConsumption
-		activeTime = math.min(deltaTime, fuelCapTime)
+		local recipeOutputSum = 0
+		for _, out in ipairs(recipe.outputs) do recipeOutputSum = recipeOutputSum + (out.count or 1) end
 		
-		-- 연료 차감
-		runtime.currentFuel = math.max(0, runtime.currentFuel - activeTime * facilityData.fuelConsumption)
+		if recipeOutputSum > 0 then
+			local maxProduceByCap = math.floor(remainingOutputCap / recipeOutputSum)
+			maxCanProduceByInput = math.min(maxCanProduceByInput, maxProduceByCap)
+		end
+	end
+
+	-- 작업을 지속할 수 있는 최대 시간 (초)
+	local timeNeededForFullWork = (maxCanProduceByInput * effectiveCraftTime) - runtime.processProgress
+	if maxCanProduceByInput <= 0 then timeNeededForFullWork = 0 end
+	
+	-- 연료 보충 (연료가 필요한데 부족한 경우)
+	if facilityData.fuelConsumption > 0 and runtime.currentFuel < math.min(deltaTime, timeNeededForFullWork) * facilityData.fuelConsumption then
+		while runtime.fuelSlot and runtime.fuelSlot.count > 0 and runtime.currentFuel < deltaTime * facilityData.fuelConsumption do
+			local itemData = DataService.getItem(runtime.fuelSlot.itemId)
+			if itemData and itemData.fuelValue then
+				runtime.currentFuel = runtime.currentFuel + itemData.fuelValue
+				runtime.fuelSlot.count = runtime.fuelSlot.count - 1
+				if runtime.fuelSlot.count <= 0 then runtime.fuelSlot = nil end
+			else break end
+		end
+	end
+
+	-- 실제 가동 시간 (델타타임, 연료 한트, 작업 가능 시간 중 최소값)
+	local fuelCapTime = (facilityData.fuelConsumption > 0) and (runtime.currentFuel / facilityData.fuelConsumption) or deltaTime
+	local workTime = math.max(0, math.min(deltaTime, fuelCapTime, timeNeededForFullWork))
+	
+	-- 연료 차감 (실제 한 일만큼만)
+	if facilityData.fuelConsumption > 0 then
+		runtime.currentFuel = math.max(0, runtime.currentFuel - workTime * facilityData.fuelConsumption)
 	end
 	
-	-- 제작 진행 계산
-	if activeTime > 0 and runtime.currentRecipeId then
-		local recipe = DataService.getRecipe(runtime.currentRecipeId)
-		if recipe then
-			-- [Phase 5-5] 팰 workPower 보너스 계산
-			local creatureBonus = 0
-			if runtime.assignedPalUID and runtime.assignedPalOwnerId and PalboxService then
-				local pal = PalboxService.getPal(runtime.assignedPalOwnerId, runtime.assignedPalUID)
-				if pal and pal.workPower then
-					-- workPower 2 = 50% 속도 증가 (0.5 보너스)
-					creatureBonus = (pal.workPower - 1) * 0.5
+	-- 생산 결과 적용
+	if recipe and workTime >= 0 then
+		local totalTime = workTime + runtime.processProgress
+		local producedCount = math.floor(totalTime / effectiveCraftTime)
+		
+		if producedCount > 0 then
+			-- 재료 차감
+			runtime.inputSlot.count = runtime.inputSlot.count - producedCount
+			if runtime.inputSlot.count <= 0 then runtime.inputSlot = nil end
+			
+			-- 산출물 추가
+			if facilityData.hasOutputSlot then
+				runtime.outputSlot = runtime.outputSlot or {}
+				for _, out in ipairs(recipe.outputs) do
+					runtime.outputSlot[out.itemId] = (runtime.outputSlot[out.itemId] or 0) + (out.count or 1) * producedCount
 				end
 			end
 			
-			local context = { facilityId = runtime.facilityId, creatureBonus = creatureBonus }
-			local effectiveCraftTime = RecipeService.calculateCraftTime(runtime.currentRecipeId, context)
-			-- [FIX] 최소 제작 시간 보장 (무한 루프 방지)
-			effectiveCraftTime = math.max(0.1, effectiveCraftTime)
-            
-			local remainingTime = activeTime
-			local iterations = 0
-			local MAX_ITERATIONS = 1000 -- 자원 소모 방지 및 서버 크래시 방지용 최대 틱
+			runtime.processProgress = totalTime - (producedCount * effectiveCraftTime)
 			
-			while remainingTime > 0 and runtime.inputSlot and runtime.inputSlot.count > 0 and iterations < MAX_ITERATIONS do
-				iterations = iterations + 1
-				
-				-- 현재 아이템의 남은 제작 시간
-				local timeNeeded = effectiveCraftTime - runtime.processProgress
-				
-				if remainingTime >= timeNeeded then
-					-- 제작 완료!
-					remainingTime = remainingTime - timeNeeded
-					runtime.processProgress = 0
-					
-					-- Input 소모
-					runtime.inputSlot.count = runtime.inputSlot.count - 1
-					if runtime.inputSlot.count <= 0 then
-						runtime.inputSlot = nil
-					end
-					
-					-- [FIX] 다중 결과물 수집 (Multiple Outputs)
-					if facilityData.hasOutputSlot then
-						if recipe.outputs and #recipe.outputs > 0 then
-							runtime.outputSlot = runtime.outputSlot or {}
-							
-							for _, outputItem in ipairs(recipe.outputs) do
-								local itemId = outputItem.itemId
-								local addCount = outputItem.count or 1
-								runtime.outputSlot[itemId] = (runtime.outputSlot[itemId] or 0) + addCount
-							end
-							
-							-- Output 캡 체크 (전체 개수 기준)
-							local totalOutput = 0
-							for _, count in pairs(runtime.outputSlot) do totalOutput = totalOutput + count end
-							if totalOutput >= (Balance.MAX_FACILITY_OUTPUT or 1000) then
-								break
-							end
-						end
-					end
-				else
-					-- 시간 부족 → 진행률만 갱신
-					runtime.processProgress = runtime.processProgress + remainingTime
-					remainingTime = 0
-				end
+			-- [추가] 시설 내구도 소모
+			if BuildService and BuildService.takeDamage then
+				BuildService.takeDamage(structureId, (Balance.FACILITY_WORK_HP_LOSS or 0.1) * producedCount)
 			end
+		else
+			runtime.processProgress = totalTime
+		end
+		
+		-- [추가] 배정된 팰 유지비 소모 (일한 시간만큼)
+		if runtime.assignedPalUID and runtime.assignedPalOwnerId and PalboxService and workTime > 0 then
+			PalboxService.modifyPalStats(runtime.assignedPalOwnerId, runtime.assignedPalUID, {
+				hunger = -(workTime * (Balance.PAL_WORK_HUNGER_COST or 2) / 10), -- 초당 소모량 평준화 (10초 작업 기준)
+				san = -(workTime * (Balance.PAL_WORK_SAN_COST or 1) / 10)
+			})
 		end
 	end
 	
@@ -289,6 +303,11 @@ function FacilityService.unregister(structureId: string)
 	print(string.format("[FacilityService] Unregistered facility: %s", structureId))
 end
 
+--- 시설 런타임 정보 조회 (내부 상태 확인용)
+function FacilityService.getRuntime(structureId: string)
+	return facilityStates[structureId]
+end
+
 --- 시설 정보 조회 (Lazy Update 트리거)
 function FacilityService.getInfo(player: Player, structureId: string)
 	local runtime = facilityStates[structureId]
@@ -318,6 +337,11 @@ function FacilityService.getInfo(player: Player, structureId: string)
 		end
 	end
 	
+	-- [보안/기획] 기술 해금 검증 (Relinquish 어뷰징 방지)
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	end
+
 	-- 🔥 Lazy Update 실행
 	lazyUpdate(runtime)
 	
@@ -328,7 +352,13 @@ function FacilityService.getInfo(player: Player, structureId: string)
 		local creatureBonus = 0
 		if runtime.assignedPalUID and runtime.assignedPalOwnerId and PalboxService then
 			local pal = PalboxService.getPal(runtime.assignedPalOwnerId, runtime.assignedPalUID)
-			if pal and pal.workPower then
+			if pal and pal.stats then
+				local minHunger = Balance.PAL_MIN_WORK_HUNGER or 15
+				local minSan = Balance.PAL_MIN_WORK_SAN or 20
+				if (pal.stats.hunger or 0) >= minHunger and (pal.stats.san or 0) >= minSan then
+					creatureBonus = ((pal.workPower or 1) - 1) * 0.5
+				end
+			elseif pal and pal.workPower then
 				creatureBonus = (pal.workPower - 1) * 0.5
 			end
 		end
@@ -347,6 +377,7 @@ function FacilityService.getInfo(player: Player, structureId: string)
 		processProgress = runtime.processProgress,
 		currentRecipeId = runtime.currentRecipeId,
 		effectiveCraftTime = effectiveCraftTime,
+		lastUpdateAt = runtime.lastUpdateAt,
 		-- Phase 5-5: 팰 배치 정보
 		assignedPalUID = runtime.assignedPalUID,
 		assignedPalOwnerId = runtime.assignedPalOwnerId,
@@ -361,10 +392,11 @@ function FacilityService.addFuel(player: Player, structureId: string, invSlot: n
 	end
 	
 	local facilityData = DataService.getFacility(runtime.facilityId)
-	if not facilityData or not facilityData.hasFuelSlot then
-		return false, Enums.ErrorCode.BAD_REQUEST, nil
+	-- [보안/기획] 기술 해금 검증
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
 	end
-	
+
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
 	
@@ -421,6 +453,7 @@ function FacilityService.addFuel(player: Player, structureId: string, invSlot: n
 		state = runtime.state,
 		currentFuel = runtime.currentFuel,
 		fuelSlot = runtime.fuelSlot,
+		lastUpdateAt = runtime.lastUpdateAt,
 	})
 	
 	print(string.format("[FacilityService] Added fuel to %s: %s (Queued)",
@@ -440,6 +473,11 @@ function FacilityService.addInput(player: Player, structureId: string, invSlot: 
 		return false, Enums.ErrorCode.BAD_REQUEST, nil
 	end
 	
+	-- [보안/기획] 기술 해금 검증
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	end
+
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
 	
@@ -507,6 +545,7 @@ function FacilityService.addInput(player: Player, structureId: string, invSlot: 
 		state = runtime.state,
 		inputSlot = runtime.inputSlot,
 		currentRecipeId = runtime.currentRecipeId,
+		lastUpdateAt = runtime.lastUpdateAt,
 	})
 	
 	print(string.format("[FacilityService] Added input to %s: %s x%d",
@@ -521,6 +560,11 @@ function FacilityService.collectOutput(player: Player, structureId: string)
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
+	-- [보안/기획] 기술 해금 검증
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	end
+
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
 	
@@ -559,6 +603,7 @@ function FacilityService.collectOutput(player: Player, structureId: string)
 			structureId = structureId,
 			state = runtime.state,
 			outputSlot = runtime.outputSlot,
+			lastUpdateAt = runtime.lastUpdateAt,
 		})
 		
 		return true, nil, { added = totalAdded }
@@ -574,6 +619,11 @@ function FacilityService.removeInput(player: Player, structureId: string)
 		return false, Enums.ErrorCode.SLOT_EMPTY, nil
 	end
 	
+	-- [보안/기획] 기술 해금 검증
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	end
+
 	-- Lazy Update 선행 (중도 포기 시 진행률 초기화)
 	lazyUpdate(runtime)
 	
@@ -596,6 +646,7 @@ function FacilityService.removeInput(player: Player, structureId: string)
 			structureId = structureId,
 			state = runtime.state,
 			inputSlot = runtime.inputSlot,
+			lastUpdateAt = runtime.lastUpdateAt,
 		})
 		
 		return true, nil, { added = added }
@@ -612,6 +663,11 @@ function FacilityService.removeFuel(player: Player, structureId: string)
 		return false, Enums.ErrorCode.SLOT_EMPTY, nil
 	end
 	
+	-- [보안/기획] 기술 해금 검증
+	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	end
+
 	lazyUpdate(runtime)
 	
 	local itemId = runtime.fuelSlot.itemId
@@ -633,6 +689,7 @@ function FacilityService.removeFuel(player: Player, structureId: string)
 			structureId = structureId,
 			state = runtime.state,
 			fuelSlot = runtime.fuelSlot,
+			lastUpdateAt = runtime.lastUpdateAt,
 		})
 		
 		return true, nil, { added = added }
@@ -720,6 +777,11 @@ function FacilityService.assignPal(userId: number, structureId: string, palUID: 
 	-- PalboxService에 상태 업데이트
 	PalboxService.setAssignedFacility(userId, palUID, structureId)
 	
+	-- [추가] 팰 모델 스폰 (시각화)
+	if PalAIService then
+		PalAIService.onPalAssigned(userId, palUID, structureId)
+	end
+	
 	print(string.format("[FacilityService] Pal %s assigned to facility %s by user %d", palUID, structureId, userId))
 	return true, nil
 end
@@ -750,6 +812,11 @@ function FacilityService.unassignPal(userId: number, structureId: string): (bool
 	-- PalboxService에 상태 업데이트
 	if PalboxService then
 		PalboxService.setAssignedFacility(userId, palUID, nil)
+	end
+	
+	-- [추가] 팰 모델 제거
+	if PalAIService then
+		PalAIService.onPalUnassigned(palUID)
 	end
 	
 	print(string.format("[FacilityService] Pal %s unassigned from facility %s by user %d", palUID, structureId, userId))
@@ -871,7 +938,7 @@ end
 -- Initialization
 --========================================
 
-function FacilityService.Init(_NetController, _DataService, _InventoryService, _BuildService, _Balance, _RecipeService, _WorldDropService)
+function FacilityService.Init(_NetController, _DataService, _InventoryService, _BuildService, _Balance, _RecipeService, _WorldDropService, _TechService)
 	NetController = _NetController
 	DataService = _DataService
 	InventoryService = _InventoryService
@@ -879,6 +946,7 @@ function FacilityService.Init(_NetController, _DataService, _InventoryService, _
 	Balance = _Balance
 	RecipeService = _RecipeService
 	WorldDropService = _WorldDropService
+	TechService = _TechService
 	
 	-- PlayerRemoving: 별도 정리 불필요 (시설 상태는 structureId 기반)
 	
@@ -889,6 +957,12 @@ end
 function FacilityService.SetPalboxService(_PalboxService)
 	PalboxService = _PalboxService
 	print("[FacilityService] PalboxService injected")
+end
+
+--- PalAIService 주입 (Phase 7-5)
+function FacilityService.SetPalAIService(_PalAIService)
+	PalAIService = _PalAIService
+	print("[FacilityService] PalAIService injected")
 end
 
 --- 핸들러 맵 반환 (ServerInit에서 NetController에 등록)

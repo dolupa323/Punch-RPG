@@ -147,15 +147,22 @@ function StaminaService._tickLoop()
 		
 		-- 스프린트 중이면 소모
 		if data.isSprinting then
-			local cost = Balance.SPRINT_STAMINA_COST * 0.1 -- 0.1초 단위
-			data.current = math.max(0, data.current - cost)
-			data.lastUseTime = now
-			changed = true
+			-- [FIX] 실제 이동 중인지 서버에서 검증 (가만히 서서 Shift만 누르는 경우 방지)
+			local character = player.Character
+			local humanoid = character and character:FindFirstChild("Humanoid")
+			local isMoving = humanoid and humanoid.MoveDirection.Magnitude > 0
 			
-			-- 달리기 시 배고픔 소모 연동
-			local HSuccess, HungerService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.HungerService) end)
-			if HSuccess and HungerService then
-				HungerService.consumeHunger(userId, Balance.HUNGER_SPRINT_COST * 0.1)
+			if isMoving then
+				local cost = Balance.SPRINT_STAMINA_COST * 0.1 -- 0.1초 단위
+				data.current = math.max(0, data.current - cost)
+				data.lastUseTime = now
+				changed = true
+				
+				-- 달리기 시 배고픔 소모 연동
+				local HSuccess, HungerService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.HungerService) end)
+				if HSuccess and HungerService then
+					HungerService.consumeHunger(userId, Balance.HUNGER_SPRINT_COST * 0.1)
+				end
 			end
 			
 			-- 스태미나 바닥나면 스프린트 중지
@@ -177,7 +184,19 @@ function StaminaService._tickLoop()
 			end
 		end
 		
-		-- 클라이언트에 동기화 (변경 있을 때만, 0.5초마다)
+		-- [Anti-Cheat] 속도 검증 (서버 사이드 권위 유지)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChild("Humanoid")
+		if humanoid then
+			local maxAllowedSpeed = Balance.BASE_WALK_SPEED * (data.isSprinting and Balance.SPRINT_SPEED_MULT or 1.0)
+			-- 무게 초과 등 다른 감속 요인이 있을 수 있으므로, '초과'하는 경우만 제재
+			if humanoid.WalkSpeed > maxAllowedSpeed + 0.1 then
+				-- warn(string.format("[StaminaService] Speed violation detected for %s: %.1f > %.1f", player.Name, humanoid.WalkSpeed, maxAllowedSpeed))
+				humanoid.WalkSpeed = maxAllowedSpeed
+			end
+		end
+
+		-- 클라이언트에 동기화 (변경 있을 때만)
 		if changed then
 			syncStaminaToClient(player)
 		end
@@ -264,6 +283,13 @@ function StaminaService.performDodge(player: Player, direction: Vector3?): { suc
 		return { success = false, reason = "no_stamina" }
 	end
 	
+	-- [FIX] 공중 구르기(Air Dash) 방지
+	local character = player.Character
+	local humanoid = character and character:FindFirstChild("Humanoid")
+	if not humanoid or humanoid.FloorMaterial == Enum.Material.Air then
+		return { success = false, reason = "not_grounded" }
+	end
+
 	-- 이미 구르기 중
 	if data.isDodging then
 		return { success = false, reason = "already_dodging" }

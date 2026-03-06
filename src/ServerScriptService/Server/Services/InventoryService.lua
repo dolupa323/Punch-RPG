@@ -190,7 +190,7 @@ end
 --========================================
 
 --- 변경된 슬롯 델타 이벤트 발생 및 SaveService 동기화
-local function _emitChanged(player: Player, changes: {{slot: number, itemId: string?, count: number?, empty: boolean?}})
+local function _emitChanged(player: Player, changes: {{slot: number, itemId: string?, count: number?, empty: boolean?}}, fullSyncData: any?)
 	local userId = player.UserId
 	local inv = playerInventories[userId]
 	
@@ -217,16 +217,23 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 		EquipService.equipItem(player, item and item.itemId)
 	end
 
-	if NetController and #changes > 0 then
+	if NetController then
 		local totalWeight = _getTotalWeight(inv)
 		local maxWeight = _getMaxWeight(userId)
 
-		NetController.FireClient(player, "Inventory.Changed", {
+		local payload = {
 			userId = userId,
-			changes = changes,
 			totalWeight = totalWeight,
 			maxWeight = maxWeight,
-		})
+		}
+		
+		if fullSyncData then
+			payload.fullInventory = fullSyncData
+		else
+			payload.changes = changes
+		end
+
+		NetController.FireClient(player, "Inventory.Changed", payload)
 	end
 end
 
@@ -980,19 +987,10 @@ function InventoryService.sort(userId: number)
 	end
 	
 	local player = Players:GetPlayerByUserId(userId)
-	local changes = {}
-	
-	for i, item in ipairs(compressed) do
-		inv.slots[i] = item
-	end
-	
-	-- 모든 슬롯 델타 생성 (전량 전송)
-	for slot = 1, Balance.INV_SLOTS do
-		table.insert(changes, _makeChange(inv, slot))
-	end
 	
 	if player then
-		_emitChanged(player, changes)
+		-- [최적화] 모든 슬롯 델타 대신 FullStack 전송
+		_emitChanged(player, {}, inv.slots)
 		
 		-- [추가 FIX] 정렬 후 현재 활성 슬롯(1~8)에 대한 시각적 장착 갱신 강제 수행
 		local active = playerActiveSlots[userId] or 1
@@ -1001,7 +999,7 @@ function InventoryService.sort(userId: number)
 			EquipService.equipItem(player, item and item.itemId)
 		end
 		
-		-- 클라이언트에 핫바 동기화 알림 (필요시)
+		-- 클라이언트에 핫바 동기화 알림
 		NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = active })
 	end
 end

@@ -27,6 +27,9 @@ local unlockedRecipes = {}    -- [userId] = { [recipeId] = true }
 local unlockedFacilities = {} -- [userId] = { [facilityId] = true }
 local unlockedFeatures = {}   -- [userId] = { [featureId] = true }
 
+local restrictedRecipes = {}    -- [recipeId] = true (기술 트리에 포함된 경우)
+local restrictedFacilities = {} -- [facilityId] = true
+
 -- Tech unlock callback (Phase 8)
 local unlockCallback = nil
 
@@ -47,6 +50,16 @@ local function _loadTechData()
 	for techId, tech in pairs(techData) do
 		techDataMap[techId] = tech
 		count = count + 1
+		
+		-- 제한 목록 구축 (Relinquish 체크용)
+		if tech.unlocks then
+			if tech.unlocks.recipes then
+				for _, rId in ipairs(tech.unlocks.recipes) do restrictedRecipes[rId] = true end
+			end
+			if tech.unlocks.facilities then
+				for _, fId in ipairs(tech.unlocks.facilities) do restrictedFacilities[fId] = true end
+			end
+		end
 	end
 	
 	print(string.format("[TechService] Loaded %d tech nodes", count))
@@ -337,6 +350,9 @@ end
 --- @param recipeId string
 --- @return boolean
 function TechService.isRecipeUnlocked(userId: number, recipeId: string): boolean
+	-- 기술 트리에 아예 없는 레시피는 기본적으로 허용
+	if not restrictedRecipes[recipeId] then return true end
+
 	_initPlayerUnlocks(userId)
 	local recipes = unlockedRecipes[userId]
 	return recipes and recipes[recipeId] == true or false
@@ -347,6 +363,9 @@ end
 --- @param facilityId string
 --- @return boolean
 function TechService.isFacilityUnlocked(userId: number, facilityId: string): boolean
+	-- 기술 트리에 아예 없는 시설은 기본적으로 허용 (예: 원시 캠프파이어 등)
+	if not restrictedFacilities[facilityId] then return true end
+
 	_initPlayerUnlocks(userId)
 	local facilities = unlockedFacilities[userId]
 	return facilities and facilities[facilityId] == true or false

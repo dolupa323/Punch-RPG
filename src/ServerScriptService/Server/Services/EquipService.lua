@@ -12,14 +12,82 @@ local EquipService = {}
 --========================================
 local initialized = false
 local DataService = nil
+local TechService = nil -- Phase 6: 기술 해금 검증 (Relinquish 어뷰징 방지)
+
+-- 모델 캐시 (O(1) 조회를 위한 인덱스)
+local modelCache = {} 
+local armorCache = {}
 
 --========================================
 -- Public API
 --========================================
 
-function EquipService.Init(_DataService)
+--- 모델 인덱싱 (서버 부팅 시 1회 실행)
+local function indexAssets()
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then return end
+	
+	-- 1. 아이템 모델 인덱싱 (ItemModels, Models 폴더)
+	local folders = {assets:FindFirstChild("ItemModels"), assets:FindFirstChild("Models"), assets}
+	for _, folder in ipairs(folders) do
+		if not folder then continue end
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("Model") or child:IsA("BasePart") or child:IsA("MeshPart") or child:IsA("Tool") then
+				-- 원본 이름 저장
+				if not modelCache[child.Name] then
+					modelCache[child.Name] = child
+				end
+				-- 정규화된 이름 저장 (검색용)
+				local norm = child.Name:lower():gsub("_", "")
+				if not modelCache[norm] then
+					modelCache[norm] = child
+				end
+			end
+		end
+	end
+	
+	-- 2. 아머 모델 인덱싱 (ArmorModels, Models 폴더)
+	local armorFolders = {assets:FindFirstChild("ArmorModels"), assets:FindFirstChild("Models")}
+	for _, folder in ipairs(armorFolders) do
+		if not folder then continue end
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("Accessory") or child:IsA("Model") then
+				armorCache[child.Name] = child
+			end
+		end
+	end
+	
+	-- [특수] 볼라 모델 별칭 (Pouch)
+	local pouch = modelCache["POUCH"] or modelCache["Pouch"]
+	if not pouch then
+		-- 하위 트리에 있을 경우 대비 (딱 1번만 수행)
+		for _, folder in ipairs(folders) do
+			if not folder then continue end
+			for _, child in ipairs(folder:GetDescendants()) do
+				if child.Name:upper() == "POUCH" then
+					pouch = child
+					break
+				end
+			end
+			if pouch then break end
+		end
+	end
+	if pouch then
+		modelCache["BOLA_SPECIAL_POUCH"] = pouch
+	end
+	
+	print(string.format("[EquipService] Indexed %d models and %d armor sets", 
+		table.count and table.count(modelCache) or 0, 
+		table.count and table.count(armorCache) or 0))
+end
+
+function EquipService.Init(_DataService, _TechService)
 	if initialized then return end
 	DataService = _DataService
+	TechService = _TechService
+	
+	indexAssets()
+	
 	initialized = true
 	print("[EquipService] Initialized")
 end
@@ -73,48 +141,25 @@ function EquipService.equipItem(player: Player, itemId: string?)
 			return 
 		end
 		
-		-- 3. 에셋 탐색
-		local assets = ReplicatedStorage:FindFirstChild("Assets")
-		local modelsFolder = assets and (assets:FindFirstChild("ItemModels") or assets:FindFirstChild("Models"))
-		
-		if modelsFolder then
-			local allNames = {}
-			for _, child in ipairs(modelsFolder:GetChildren()) do table.insert(allNames, child.Name) end
-			print(string.format("[EquipService] ItemModels contents: [%s]", table.concat(allNames, ", ")))
+		-- [보안/기획] 기술 해금 체크 (Relinquish 어뷰징 방지)
+		if TechService and not TechService.isRecipeUnlocked(player.UserId, itemId) then
+			warn(string.format("[EquipService] Item %s is locked for player %d", itemId, player.UserId))
+			EquipService.unequipAll(player)
+			isEquipping[player.UserId] = nil
+			return
 		end
-
-		local assets = ReplicatedStorage:FindFirstChild("Assets")
-		local searchRoot = (assets and (assets:FindFirstChild("ItemModels") or assets:FindFirstChild("Models") or assets)) or ReplicatedStorage
 		
+		-- 3. 에셋 탐색 (캐시 O(1) 조회)
 		local template = nil
-		-- [설계] 볼라(BOLA) 아이템만 손에 들었을 때 "POUCH" 모델로 표시
 		local isBola = itemId:upper():match("BOLA$") or (itemData.optimalTool == "BOLA")
 		
 		if isBola then
-			template = searchRoot:FindFirstChild("POUCH") or searchRoot:FindFirstChild("Pouch")
-			-- 못 찾으면 하위 폴더까지 깊이 탐색
-			if not template then
-				for _, child in ipairs(searchRoot:GetDescendants()) do
-					if child.Name:upper() == "POUCH" then
-						template = child
-						break
-					end
-				end
-			end
+			template = modelCache["BOLA_SPECIAL_POUCH"]
 		end
 		
-		-- 기본 탐색 (POUCH가 아니거나 못 찾은 경우 각 아이템 고유 모델 사용)
 		if not template then
-			template = searchRoot:FindFirstChild(itemId)
-			if not template then
-				local searchTarget = itemId:lower():gsub("_", "")
-				for _, child in ipairs(searchRoot:GetChildren()) do
-					if child.Name:lower():gsub("_", "") == searchTarget then 
-						template = child 
-						break 
-					end
-				end
-			end
+			-- 정방향 및 정규화된 이름으로 조회
+			template = modelCache[itemId] or modelCache[itemId:lower():gsub("_", "")]
 		end
 
 		-- 4. 도구 조립
@@ -364,11 +409,7 @@ end
 
 --- 3D 아머 모델 적용 내부 함수 (Accessory 방식)
 function EquipService._applyArmorModel(char, modelId)
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local armorFolder = assets and (assets:FindFirstChild("ArmorModels") or assets:FindFirstChild("Models"))
-	if not armorFolder then return end
-	
-	local template = armorFolder:FindFirstChild(modelId)
+	local template = armorCache[modelId]
 	if template then
 		local acc = template:Clone()
 		if acc:IsA("Accessory") then

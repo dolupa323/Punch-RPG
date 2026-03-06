@@ -25,6 +25,7 @@ local mockData = {}
 DataStoreClient.Keys = {
 	PLAYER_PREFIX = "PLAYER_",
 	WORLD_MAIN = "WORLD_MAIN",
+	BASE_PARTITION_PREFIX = "BASE_", -- 베이스 단위 파티션 (Phase 11-2 최적화)
 }
 
 --- 플레이어 키 생성

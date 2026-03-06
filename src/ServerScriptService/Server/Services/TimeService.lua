@@ -246,8 +246,13 @@ function TimeService.Init(netController: any)
 	-- 초기 페이즈 계산
 	currentPhase = _computePhase()
 	
-	-- Heartbeat 연결 (페이즈 변경 감지)
-	RunService.Heartbeat:Connect(_update)
+	-- [FIX] Heartbeat를 1초 틱으로 최적화 (서버 자원 절약)
+	task.spawn(function()
+		while true do
+			_update()
+			task.wait(1)
+		end
+	end)
 	
 	initialized = true
 	print(string.format("[TimeService] Initialized - Phase: %s, DayLength: %d, DayDuration: %d, NightDuration: %d",

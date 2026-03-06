@@ -36,6 +36,7 @@ local PlayerStatService = nil -- Phase 6 연동
 -- structures[structureId] = { id, facilityId, position, rotation, health, ownerId, placedAt }
 local structures = {}
 local structureCount = 0
+local orderedIds = {} -- 설치 순서 기록 (Prune 최적화용)
 
 -- Quest callback (Phase 8)
 local questCallback = nil
@@ -61,18 +62,15 @@ end
 -- Internal: 충돌 검사
 --========================================
 local function checkCollision(position: Vector3, facilityId: string): boolean
-	local facilityData = DataService.getFacility(facilityId)
 	local collisionRadius = Balance.BUILD_COLLISION_RADIUS
 	
-	-- 기존 구조물과 충돌 검사
-	for _, struct in pairs(structures) do
-		local dist = distanceBetween(position, struct.position)
-		if dist < collisionRadius * 2 then
-			return true  -- 충돌
-		end
-	end
+	-- [최적화] O(N) 순회 대신 공간 쿼리(Spatial Query) 사용
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Include
+	overlapParams.FilterDescendantsInstances = { facilitiesFolder }
 	
-	return false  -- 충돌 없음
+	local parts = workspace:GetPartBoundsInRadius(position, collisionRadius * 1.5, overlapParams)
+	return #parts > 0
 end
 
 --========================================
@@ -93,10 +91,21 @@ local function validatePosition(position: Vector3): (boolean, string?)
 	
 	local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 	if not result then
-		return false, Enums.ErrorCode.INVALID_POSITION
+		return false, Enums.ErrorCode.INVALID_POSITION, nil
 	end
 	
-	return true, nil
+	-- 지지대(Structure) 찾기
+	local parentId = nil
+	local hitInstance = result.Instance
+	if hitInstance then
+		-- 부모 모델에서 StructureId 속성 찾기
+		local model = hitInstance:FindFirstAncestorWhichIsA("Model")
+		if model then
+			parentId = model:GetAttribute("StructureId")
+		end
+	end
+	
+	return true, nil, parentId
 end
 
 --========================================
@@ -169,19 +178,10 @@ local function pruneOldestIfNeeded()
 		return
 	end
 	
-	-- 가장 오래된 구조물 찾기
-	local oldest = nil
-	local oldestTime = math.huge
-	
-	for id, struct in pairs(structures) do
-		if struct.placedAt < oldestTime then
-			oldestTime = struct.placedAt
-			oldest = struct
-		end
-	end
-	
-	if oldest then
-		BuildService.removeStructure(oldest.id, "CAP_PRUNE")
+	-- [최적화] O(N) 순회 대신 orderedIds 큐의 맨 앞(가장 오래된 것) 제거
+	local oldestId = orderedIds[1]
+	if oldestId then
+		BuildService.removeStructure(oldestId, "CAP_PRUNE")
 	end
 end
 
@@ -346,9 +346,15 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	end
 	
 	-- 5. 위치 검증
-	local posOk, posErr = validatePosition(position)
+	local posOk, posErr, parentId = validatePosition(position)
 	if not posOk then
 		return false, posErr, nil
+	end
+	
+	-- 지면이 아닌데 지지대(parentId)도 없으면 공중부양 금지 (Phase 11-4)
+	-- 단, 특정 시설(예: 공중 설치 가능 시설)이 있다면 예외 처리 필요
+	if position.Y > Balance.BUILD_MIN_GROUND_DIST + 2 and not parentId then
+		return false, Enums.ErrorCode.INVALID_POSITION, nil
 	end
 	
 	-- 6. 재료 검증
@@ -375,10 +381,12 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 		health = facilityData.maxHealth,
 		ownerId = userId,
 		placedAt = os.time(),
+		parentId = parentId, -- 지지대 기록
 	}
 	
 	structures[structureId] = structure
 	structureCount = structureCount + 1
+	table.insert(orderedIds, structureId)
 	
 	-- 10. Workspace에 모델 생성
 	local model = spawnFacilityModel(facilityId, position, actualRotation, structureId, userId)
@@ -401,15 +409,28 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 		FacilityService.register(structureId, facilityId, userId)
 	end
 	
-	-- 13. SaveService에 구조물 영속화
-	if SaveService and SaveService.updateWorldState then
-		SaveService.updateWorldState(function(state)
-			if not state.structures then
-				state.structures = {}
-			end
-			state.structures[structureId] = structure
-			return state
-		end)
+	-- 13. SaveService에 구조물 영속화 (파티셔닝 지원)
+	if SaveService then
+		local zoneOwnerId = BaseClaimService and BaseClaimService.getOwnerAt(position)
+		local baseId = zoneOwnerId and BaseClaimService.getBase(zoneOwnerId) and BaseClaimService.getBase(zoneOwnerId).id
+		
+		if baseId then
+			-- 베이스 파티션에 저장
+			structure.partitionId = baseId
+			SaveService.updatePartition(baseId, function(pState)
+				if not pState then return nil end -- 파티션이 아직 없으면 무시 (BaseClaimService가 생성해야 함)
+				if not pState.structures then pState.structures = {} end
+				pState.structures[structureId] = structure
+				return pState
+			end)
+		else
+			-- 야생(Wilderness)으로 월드 공용 상태에 저장
+			SaveService.updateWorldState(function(state)
+				if not state.wildernessStructures then state.wildernessStructures = {} end
+				state.wildernessStructures[structureId] = structure
+				return state
+			end)
+		end
 	end
 	
 	-- 14. BaseClaimService 연동: 첫 건물 설치 시 베이스 자동 생성 (Phase 7)
@@ -486,15 +507,88 @@ function BuildService.removeStructure(structureId: string, reason: string)
 	structures[structureId] = nil
 	structureCount = structureCount - 1
 	
-	-- SaveService에서 구조물 제거
-	if SaveService and SaveService.updateWorldState then
-		SaveService.updateWorldState(function(state)
-			if state.structures then
-				state.structures[structureId] = nil
-			end
-			return state
-		end)
+	local idx = table.find(orderedIds, structureId)
+	if idx then
+		table.remove(orderedIds, idx)
 	end
+	
+	-- 5. 자원 반환 (Refund)
+	if reason == "PLAYER_REMOVE" or reason == "DESTRUCTION" then
+		local facilityData = DataService.getFacility(structure.facilityId)
+		if facilityData and facilityData.requirements then
+			local ownerId = structure.ownerId
+			local player = ownerId and Players:GetPlayerByUserId(ownerId)
+			
+			for _, req in ipairs(facilityData.requirements) do
+				local itemId = req.itemId
+				local amount = req.amount or 1
+				
+				local added, remaining = 0, amount
+				if player then
+					added, remaining = InventoryService.addItem(ownerId, itemId, amount)
+				end
+				
+				-- 인벤 가득 참 시 월드 드롭
+				if remaining > 0 and WorldDropService then
+					WorldDropService.spawnDrop(structure.position + Vector3.new(0, 2, 0), itemId, remaining)
+				end
+			end
+		end
+	end
+
+	-- 6. 연쇄 파괴 (Structural failure)
+	-- 나를 지지대로 쓰던 아이들 다 파괴
+	for childId, childData in pairs(structures) do
+		if childData.parentId == structureId then
+			task.spawn(function()
+				task.wait(0.1) -- 연쇄 파괴 연출을 위한 미세 지연
+				BuildService.removeStructure(childId, "STRUCTURAL_FAILURE")
+			end)
+		end
+	end
+
+	-- 7. SaveService에서 구조물 제거
+	if SaveService then
+		if structure.partitionId then
+			SaveService.updatePartition(structure.partitionId, function(pState)
+				if pState and pState.structures then
+					pState.structures[structureId] = nil
+				end
+				return pState
+			end)
+		else
+			SaveService.updateWorldState(function(state)
+				if state.wildernessStructures then
+					state.wildernessStructures[structureId] = nil
+				end
+				return state
+			end)
+		end
+	end
+end
+
+--- 건축물 피해 입히기
+function BuildService.takeDamage(structureId: string, amount: number, dealer: Player?): (boolean, number)
+	local structure = structures[structureId]
+	if not structure then return false, 0 end
+	
+	structure.health = math.max(0, structure.health - amount)
+	
+	-- Workspace 모델 속성 업데이트
+	local model = facilitiesFolder:FindFirstChild(structureId)
+	if model then
+		model:SetAttribute("Health", structure.health)
+	end
+	
+	-- 이펙트/사운드 발행
+	emitChanged(structureId, { health = structure.health })
+	
+	if structure.health <= 0 then
+		BuildService.removeStructure(structureId, "DESTRUCTION")
+		return true, 0
+	end
+	
+	return true, structure.health
 end
 
 --========================================
@@ -628,35 +722,75 @@ function BuildService.Init(netController: any, dataService: any, inventoryServic
 		facilitiesFolder.Parent = workspace
 	end
 	
-	-- 월드 상태에서 구조물 로드 (영속화)
+	-- 월드 상태에서 야생 구조물 로드
 	local worldState = saveService.getWorldState()
-	if worldState and worldState.structures then
-		for structureId, struct in pairs(worldState.structures) do
-			structures[structureId] = struct
-			structureCount = structureCount + 1
-			
-			-- Workspace에 모델 생성
-			local pos = struct.position
-			if type(pos) == "table" then
-				pos = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+	if worldState then
+		-- 하위 호환성: 기존 structures도 체크
+		local legacy = worldState.structures or {}
+		local wilderness = worldState.wildernessStructures or {}
+		
+		local function loadStructMap(map)
+			for structureId, struct in pairs(map) do
+				structures[structureId] = struct
+				structureCount = structureCount + 1
+				local pos = struct.position
+				if type(pos) == "table" then
+					pos = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+				end
+				local rot = struct.rotation
+				if type(rot) == "table" then
+					rot = Vector3.new(rot.X or rot.x or 0, rot.Y or rot.y or 0, rot.Z or rot.z or 0)
+				end
+				spawnFacilityModel(struct.facilityId, pos, rot, structureId, struct.ownerId)
 			end
-			local rot = struct.rotation
-			if type(rot) == "table" then
-				rot = Vector3.new(rot.X or rot.x or 0, rot.Y or rot.y or 0, rot.Z or rot.z or 0)
-			end
-			spawnFacilityModel(struct.facilityId, pos, rot, structureId, struct.ownerId)
 		end
-		print(string.format("[BuildService] Loaded %d structures from WorldState", structureCount))
-	else
-		-- 초기화
-		if worldState then
-			worldState.structures = {}
-		end
+
+		loadStructMap(legacy)
+		loadStructMap(wilderness)
+		
+		-- [추가] 설치 순서대로 정렬하여 orderedIds 초기화
+		local temp = {}
+		for id, struct in pairs(structures) do table.insert(temp, struct) end
+		table.sort(temp, function(a, b) return a.placedAt < b.placedAt end)
+		for _, s in ipairs(temp) do table.insert(orderedIds, s.id) end
+		
+		print(string.format("[BuildService] Loaded %d wilderness/legacy structures", structureCount))
 	end
 	
 	initialized = true
-	print(string.format("[BuildService] Initialized - Cap: %d, Range: %d", 
-		Balance.BUILD_STRUCTURE_CAP, Balance.BUILD_RANGE))
+end
+
+--- 파티션 기반 구조물 로드 (BaseClaimService에서 호출)
+function BuildService.loadStructuresFromPartition(partitionId: string)
+	local pState = SaveService.getPartition(partitionId)
+	if not pState or not pState.structures then return end
+	
+	local count = 0
+	for structureId, struct in pairs(pState.structures) do
+		if structures[structureId] then continue end -- 이미 로드됨
+		
+		structures[structureId] = struct
+		structureCount = structureCount + 1
+		count = count + 1
+		table.insert(orderedIds, structureId)
+		
+		local pos = struct.position
+		if type(pos) == "table" then
+			pos = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+		end
+		local rot = struct.rotation
+		if type(rot) == "table" then
+			rot = Vector3.new(rot.X or rot.x or 0, rot.Y or rot.y or 0, rot.Z or rot.z or 0)
+		end
+		spawnFacilityModel(struct.facilityId, pos, rot, structureId, struct.ownerId)
+		
+		-- 신규 로드 시 FacilityService 등록
+		if FacilityService and FacilityService.register then
+			FacilityService.register(structureId, struct.facilityId, struct.ownerId)
+		end
+	end
+	
+	print(string.format("[BuildService] Loaded %d structures from partition %s", count, partitionId))
 end
 
 --- FacilityService 의존성 주입 (ServerInit에서 FacilityService Init 후 호출)

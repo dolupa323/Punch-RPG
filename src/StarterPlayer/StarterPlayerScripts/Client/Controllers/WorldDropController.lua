@@ -5,6 +5,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local NetClient = require(script.Parent.Parent.NetClient)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -24,9 +25,16 @@ local dropCount = 0
 
 -- 드롭 모델 캐시 [dropId] = Model
 local dropModels = {}
+-- 애니메이션 중인 드롭들 [dropId] = { model, startPos, t }
+local animatingDrops = {}
+local renderConn = nil
 
 -- 드롭 모델 폴더
 local dropFolder = nil
+
+-- [OPTIMIZATION] Batch Animation State
+local animatingDrops = {} -- [dropId] = { model, startPos, t }
+local renderConn = nil
 
 --========================================
 -- Helper Functions
@@ -251,28 +259,12 @@ local function createDropModel(dropData)
 		end
 	end)
 	
-	-- 부유 애니메이션
-	task.spawn(function()
-		local startY = dropData.pos.Y
-		local t = 0
-		-- [FIX] IsDestroying 속성 체크를 추가하여 모델 삭제 중 루프가 도는 현상 방지
-		while mainObject and mainObject.Parent and not mainObject:GetAttribute("IsDestroying") do
-			t = t + 0.05
-			local newY = startY + math.sin(t * 2) * 0.3
-			
-			if mainObject:IsA("Model") then
-				-- PrimaryPart가 있을 때만 PivotTo 실행 (삭제 도중 nil 참조 에러 방지)
-				if mainObject.PrimaryPart then
-					mainObject:PivotTo(CFrame.new(dropData.pos.X, newY, dropData.pos.Z) * CFrame.Angles(0, t, 0))
-				end
-			else
-				mainObject.Position = Vector3.new(dropData.pos.X, newY, dropData.pos.Z)
-				mainObject.CFrame = mainObject.CFrame * CFrame.Angles(0, math.rad(1), 0)
-			end
-			
-			task.wait(0.03)
-		end
-	end)
+	-- [OPTIMIZATION] Register for batch animation instead of local while loop
+	animatingDrops[dropData.dropId] = {
+		model = mainObject,
+		startPos = dropData.pos,
+		t = math.random() * math.pi * 2 -- 랜덤 시작 시점 (전부 똑같이 움직이면 부자연스러움)
+	}
 	
 	return mainObject
 end
@@ -302,9 +294,10 @@ end
 local function removeDropModel(dropId)
 	local model = dropModels[dropId]
 	if model then
-		-- [FIX] 삭제 시작 알림 (애니메이션 루프 즉시 종료용)
+		-- [FIX] 삭제 시작 알림
 		model:SetAttribute("IsDestroying", true)
 		dropModels[dropId] = nil
+		animatingDrops[dropId] = nil -- [OPTIMIZATION] Remove from batch animation
 		
 		if model:IsA("BasePart") then
 			local tween = TweenService:Create(model, TweenInfo.new(0.2), { Transparency = 1 })
@@ -409,8 +402,48 @@ function WorldDropController.Init()
 	NetClient.On("WorldDrop.Changed", onChanged)
 	NetClient.On("WorldDrop.Despawned", onDespawned)
 	
+	-- [OPTIMIZATION] Batch Animation Loop
+	local camera = Workspace.CurrentCamera
+	renderConn = RunService.RenderStepped:Connect(function(dt)
+		local now = os.clock()
+		local playerChar = game.Players.LocalPlayer.Character
+		local hrp = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+		local pPos = hrp and hrp.Position or Vector3.zero
+		
+		for id, data in pairs(animatingDrops) do
+			local model = data.model
+			if not model or not model.Parent then
+				animatingDrops[id] = nil
+				continue
+			end
+			
+			-- 1. 거리 기반 최적화 (너무 먼 것은 애니메이션 스킵)
+			local dist = (data.startPos - pPos).Magnitude
+			if dist > 150 then continue end
+			
+			-- 2. 카메라 가시성 체크 (Frustum Culling) - 아이템이 많을 때 매우 효과적
+			-- (모든 아이템마다 하면 무거울 수 있으므로 거리 짧은 것 위주로 수행)
+			if dist > 30 then
+				local _, onScreen = camera:WorldToViewportPoint(data.startPos)
+				if not onScreen then continue end
+			end
+			
+			data.t = data.t + dt
+			local t = data.t
+			local newY = data.startPos.Y + math.sin(t * 2) * 0.3
+			
+			if model:IsA("Model") then
+				if model.PrimaryPart then
+					model:PivotTo(CFrame.new(data.startPos.X, newY, data.startPos.Z) * CFrame.Angles(0, t, 0))
+				end
+			else
+				model.CFrame = CFrame.new(data.startPos.X, newY, data.startPos.Z) * CFrame.Angles(0, t, 0)
+			end
+		end
+	end)
+	
 	initialized = true
-	print("[WorldDropController] Initialized - listening for WorldDrop events")
+	print("[WorldDropController] Initialized - Animation optimized with RenderStepped Batching")
 end
 
 return WorldDropController

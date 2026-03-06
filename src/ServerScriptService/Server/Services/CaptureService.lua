@@ -168,6 +168,8 @@ function CaptureService.attemptCapture(player: Player, targetId: string, capture
 			attack = palDef.baseStats.attack,
 			defense = palDef.baseStats.defense,
 			speed = palDef.baseStats.speed,
+			hunger = Balance.PAL_HUNGER_MAX,
+			san = Balance.PAL_SAN_MAX,
 		},
 		workTypes = palDef.workTypes,
 		workPower = palDef.workPower,

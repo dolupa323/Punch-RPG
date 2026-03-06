@@ -359,8 +359,10 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	
 	_syncToSave(userId)
 	
+	emitCraftEvent("Craft.Started", player, startData)
+	
 	print(string.format("[CraftingService] Queued craft %s (%s) for player %d, completes in %ds",
-		craftId, recipeId, userId, realCraftTime))
+		craftId, recipeId, realCraftTime))
 	return true, nil, startData
 end
 
@@ -385,10 +387,18 @@ function CraftingService.cancel(player: Player, craftId: string)
 	-- 재료 환불
 	local recipe = DataService.getRecipe(entry.recipeId)
 	if recipe and Balance.CRAFT_CANCEL_REFUND > 0 then
+		local pPos = getPlayerPosition(player)
 		for _, input in ipairs(recipe.inputs) do
 			local refundCount = math.floor(input.count * Balance.CRAFT_CANCEL_REFUND)
 			if refundCount > 0 then
-				InventoryService.addItem(userId, input.itemId, refundCount)
+				local added, remaining = InventoryService.addItem(userId, input.itemId, refundCount)
+				
+				-- 인벤토리가 가득 차서 남은 재료는 월드 드롭 처리 (데이터 유실 방지)
+				if remaining > 0 and WorldDropService and pPos then
+					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), input.itemId, remaining)
+					warn(string.format("[CraftingService] Refund overflow for %s: x%d dropped as WorldDrop for userId %d", 
+						input.itemId, remaining, userId))
+				end
 			end
 		end
 	end
@@ -425,6 +435,11 @@ function CraftingService.collect(player: Player, craftId: string)
 	local now = os.time()
 	if entry.state == Enums.CraftState.CRAFTING and now >= entry.completesAt then
 		entry.state = Enums.CraftState.PENDING_COLLECT
+	end
+	
+	-- 1. 아직 해금 상태인지 재검증 (Relinquish 어뷰징 방지)
+	if TechService and not TechService.isRecipeUnlocked(userId, entry.recipeId) then
+		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
 	end
 	
 	-- 아직 제작 중이면 수거 불가

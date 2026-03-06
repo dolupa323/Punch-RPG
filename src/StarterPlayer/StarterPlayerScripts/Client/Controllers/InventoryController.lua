@@ -170,7 +170,18 @@ local function onInventoryChanged(data)
 		if v and v.itemId then oldTotals[v.itemId] = (oldTotals[v.itemId] or 0) + (v.count or 0) end
 	end
 	
-	if data.changes then
+	if data.fullInventory then
+		-- 전체 동기화 (Full Sync)
+		inventoryCache = {}
+		for slot, item in pairs(data.fullInventory) do
+			inventoryCache[tonumber(slot) or slot] = {
+				itemId = item.itemId,
+				count = item.count,
+				durability = item.durability,
+			}
+		end
+	elseif data.changes then
+		-- 부분 동기화 (Delta Sync)
 		for _, change in ipairs(data.changes) do
 			local slot = change.slot
 			if change.empty then

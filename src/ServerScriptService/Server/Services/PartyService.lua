@@ -216,35 +216,56 @@ function PartyService.getParty(userId: number): {[number]: string}
 	return party.slots
 end
 
+-- 소환 처리 중 락 (중복 스폰 방지)
+local summoningLocks = {} -- [userId] = tick()
+
 --- 팰 소환
 function PartyService.summon(userId: number, partySlot: number): (boolean, string?)
 	local party = getOrCreateParty(userId)
 	
+	-- 0. 소환 쿨다운 및 중복 요청 방지 (Debounce)
+	local now = tick()
+	if summoningLocks[userId] and (now - summoningLocks[userId]) < 2.0 then
+		return false, Enums.ErrorCode.COOLDOWN
+	end
+	summoningLocks[userId] = now
+	
 	local player = Players:GetPlayerByUserId(userId)
 	if not player or not player.Character then
+		summoningLocks[userId] = nil
 		return false, Enums.ErrorCode.INTERNAL_ERROR
 	end
 	
 	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return false, Enums.ErrorCode.INTERNAL_ERROR end
+	if not hrp then 
+		summoningLocks[userId] = nil
+		return false, Enums.ErrorCode.INTERNAL_ERROR 
+	end
 	
 	-- 슬롯 검증
 	local palUID = party.slots[partySlot]
 	if not palUID then
+		summoningLocks[userId] = nil
 		return false, Enums.ErrorCode.NOT_FOUND
 	end
 	
 	-- 이미 소환 중이면 먼저 회수
-	if party.summonedSlot then
+	if party.summonedSlot or activeSummons[userId] then
 		PartyService._recallPal(userId)
+		-- 회수 후 즉시 소환 시 물리적 충돌 방지를 위해 미세 딜레이
+		task.wait(0.1)
 	end
 	
 	-- 팰 데이터
 	local pal = PalboxService.getPal(userId, palUID)
-	if not pal then return false, Enums.ErrorCode.NOT_FOUND end
+	if not pal then 
+		summoningLocks[userId] = nil
+		return false, Enums.ErrorCode.NOT_FOUND 
+	end
 	
 	-- 시설 배치 중이면 소환 불가
 	if pal.state == Enums.PalState.WORKING then
+		summoningLocks[userId] = nil
 		return false, Enums.ErrorCode.PAL_ALREADY_ASSIGNED
 	end
 	
@@ -253,6 +274,7 @@ function PartyService.summon(userId: number, partySlot: number): (boolean, strin
 	local model, rootPart, humanoid = PartyService._createPalModel(pal, spawnPos, userId)
 	
 	if not model then
+		summoningLocks[userId] = nil
 		return false, Enums.ErrorCode.INTERNAL_ERROR
 	end
 	
@@ -264,7 +286,7 @@ function PartyService.summon(userId: number, partySlot: number): (boolean, strin
 		rootPart = rootPart,
 		palData = pal,
 		palUID = palUID,
-		state = "FOLLOW", -- FOLLOW, COMBAT, IDLE
+		state = "FOLLOW",
 		lastAttackTime = 0,
 		ownerUserId = userId,
 	}

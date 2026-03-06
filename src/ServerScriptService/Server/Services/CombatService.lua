@@ -76,13 +76,18 @@ function CombatService.Init(_NetController, _DataService, _CreatureService, _Inv
 end
 
 --- 플레이어가 대상을 공격 (Client Request)
-function CombatService.processPlayerAttack(player: Player, targetId: string, toolSlot: number?)
+function CombatService.processPlayerAttack(player: Player, targetId: string)
 	if not player or not targetId then 
 		return false, Enums.ErrorCode.BAD_REQUEST 
 	end
 
-	-- 0. 무기(도구) 및 동적 쿨다운 데이터 로드
+	-- 0. 서버 메모리의 실제 활성 슬롯 데이터 로드 (보안: 클라이언트 요청 슬롯 무시)
 	local userId = player.UserId
+	local toolSlot = 1
+	if InventoryService then
+		toolSlot = InventoryService.getActiveSlot(userId) or 1
+	end
+	
 	local baseDamage = 5 -- 맨손 기본 데미지
 	local range = DEFAULT_ATTACK_RANGE
 	local dynamicCooldown = MIN_ATTACK_COOLDOWN -- 기본 0.35초
@@ -90,7 +95,7 @@ function CombatService.processPlayerAttack(player: Player, targetId: string, too
 	local toolItem = nil
 	local isBlunt = true -- 맨손은 기본적으로 타격(Blunt) 판정 (기절 수치 부여)
 	
-	if toolSlot then
+	if InventoryService then
 		local slotData = InventoryService.getSlot(userId, toolSlot)
 		if slotData then
 			itemData = DataService.getItem(slotData.itemId)
@@ -100,12 +105,17 @@ function CombatService.processPlayerAttack(player: Player, targetId: string, too
 				isBlunt = itemData.isBlunt == true
 				toolItem = slotData
 				
-				-- 내구도 체크: 파손된 도구는 공격 불가능 (또는 맨손 데미지 적용 가능하나 현재는 불허)
-				if slotData.durability and slotData.durability <= 0 then
-					return false, Enums.ErrorCode.INVALID_STATE -- "무기가 파손되었습니다"
+				-- [보안/기획] 기술 해금 체크 (Relinquish 어뷰징 방지)
+				if TechService and not TechService.isRecipeUnlocked(userId, slotData.itemId) then
+					return false, Enums.ErrorCode.RECIPE_LOCKED
 				end
 
-				-- 아이템에 명시된 attackSpeed가 있다면 이를 기반으로 쿨다운 설정 (+ 레이턴시 보정)
+				-- 내구도 체크: 파손된 도구는 공격 불가능
+				if slotData.durability and slotData.durability <= 0 then
+					return false, Enums.ErrorCode.INVALID_STATE
+				end
+
+				-- 아이템의 attackSpeed를 쿨다운으로 사용
 				if itemData.attackSpeed then
 					dynamicCooldown = math.max(0.15, itemData.attackSpeed - 0.05)
 				end
@@ -131,20 +141,43 @@ function CombatService.processPlayerAttack(player: Player, targetId: string, too
 	local attackMult = calculated.attackMult or 1.0
 	local totalDamage = baseDamage * attackMult
 	
-	-- 3. 대상(크리처) 확인 및 거리 검증 (Y축 무시 평면 거리 계산)
+	-- 3. 대상(크리처 또는 건축물) 확인 및 거리 검증
+	local targetObject = nil
+	local targetType = "NONE"
+	
+	-- 3.1 크리처 먼저 체크
 	local creature = CreatureService.getCreatureRuntime(targetId)
-	if not creature or not creature.rootPart then
+	if creature and creature.rootPart then
+		targetObject = creature.rootPart
+		targetType = "CREATURE"
+	end
+	
+	-- 3.2 건축물 체크 (크리처가 아닐 경우)
+	local BuildService
+	if targetType == "NONE" then
+		BuildService = require(game:GetService("ServerScriptService").Server.Services.BuildService)
+		local structure = BuildService.get(targetId)
+		if structure then
+			targetType = "STRUCTURE"
+			-- 건축물은 rootPart가 없으므로 Workspace 모델의 PrimaryPart 또는 Position 사용
+			local model = workspace.Facilities:FindFirstChild(targetId)
+			if model then
+				targetObject = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+			end
+		end
+	end
+	
+	if not targetObject then
 		return false, Enums.ErrorCode.NOT_FOUND
 	end
 	
+	local targetPos = (targetType == "STRUCTURE" and targetObject.Position) or targetObject.Position
 	local p1 = Vector2.new(hrp.Position.X, hrp.Position.Z)
-	local p2 = Vector2.new(creature.rootPart.Position.X, creature.rootPart.Position.Z)
+	local p2 = Vector2.new(targetPos.X, targetPos.Z)
 	local dist = (p1 - p2).Magnitude
 	
-	-- 서버 측 검증은 클라이언트보다 약간 더 여유를 둡니다 (네트워크 레이턴시 및 거대 크리처 히트박스 고려)
-	-- [수정] 거대 공룡 판정을 위해 사거리 여유분을 30 -> 50으로 상향
+	-- 서버 측 검증은 클라이언트보다 약간 더 여유를 둡니다
 	if dist > range + 50 then 
-		warn(string.format("[CombatService] Out of range (2D): %.1f > %.1f (Range: %d + 50)", dist, range + 50, range))
 		return false, Enums.ErrorCode.OUT_OF_RANGE
 	end
 	
@@ -154,13 +187,20 @@ function CombatService.processPlayerAttack(player: Player, targetId: string, too
 	
 	if isBlunt then
 		hpDamage = totalDamage * 0.5  -- 둔기는 체력 데미지 50%
-		torporDamage = totalDamage * 0.5 -- 기절 데미지 50% (합계 100%)
+		torporDamage = totalDamage * 0.5 -- 기절 데미지 50%
 	end
 	
-	-- CreatureService.applyDamage를 확장하거나 새 함수 사용
-	-- 여기서는 기존 applyDamage를 유지하되 내부에서 Torpor 처리하거나, 
-	-- CombatService에서 직접 Torpor를 다룰 수 있지만 아키텍처상 CreatureService가 엔티티 상태 관리
-	local killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
+	local killed = false
+	local dropPos = nil
+	
+	if targetType == "CREATURE" then
+		killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
+	elseif targetType == "STRUCTURE" then
+		-- 건축물 데미지 적용
+		local destroyed, _ = BuildService.takeDamage(targetId, hpDamage, player)
+		killed = destroyed
+		if killed then dropPos = targetPos end
+	end
 	
 	-- 4. 도구 내구도 감소
 	if toolItem and toolSlot and toolItem.durability then
@@ -276,15 +316,9 @@ end
 --========================================
 
 local function handleHitRequest(player, payload)
-	local targetId = payload.targetId or payload.targetInstanceId -- Both supported for compatibility
+	local targetId = payload.targetId or payload.targetInstanceId
 	
-	-- 보안/기획: 클라이언트가 보낸 toolSlot 대신, 서버의 현재 활성 슬롯(Active Slot)을 사용
-	local activeSlot = 1
-	if InventoryService then
-		activeSlot = InventoryService.getActiveSlot(player.UserId)
-	end
-	
-	local success, errorCode, result = CombatService.processPlayerAttack(player, targetId, activeSlot)
+	local success, errorCode, result = CombatService.processPlayerAttack(player, targetId)
 	
 	if not success then
 		return { success = false, errorCode = errorCode }

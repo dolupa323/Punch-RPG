@@ -142,6 +142,7 @@ local function onFacilityStateChanged(data)
 	if data.fuelSlot ~= nil then currentFacilityData.fuelSlot = data.fuelSlot end
 	if data.outputSlot ~= nil then currentFacilityData.outputSlot = data.outputSlot end
 	if data.processProgress then currentFacilityData.processProgress = data.processProgress end
+	if data.lastUpdateAt then currentFacilityData.lastUpdateAt = data.lastUpdateAt end
 	
 	local UIManager = require(script.Parent.Parent.UIManager)
 	UIManager.refreshFacility()
@@ -155,16 +156,6 @@ function FacilityController.Init()
 	if initialized then return end
 	
 	NetClient.On("Facility.StateChanged", onFacilityStateChanged)
-	
-	-- 주기적 갱신 (진행률 표시용, 1초마다)
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			if currentStructureId then
-				FacilityController.refreshInfo()
-			end
-		end
-	end)
 	
 	initialized = true
 	print("[FacilityController] Initialized")

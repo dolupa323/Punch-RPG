@@ -14,12 +14,26 @@ local CreatureAnimationIds = {
 	-- [공룡별 특수 설정]
 	-- CreatureData.lua의 id와 일치해야 함
 	
-	-- 랩터 (현재 유일하게 애니메이션이 준비된 공룡)
+	-- 랩터
 	RAPTOR = {
 		IDLE = "Raptor_Idle",
 		WALK = "Raptor_Walk",
 		RUN = "Raptor_Run",
 		ATTACK = "Raptor_Attack",
+	},
+
+	-- 트리케라톱스 (영문/한글 모델명 대응)
+	TRICERATOPS = {
+		IDLE = "Triceratops_Idle",
+		WALK = "Triceratops_Walk",
+		RUN = "Triceratops_Walk", 
+		ATTACK = "Triceratops_Attack",
+	},
+	["트리케라톱스"] = {
+		IDLE = "Triceratops_Idle",
+		WALK = "Triceratops_Walk",
+		RUN = "Triceratops_Walk", 
+		ATTACK = "Triceratops_Attack",
 	},
 	
 	-- 티라노 등 다른 공룡은 준비되면 아래 주석을 풀고 등록하세요.

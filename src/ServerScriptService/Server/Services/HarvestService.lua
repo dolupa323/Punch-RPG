@@ -82,6 +82,7 @@ local InventoryService = nil
 local PlayerStatService = nil
 local DurabilityService = nil
 local WorldDropService = nil
+local TechService = nil -- Phase 6: 기술 해금 검증 (Relinquish 어뷰징 방지)
 
 --========================================
 -- Internal State
@@ -866,6 +867,14 @@ function HarvestService.hit(player: Player, nodeUID: string, toolSlot: number?, 
 	if not toolOk then
 		return false, toolError or Enums.ErrorCode.WRONG_TOOL, nil
 	end
+
+	-- [보안/기획] 기술 해금 체크 (Relinquish 어뷰징 방지)
+	if toolSlot and TechService then
+		local slotData = InventoryService.getSlot(userId, toolSlot)
+		if slotData and not TechService.isRecipeUnlocked(userId, slotData.itemId) then
+			return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+		end
+	end
 	
 	-- 6. 효율 계산
 	local efficiency = calculateEfficiency(player, nodeData.optimalTool, toolSlot)
@@ -1109,7 +1118,8 @@ function HarvestService.Init(
 	inventoryService: any,
 	playerStatService: any,
 	durabilityService: any,
-	worldDropService: any
+	worldDropService: any,
+	techService: any
 )
 	if initialized then return end
 	
@@ -1119,6 +1129,7 @@ function HarvestService.Init(
 	PlayerStatService = playerStatService
 	DurabilityService = durabilityService
 	WorldDropService = worldDropService
+	TechService = techService
 	
 	-- ResourceNodes 폴더 생성
 	task.spawn(function()

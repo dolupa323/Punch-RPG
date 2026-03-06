@@ -60,6 +60,7 @@ Balance.INITIAL_NODE_COUNT = 400   -- 서버 시작 시 초기 스폰 노드 수
 Balance.FACILITY_QUEUE_MAX = 10    -- 시설 대기열 최대 크기
 Balance.FACILITY_ACTIVE_CAP = 15   -- 동시 활성 시설 최대 수
 Balance.MAX_FACILITY_OUTPUT = 1000 -- 시설 Output 슬롯 최대 아이템 개수
+Balance.FACILITY_WORK_HP_LOSS = 0.1   -- 작업 1회당 시설 내구도 소모
 
 --========================================
 -- 건축 (Build)
@@ -84,6 +85,14 @@ Balance.MAX_PARTY = 5                  -- 파티 최대 슬롯
 Balance.PAL_FOLLOW_DIST = 4            -- 팰이 주인과 유지하는 거리 (스터드)
 Balance.PAL_COMBAT_RANGE = 15          -- 팰이 전투를 시작하는 감지 범위 (스터드)
 Balance.CAPTURE_RANGE = 30             -- 기본 포획 사거리 (스터드)
+
+-- 팰 유지비 (Maintenance)
+Balance.PAL_HUNGER_MAX = 100           -- 팰 최대 배고픔
+Balance.PAL_SAN_MAX = 100              -- 팰 최대 정신력(SAN)
+Balance.PAL_WORK_HUNGER_COST = 2.0     -- 작업 1회당 배고픔 소모
+Balance.PAL_WORK_SAN_COST = 1.0        -- 작업 1회당 정신력 소모
+Balance.PAL_MIN_WORK_HUNGER = 15       -- 작업 가능 최소 배고픔
+Balance.PAL_MIN_WORK_SAN = 20          -- 작업 가능 최소 정신력
 
 --========================================
 -- 플레이어 레벨 & 경험치 (Phase 6)

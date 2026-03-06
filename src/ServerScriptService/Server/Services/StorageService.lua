@@ -28,6 +28,10 @@ local InventoryService = nil
 local playerSessions = {}
 -- [storageId] = { [userId] = true }
 local viewingPlayers = {}
+
+-- BuildService 참조 (파티션 조회를 위해 필요)
+local BuildService = nil
+local BaseClaimService = nil
 -- Internal: Storage Management
 --========================================
 
@@ -40,26 +44,42 @@ local function _createDefaultStorage()
 	}
 end
 
---- WorldSave에서 storages 참조 가져오기
-local function _getStorages(): {[string]: any}
-	local worldState = SaveService.getWorldState()
-	if not worldState then
-		warn("[StorageService] worldState is nil - storage operations will not persist")
-		-- 임시 테이블 반환 (영속화 불가 경고 후 계속 동작)
-		if not StorageService._tempStorages then
-			StorageService._tempStorages = {}
+--- 특정 창고의 파티션 ID 찾기
+local function _getPartitionIdForStorage(storageId: string): string?
+	if not BuildService then return nil end
+	local struct = BuildService.get(storageId)
+	return struct and struct.partitionId
+end
+
+--- 창고 데이터 참조 가져오기 (파티셔닝 지원)
+local function _getStorages(storageId: string): {[string]: any}
+	local pId = _getPartitionIdForStorage(storageId)
+	
+	if pId then
+		-- 베이스 파티션에서 가져오기
+		local pState = SaveService.getPartition(pId)
+		if pState then
+			if not pState.storages then pState.storages = {} end
+			return pState.storages
 		end
-		return StorageService._tempStorages
 	end
-	if not worldState.storages then
-		worldState.storages = {}
+	
+	-- 파티션이 없거나 야생일 경우 월드 상태에서 가져오기
+	local worldState = SaveService.getWorldState()
+	if not worldState then return {} end
+	
+	if not worldState.wildernessStorages then
+		-- 하위 호환성: 기존 storages가 있으면 wildernessStorages로 간주
+		worldState.wildernessStorages = worldState.storages or {}
+		worldState.storages = nil
 	end
-	return worldState.storages
+	
+	return worldState.wildernessStorages
 end
 
 --- 특정 창고 가져오기 (없으면 생성)
 local function _getOrCreateStorage(storageId: string): any
-	local storages = _getStorages()
+	local storages = _getStorages(storageId)
 	
 	if not storages[storageId] then
 		storages[storageId] = _createDefaultStorage()
@@ -70,7 +90,7 @@ end
 
 --- 특정 창고 가져오기 (없으면 nil)
 local function _getStorage(storageId: string): any?
-	local storages = _getStorages()
+	local storages = _getStorages(storageId)
 	return storages[storageId]
 end
 
@@ -319,12 +339,20 @@ function StorageService.getStorageInfo(storageId: string): any?
 	return _getStorage(storageId)
 end
 
---- 모든 창고 ID 목록
+--- 모든 창고 ID 목록 (주의: 파티셔닝으로 인해 전체 순회 부하 발생 가능, 실사용 시 최적화 필요)
 function StorageService.getAllStorageIds(): {string}
-	local storages = _getStorages()
 	local ids = {}
-	for id, _ in pairs(storages) do
-		table.insert(ids, id)
+	-- 1. 야생 창고
+	local worldState = SaveService.getWorldState()
+	if worldState and worldState.wildernessStorages then
+		for id, _ in pairs(worldState.wildernessStorages) do table.insert(ids, id) end
+	end
+	-- 2. 빌드 서비스 내 모든 구조물 순회 (Storage인 것만)
+	if BuildService then
+		for _, struct in pairs(BuildService.getAll()) do
+			-- 편의상 일단 ID만 수집
+			table.insert(ids, struct.id)
+		end
 	end
 	return ids
 end
@@ -428,7 +456,7 @@ end
 -- Initialization
 --========================================
 
-function StorageService.Init(netController: any, saveService: any, inventoryService: any)
+function StorageService.Init(netController: any, saveService: any, inventoryService: any, buildService: any, baseClaimService: any)
 	if initialized then
 		warn("[StorageService] Already initialized")
 		return
@@ -437,6 +465,8 @@ function StorageService.Init(netController: any, saveService: any, inventoryServ
 	NetController = netController
 	SaveService = saveService
 	InventoryService = inventoryService
+	BuildService = buildService
+	BaseClaimService = baseClaimService
 	
 	-- 퇴장 시 시청 세션 정리
 	Players.PlayerRemoving:Connect(function(player)

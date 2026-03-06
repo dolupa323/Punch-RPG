@@ -25,11 +25,15 @@ local activeCreatures = {} -- [model] = { currentTrack = AnimationTrack, lastAni
 --========================================
 
 local function getAnimNameForState(creatureModel, speed)
-	local creatureId = creatureModel:GetAttribute("CreatureId") or "DEFAULT"
-	local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds.DEFAULT
+	-- [개선] 더 다양한 이름 형식 지원
+	local attrId = creatureModel:GetAttribute("CreatureId")
+	local nameId = creatureModel.Name:upper()
+	
+	local creatureId = attrId or nameId
+	local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds[creatureModel.Name] or CreatureAnimationIds.DEFAULT
 	
 	-- 서버 상태(State) 속성 확인
-	local state = creatureModel:GetAttribute("State") or "IDLE"
+	local state = creatureModel:GetAttribute("State")
 	
 	local animKey = "IDLE"
 	if state == "STUNNED" then
@@ -44,8 +48,7 @@ local function getAnimNameForState(creatureModel, speed)
 		animKey = speed > 15 and "RUN" or "WALK"
 	end
 	
-	-- 해당 애니메이션 키가 세트에 없으면 무시 (불필요한 로딩 방지)
-	return animSet[animKey]
+	return animSet and animSet[animKey]
 end
 
 local function updateCreatureAnimation(model, info)
@@ -55,7 +58,10 @@ local function updateCreatureAnimation(model, info)
 	end
 	
 	local rootPart = model.PrimaryPart
-	if not rootPart then return end
+	if not rootPart then 
+		-- 대기 로직 제거 (다음 프레임에 자연스럽게 처리되도록 함)
+		return 
+	end
 	
 	-- 1. 속도 기반 상태 측정
 	local velocity = rootPart.Velocity * Vector3.new(1, 0, 1)
@@ -65,7 +71,7 @@ local function updateCreatureAnimation(model, info)
 	local targetAnimName = getAnimNameForState(model, speed)
 	
 	-- [중요] 공격 중일 때는 이동 애니메이션으로 덮어쓰지 않음
-	local creatureId = model:GetAttribute("CreatureId") or "DEFAULT"
+	local creatureId = model:GetAttribute("CreatureId") or model.Name:upper()
 	local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds.DEFAULT
 	local attackAnimName = animSet.ATTACK
 	
@@ -160,7 +166,7 @@ function CreatureAnimationController.Init()
 			local info = activeCreatures[model]
 			local humanoid = model:FindFirstChildOfClass("Humanoid")
 			if humanoid and info then
-				local creatureId = model:GetAttribute("CreatureId") or "DEFAULT"
+				local creatureId = model:GetAttribute("CreatureId") or model.Name:upper()
 				local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds.DEFAULT
 				local attackAnimName = animSet.ATTACK
 				
@@ -168,18 +174,38 @@ function CreatureAnimationController.Init()
 					-- 현재 재생 중인 이동 애니메이션 잠시 중지 (부드러운 타격)
 					if info.lastAnim ~= "" then
 						AnimationManager.stop(humanoid, info.lastAnim, 0.1)
-						info.lastAnim = "" -- 상태 강제 리셋하여 타격 후 다시 걷기 시작하게 함
+						info.lastAnim = "" 
 					end
 					
-					local track = AnimationManager.play(humanoid, attackAnimName, 0.1)
-					if track then
-						track.Priority = Enum.AnimationPriority.Action
+					-- [핵심] 시퀀스 재생 루틴 (Prep -> Charge)
+					task.spawn(function()
 						info.isAttacking = true
-						-- 애니메이션 종료 감지
-						track.Stopped:Once(function()
-							info.isAttacking = false
-						end)
-					end
+						
+						-- 1. 공격 준비 (ATTACK 애니메이션)
+						local prepTrack = AnimationManager.play(humanoid, attackAnimName, 0.1)
+						if prepTrack then
+							prepTrack.Priority = Enum.AnimationPriority.Action
+							-- 애니메이션 종료 대기 (비동기 처리)
+							task.wait(creatureId == "TRICERATOPS" and 0.6 or (prepTrack.Length > 0 and prepTrack.Length or 0.5))
+						end
+						
+						-- 2. 후속 돌격 (트리케라톱스 특화: WALK를 빠르게 재생하여 돌진 연출)
+						if creatureId == "TRICERATOPS" and model.Parent then
+							local runAnim = animSet.RUN
+							if runAnim then
+								local chargeTrack = AnimationManager.play(humanoid, runAnim, 0.1, nil, 2.0) -- 2배속 돌진
+								if chargeTrack then
+									chargeTrack.Priority = Enum.AnimationPriority.Action
+									task.wait(0.6) -- 0.6초간 돌진 시각화 (서버 딜레이 0.8초의 타격 직전까지)
+									AnimationManager.stop(humanoid, runAnim, 0.2)
+								end
+							end
+						end
+						
+						-- 애니메이션이 완전히 끝난 후 공격 상태 해제
+						task.wait(0.1)
+						info.isAttacking = false
+					end)
 				end
 			end
 		end

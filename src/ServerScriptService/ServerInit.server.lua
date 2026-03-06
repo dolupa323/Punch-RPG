@@ -141,13 +141,6 @@ HungerService.Init(NetController)
 local PlayerStatService = require(Services.PlayerStatService)
 PlayerStatService.Init(NetController, SaveService, DataService, StaminaService)
 
--- EquipService 초기화
-local EquipService = require(Services.EquipService)
-EquipService.Init(DataService)
-
--- InventoryService 초기화 (SaveService, PlayerStatService, EquipService 주입)
-InventoryService.Init(NetController, DataService, SaveService, PlayerStatService, EquipService)
-
 -- PlayerStatService 핸들러 등록
 for command, handler in pairs(PlayerStatService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
@@ -162,9 +155,16 @@ for command, handler in pairs(TechService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
--- StorageService 초기화
+-- EquipService 초기화
+local EquipService = require(Services.EquipService)
+EquipService.Init(DataService, TechService)
+
+-- InventoryService 초기화 (SaveService, PlayerStatService, EquipService 주입)
+local InventoryService = require(Services.InventoryService)
+InventoryService.Init(NetController, DataService, SaveService, PlayerStatService, EquipService)
+
+-- StorageService (Init moved after BaseClaimService)
 local StorageService = require(Services.StorageService)
-StorageService.Init(NetController, SaveService, InventoryService)
 
 -- StorageService 핸들러 등록
 for command, handler in pairs(StorageService.GetHandlers()) do
@@ -194,7 +194,7 @@ end
 
 -- FacilityService 초기화
 local FacilityService = require(Services.FacilityService)
-FacilityService.Init(NetController, DataService, InventoryService, BuildService, Balance, RecipeService, WorldDropService)
+FacilityService.Init(NetController, DataService, InventoryService, BuildService, Balance, RecipeService, WorldDropService, TechService)
 
 -- FacilityService 핸들러 등록
 for command, handler in pairs(FacilityService.GetHandlers()) do
@@ -206,7 +206,7 @@ BuildService.SetFacilityService(FacilityService)
 
 -- DebuffService 초기화 (Phase 4-4) - CreatureService보다 먼저 초기화
 local DebuffService = require(Services.DebuffService)
-DebuffService.Init(NetController, TimeService, DataService, StaminaService)
+DebuffService.Init(NetController, TimeService, DataService, StaminaService, FacilityService)
 
 -- DebuffService 핸들러 등록
 for command, handler in pairs(DebuffService.GetHandlers()) do
@@ -252,6 +252,11 @@ end
 -- Phase 5-5: FacilityService에 PalboxService 주입 (팰 작업 배치 연동)
 FacilityService.SetPalboxService(PalboxService)
 
+-- Phase 7-5: PalAIService 초기화 (팰 AI 및 시각화)
+local PalAIService = require(Services.PalAIService)
+PalAIService.Init(NetController, CreatureService, DataService, PalboxService, BuildService)
+FacilityService.SetPalAIService(PalAIService)
+
 -- CaptureService 초기화 (+ PlayerStatService 추가)
 local CaptureService = require(Services.CaptureService)
 CaptureService.Init(NetController, DataService, CreatureService, InventoryService, PalboxService, PlayerStatService)
@@ -272,7 +277,7 @@ end
 
 -- HarvestService 초기화 (Phase 7-1)
 local HarvestService = require(Services.HarvestService)
-HarvestService.Init(NetController, DataService, InventoryService, PlayerStatService, DurabilityService, WorldDropService)
+HarvestService.Init(NetController, DataService, InventoryService, PlayerStatService, DurabilityService, WorldDropService, TechService)
 
 -- HarvestService 핸들러 등록
 for command, handler in pairs(HarvestService.GetHandlers()) do
@@ -291,13 +296,16 @@ for command, handler in pairs(BaseClaimService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
+-- StorageService 초기화 (BuildService, BaseClaimService 주입 필요)
+StorageService.Init(NetController, SaveService, InventoryService, BuildService, BaseClaimService)
+
 -- AutoHarvestService 초기화 (Phase 7-3)
 local AutoHarvestService = require(Services.AutoHarvestService)
-AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, PalboxService, DataService, BuildService)
+AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, PalboxService, DataService, BuildService, PalAIService)
 
 -- AutoDepositService 초기화 (Phase 7-4)
 local AutoDepositService = require(Services.AutoDepositService)
-AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService)
+AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
 
 -- (Quest 시스템 삭제됨)
 

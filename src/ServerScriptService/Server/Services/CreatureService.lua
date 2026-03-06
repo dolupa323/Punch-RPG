@@ -98,6 +98,26 @@ function CreatureService.Init(_NetController, _DataService, _WorldDropService, _
 		PhysicsService:CollisionGroupSetCollidable("Players", "Creatures", false)
 	end)
 	
+	-- [추가] 신규 플레이어 충돌 그룹 할당 루틴
+	local function setCharGroup(char)
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CollisionGroup = "Players"
+			end
+		end
+		char.DescendantAdded:Connect(function(child)
+			if child:IsA("BasePart") then child.CollisionGroup = "Players" end
+		end)
+	end
+
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(setCharGroup)
+		if player.Character then setCharGroup(player.Character) end
+	end)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character then setCharGroup(p.Character) end
+	end
+	
 	-- ★ 초기 대량 스폰 (서버 시작 시 즉시)
 	task.spawn(function()
 		task.wait(2) -- 맵 로드 대기
@@ -262,15 +282,21 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 		print(string.format("[CreatureService] Created HumanoidRootPart for model (center: %.1f, %.1f, %.1f)", center.X, center.Y, center.Z))
 	end
 	
-	-- 2. 모든 파트 Anchored = false
+	-- 2. 모든 파트 Anchored = false 및 충돌 그룹 설정
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false
+			part.CollisionGroup = "Creatures"
 		end
 	end
 	
 	-- 3. PrimaryPart 설정
 	model.PrimaryPart = rootPart
+	if not model.PrimaryPart then
+		warn(string.format("[CreatureService] FAILED to set PrimaryPart for %s (Root: %s)", model.Name, rootPart and rootPart.Name or "nil"))
+	else
+		print(string.format("[CreatureService] Set PrimaryPart for %s to %s", model.Name, rootPart.Name))
+	end
 	
 	-- 4. 위치 이동
 	local modelHeight = getModelHeight(model)
@@ -599,22 +625,43 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 	
 	creature.humanoid.Health = creature.currentHealth
 	
-	-- 2. 상태 변화
+	-- 2. 상태 변화 및 연쇄 어그로 (Pack Mentality)
 	if creature.currentHealth > 0 then
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
 			creature.state = "STUNNED"
 			creature.lastStateChange = tick()
-			creature.humanoid.PlatformStand = true -- 넘어짐 효과
+			creature.humanoid.PlatformStand = true 
 			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
 		elseif creature.state ~= "STUNNED" then
 			-- 피격 시 어그로/도망
+			local oldState = creature.state
 			if creature.data.behavior ~= "PASSIVE" then
 				creature.state = "CHASE"
 				creature.lastStateChange = tick()
 			else
 				creature.state = "FLEE"
 				creature.humanoid.WalkSpeed = (creature.data.runSpeed or 20) * 1.2
+			end
+
+			-- [시스템 추가] 주변 동족 인식 (Pack Mentality)
+			-- 공격받은 크리처 주변 50스터드 내 같은 creatureId를 가진 개체들을 깨움
+			local pPos = creature.rootPart.Position
+			for _, other in pairs(activeCreatures) do
+				if other.id ~= instanceId and other.creatureId == creature.creatureId then
+					local dist = (other.rootPart.Position - pPos).Magnitude
+					if dist < (Balance.PACK_AGGRO_RADIUS or 50) then
+						if other.state == "IDLE" or other.state == "WANDER" then
+							if other.data.behavior ~= "PASSIVE" then
+								other.state = "CHASE"
+								other.lastStateChange = tick()
+							else
+								other.state = "FLEE"
+								other.humanoid.WalkSpeed = (other.data.runSpeed or 20) * 1.2
+							end
+						end
+					end
+				end
 			end
 		end
 	end
@@ -1161,6 +1208,35 @@ function CreatureService._updateAILoop()
 			end
 		end
 
+		-- [추가] 베이스 팰 예외 처리
+		if creature.model:GetAttribute("IsBasePal") then
+			-- 베이스 팰은 야생 AI 로직(Despawn, Hunger, Aggro 등)을 타지 않음
+			-- 오직 TASK 상태에서의 이동만 처리함
+			if creature.state == "TASK" and creature.targetPosition then
+				-- 이동 로직만 수행하고 나머지는 스킵
+				local target = creature.targetPosition
+				local needsNewPath = false
+				if not creature.pathData or (creature.pathData.targetPos - target).Magnitude > PATH_RECALC_DIST then
+					needsNewPath = true
+				end
+				
+				if needsNewPath then
+					creature.pathData = { waypoints = {{Position = target}}, currentIndex = 1, targetPos = target, lastRecalc = now }
+				end
+				
+				if creature.pathData and creature.pathData.currentIndex <= #creature.pathData.waypoints then
+					local wp = creature.pathData.waypoints[creature.pathData.currentIndex]
+					humanoid:MoveTo(wp.Position)
+					if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
+						creature.pathData.currentIndex = creature.pathData.currentIndex + 1
+					end
+				end
+			else
+				humanoid:MoveTo(hrp.Position) -- 정지
+			end
+			continue
+		end
+
 		-- 기절 상태면 AI 로직 스킵 (이동 전)
 		if creature.state == "STUNNED" then
 			creature.humanoid:MoveTo(hrp.Position) -- 정지
@@ -1349,8 +1425,14 @@ function CreatureService._updateAILoop()
 					end
 
 					if needsNewPath then
+						-- [OPTIMIZATION] Pathfinding Rate Limit - 초당 1회 이하로 호출 제한 (CPU 스파이크 방지)
+						if creature.lastPathCompute and (now - creature.lastPathCompute) < 1.0 then
+							needsNewPath = false
+						end
+					end
+
+					if needsNewPath then
 						local rayParams = RaycastParams.new()
-						-- [수정] Terrain은 장애물에서 제외 (MaxSlopeAngle이 높으므로 직접 올라가게 함)
 						rayParams.FilterDescendantsInstances = { creature.model, creatureFolder, workspace.Terrain }
 						rayParams.FilterType = Enum.RaycastFilterType.Exclude
 						local rayResult = workspace:Raycast(hrp.Position, (target - hrp.Position), rayParams)
@@ -1359,25 +1441,31 @@ function CreatureService._updateAILoop()
 						if rayResult and (rayResult.Position - target).Magnitude > 3 then isObstructed = true end
 
 						if isObstructed then
-							-- [수정] 경로 탐색 시 오르막과 단차를 더 잘 인식하도록 설정
+							creature.lastPathCompute = now
 							local path = PathfindingService:CreatePath({ 
 								AgentRadius = 3, 
 								AgentHeight = 6, 
 								AgentCanJump = true,
-								AgentStepHeight = 4 -- 4스터드 높이까지는 계단처럼 오름
+								AgentStepHeight = 4
 							})
+							
+							-- 비동기 호출 (ComputeAsync는 무거운 연산)
 							path:ComputeAsync(hrp.Position, target)
+							
 							if path.Status == Enum.PathStatus.Success then
 								creature.pathData = { waypoints = path:GetWaypoints(), currentIndex = 2, targetPos = target, lastRecalc = now }
 							else
+								-- 실패 시 쿨다운을 위해 더미 경로 생성
 								creature.pathData = { waypoints = {{Position = target}}, currentIndex = 1, targetPos = target, lastRecalc = now }
 							end
 						else
-							creature.pathData = { waypoints = {{Position = target}}, currentIndex = 1, targetPos = target, lastRecalc = now }
+							-- 3. 장애물 없음 → 직접 이동 (최우선)
+							creature.pathData = nil
+							humanoid:MoveTo(target)
 						end
 					end
-
-					-- 2. 웨이포인트 이동
+					
+					-- 1.5 웨이포인트 이동 (pathData가 있을 때만)
 					if creature.pathData and creature.pathData.currentIndex <= #creature.pathData.waypoints then
 						local wp = creature.pathData.waypoints[creature.pathData.currentIndex]
 						humanoid:MoveTo(wp.Position)
@@ -1385,6 +1473,9 @@ function CreatureService._updateAILoop()
 						if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
 							creature.pathData.currentIndex = creature.pathData.currentIndex + 1
 						end
+					elseif not creature.pathData then
+						-- 직접 이동 중인 경우 타겟 방향 실시간 갱신
+						humanoid:MoveTo(target)
 					end
 				end
 			end
@@ -1424,27 +1515,64 @@ function CreatureService._updateAILoop()
 			end
 		end
 		
-		-- 5. Creature -> Player Damage (Phase 4-1)
-		if creature.state == "CHASE" and closestPlayerPos then
+		-- 5. Creature -> Player/Structure Damage (Phase 11-4)
+		if creature.state == "CHASE" then
 			local dmg = creature.data.damage or 0
-			
-			if dmg > 0 and isInAttackRange then
-				-- 쿨다운 체크
-				if not creature.lastAttackTime or (now - creature.lastAttackTime >= CREATURE_ATTACK_COOLDOWN) then
-					creature.lastAttackTime = now
-					
-					-- 플레이어 Humanoid에 데미지
-					if closestPlayerHum and closestPlayerHum.Health > 0 then
-						-- 이벤트를 통해 애니메이션 재생 통보
-						if NetController then
-							NetController.FireAllClients("Creature.Attack.Play", {
-								instanceId = id,
-								targetUserId = closestPlayerUserId
-							})
+			if dmg > 0 then
+				if closestPlayerPos and isInAttackRange then
+					if not creature.lastAttackTime or (now - creature.lastAttackTime >= CREATURE_ATTACK_COOLDOWN) then
+						creature.lastAttackTime = now
+						if closestPlayerHum and closestPlayerHum.Health > 0 then
+							if NetController then
+								NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetUserId = closestPlayerUserId })
+							end
+							
+							-- [수정] 공격 딜레이(Prep) 처리
+							local attackDelay = creature.data.attackDelay or 0.3 -- 기본 0.3초
+							task.delay(attackDelay, function()
+								-- 1. 활성 상태 및 거리 재확인 (피했을 경우 판정 무효)
+								local currentCreature = activeCreatures[id]
+								if not currentCreature or not currentCreature.model or not currentCreature.model.Parent then return end
+								
+								local playerChar = Players:GetPlayerByUserId(closestPlayerUserId).Character
+								local playerHrp = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
+								if not playerHrp then return end
+								
+								local currentDist = (currentCreature.model.PrimaryPart.Position - playerHrp.Position).Magnitude
+								-- 판정 관용도: 원래 사거리의 1.3배까지 인정 (돌진 중일 수 있음)
+								if currentDist <= attackRange * 1.3 then
+									local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+									CombatService.damagePlayer(closestPlayerUserId, dmg)
+								end
+							end)
 						end
-
-						local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
-						CombatService.damagePlayer(closestPlayerUserId, dmg)
+					end
+				else
+					if not creature.lastAttackTime or (now - creature.lastAttackTime >= CREATURE_ATTACK_COOLDOWN) then
+						local facFolder = workspace:FindFirstChild("Facilities")
+						if facFolder then
+							local params = OverlapParams.new()
+							params.FilterDescendantsInstances = { facFolder }
+							params.FilterType = Enum.RaycastFilterType.Include
+							local hits = workspace:GetPartBoundsInRadius(hrp.Position, attackRange + 2, params)
+							if #hits > 0 then
+								local sModel = hits[1]:FindFirstAncestorOfClass("Model")
+								local sId = sModel and sModel:GetAttribute("StructureId")
+								if sId then
+									creature.lastAttackTime = now
+									if NetController then
+										NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetStructureId = sId })
+									end
+									
+									-- 구조물 공격도 딜레이 도입
+									local attackDelay = creature.data.attackDelay or 0.3
+									task.delay(attackDelay, function()
+										local BuildService = require(game:GetService("ServerScriptService").Server.Services.BuildService)
+										BuildService.takeDamage(sId, dmg)
+									end)
+								end
+							end
+						end
 					end
 				end
 			end

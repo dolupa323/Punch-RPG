@@ -13,6 +13,7 @@ local NetController
 local TimeService
 local DataService
 local StaminaService
+local FacilityService
 
 -- [userId] = { [debuffId] = { startTime, duration, tickDamage, ... } }
 local activeDebuffs = {}
@@ -64,11 +65,12 @@ end
 -- Public API
 --========================================
 
-function DebuffService.Init(_NetController, _TimeService, _DataService, _StaminaService)
+function DebuffService.Init(_NetController, _TimeService, _DataService, _StaminaService, _FacilityService)
 	NetController = _NetController
 	TimeService = _TimeService
 	DataService = _DataService
 	StaminaService = _StaminaService
+	FacilityService = _FacilityService
 	
 	-- 디버프 틱 루프 (2초마다)
 	task.spawn(function()
@@ -257,8 +259,15 @@ function DebuffService._environmentCheck()
 					if facilityId and DataService then
 						local facilityData = DataService.getFacility(facilityId)
 						if facilityData and (facilityData.functionType == "COOKING" or facilityData.functionType == "SMELTING") then
-							nearFire = true
-							break
+							-- [FIX] 시설이 가동 중(ACTIVE)인지 확인 (무한 동력 깡통 방지)
+							local facility = part:FindFirstAncestorOfClass("Model")
+							local structureId = facility and facility:GetAttribute("StructureId")
+							local runtime = structureId and FacilityService and FacilityService.getRuntime(structureId)
+							
+							if runtime and runtime.state == Enums.FacilityState.ACTIVE then
+								nearFire = true
+								break
+							end
 						end
 					end
 				end

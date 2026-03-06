@@ -143,6 +143,35 @@ function PalboxService.updatePalState(userId: number, palUID: string, newState: 
 	return true
 end
 
+--- 팰 스탯 수정 (Hunger, SAN 등)
+function PalboxService.modifyPalStats(userId: number, palUID: string, statChanges: {[string]: number}): boolean
+	local palbox = getOrCreatePalbox(userId)
+	local pal = palbox[palUID]
+	if not pal or not pal.stats then return false end
+	
+	for statName, delta in pairs(statChanges) do
+		local current = pal.stats[statName] or 0
+		local maxVal = 100
+		if statName == "hp" then maxVal = pal.stats.hp or 100 end -- 임시
+		if statName == "hunger" then maxVal = Balance.PAL_HUNGER_MAX or 100 end
+		if statName == "san" then maxVal = Balance.PAL_SAN_MAX or 100 end
+		
+		pal.stats[statName] = math.clamp(current + delta, 0, maxVal)
+	end
+	
+	-- 클라이언트 알림
+	local player = Players:GetPlayerByUserId(userId)
+	if player and NetController then
+		NetController.FireClient(player, "Palbox.Updated", {
+			action = "UPDATE_STATS",
+			palUID = palUID,
+			stats = pal.stats,
+		})
+	end
+	
+	return true
+end
+
 local TextService = game:GetService("TextService")
 
 --- 팰 닉네임 변경

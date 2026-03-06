@@ -22,13 +22,18 @@ local trackCache = {}
 
 --- 애니메이션 개체 찾기
 local function findAnimation(animName: string): Animation?
+	-- 1. 지정된 경로(Assets/Animations) 우선 검색
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	if not assets then return nil end
+	if assets then
+		local animFolder = assets:FindFirstChild("Animations")
+		if animFolder then
+			local found = animFolder:FindFirstChild(animName, true)
+			if found then return found end
+		end
+	end
 	
-	local animFolder = assets:FindFirstChild("Animations")
-	if not animFolder then return nil end
-	
-	return animFolder:FindFirstChild(animName, true) -- 재귀적으로 찾기
+	-- 2. 폴백: ReplicatedStorage 전체에서 검색 (Rojo 설정이나 수동 배치 대응)
+	return ReplicatedStorage:FindFirstChild(animName, true)
 end
 
 --========================================
@@ -59,6 +64,11 @@ function AnimationManager.load(humanoid: Humanoid, animName: string): AnimationT
 	if not animator then
 		animator = Instance.new("Animator")
 		animator.Parent = humanoid
+	end
+	
+	-- [추가] PrimaryPart가 없으면 물리 엔진이 애니메이션을 재생하지 못함 (전파 시도)
+	if not humanoid.Parent.PrimaryPart then
+		humanoid.Parent.PrimaryPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
 	end
 	
 	local animObject = findAnimation(animName)

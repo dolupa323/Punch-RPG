@@ -21,6 +21,7 @@ local BaseClaimService = nil
 local PalboxService = nil
 local DataService = nil
 local BuildService = nil
+local PalAIService = nil -- Phase 7-5: 팰 AI 및 비주얼
 
 --========================================
 -- Internal State
@@ -85,22 +86,22 @@ local function addToOutput(structureId: string, itemId: string, count: number): 
 	local runtime = FacilityService.getRuntime(structureId)
 	if not runtime then return count end
 	
-	-- outputSlot에 추가
+	-- outputSlot에 추가 (다중 아이템 맵 구조)
 	if not runtime.outputSlot then
-		runtime.outputSlot = { itemId = itemId, count = 0 }
+		runtime.outputSlot = {}
 	end
 	
-	-- 같은 아이템이면 스택
-	if runtime.outputSlot.itemId == itemId or runtime.outputSlot.count == 0 then
-		runtime.outputSlot.itemId = itemId
-		local maxStack = Balance.MAX_STACK or 99
-		local space = maxStack - runtime.outputSlot.count
+	local currentCount = runtime.outputSlot[itemId] or 0
+	local maxStack = Balance.MAX_STACK or 99
+	local space = maxStack - currentCount
+	
+	if space > 0 then
 		local toAdd = math.min(count, space)
-		runtime.outputSlot.count = runtime.outputSlot.count + toAdd
+		runtime.outputSlot[itemId] = currentCount + toAdd
 		return count - toAdd  -- 남은 수량 반환
 	end
 	
-	return count  -- 다른 아이템이면 추가 못함
+	return count  -- 공간 없음
 end
 
 --- 시설의 자동 수확 처리
@@ -123,6 +124,18 @@ local function processGatheringFacility(structureId: string, facilityData: any, 
 	
 	local palData = DataService and DataService.getById("PalData", palInstance.creatureId)
 	if not palData then return end
+	
+	-- [추가] 팰 유지비 체크 (Hunger, SAN)
+	local palStats = palInstance.stats or {}
+	local minHunger = Balance.PAL_MIN_WORK_HUNGER or 15
+	local minSan = Balance.PAL_MIN_WORK_SAN or 20
+	
+	if (palStats.hunger or 0) < minHunger or (palStats.san or 0) < minSan then
+		warn(string.format("[AutoHarvestService] Pal %s is too hungry (%d) or tired (%d) to work. owner: %d", 
+			palUID, palStats.hunger or 0, palStats.san or 0, ownerId))
+		-- 상태 전파 (UI에 표시되도록 필요시 추가)
+		return
+	end
 	
 	-- 주인 베이스 정보 (베이스 밖 노드는 채집 불가)
 	if not BaseClaimService then return end
@@ -166,6 +179,17 @@ local function processGatheringFacility(structureId: string, facilityData: any, 
 			continue
 		end
 		
+		-- [추가] 물리적 이동 및 작업 피드백 (PalAIService 연동)
+		if PalAIService then
+			if not PalAIService.isPalAt(assignedPalUID, nodeModel:GetPivot().Position, 8) then
+				-- 노드로 이동 명령
+				PalAIService.assignTask(assignedPalUID, "HARVEST", nodeModel:GetPivot().Position, 2, function()
+					-- 도착 후 다음 틱에서 채집되도록 함
+				end)
+				continue -- 이동 중이므로 이번 틱은 스킵
+			end
+		end
+
 		-- 노드 데미지 적용
 		local palDamage = 1
 		local eff = (palInstance.workPower or 1) * 0.5
@@ -186,14 +210,27 @@ local function processGatheringFacility(structureId: string, facilityData: any, 
 			
 			harvestedCount = harvestedCount + drop.count
 		end
+		
+		-- [추가] 팰 유지비 소모
+		if PalboxService then
+			PalboxService.modifyPalStats(ownerId, assignedPalUID, {
+				hunger = -(Balance.PAL_WORK_HUNGER_COST or 2),
+				san = -(Balance.PAL_WORK_SAN_COST or 1)
+			})
+		end
 	end
 	
 	if harvestedCount > 0 then
 		print(string.format("[AutoHarvestService] Facility %s harvested %d items", structureId, harvestedCount))
 	end
 	
-	harvestTimers[structureId] = now
-end
+		-- [추가] 시설 내구도 소모
+		if BuildService and BuildService.takeDamage then
+			BuildService.takeDamage(structureId, Balance.FACILITY_WORK_HP_LOSS or 0.1)
+		end
+		
+		harvestTimers[structureId] = now
+	end
 
 --========================================
 -- Public API
@@ -261,9 +298,13 @@ end
 --========================================
 
 function AutoHarvestService.Init(
+	harvestService: any,
+	facilityService: any,
+	baseClaimService: any,
 	palboxService: any,
 	dataService: any,
-	buildService: any
+	buildService: any,
+	palAIService: any
 )
 	if initialized then return end
 	
@@ -273,6 +314,7 @@ function AutoHarvestService.Init(
 	PalboxService = palboxService
 	DataService = dataService
 	BuildService = buildService
+	PalAIService = palAIService
 	
 	-- Heartbeat 시작
 	startHeartbeat()
