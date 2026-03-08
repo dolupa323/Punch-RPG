@@ -349,6 +349,111 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.harvestBar = hBar.fill
 	HUDUI.Refs.harvestName = Utils.mkLabel({text="채집 중...", size=UDim2.new(1, 0, 0, 25), ts=16, bold=true, rich=true, parent=HUDUI.Refs.harvestFrame})
 	HUDUI.Refs.harvestPct = Utils.mkLabel({text="0%", size=UDim2.new(1, 0, 0, 20), pos=UDim2.new(0.5, 0, 0, 45), anchor=Vector2.new(0.5, 0), ts=14, color=C.GOLD, parent=HUDUI.Refs.harvestFrame})
+
+	-- =============================================
+	-- HUD 바 툴팁 (마우스 호버 시 설명창)
+	-- =============================================
+	local tooltip = Instance.new("Frame")
+	tooltip.Name = "HUDTooltip"
+	tooltip.Size = UDim2.new(0, 210, 0, 80)
+	tooltip.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
+	tooltip.BackgroundTransparency = 0.1
+	tooltip.BorderSizePixel = 0
+	tooltip.ZIndex = 9500
+	tooltip.Visible = false
+	tooltip.Parent = parent
+
+	local tipCorner = Instance.new("UICorner")
+	tipCorner.CornerRadius = UDim.new(0, 10)
+	tipCorner.Parent = tooltip
+
+	local tipStroke = Instance.new("UIStroke")
+	tipStroke.Color = Color3.fromRGB(255, 220, 100)
+	tipStroke.Thickness = 1.5
+	tipStroke.Transparency = 0.4
+	tipStroke.Parent = tooltip
+
+	local tipTitle = Instance.new("TextLabel")
+	tipTitle.Name = "Title"
+	tipTitle.Size = UDim2.new(1, -20, 0, 30)
+	tipTitle.Position = UDim2.new(0, 10, 0, 5)
+	tipTitle.BackgroundTransparency = 1
+	tipTitle.TextColor3 = Color3.fromRGB(255, 230, 80)
+	tipTitle.TextSize = 16
+	tipTitle.Font = Enum.Font.GothamBold
+	tipTitle.TextXAlignment = Enum.TextXAlignment.Left
+	tipTitle.ZIndex = 9501
+	tipTitle.Parent = tooltip
+
+	local tipBody = Instance.new("TextLabel")
+	tipBody.Name = "Body"
+	tipBody.Size = UDim2.new(1, -20, 1, -40)
+	tipBody.Position = UDim2.new(0, 10, 0, 35)
+	tipBody.BackgroundTransparency = 1
+	tipBody.TextColor3 = Color3.fromRGB(220, 220, 220)
+	tipBody.TextSize = 13
+	tipBody.Font = Enum.Font.Gotham
+	tipBody.TextXAlignment = Enum.TextXAlignment.Left
+	tipBody.TextYAlignment = Enum.TextYAlignment.Top
+	tipBody.TextWrapped = true
+	tipBody.ZIndex = 9501
+	tipBody.Parent = tooltip
+
+	-- 툴팁 데이터
+	local barData = {
+		[HUDUI.Refs.healthBar.container] = {
+			title = "❤️ 생명력 (Health)",
+			body  = "캐릭터의 생존력을 나타냅니다.\n0이 되면 사망하여 리스폰됩니다.\n음식이나 치료제로 회복할 수 있습니다.",
+		},
+		[HUDUI.Refs.staminaBar.container] = {
+			title = "⚡ 기력 (Stamina)",
+			body  = "구르기, 달리기, 수영 등 활동 시 소모됩니다.\n소모된 기력은 가만히 있으면 자동으로 회복됩니다.",
+		},
+		[HUDUI.Refs.hungerBar.container] = {
+			title = "🍖 허기 (Hunger)",
+			body  = "시간이 지남에 따라 점차 감소합니다.\n배고픔이 0이 되면 체력이 서서히 감소합니다.\n다양한 음식을 먹어 채워야 합니다.",
+		},
+	}
+
+	local UserInputService = game:GetService("UserInputService")
+	
+	for container, data in pairs(barData) do
+		if not container then continue end
+		
+		-- 투명 버튼을 위에 덮어서 호버 감지 (안정적 렌더링)
+		local overlay = Instance.new("TextButton")
+		overlay.Name = "TooltipTrigger"
+		overlay.Size = UDim2.new(1, 0, 1, 0)
+		overlay.BackgroundTransparency = 1
+		overlay.Text = ""
+		overlay.ZIndex = container.ZIndex + 100
+		overlay.Parent = container
+
+		overlay.MouseEnter:Connect(function()
+			tipTitle.Text = data.title
+			tipBody.Text = data.body
+			-- 텍스트 길이에 맞춰 높이 조정
+			local lines = select(2, data.body:gsub("\n", "\n")) + 1
+			tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
+			tooltip.Visible = true
+		end)
+
+		overlay.MouseLeave:Connect(function()
+			tooltip.Visible = false
+		end)
+	end
+
+	-- 툴팁이 마우스를 따라다니게 처리
+	RunService.RenderStepped:Connect(function()
+		if tooltip.Visible then
+			local mousePos = UserInputService:GetMouseLocation()
+			local uiScale = parent:FindFirstChildOfClass("UIScale")
+			local scale = uiScale and uiScale.Scale or 1
+			
+			-- 마우스 오른쪽 아래에 배치
+			tooltip.Position = UDim2.new(0, mousePos.X / scale + 15, 0, (mousePos.Y - 36) / scale + 15)
+		end
+	end)
 end
 
 function HUDUI.SetVisible(visible)

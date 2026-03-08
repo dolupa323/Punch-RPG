@@ -87,7 +87,7 @@ local currentFacilityStructureId = nil
 
 -- 0. UI 관리 헬퍼
 local function isAnyWindowOpen()
-	return isInvOpen or isCraftOpen or isShopOpen or isTechOpen or isBuildOpen or isEquipmentOpen or isStorageOpen or isFacilityOpen
+	return WindowManager.isAnyOpen()
 end
 
 
@@ -229,7 +229,7 @@ local sideNotifyStack = {} -- [frame] = { startTime, label }
 local sideNotifyContainer = nil
 
 -- Drag & Drop
-local isDragging = false
+-- Drag & Drop state managed via DragDropController
 local DRAG_THRESHOLD = 5 -- Lower threshold for easier dragging
 local pendingDragIdx = nil
 local draggingSlotIdx = nil
@@ -373,6 +373,9 @@ function UIManager.openInventory(startTab)
 end
 
 function UIManager._onOpenInventory(startTab)
+	-- 가방 열 때마다 선택 초기화 (사용자 요청: 선택된 게 있어야 정보창 나옴)
+	selectedInvSlot = nil 
+	
 	-- 만약 단축키 등으로 직접 여는 것이라면 시설 정보 초기화
 	if not startTab or startTab == "BAG" then
 		activeFacilityId = nil
@@ -398,6 +401,7 @@ function UIManager._onCloseInventory()
 	end
 	
 	InventoryUI.SetVisible(false)
+	selectedInvSlot = nil -- 선택 초기화 (사용자 요청: 열 때 선택된 거 없게)
 end
 
 function UIManager.toggleInventory(startTab)
@@ -408,9 +412,22 @@ function UIManager.refreshInventory()
 	local items = InventoryController.getItems()
 	InventoryUI.RefreshSlots(items, getItemIcon, C, DataHelper)
 	
-	-- 상세창 정보 업데이트 (선택된 슬롯이 있는 경우 실시간 반영)
-	if selectedInvIndex and items[selectedInvIndex] then
-		InventoryUI.UpdateDetail(items[selectedInvIndex], getItemIcon, Enums, DataHelper)
+	-- 상세창 정보 업데이트 (선택된 슬롯이 있는 경우 실시간 반영, 없으면 숨김)
+	if selectedInvSlot and items[selectedInvSlot] then
+		InventoryUI.UpdateDetail(items[selectedInvSlot], getItemIcon, Enums, DataHelper, InventoryController.getItemCounts())
+	elseif selectedInvSlot == nil and WindowManager.isOpen("INV") and InventoryUI.Refs.CraftFrame and InventoryUI.Refs.CraftFrame.Visible then
+		-- [추가] 제작 탭이 활성화된 상태라면, 소지품 슬롯이 선택되지 않았더라도 상세창을 유지
+		if selectedPersonalRecipeId and cachedPersonalRecipes then
+			for _, r in ipairs(cachedPersonalRecipes) do
+				if r.id == selectedPersonalRecipeId then
+					UIManager._updatePersonalCraftDetail(r)
+					break
+				end
+			end
+		end
+	else
+		-- [유지] 선택된 대상이 없으면 상세창 숨김 (사용자 요청 반영)
+		InventoryUI.UpdateDetail(nil) 
 	end
 	
 	local totalWeight, maxWeight = InventoryController.getWeightInfo()
@@ -462,9 +479,7 @@ function UIManager.getEquipSlots() return equipSlots end
 function UIManager.isWindowOpen(winId) return WindowManager.isOpen(winId) end
 function UIManager.getIsMobile() return isMobile end
 
-function UIManager.isDragging()
-	return isDragging
-end
+-- UIManager.isDragging()은 이미 위(L456)에서 DragDropController를 통해 정의됨 (중복 제거)
 
 local modalActionType = "DROP" -- DROP or SPLIT
 
@@ -535,7 +550,7 @@ function UIManager.confirmModalAction(count)
 end
 
 function UIManager._onInvSlotClick(idx)
-	if not isInvOpen then return end
+	if not WindowManager.isOpen("INV") then return end
 	selectedInvSlot = idx
 	local items = InventoryController.getItems()
 	local data = items[idx]
@@ -572,7 +587,7 @@ function UIManager.onUseItem()
 end
 
 function UIManager.onInventorySlotRightClick(idx)
-	if not isInvOpen or not idx then return end
+	if not WindowManager.isOpen("INV") or not idx then return end
 	-- 클릭 효과를 위해 좌클릭 선택 로직 선행 실행 (옵션)
 	UIManager._onInvSlotClick(idx)
 	-- 실제 사용 요청
@@ -754,59 +769,42 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 end
 
 function UIManager._updatePersonalCraftDetail(recipe)
-	if not invDetailPanel then return end
+	if not recipe then 
+		InventoryUI.UpdateDetail(nil)
+		return 
+	end
+	
+	local isLocked = not TechController.isRecipeUnlocked(recipe.id)
+	
+	-- InventoryUI의 공통 UpdateDetail을 사용하여 통일성 및 버그 방지
+	InventoryUI.UpdateDetail(recipe, getItemIcon, Enums, DataHelper, InventoryController.getItemCounts(), isLocked)
+	
+	-- 제작 진행률 UI 초기화 (이전 진행률 잔상 제거)
+	local refs = InventoryUI.Refs.Detail
+	if refs and refs.ProgFill then
+		refs.ProgFill.Size = UDim2.new(0,0,1,0)
+		if refs.ProgWrap then refs.ProgWrap.Visible = false end
+		if refs.ProgBar then refs.ProgBar.Visible = false end
+	end
+end
+
+-- [추가] 풀스크린 제작 메뉴용 클라이언트 액션 (CraftingUI 호출용)
+function UIManager._onCraftSlotClick(recipe, mode)
+	if not recipe then return end
+	
+	-- 전역 선택 ID 동기화
+	selectedPersonalRecipeId = recipe.id
 	
 	local playerItemCounts = InventoryController.getItemCounts()
 	local isLocked = not TechController.isRecipeUnlocked(recipe.id)
-	local canCraft, _ = UIManager.checkMaterials(recipe, playerItemCounts)
+	local canMake, _ = UIManager.checkMaterials(recipe, playerItemCounts)
 	
-	-- Reuse CraftingUI's logic but tailored for Inventory's refactored detail panel if possible. 
-	-- For now, let's just manually update InventoryUI.Refs.Detail components.
-	local d = InventoryUI.Refs.Detail
-	if d.Frame then
-		d.Name.Text = recipe.name or recipe.id
-		local outItem = recipe.outputs and recipe.outputs[1] and recipe.outputs[1].itemId or recipe.id
-		d.PreviewIcon.Image = getItemIcon(outItem)
-		d.PreviewIcon.Visible = true
-		
-		local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
-		local itemData = DataHelper.GetData("ItemData", outItem)
-		d.Desc.Text = itemData and itemData.description or (itemData and (itemData.name .. " 을(를) 제작합니다.") or "선택한 대상을 제작합니다.")
-		
-		d.Stats.Visible = true
-		d.Weight.Text = ""
-		
-		local recipe = recipe -- Redundant but safe
-		d.Mats.RichText = true
-		if isLocked then
-			d.Mats.Text = "<font color=\"#E63232\">기술 트리(K)에서 해금이 필요합니다.</font>"
-			d.BtnUse.Text = "잠김 (해금 필요)"
-			d.BtnUse.BackgroundColor3 = C.BTN_DIS
-		else
-			local matsText = ""
-			for _, inp in ipairs(recipe.inputs or {}) do
-				local have = playerItemCounts[inp.itemId or inp.id] or 0
-				local req = inp.count or 0
-				local matId = inp.itemId or inp.id
-				local matData = DataHelper.GetData("ItemData", matId)
-				local matName = matData and matData.name or matId
-				local color = (have >= req) and "#8CDC64" or "#E63232"
-				matsText = matsText .. string.format("<font color=\"%s\">%s %d/%d</font>\n", color, matName, have, req)
-			end
-			d.Mats.Text = "필요 재료:\n" .. matsText
-			d.BtnUse.Text = "제작하기"
-			d.BtnUse.BackgroundColor3 = canCraft and C.GOLD_SEL or C.BTN_DIS
-		end
-		d.BtnUse.Visible = true
-		d.BtnDrop.Visible = false
-	end
+	-- 풀스크린 상세창 업데이트
+	CraftingUI.UpdateDetail(recipe, mode, isLocked, canMake, playerItemCounts, DataHelper, getItemIcon)
 	
-	-- 제작 진행률 초기화
-	local refs = (isInvOpen and InventoryUI.Refs.Detail) or (isCraftOpen and CraftingUI.Refs.Detail)
-	if refs and refs.ProgFill then
-		refs.ProgFill.Size = UDim2.new(0,0,1,0)
-		refs.ProgWrap.Visible = false
-		refs.ProgBar.Visible = false
+	-- 인벤토리 상세창도 만약 열려있다면 동기화
+	if WindowManager.isOpen("INV") then
+		UIManager._updatePersonalCraftDetail(recipe)
 	end
 end
 
@@ -822,16 +820,21 @@ function UIManager.showCraftingProgress(duration)
 	HUDUI.ShowHarvestProgress(duration, "제작 중...")
 	
 	-- 2. 상세 정보창 내부 진행률 표시 (돌아가는 표시)
+	local isInvOpen = WindowManager.isOpen("INV")
+	local isCraftOpen = WindowManager.isOpen("CRAFT")
 	local refs = (isInvOpen and InventoryUI.Refs.Detail) or (isCraftOpen and CraftingUI.Refs.Detail)
+	
 	if refs and refs.ProgWrap then
 		refs.ProgWrap.Visible = true
-		refs.ProgBar.Visible = true
+		if refs.ProgBar then refs.ProgBar.Visible = true end
 		
 		-- 스피너 회전 루프 (Durango 스타일)
 		if spinnerTween then spinnerTween:Cancel() end
-		refs.Spinner.Rotation = 0
-		spinnerTween = TweenService:Create(refs.Spinner, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360})
-		spinnerTween:Play()
+		if refs.Spinner then
+			refs.Spinner.Rotation = 0
+			spinnerTween = TweenService:Create(refs.Spinner, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360})
+			spinnerTween:Play()
+		end
 		
 		-- 프로그레스바 루프
 		if progConn then progConn:Disconnect() end
@@ -850,14 +853,20 @@ function UIManager.stopCraftingProgress()
 	if spinnerTween then spinnerTween:Cancel(); spinnerTween = nil end
 	if progConn then progConn:Disconnect(); progConn = nil end
 	
+	local isInvOpen = WindowManager.isOpen("INV")
+	local isCraftOpen = WindowManager.isOpen("CRAFT")
 	local refs = (isInvOpen and InventoryUI.Refs.Detail) or (isCraftOpen and CraftingUI.Refs.Detail)
 	if refs and refs.ProgWrap then
 		refs.ProgWrap.Visible = false
-		refs.ProgBar.Visible = false
+		if refs.ProgBar then refs.ProgBar.Visible = false end
 	end
 end
+
 function UIManager._doCraft()
-	-- 인벤토리 내 제작 탭 처리 (아이템 제작 전용)
+	local isInvOpen = WindowManager.isOpen("INV")
+	local isCraftOpen = WindowManager.isOpen("CRAFT")
+	
+	-- 1. 인벤토리 내 제작 탭 처리 (아이템 제작 전용)
 	if isInvOpen and invCraftContainer and invCraftContainer.Visible then
 		if not selectedPersonalRecipeId then return end
 		
@@ -867,7 +876,7 @@ function UIManager._doCraft()
 		end
 		if not recipe then return end
 
-		-- [기술 잠금 체크] - 인벤토리 제작은 RecipeData이므로 isRecipeUnlocked 사용
+		-- [기술 잠금 체크]
 		if not TechController.isRecipeUnlocked(recipe.id) then
 			UIManager.notify("기술 해금이 필요합니다.", C.RED)
 			return
@@ -888,14 +897,49 @@ function UIManager._doCraft()
 			
 			if resultOk then
 				if response and response.instant then
-					-- 즉시 제작인 경우 바로 종료
 					UIManager.stopCraftingProgress()
 					UIManager.notify((recipe.name or "아이템") .. " 제작 완료!", C.GREEN)
 					UIManager.refreshInventory()
 					UIManager.refreshPersonalCrafting() 
-				else
-					-- [FIX] 대기 제작의 경우 여기서 task.wait() 하지 않음!
-					-- 서버에서 날아오는 Craft.Started와 Craft.Completed 이벤트를 통해 제어됨.
+				end
+			else
+				UIManager.stopCraftingProgress()
+				UIManager.notify("제작 실패: " .. tostring(response), C.RED)
+			end
+		end)
+		return
+	end
+
+	-- 2. 풀스크린 제작 메뉴 처리 (시설 제작 또는 건축)
+	if isCraftOpen then
+		if not selectedPersonalRecipeId then return end
+		-- 현재 풀스크린 제작 메뉴에서도 selectedPersonalRecipeId를 공유하거나, 
+		-- CraftingUI에서 관리하는 별도의 변수가 필요할 수 있음. 
+		-- 일단 로직 흐름상 동일 변수 사용 가정.
+		
+		local recipe = DataHelper.GetData("RecipeData", selectedPersonalRecipeId)
+		if not recipe then return end
+		
+		-- 재료 체크
+		local ok, msg = UIManager.checkMaterials(recipe)
+		if not ok then UIManager.notify(msg, C.RED); return end
+		
+		local craftTime = recipe.craftTime or 3
+		UIManager.showCraftingProgress(craftTime)
+		
+		task.spawn(function()
+			local resultOk, response = NetClient.Request("Craft.Start.Request", {
+				recipeId = selectedPersonalRecipeId,
+				structureId = currentFacilityStructureId
+			})
+			
+			if resultOk then
+				if response and response.instant then
+					UIManager.stopCraftingProgress()
+					UIManager.refreshInventory()
+					if currentFacilityStructureId then
+						UIManager.refreshFacilityCrafting(currentFacilityStructureId)
+					end
 				end
 			else
 				UIManager.stopCraftingProgress()
@@ -940,10 +984,6 @@ end
 
 function UIManager.toggleTechTree()
 	WindowManager.toggle("TECH")
-end
-
-function UIManager.toggleTechTree()
-	if isTechOpen then UIManager.closeTechTree() else UIManager.openTechTree() end
 end
 
 function UIManager.refreshTechTree()
@@ -1016,10 +1056,10 @@ function UIManager._doResetTech()
 		if success then
 			UIManager.notify("기술 트리가 초기화되었습니다.", C.GOLD)
 			UIManager.refreshTechTree()
-			if isInvOpen and invCraftContainer and invCraftContainer.Visible then
+			if WindowManager.isOpen("INV") and invCraftContainer and invCraftContainer.Visible then
 				UIManager.refreshPersonalCrafting(true)
 			end
-			if isBuildOpen then UIManager.refreshBuild() end
+			if WindowManager.isOpen("BUILD") then UIManager.refreshBuild() end
 		end
 	end)
 end
@@ -1439,9 +1479,9 @@ end
 ----------------------------------------------------------------
 local function setupEventListeners()
 	InventoryController.onChanged(function()
-		if isInvOpen then UIManager.refreshInventory() end
+		if WindowManager.isOpen("INV") then UIManager.refreshInventory() end
 		UIManager.refreshHotbar()
-		if isEquipmentOpen then UIManager.refreshStats() end
+		if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
 		if invCraftContainer and invCraftContainer.Visible then
 			UIManager.refreshPersonalCrafting()
 		end
@@ -1471,7 +1511,7 @@ local function setupEventListeners()
 	NetClient.On("Inventory.ActiveSlot.Changed", function(data)
 		if data and data.slot then
 			UIManager.selectHotbarSlot(data.slot, true) -- 루프 방지 위해 skipSync=true
-			if isEquipmentOpen then
+			if WindowManager.isOpen("EQUIP") then
 				EquipmentUI.UpdateCharacterPreview(player.Character)
 			end
 		end
@@ -1517,7 +1557,7 @@ local function setupEventListeners()
 					UIManager.notify(" 레벨업! Lv. "..d.level, C.GOLD)
 				end
 				if d.statPointsAvailable ~= nil then UIManager.updateStatPoints(d.statPointsAvailable) end
-				if isEquipmentOpen then UIManager.refreshStats() end
+				if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
 			end
 		end)
 		
@@ -1577,15 +1617,15 @@ local function setupEventListeners()
 	
 	-- Tech Events
 	TechController.onTechUpdated(function()
-		if isTechOpen then UIManager.refreshTechTree() end
-		if isCraftOpen then UIManager.refreshPersonalCrafting() end
-		if isBuildOpen then UIManager.refreshBuild() end
+		if WindowManager.isOpen("TECH") then UIManager.refreshTechTree() end
+		if WindowManager.isOpen("CRAFT") then UIManager.refreshPersonalCrafting() end
+		if WindowManager.isOpen("BUILD") then UIManager.refreshBuild() end
 	end)
 	
 	TechController.onTechUnlocked(function(data)
 		if data and data.name then
 			UIManager.notify("💡 기술 연구 완료: " .. data.name, C.GOLD_SEL)
-			if isTechOpen and data.techId then
+			if WindowManager.isOpen("TECH") and data.techId then
 				local node = {id = data.techId, name = data.name}
 				TechUI.ShowUnlockSuccessPopup(node, getItemIcon, mainGui)
 			end

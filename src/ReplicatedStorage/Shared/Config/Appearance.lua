@@ -27,8 +27,8 @@ local Appearance = {
 
 	-- 의상 에셋 ID (기본 가죽 셔츠/바지)
 	CLOTHING_IDS = {
-		DEFAULT_SHIRT = "rbxassetid://398633812", 
-		DEFAULT_PANTS = "rbxassetid://398633812"
+		DEFAULT_SHIRT = "rbxassetid://398633812", -- 가죽 셔츠
+		DEFAULT_PANTS = "rbxassetid://398634125"  -- 가죽 하의 (세트 의상)
 	}
 }
 

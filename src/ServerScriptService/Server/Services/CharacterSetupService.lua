@@ -34,98 +34,106 @@ local function setBodyPartColor(character, partName: string, color: Color3)
 end
 
 --- 선사시대 스타일 적용
-local function applyPrehistoricStyle(character)
-	-- Humanoid Description 가져오기 (동기적 대기)
-	local humanoid = character:WaitForChild("Humanoid", 5)
+local function applyPrehistoricStyle(player, character)
+	-- 한 프레임 양보: 캐릭터가 Workspace에 완전히 parent된 후 작업
+	task.wait()
+
+	local humanoid = character:WaitForChild("Humanoid", 15)
 	if not humanoid then return end
 	
-	-- 랜덤 피부톤 선택
-	local skinTone = randomChoice(Appearance.SKIN_TONES)
-	local clothingColor = randomChoice(Appearance.CLOTHING_COLORS)
+	-- 1. 플레이어 UserId 기반 랜덤 시드
+	local rng = Random.new(player.UserId)
+	local skinTone = Appearance.SKIN_TONES[rng:NextInteger(1, #Appearance.SKIN_TONES)]
+	local clothingColor = Appearance.CLOTHING_COLORS[rng:NextInteger(1, #Appearance.CLOTHING_COLORS)]
 	
-	-- 신체 색상 설정
-	local bodyParts = {
-		"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
-		"UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "LeftHand",
-		"RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg",
-		"LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"
+	-- 2. 기존 액세서리, 의상, 패키지 파트 삭제
+	for _, child in ipairs(character:GetChildren()) do
+		if child:IsA("Accessory") or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
+			child:Destroy()
+		end
+	end
+	
+	-- 3. 신체 부위별 색상 적용 (피부 VS 의상 구분)
+	-- 피부 영역: Head, 양팔
+	local skinParts = {
+		"Head",
+		"Left Arm", "Right Arm",
+		"LeftUpperArm", "LeftLowerArm", "LeftHand",
+		"RightUpperArm", "RightLowerArm", "RightHand",
+	}
+	-- 의상 영역: 몸통, 다리 (가죽 의상이 덮는 부분)
+	local clothingParts = {
+		"Torso", "UpperTorso", "LowerTorso",
+		"Left Leg", "Right Leg",
+		"LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+		"RightUpperLeg", "RightLowerLeg", "RightFoot",
 	}
 	
-	for _, partName in ipairs(bodyParts) do
-		-- 몸통과 팔다리 일부는 의상 색상
-		if partName == "Torso" or partName == "UpperTorso" or partName == "LowerTorso" then
-			setBodyPartColor(character, partName, clothingColor)
-		elseif partName:find("Leg") or partName:find("Foot") then
-			-- 하반신: 가죽 치마처럼 의상 색
-			setBodyPartColor(character, partName, clothingColor)
-		else
-			-- 나머지: 피부색
-			setBodyPartColor(character, partName, skinTone)
+	for _, name in ipairs(skinParts) do
+		local part = character:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			part.Color = skinTone
 		end
 	end
 	
-	-- 머리 색상 (얼굴)
-	local head = character:FindFirstChild("Head")
-	if head then
-		head.Color = skinTone
-	end
-	
-	-- 기존 의상/액세서리 제거 (현대적 요소)
-	for _, child in ipairs(character:GetChildren()) do
-		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
-			-- 기존 현대 의상 유지 안함 (필요시 제거)
-			-- child:Destroy()
+	for _, name in ipairs(clothingParts) do
+		local part = character:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			part.Color = clothingColor
 		end
 	end
 	
-	-- 선사시대 의상 생성 (클래식 셔츠/바지로 가죽 느낌)
-	local shirt = character:FindFirstChild("Shirt")
+	-- 4. 클래식 의상 강제 주입 (Shirt/Pants Instance 직접 수정)
+	-- 기존 Shirt/Pants가 있으면 재사용, 없으면 새로 생성
+	local shirt = character:FindFirstChildOfClass("Shirt")
 	if not shirt then
 		shirt = Instance.new("Shirt")
 		shirt.Name = "Shirt"
 		shirt.Parent = character
 	end
-	-- 가죽 조끼 느낌의 텍스처
 	shirt.ShirtTemplate = Appearance.CLOTHING_IDS.DEFAULT_SHIRT
 	
-	local pants = character:FindFirstChild("Pants")
+	local pants = character:FindFirstChildOfClass("Pants")
 	if not pants then
 		pants = Instance.new("Pants")
 		pants.Name = "Pants"
 		pants.Parent = character
 	end
-	-- 가죽 반바지/치마 느낌
 	pants.PantsTemplate = Appearance.CLOTHING_IDS.DEFAULT_PANTS
 	
-	-- Body Part 색상 적용 (HumanoidDescription 방식, 동기화)
-	-- 주의: ApplyDescription은 캐릭터가 DataModel(Workspace)에 소속되어 있어야만 호출 가능합니다.
-	if not character:IsDescendantOf(game) then
-		character.AncestryChanged:Wait()
-	end
-	if not character.Parent then return end -- 도중에 파괴된 경우 중단
-	
-	local success, err = pcall(function()
-		local desc = humanoid:GetAppliedDescription()
-		if desc then
-			desc.HeadColor = skinTone
-			desc.LeftArmColor = skinTone
-			desc.RightArmColor = skinTone
-			desc.LeftLegColor = clothingColor
-			desc.RightLegColor = clothingColor
-			desc.TorsoColor = clothingColor
-			
-			-- HairColor는 별도 처리
-			-- desc.HairColor = randomChoice(Appearance.HAIR_COLORS)
-			
-			humanoid:ApplyDescription(desc)
+	-- 5. ChildAdded 감시: 로블록스 엔진이 나중에 유저 액세서리를 다시 끼우려 하면 즉시 삭제
+	local conn
+	conn = character.ChildAdded:Connect(function(child)
+		if child:IsA("Accessory") then
+			child:Destroy()
 		end
 	end)
+	-- 5초 후 감시 해제 (무한 감시 방지)
+	task.delay(5, function()
+		if conn then conn:Disconnect() end
+	end)
 	
-	if not success then
-		warn(string.format("[CharacterSetupService] Failed to ApplyDescription to %s: %s", character.Name, tostring(err)))
+	-- 4. 물리적 보정 및 직립 유지 설정
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+	
+	-- [강력 차단] 캐릭터가 바닥에 눕거나 뒤집히는 것을 방지하기 위해 BodyGyro 강화
+	local hrp = character:WaitForChild("HumanoidRootPart", 5)
+	if hrp then
+		local gyro = hrp:FindFirstChild("UprightForce") or Instance.new("BodyGyro")
+		gyro.Name = "UprightForce"
+		gyro.MaxTorque = Vector3.new(1, 0, 1) * 2e6 -- X, Z축 회전 강력 차단
+		gyro.P = 20000 -- 회전 복원력 대폭 상향
+		gyro.D = 500  -- 감쇄
+		gyro.CFrame = hrp.CFrame
+		gyro.Parent = hrp
+		
+		-- 인체공학적 서기 (HipHeight 조정)
+		humanoid.HipHeight = 2.0
 	end
 	
-	print(string.format("[CharacterSetupService] Applied prehistoric style to %s", character.Name))
+	print(string.format("[CharacterSetupService] Applied prehistoric style & Upright Physics to %s", character.Name))
 end
 
 --========================================
@@ -145,13 +153,18 @@ end
 --========================================
 
 local function onCharacterAdded(player: Player, character)
-	applyPrehistoricStyle(character)
+	applyPrehistoricStyle(player, character) -- player 인자 추가
 	setupCharacterAttributes(player, character)
 end
 
 local function onPlayerAdded(player: Player)
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
+	end)
+	
+	-- [FIX] 로블록스 기본 외형 로딩 후 우리 스타일로 덮어쓰기
+	player.CharacterAppearanceLoaded:Connect(function(character)
+		applyPrehistoricStyle(player, character)
 	end)
 	
 	-- 이 시점에 이미 캐릭터가 존재하는 경우 즉시 처리
@@ -178,7 +191,7 @@ end
 --- 수동으로 스타일 재적용
 function CharacterSetupService.refreshStyle(player: Player)
 	if player.Character then
-		applyPrehistoricStyle(player.Character)
+		applyPrehistoricStyle(player, player.Character)
 	end
 end
 

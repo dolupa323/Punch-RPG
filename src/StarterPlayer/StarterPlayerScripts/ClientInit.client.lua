@@ -78,6 +78,10 @@ if success then
 	local CreatureAnimationController = require(Controllers.CreatureAnimationController)
 	CreatureAnimationController.Init()
 	
+	-- [추가] HitFeedbackController 초기화 (피격 연출 및 물리 보정)
+	local HitFeedbackController = require(Controllers.HitFeedbackController)
+	HitFeedbackController.Init()
+	
 	-- UIManager 초기화 (UI 생성 - 컨트롤러들 초기화 후)
 	UIManager.Init()
 	

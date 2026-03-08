@@ -92,8 +92,8 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	-- [Content Area]
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
 	
-	-- Left Side: Item Grid
-	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -320, 1, 0), bgT=1, parent=content})
+	-- Left Side: Item Grid (스크롤바 공간 및 정보창 간격 확보)
+	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -310, 1, 0), bgT=1, parent=content})
 	InventoryUI.Refs.BagFrame = gridArea
 	
 	local scroll = Instance.new("ScrollingFrame")
@@ -197,12 +197,13 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		InventoryUI.Refs.Slots[i] = slot
 	end
 	
-	-- Right Side: Detail Panel (320px)
-	local detailSize = 320
+	-- Right Side: Detail Panel (사용자 요청: 가로폭 축소 및 겹침 방지)
+	local detailSize = 270
 	local detail = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
-		pos=UDim2.new(1, -detailSize - 8, 0, 8),
+		pos=UDim2.new(1, -detailSize - 12, 0, 8),
 		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+		vis=false, -- 초기에는 숨김
 		parent=content
 	})
 	InventoryUI.Refs.Detail.Frame = detail
@@ -285,7 +286,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.Detail.BtnDrop.MouseButton1Click:Connect(function() if UIManager.openDropModal then UIManager.openDropModal() end end)
 	
 	-- Add Crafting Area Right Side (Same Pos as GridArea)
-	local craftArea = Utils.mkFrame({name="CraftFrame", size=UDim2.new(1, -detailSize - 16, 1, 0), bgT=1, vis=false, parent=content})
+	local craftArea = Utils.mkFrame({name="CraftFrame", size=UDim2.new(1, -300, 1, 0), bgT=1, vis=false, parent=content})
 	InventoryUI.Refs.CraftFrame = craftArea
 	local craftScroll = Instance.new("ScrollingFrame")
 	craftScroll.Name = "GridScroll"
@@ -394,7 +395,8 @@ function InventoryUI.SetTab(tabId)
 	
 	local d = InventoryUI.Refs.Detail
 	if d.Frame then
-		d.Name.Text = "선택된 대상 없음"
+		d.Frame.Visible = false -- 탭 전환 시 정보창 숨김
+		d.Name.Text = ""
 		d.Icon.Image = ""
 		d.Icon.Visible = false
 		d.Stats.Text = ""
@@ -496,41 +498,72 @@ function InventoryUI.UpdateWeight(cur, max, __C)
 	end
 end
 
-function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper)
+function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCounts, isLocked)
 	local d = InventoryUI.Refs.Detail
 	if not d.Frame then return end
 	
-	if data and data.itemId then
-		local itemData = DataHelper.GetData("ItemData", data.itemId)
-		d.Name.Text = (itemData and itemData.name) or data.itemId
-		d.Icon.Image = getItemIcon(data.itemId)
+	if data and (data.itemId or data.id) then
+		d.Frame.Visible = true -- 아이템/레시피가 있으면 표시
+		local itemId = data.itemId or data.id
+		local itemData = DataHelper.GetData("ItemData", itemId)
+		d.Name.Text = (itemData and itemData.name) or itemId
+		d.Icon.Image = getItemIcon(itemId)
 		d.Icon.Visible = true
 		
-		local weightStr = string.format("무게: %.1f", (itemData and itemData.weight or 0.1) * (data.count or 1))
+		local weightValue = (itemData and itemData.weight or 0.1) * (data.count or 1)
+		local weightStr = string.format("무게: %.1f", weightValue)
 		d.Stats.Text = weightStr .. " | 수량: " .. (data.count or 1)
 		
 		d.Desc.Text = (itemData and itemData.description) or (itemData and (itemData.name .. " 입니다.")) or ""
 		
-		-- [제작 탭 대응] 재료 정보 표시
+		-- [제작 탭 대응] 재료 정보 표시 (실시간 보유량 체크 및 색상 적용)
 		local recipe = data
 		local mats = recipe.inputs or recipe.requirements
 		if mats and #mats > 0 then
-			local matsText = "[ 필요 재료 ]\n"
-			for _, m in ipairs(mats) do
-				local mName = m.itemId or m.id
-				if DataHelper then
-					local md = DataHelper.GetData("ItemData", mName)
-					if md then mName = md.name end
+			if isLocked then
+				d.Stats.Text = "<font color=\"#E63232\">기술 트리(K)에서 해금이 필요합니다.</font>"
+				d.BtnMain.Text = "잠김 (해금 필요)"
+				d.BtnMain.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+				d.BtnMain.Visible = true
+				d.BtnDrop.Visible = false
+			else
+				local matsText = "<b>[ 필요 재료 ]</b>\n"
+				local allMet = true
+				for _, m in ipairs(mats) do
+					local matId = m.itemId or m.id
+					local mName = matId
+					if DataHelper then
+						local md = DataHelper.GetData("ItemData", matId)
+						if md then mName = md.name end
+					end
+					
+					local req = m.count or m.amount or 1
+					local have = (itemCounts and itemCounts[matId]) or 0
+					local color = (have >= req) and "#8CDC64" or "#E63232"
+					if have < req then allMet = false end
+					
+					matsText = matsText .. string.format("- %s : <font color=\"%s\">%d / %d</font>\n", mName, color, have, req)
 				end
-				matsText = matsText .. string.format("- %s x %d\n", mName, m.count or m.amount or 1)
+				d.Stats.Text = matsText
+				
+				if allMet then
+					d.BtnMain.Text = "제작 시작"
+					d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+				else
+					d.BtnMain.Text = "재료 부족"
+					d.BtnMain.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+				end
+				d.BtnMain.Visible = true
+				d.BtnDrop.Visible = false
 			end
-			d.Stats.Text = matsText -- Stats 라벨을 재로 정보로 활용
-		end		
-		d.BtnMain.Visible = true
-		d.BtnDrop.Visible = true
-		
-		local isEquippable = (itemData and (itemData.type == Enums.ItemType.ARMOR or itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL))
-		d.BtnMain.Text = isEquippable and "장착" or "사용"
+		else
+			-- 일반 아이템
+			d.BtnMain.Visible = true
+			d.BtnDrop.Visible = true
+			d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+			local isEquippable = (itemData and (itemData.type == Enums.ItemType.ARMOR or itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL))
+			d.BtnMain.Text = isEquippable and "장착" or "사용"
+		end
 		
 		-- Durability Display
 		if data.durability and itemData and itemData.durability then
@@ -553,7 +586,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper)
 			d.DurWrap.Visible = false
 		end
 	else
-		d.Name.Text = "선택된 아이템 없음"
+		d.Frame.Visible = false -- 아이템이 없으면 숨김
+		d.Name.Text = ""
 		d.Icon.Image = ""
 		d.Icon.Visible = false
 		d.Stats.Text = ""

@@ -362,7 +362,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	emitCraftEvent("Craft.Started", player, startData)
 	
 	print(string.format("[CraftingService] Queued craft %s (%s) for player %d, completes in %ds",
-		craftId, recipeId, realCraftTime))
+		craftId, recipeId, player.UserId, realCraftTime))
 	return true, nil, startData
 end
 

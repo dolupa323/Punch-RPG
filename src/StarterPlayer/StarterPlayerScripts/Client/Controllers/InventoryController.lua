@@ -85,7 +85,19 @@ function InventoryController.getItemCounts()
 	return counts
 end
 
---- 아이템 슬롯 변경 (드래그 앤 드롭용)
+--- 아이템 이동/교환 (드래그 앤 드롭 지원)
+function InventoryController.moveItem(fromSlot: any, toSlot: any, toType: string)
+	if fromSlot == toSlot and toType == "bag" then return end
+	
+	if toType == "bag" or toType == "hotbar" then
+		-- 가방이나 핫바는 모두 인벤토리 슬롯 번호로 취급
+		InventoryController.swapSlots(tonumber(fromSlot), tonumber(toSlot))
+	elseif toType == "equip" then
+		-- 장비 슬롯으로 이동 (장착 요청)
+		InventoryController.requestEquip(tonumber(fromSlot), toSlot)
+	end
+end
+
 function InventoryController.swapSlots(fromSlot: number, toSlot: number)
 	if fromSlot == toSlot then return end
 	

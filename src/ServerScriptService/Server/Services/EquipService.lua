@@ -347,8 +347,8 @@ function EquipService.equipItem(player: Player, itemId: string?)
 	isEquipping[player.UserId] = nil
 end
 
-local function _formatAssetId(id)
-	if not id or id == "" or id == 0 then return "" end
+local function _formatAssetId(id, fallback)
+	if not id or id == "" or id == 0 then return fallback or "" end
 	if type(id) == "number" or (type(id) == "string" and not id:find("://")) then
 		return "rbxassetid://" .. tostring(id)
 	end
@@ -381,6 +381,11 @@ function EquipService.updateAppearance(player: Player)
 	local topItem = equip.TOP and DataService.getItem(equip.TOP.itemId)
 	local botItem = equip.BOTTOM and DataService.getItem(equip.BOTTOM.itemId)
 	
+	-- [FIX] 장비가 없는 경우 기본 원시인 의상 유지
+	local Appearance = require(ReplicatedStorage.Shared.Config.Appearance)
+	local defaultShirt = Appearance.CLOTHING_IDS.DEFAULT_SHIRT
+	local defaultPants = Appearance.CLOTHING_IDS.DEFAULT_PANTS
+	
 	if suitItem then
 		shirt.ShirtTemplate = _formatAssetId(suitItem.shirtId)
 		pants.PantsTemplate = _formatAssetId(suitItem.pantsId)
@@ -389,8 +394,8 @@ function EquipService.updateAppearance(player: Player)
 			EquipService._applyArmorModel(char, suitItem.modelId)
 		end
 	else
-		shirt.ShirtTemplate = _formatAssetId(topItem and topItem.shirtId)
-		pants.PantsTemplate = _formatAssetId(botItem and botItem.pantsId)
+		shirt.ShirtTemplate = _formatAssetId(topItem and topItem.shirtId, defaultShirt)
+		pants.PantsTemplate = _formatAssetId(botItem and botItem.pantsId, defaultPants)
 		
 		if topItem and topItem.modelId then
 			EquipService._applyArmorModel(char, topItem.modelId)

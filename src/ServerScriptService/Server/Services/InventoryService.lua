@@ -1436,6 +1436,26 @@ local function onPlayerAdded(player: Player)
 	InventoryService.getOrCreateInventory(userId)
 	InventoryService.setActiveSlot(userId, 1) -- 초기 활성 슬롯 1번
 	
+	-- [FIX] 리스폰 시 장비 외형 및 도구 자동 복구
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		if not humanoid then return end
+		
+		-- 캐릭터 셋업(피부색 등)이 완료될 때까지 약간의 지연 (Race Condition 방지)
+		task.delay(0.1, function()
+			if EquipService then
+				EquipService.updateAppearance(player)
+				
+				-- 손에 들고 있던 아이템 장착 (활성 슬롯 기준)
+				local activeSlot = InventoryService.getActiveSlot(userId)
+				local inv = playerInventories[userId]
+				if inv and inv.slots[activeSlot] then
+					EquipService.equipItem(player, inv.slots[activeSlot].itemId)
+				end
+			end
+		end)
+	end)
+	
 	-- 디버그: 기본 아이템 지급 (Studio에서만)
 	if game:GetService("RunService"):IsStudio() then
 		InventoryService.addItem(userId, "STONE", 30)

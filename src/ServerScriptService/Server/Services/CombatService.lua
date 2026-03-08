@@ -30,6 +30,8 @@ local PVP_ENABLED = false       -- PvP 비활성화
 -- State
 local playerAttackCooldowns = {} -- [userId] = lastAttackTime
 
+
+
 -- Quest callback (Phase 8)
 local questCallback = nil
 
@@ -250,6 +252,7 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 			torporDamage = torporDamage,
 			killed = killed,
 			targetId = targetId,
+
 		})
 	end
 	
@@ -259,17 +262,17 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	return true, nil, { damage = hpDamage, torporDamage = torporDamage, killed = killed }
 end
 
---- 플레이어에게 데미지 적용 (방어력 반영)
-function CombatService.damagePlayer(userId: number, rawDamage: number)
+--- 플레이어에게 데미지 적용 (방어력 반영 + 넉백 적용)
+function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos: Vector3?)
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)
 	if not player or not player.Character then return end
 	
 	local humanoid = player.Character:FindFirstChild("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then return end
+	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not hrp or humanoid.Health <= 0 then return end
 	
 	-- 1. 무적 상태 체크 (구르기 등)
 	if CombatService.isPlayerInvulnerable(userId) then
-		print(string.format("[CombatService] Player %d is invulnerable, ignoring damage", userId))
 		return
 	end
 	
@@ -289,23 +292,37 @@ function CombatService.damagePlayer(userId: number, rawDamage: number)
 		local equip = InventoryService.getEquipment(userId)
 		
 		if equip.SUIT then
-			-- 한벌옷은 전담 처리
 			InventoryService.decreaseEquipmentDurability(userId, "SUIT", armorDamage)
 		else
-			-- 상하의/머리 분산 처리
-			if equip.TOP then 
-				InventoryService.decreaseEquipmentDurability(userId, "TOP", math.ceil(armorDamage * 0.4)) 
-			end
-			if equip.BOTTOM then 
-				InventoryService.decreaseEquipmentDurability(userId, "BOTTOM", math.ceil(armorDamage * 0.4)) 
-			end
-			if equip.HEAD then 
-				InventoryService.decreaseEquipmentDurability(userId, "HEAD", math.ceil(armorDamage * 0.2)) 
-			end
+			if equip.TOP then InventoryService.decreaseEquipmentDurability(userId, "TOP", math.ceil(armorDamage * 0.4)) end
+			if equip.BOTTOM then InventoryService.decreaseEquipmentDurability(userId, "BOTTOM", math.ceil(armorDamage * 0.4)) end
+			if equip.HEAD then InventoryService.decreaseEquipmentDurability(userId, "HEAD", math.ceil(armorDamage * 0.2)) end
 		end
 	end
 	
+	-- 4. 데미지 적용
 	humanoid:TakeDamage(finalDamage)
+	
+	-- 5. ★ 물리적 피격 피드백 (넉백 + 클라이언트 연출)
+	if sourcePos then
+		-- 반대 방향으로 밀어냄
+		local diff = (hrp.Position - sourcePos)
+		local dir = Vector3.new(diff.X, 0, diff.Z).Unit
+		
+		-- 넉백 강도 상향 및 Y축 방향성 추가 (살짝 뜨게 하여 마찰력 무시)
+		hrp.AssemblyLinearVelocity = dir * (Balance.KNOCKBACK_FORCE or 25) + Vector3.new(0, 15, 0)
+		
+		-- [추가] 눕기/넘어짐 방지를 위해 서버에서도 상태 강제 고정
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+	
+	-- 6. 클라이언트 연출 요청 (화면 흔들림, 피격 효과 등)
+	if NetController then
+		NetController.FireClient(player, "Combat.Player.Hit", {
+			damage = finalDamage,
+			sourcePos = sourcePos
+		})
+	end
 	
 	print(string.format("[CombatService] Player %s took %.1f damage (Raw: %.1f, Def: %d)", 
 		player.Name, finalDamage, rawDamage, defense))

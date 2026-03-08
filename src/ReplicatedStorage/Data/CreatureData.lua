@@ -70,7 +70,7 @@ local CreatureData = {
 		behavior = "NEUTRAL",
 		modelName = "Triceratops",
 		xpReward = 40,
-		attackDelay = 0.8, -- 공격 준비(Prep) 애니메이션 지속 시간
+		attackDelay = 1.3, -- 공격 애니메이션 종료 후 타격 판정 (Prep 0.6s + Charge 0.6s + 여유 0.1s)
 	},
 	{
 		id = "STEGOSAURUS",

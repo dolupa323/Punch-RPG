@@ -135,32 +135,10 @@ local function renderTree(techList, unlocked, playerLevel, getItemIcon, UIManage
 		if cy > maxY then maxY = cy end
 	end
 	
-	-- 배경 그리선 배치 (존재하는 Lv 표시 - 가로선 방식)
-	for row, l in ipairs(activeLevels) do
-		local cy = (row - 1) * ySpacing + 45 + nodeSize.Y/2
-		-- 선
-		local line = Instance.new("Frame")
-		line.Name = "HLine"
-		line.Size = UDim2.new(1, -20, 0, 1)
-		line.Position = UDim2.new(0, 10, 0, cy)
-		line.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
-		line.BorderSizePixel = 0
-		line.ZIndex = 0
-		line.Parent = bgGrid
-		-- 글씨
-		local txt = Instance.new("TextLabel")
-		txt.Name = "HLine"
-		txt.Size = UDim2.new(0, 60, 0, 20)
-		txt.Position = UDim2.new(0, 12, 0, cy - 25) -- 위치 살짝 조정
-		txt.BackgroundTransparency = 1
-		txt.Text = "Lv. " .. l
-		txt.Font = F.TITLE
-		txt.TextSize = 13
-		txt.TextColor3 = Color3.fromRGB(180, 150, 50)
-		txt.TextXAlignment = Enum.TextXAlignment.Left
-		txt.ZIndex = 1
-		txt.Parent = bgGrid
-	end
+	-- 배경 그리선 배치 제거 (사용요청)
+	-- for row, l in ipairs(activeLevels) do
+	--     ...
+	-- end
 	
 	canvas.CanvasSize = UDim2.new(0, maxX + 200, 0, maxY + 200)
 	

@@ -1542,7 +1542,7 @@ function CreatureService._updateAILoop()
 								-- 판정 관용도: 원래 사거리의 1.3배까지 인정 (돌진 중일 수 있음)
 								if currentDist <= attackRange * 1.3 then
 									local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
-									CombatService.damagePlayer(closestPlayerUserId, dmg)
+									CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position)
 								end
 							end)
 						end
