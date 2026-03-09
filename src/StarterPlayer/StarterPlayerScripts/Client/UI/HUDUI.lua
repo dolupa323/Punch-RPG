@@ -1,8 +1,7 @@
--- HUDUI.lua
--- 완전히 재설계된 최상단/우측하단 HUD (Durango 레퍼런스 완벽 대응)
-
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
@@ -10,6 +9,11 @@ local F = Theme.Fonts
 
 local HUDUI = {}
 local Controllers = script.Parent.Parent:WaitForChild("Controllers")
+
+-- [에셋 참조] 하드코딩 방지를 위한 폴더 경로
+local Assets = ReplicatedStorage:WaitForChild("Assets")
+local StatusIcons = Assets:WaitForChild("StatusIcons")
+
 
 HUDUI.Refs = {
 	harvestPct = nil,
@@ -399,6 +403,10 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipBody.ZIndex = 9501
 	tipBody.Parent = tooltip
 
+	HUDUI.Refs.tooltip = tooltip
+	HUDUI.Refs.tipTitle = tipTitle
+	HUDUI.Refs.tipBody = tipBody
+
 	-- 툴팁 데이터
 	local barData = {
 		[HUDUI.Refs.healthBar.container] = {
@@ -430,16 +438,16 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		overlay.Parent = container
 
 		overlay.MouseEnter:Connect(function()
-			tipTitle.Text = data.title
-			tipBody.Text = data.body
+			HUDUI.Refs.tipTitle.Text = data.title
+			HUDUI.Refs.tipBody.Text = data.body
 			-- 텍스트 길이에 맞춰 높이 조정
 			local lines = select(2, data.body:gsub("\n", "\n")) + 1
-			tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
-			tooltip.Visible = true
+			HUDUI.Refs.tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
+			HUDUI.Refs.tooltip.Visible = true
 		end)
 
 		overlay.MouseLeave:Connect(function()
-			tooltip.Visible = false
+			HUDUI.Refs.tooltip.Visible = false
 		end)
 	end
 
@@ -579,23 +587,35 @@ function HUDUI.UpdateStatusEffects(debuffList)
 		end
 	end
 	
-	-- Debuff Icon Map
+	-- 에셋 타입 호환성 체크 (Decal은 Texture, ImageLabel은 Image 속성 사용)
+	local function getIcon(name)
+		local asset = StatusIcons:FindFirstChild(name)
+		if not asset then return "" end
+		if asset:IsA("Decal") then return asset.Texture end
+		if asset:IsA("ImageLabel") or asset:IsA("ImageButton") then return asset.Image end
+		return ""
+	end
+
 	local IconMap = {
-		FREEZING = "rbxassetid://6034346917", -- Shared with Dodge for now, icon change possible
-		BLOOD_SMELL = "rbxassetid://6034805332", -- Shared with interact
-		BURNING = "rbxassetid://6031267325",
+		FREEZING    = getIcon("FREEZING"), 
+		BLOOD_SMELL = getIcon("BLOOD_SMELL"), 
+		BURNING     = getIcon("BURNING"),
+		CHILLY      = getIcon("CHILLY"),
+		WARMTH      = getIcon("WARMTH"),
 	}
 	
 	for _, debuff in ipairs(debuffList) do
 		local iconId = IconMap[debuff.id] or "rbxassetid://6034346917"
+		local isBuff = (debuff.id == "WARMTH") -- 굳이 복잡하게 안하고 하드코딩
+
 		local slot = Utils.mkFrame({
 			name = debuff.id,
 			size = UDim2.new(0, 26, 0, 26),
-			bg = Color3.fromRGB(40, 0, 0), -- Dark red for debuffs
+			bg = isBuff and Color3.fromRGB(0, 40, 0) or Color3.fromRGB(40, 0, 0), 
 			bgT = 0.4,
 			r = 4,
 			stroke = 1,
-			strokeC = C.RED,
+			strokeC = isBuff and Color3.fromRGB(100, 255, 100) or C.RED,
 			parent = container
 		})
 		
@@ -608,7 +628,29 @@ function HUDUI.UpdateStatusEffects(debuffList)
 		img.ImageColor3 = C.WHITE
 		img.Parent = slot
 		
-		-- Simple Tooltip (Optional, can be added later)
+		-- Hover Tooltip per Icon
+		local btn = Instance.new("TextButton")
+		btn.Name = "TipBtn"
+		btn.Size = UDim2.new(1,0,1,0)
+		btn.BackgroundTransparency = 1
+		btn.Text = ""
+		btn.Parent = slot
+
+		btn.MouseEnter:Connect(function()
+			if HUDUI.Refs.tooltip then
+				HUDUI.Refs.tipTitle.Text = debuff.name or debuff.id
+				HUDUI.Refs.tipBody.Text = debuff.description or ""
+				local lines = select(2, (debuff.description or ""):gsub("\n", "\n")) + 1
+				HUDUI.Refs.tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
+				HUDUI.Refs.tooltip.Visible = true
+			end
+		end)
+
+		btn.MouseLeave:Connect(function()
+			if HUDUI.Refs.tooltip then
+				HUDUI.Refs.tooltip.Visible = false
+			end
+		end)
 	end
 end
 

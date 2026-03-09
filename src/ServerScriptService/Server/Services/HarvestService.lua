@@ -375,15 +375,19 @@ local function getToolType(player: Player, toolSlot: number?): string?
 		end
 	end
 	
-	-- 3. 아이템 데이터의 타입 확인 (TOOL만 유효)
+	-- 3. 아이템 데이터의 타입 확인
 	if toolItem and DataService then
 		local itemData = DataService.getItem(toolItem.itemId)
-		if itemData and (itemData.type == "TOOL" or itemData.id == "BOLA") then
-			return itemData.optimalTool or itemData.id:upper()
+		if itemData then
+			if itemData.type == "TOOL" or itemData.id == "BOLA" then
+				return itemData.optimalTool or itemData.id:upper()
+			else
+				return itemData.type -- "WEAPON", "FOOD" 등 반환
+			end
 		end
 	end
 	
-	return nil -- RESOURCE, FOOD 등은 모두 nil (맨손 판정)
+	return nil -- 완전 맨손
 end
 
 --- 도구와 노드 타입 호환성 확인
@@ -416,10 +420,15 @@ local function validateTool(player: Player, nodeData: any, toolSlot: number?): (
 	
 	-- [설계 변경] 도구 필수 여부 확인 (강제 적용)
 	if nodeData.requiresTool then
-		-- 도구가 아예 없거나 (nil), 엉뚱한 타입이면 자원 종류에 따라 적절한 에러 반환
+		-- 도구가 아예 없으면 (맨손) 불가
 		if not equippedToolType then
-			-- 나무/바위/광석 등 도구 필수 노드인 경우 WRONG_TOOL을 주어 상세 안내 유도
 			return false, Enums.ErrorCode.WRONG_TOOL
+		end
+		
+		-- [기획 대응] 무기는 '타격'은 가능하게 하여 내구도를 깎되, 데미지는 0이 되도록 여기서 true 반환
+		-- (calculateEfficiency에서 무기+도구필수노드 조합 시 0을 반환할 것임)
+		if equippedToolType == "WEAPON" then
+			return true, nil
 		end
 		
 		-- 최적 도구(optimalTool)가 지정된 경우, 호환되는 도구여야만 함
@@ -451,14 +460,22 @@ local function calculateEfficiency(player: Player, nodeOptimalType: string?, too
 	
 	-- 1. 도구 타입 일치 여부에 따른 보너스
 	if not nodeOptimalType or nodeOptimalType == "" then
-		baseEff = 1.0
+		-- 상호작용 노드 (requiresTool = false)
+		if toolType == "SICKLE" then -- 낫은 풀 채집 시 보너스
+			baseEff = 1.5
+		else
+			baseEff = 1.0
+		end
 	elseif isCompatible(toolType, nodeOptimalType) then
 		-- 타입 일치: 기본 효율 높음 + 도구 위력(데미지)에 따른 보정
 		baseEff = Balance.HARVEST_EFFICIENCY_OPTIMAL or 1.2
 		-- 티어 가산: 데미지 10당 +0.1 효율 (청동 = 25뎀 = +0.25)
 		baseEff = baseEff + (toolDamage / 100)
+	elseif toolType == "WEAPON" then
+		-- [기획] 도구가 필요한 노드를 무기로 때리면 효율 0 (체력 안 깎임)
+		baseEff = 0
 	elseif toolType then
-		-- 잘못된 도구 (validateTool에서 걸러지지 않은 경우 - requiresTool=false인 대형 노드 등)
+		-- 잘못된 도구
 		baseEff = Balance.HARVEST_EFFICIENCY_WRONG_TOOL or 0.7
 	else
 		-- 맨손
@@ -914,6 +931,20 @@ function HarvestService.damageNode(nodeUID: string, damage: number, efficiency: 
 	if not nodeData then return false, Enums.ErrorCode.NOT_FOUND, nil end
 	
 	local actualDamage = math.min(damage, nodeState.remainingHits)
+	
+	-- 데미지가 0인 경우 (무기로 도구 필수 노드 타격 등)
+	if actualDamage <= 0 and damage <= 0 then
+		-- 브로드캐스트만 하여 효과(이펙트/사운드)는 나게 함
+		if NetController then
+			NetController.FireClientsInRange(nodeState.position, 400, "Harvest.Node.Hit", {
+				nodeUID = nodeUID,
+				remainingHits = nodeState.remainingHits,
+				maxHits = nodeData.maxHits
+			})
+		end
+		return true, nil, {}
+	end
+	
 	nodeState.remainingHits = nodeState.remainingHits - actualDamage
 	
 	-- 타격 브로드캐스트

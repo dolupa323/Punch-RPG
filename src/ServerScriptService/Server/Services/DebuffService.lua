@@ -48,6 +48,23 @@ local DEBUFF_DEFS = {
 		tickInterval = 2,
 		tickDamage = 5,
 	},
+	CHILLY = {
+		id = "CHILLY",
+		name = "쌀쌀함",
+		description = "밤이 되어 기온이 떨어졌습니다. 모닥불 근처로 가세요.",
+		duration = -1, -- 밤 동안 지속
+		tickInterval = 8,
+		tickDamage = 1, -- 매우 미미한 데미지 (학습용)
+	},
+	WARMTH = {
+		id = "WARMTH",
+		name = "따뜻함",
+		description = "모닥불 근처에서 온기를 느끼고 있습니다.",
+		duration = -1, -- 근처에 있는 동안만
+		tickInterval = 0,
+		tickDamage = 0,
+		isBuff = true,
+	},
 }
 
 --========================================
@@ -120,6 +137,7 @@ function DebuffService.applyDebuff(userId: number, debuffId: string, customDurat
 		NetController.FireClient(player, "Debuff.Applied", {
 			debuffId = debuffId,
 			name = def.name,
+			description = def.description,
 			duration = customDuration or def.duration,
 		})
 	end
@@ -234,56 +252,64 @@ function DebuffService._environmentCheck()
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then continue end
 		
-		if isNight then
-			-- 불(Campfire) 근처인지 체크
-			local nearFire = false
-			
-			-- Workspace에서 Campfire 파트 검색 (간단한 거리 체크)
-			-- BuildService가 "Facilities" 폴더를 생성함
-			-- 최적화: GetPartBoundsInRadius를 사용하여 주변의 모닥불만 검색 (O(P*F) -> O(P*LogF))
-			local overlapParams = OverlapParams.new()
-			local facilitiesFolder = workspace:FindFirstChild("Facilities")
-			if facilitiesFolder then
-				overlapParams.FilterDescendantsInstances = { facilitiesFolder }
-				overlapParams.FilterType = Enum.RaycastFilterType.Include
-				
-				local nearbyParts = workspace:GetPartBoundsInRadius(hrp.Position, 15, overlapParams)
-				for _, part in ipairs(nearbyParts) do
-					-- [FIX] FacilityType -> FacilityId 속성 참조 및 DataService 연동
-					local facilityId = part:GetAttribute("FacilityId")
-					if not facilityId then
-						local facility = part:FindFirstAncestorOfClass("Model")
-						if facility then facilityId = facility:GetAttribute("FacilityId") end
-					end
+		-- 1. 물(Water) 체크
+		local isSwimming = false
+		local hum = char:FindFirstChild("Humanoid")
+		if hum then
+			-- FloorMaterial이 Air이면서 Swimming 상태이거나, Terrain 물 안에 있는지 체크
+			if hum.FloorMaterial == Enum.Material.Air and hum:GetState() == Enum.HumanoidStateType.Swimming then
+				isSwimming = true
+			end
+		end
 
-					if facilityId and DataService then
-						local facilityData = DataService.getFacility(facilityId)
-						if facilityData and (facilityData.functionType == "COOKING" or facilityData.functionType == "SMELTING") then
-							-- [FIX] 시설이 가동 중(ACTIVE)인지 확인 (무한 동력 깡통 방지)
-							local facility = part:FindFirstAncestorOfClass("Model")
-							local structureId = facility and facility:GetAttribute("StructureId")
-							local runtime = structureId and FacilityService and FacilityService.getRuntime(structureId)
-							
-							if runtime and runtime.state == Enums.FacilityState.ACTIVE then
-								nearFire = true
-								break
-							end
+		-- 2. 불(Campfire) 근처인지 체크
+		local nearFire = false
+		local overlapParams = OverlapParams.new()
+		local facilitiesFolder = workspace:FindFirstChild("Facilities")
+		if facilitiesFolder then
+			overlapParams.FilterDescendantsInstances = { facilitiesFolder }
+			overlapParams.FilterType = Enum.RaycastFilterType.Include
+			local nearbyParts = workspace:GetPartBoundsInRadius(hrp.Position, 18, overlapParams)
+			for _, part in ipairs(nearbyParts) do
+				local facilityId = part:GetAttribute("FacilityId") or (part:FindFirstAncestorOfClass("Model") and part:FindFirstAncestorOfClass("Model"):GetAttribute("FacilityId"))
+				if facilityId and DataService then
+					local facilityData = DataService.getFacility(facilityId)
+					if facilityData and facilityData.functionType == "COOKING" then
+						local facilityModel = part:FindFirstAncestorOfClass("Model")
+						local structureId = facilityModel and facilityModel:GetAttribute("StructureId")
+						local runtime = structureId and FacilityService and FacilityService.getRuntime(structureId)
+						if runtime and runtime.state == Enums.FacilityState.ACTIVE then
+							nearFire = true
+							break
 						end
 					end
 				end
 			end
-			
-			if nearFire then
-				-- 불 근처면 추위 해제
-				DebuffService.removeDebuff(userId, "FREEZING")
-			else
-				-- 추위 적용
-				if not DebuffService.hasDebuff(userId, "FREEZING") then
-					DebuffService.applyDebuff(userId, "FREEZING")
-				end
+		end
+
+		-- 3. 최종 상태 결정
+		local shouldBeChilly = isSwimming or (isNight and not nearFire)
+		local shouldBeWarm = nearFire and not isSwimming -- 물속에선 불 근처라도 따뜻할 수 없음 (기획 우선순위)
+
+		-- 적용/해제 처리
+		if shouldBeChilly then
+			if not DebuffService.hasDebuff(userId, "CHILLY") then
+				DebuffService.applyDebuff(userId, "CHILLY")
 			end
+			DebuffService.removeDebuff(userId, "WARMTH")
+		elseif shouldBeWarm then
+			if not DebuffService.hasDebuff(userId, "WARMTH") then
+				DebuffService.applyDebuff(userId, "WARMTH")
+			end
+			DebuffService.removeDebuff(userId, "CHILLY")
 		else
-			-- 낮이면 추위 해제
+			-- 낮이고, 물 밖이며, 불 근처도 아님
+			DebuffService.removeDebuff(userId, "CHILLY")
+			DebuffService.removeDebuff(userId, "WARMTH")
+		end
+		
+		-- 극한 추위(FREEZING)는 일단 밤+불없음 일 때만 (Phase 확장 대비)
+		if not isNight or nearFire then
 			DebuffService.removeDebuff(userId, "FREEZING")
 		end
 	end

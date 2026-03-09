@@ -19,14 +19,13 @@ local ISLAND_CONFIGS = {
 			{ id = "RAPTOR", weight = 30 }
 		},
 		Harvests = {
-			-- 전형적인 숲 생태계 자원 노드
-			{ id = "TREE_OAK", weight = 50 },
-			{ id = "TREE_PINE", weight = 30 },
-			{ id = "BUSH_BERRY", weight = 40 },
-			{ id = "FIBER_GRASS", weight = 50 },
-			{ id = "GROUND_BRANCH", weight = 80 },
-			{ id = "ROCK_NORMAL", weight = 40 },
-			{ id = "GROUND_STONE", weight = 90 }
+			-- 초원섬 전용 자원 노드 구성
+			{ id = "TREE_THIN", weight = 50 },     -- 가는 나무
+			{ id = "ROCK_SOFT", weight = 40 },     -- 무른 바위
+			{ id = "BUSH_BERRY", weight = 45 },    -- 열매 덤불
+			{ id = "FIBER_GRASS", weight = 55 },   -- 섬유 풀
+			{ id = "GROUND_BRANCH", weight = 80 }, -- 나뭇가지 (바닥)
+			{ id = "GROUND_STONE", weight = 90 }   -- 잔돌 (바닥)
 		}
 	},
 	

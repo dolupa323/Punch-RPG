@@ -1,10 +1,109 @@
 -- ResourceNodeData.lua
 -- 자원 노드 데이터 정의
--- 0단계 상호작용 및 티어별 광맥 추가
+-- 초원섬 전전 업데이트 기반
 
 local ResourceNodeData = {
 	--========================================
-	-- 나무 (TREE) - AXE 최적
+	-- [초원섬 특화] 나뭇가지 / 잔돌 (바닥 상호작용)
+	--========================================
+	{
+		id = "GROUND_BRANCH",
+		name = "나뭇가지",
+		modelName = "Twig",
+		nodeType = "TREE",
+		optimalTool = nil,
+		resources = {
+			{ itemId = "BRANCH", min = 1, max = 2, weight = 1.0 },
+		},
+		maxHits = 1,
+		respawnTime = 60,
+		xpPerHit = 1,
+		requiresTool = false, -- 맨손 가능
+	},
+	{
+		id = "GROUND_STONE",
+		name = "잔돌",
+		modelName = "SmallStone",
+		nodeType = "ROCK",
+		optimalTool = nil,
+		resources = {
+			{ itemId = "SMALL_STONE", min = 1, max = 2, weight = 1.0 },
+		},
+		maxHits = 1,
+		respawnTime = 60,
+		xpPerHit = 1,
+		requiresTool = false,
+	},
+
+	--========================================
+	-- [초원섬 특화] 식물 및 덤불
+	--========================================
+	{
+		id = "BUSH_BERRY",
+		name = "열매 덤불",
+		modelName = "BerryBush",
+		nodeType = "BUSH",
+		optimalTool = nil,
+		resources = {
+			{ itemId = "BERRY", min = 2, max = 4, weight = 1.0 },
+			{ itemId = "FIBER", min = 1, max = 3, weight = 0.8 },
+		},
+		maxHits = 3,
+		respawnTime = 180,
+		xpPerHit = 1,
+		requiresTool = false,
+	},
+	{
+		id = "FIBER_GRASS",
+		name = "섬유 풀",
+		modelName = "Grass",
+		nodeType = "FIBER",
+		optimalTool = "SICKLE", -- 낫 사용 시 효율 증가
+		resources = {
+			{ itemId = "DURABLE_LEAF", min = 1, max = 2, weight = 1.0 },
+			{ itemId = "FIBER", min = 2, max = 4, weight = 0.7 },
+		},
+		maxHits = 1,
+		respawnTime = 120,
+		xpPerHit = 1,
+		requiresTool = false, -- 맨손 가능
+	},
+
+	--========================================
+	-- [초원섬 특화] 대형 자원 (도구 필수)
+	--========================================
+	{
+		id = "TREE_THIN",
+		name = "가는 나무",
+		modelName = "ThinTree",
+		nodeType = "TREE",
+		optimalTool = "AXE",
+		resources = {
+			{ itemId = "LOG", min = 2, max = 4, weight = 1.0 },
+		},
+		maxHits = 8,
+		respawnTime = 300,
+		xpPerHit = 3,
+		requiresTool = true, -- 도끼 필수
+	},
+	{
+		id = "ROCK_SOFT",
+		name = "무른 바위",
+		modelName = "SoftRock",
+		nodeType = "ROCK",
+		optimalTool = "PICKAXE",
+		resources = {
+			{ itemId = "STONE", min = 3, max = 5, weight = 1.0 },
+			{ itemId = "FLINT", min = 1, max = 2, weight = 0.6 },
+		},
+		maxHits = 8,
+		respawnTime = 240,
+		xpPerHit = 3,
+		requiresTool = true, -- 곡괭이 필수
+	},
+
+	--========================================
+	-- 일반 자원 노드 (타 섬 용도 포함)
 	--========================================
 	{
 		id = "TREE_OAK",
@@ -13,31 +112,13 @@ local ResourceNodeData = {
 		nodeType = "TREE",
 		optimalTool = "AXE",
 		resources = {
-			{ itemId = "WOOD", min = 3, max = 5, weight = 1.0 },
-		},
-		maxHits = 10,
-		respawnTime = 300,
-		xpPerHit = 2,
-		requiresTool = true,
-	},
-	{
-		id = "TREE_PINE",
-		name = "소나무",
-		modelName = "PineTree",
-		nodeType = "TREE",
-		optimalTool = "AXE",
-		resources = {
-			{ itemId = "WOOD", min = 4, max = 6, weight = 1.0 },
+			{ itemId = "WOOD", min = 5, max = 10, weight = 1.0 },
 		},
 		maxHits = 15,
-		respawnTime = 360,
-		xpPerHit = 3,
+		respawnTime = 400,
+		xpPerHit = 5,
 		requiresTool = true,
 	},
-	
-	--========================================
-	-- 바위 (ROCK) - PICKAXE 최적
-	--========================================
 	{
 		id = "ROCK_NORMAL",
 		name = "바위",
@@ -45,45 +126,12 @@ local ResourceNodeData = {
 		nodeType = "ROCK",
 		optimalTool = "PICKAXE",
 		resources = {
-			{ itemId = "STONE", min = 2, max = 4, weight = 1.0 },
+			{ itemId = "STONE", min = 4, max = 8, weight = 1.0 },
 		},
-		maxHits = 8,
-		respawnTime = 240,
-		xpPerHit = 2,
+		maxHits = 12,
+		respawnTime = 300,
+		xpPerHit = 4,
 		requiresTool = true,
-	},
-	
-	--========================================
-	-- 덤불 및 식물 (Tier 0 개선)
-	--========================================
-	{
-		id = "BUSH_BERRY",
-		name = "야생 덤불",
-		modelName = "BerryBush",
-		nodeType = "BUSH",
-		optimalTool = nil,
-		resources = {
-			{ itemId = "BERRY", min = 2, max = 4, weight = 1.0 },
-			{ itemId = "FIBER", min = 1, max = 3, weight = 1.0 },
-		},
-		maxHits = 3,
-		respawnTime = 180,
-		xpPerHit = 1,
-		requiresTool = false, -- 상시 맨손 가능
-	},
-	{
-		id = "FIBER_GRASS",
-		name = "풀",
-		modelName = "Grass",
-		nodeType = "FIBER",
-		optimalTool = nil,
-		resources = {
-			{ itemId = "FIBER", min = 2, max = 4, weight = 1.0 },
-		},
-		maxHits = 1,
-		respawnTime = 120,
-		xpPerHit = 1,
-		requiresTool = false,
 	},
 	
 	--========================================
@@ -144,38 +192,6 @@ local ResourceNodeData = {
 		respawnTime = 420,
 		xpPerHit = 5,
 		requiresTool = true,
-	},
-	
-	--========================================
-	-- 바닥 자원 (Tier 0 상호작용)
-	--========================================
-	{
-		id = "GROUND_STONE",
-		name = "작은 돌 (바닥)",
-		modelName = "SmallStone",
-		nodeType = "ROCK",
-		optimalTool = nil,
-		resources = {
-			{ itemId = "STONE", min = 1, max = 1, weight = 1.0 },
-		},
-		maxHits = 1,
-		respawnTime = 60,
-		xpPerHit = 1,
-		requiresTool = false,
-	},
-	{
-		id = "GROUND_BRANCH",
-		name = "나뭇가지 (바닥)",
-		modelName = "Twig",
-		nodeType = "TREE",
-		optimalTool = nil,
-		resources = {
-			{ itemId = "WOOD", min = 1, max = 1, weight = 1.0 },
-		},
-		maxHits = 1,
-		respawnTime = 60,
-		xpPerHit = 1,
-		requiresTool = false,
 	},
 }
 
