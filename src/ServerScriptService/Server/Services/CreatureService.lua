@@ -864,35 +864,7 @@ function CreatureService._findSpawnPosition(playerRootPart: Part): Vector3?
 	return nil
 end
 
--- 가중치 기반 스폰 풀 (실제 모델이 있는 크리처만)
-local HERBIVORE_POOL = {
-	-- PASSIVE (도망형)
-	{id = "DODO", weight = 25},
-	{id = "COMPY", weight = 18},
-	{id = "PARASAUR", weight = 12},
-	-- NEUTRAL (반격형)
-	{id = "TRICERATOPS", weight = 8},
-	{id = "STEGOSAURUS", weight = 6},
-	{id = "ANKYLOSAURUS", weight = 4},
-}
-
-local CARNIVORE_POOL = {
-	{id = "RAPTOR", weight = 30},
-	{id = "TREX", weight = 3},
-}
-
--- 가중치 기반 랜덤 선택
-local function weightedRandom(pool)
-	local totalWeight = 0
-	for _, entry in ipairs(pool) do totalWeight = totalWeight + entry.weight end
-	local roll = math.random() * totalWeight
-	local cumulative = 0
-	for _, entry in ipairs(pool) do
-		cumulative = cumulative + entry.weight
-		if roll <= cumulative then return entry.id end
-	end
-	return pool[1].id
-end
+local SpawnConfig = require(ReplicatedStorage.Shared.Config.SpawnConfig)
 
 --- 맵 중심 주변에 스폰 위치 찾기 (플레이어 없이도 동작)
 function CreatureService._findMapSpawnPosition(center: Vector3, radius: number): Vector3?
@@ -962,16 +934,12 @@ function CreatureService._initialSpawn()
 	local attempts = 0
 	local MAX_ATTEMPTS = INITIAL_COUNT * 10
 	
-	-- 초식:육식 = 80%:20%
-	local herbivoreCount = math.floor(INITIAL_COUNT * 0.8)
-	local carnivoreCount = INITIAL_COUNT - herbivoreCount
-	
-	-- 초식동물 스폰
-	while spawned < herbivoreCount and attempts < MAX_ATTEMPTS do
+	-- 서버 설정 기반 크리처 스폰
+	while spawned < INITIAL_COUNT and attempts < MAX_ATTEMPTS do
 		attempts = attempts + 1
 		local pos = CreatureService._findMapSpawnPosition(MAP_CENTER, SPAWN_RADIUS)
 		if pos then
-			local cid = weightedRandom(HERBIVORE_POOL)
+			local cid = SpawnConfig.GetRandomCreature()
 			local result = CreatureService.spawn(cid, pos)
 			if result then
 				spawned = spawned + 1
@@ -979,25 +947,7 @@ function CreatureService._initialSpawn()
 		end
 	end
 	
-	local herbSpawned = spawned
-	
-	-- 육식동물 스폰
-	local carnSpawned = 0
-	attempts = 0
-	while carnSpawned < carnivoreCount and attempts < MAX_ATTEMPTS do
-		attempts = attempts + 1
-		local pos = CreatureService._findMapSpawnPosition(MAP_CENTER, SPAWN_RADIUS)
-		if pos then
-			local cid = weightedRandom(CARNIVORE_POOL)
-			local result = CreatureService.spawn(cid, pos)
-			if result then
-				carnSpawned = carnSpawned + 1
-			end
-		end
-	end
-	
-	print(string.format("[CreatureService] Initial spawn complete: %d herbivores + %d carnivores = %d total", 
-		herbSpawned, carnSpawned, herbSpawned + carnSpawned))
+	print(string.format("[CreatureService] Initial spawn complete: %d total", spawned))
 end
 
 --- 보충 스폰 루프 (CAP 대비 부족분만 플레이어 주변에 보충)
@@ -1020,22 +970,11 @@ function CreatureService._replenishLoop()
 		
 		local char = player.Character
 		if char and char:FindFirstChild("HumanoidRootPart") then
-			-- 초식 보충 (85% 확률)
-			if math.random() <= 0.85 then
-				local pos = CreatureService._findSpawnPosition(char.HumanoidRootPart)
-				if pos then
-					local cid = weightedRandom(HERBIVORE_POOL)
-					CreatureService.spawn(cid, pos)
-					toSpawn = toSpawn - 1
-				end
-			else
-				-- 육식 보충 (15% 확률)
-				local pos = CreatureService._findSpawnPosition(char.HumanoidRootPart)
-				if pos then
-					local cid = weightedRandom(CARNIVORE_POOL)
-					CreatureService.spawn(cid, pos)
-					toSpawn = toSpawn - 1
-				end
+			local pos = CreatureService._findSpawnPosition(char.HumanoidRootPart)
+			if pos then
+				local cid = SpawnConfig.GetRandomCreature()
+				CreatureService.spawn(cid, pos)
+				toSpawn = toSpawn - 1
 			end
 		end
 	end

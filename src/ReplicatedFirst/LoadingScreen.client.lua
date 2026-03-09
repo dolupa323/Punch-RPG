@@ -175,8 +175,8 @@ local startButton = create("TextButton", {
 	Name = "StartButton",
 	Parent = titleFrame,
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 0.95, 0), -- 버튼 위치 조금 더 하단으로 밀착
-	Size = UDim2.new(0.18, 0, 0.05, 0), -- 버튼을 요청하신 대로 조금 작게 조정
+	Position = UDim2.new(0.5, 0, 0.75, 0), -- 로고 바로 아래로 버튼 위치 위로 수정
+	Size = UDim2.new(0.12, 0, 0.05, 0), -- 가로 길이를 줄여서 더 아담하고 정돈된 비율로 조정
 	BackgroundColor3 = Color3.fromRGB(245, 185, 50),
 	BackgroundTransparency = 0.25, -- 게임 시작 버튼 약간 투명하게 조정 (글씨 가림 방지)
 	Text = "게임 시작",
@@ -352,8 +352,8 @@ applyHoverEffect(startButton, Color3.fromRGB(245, 185, 50), Color3.fromRGB(255, 
 
 -- 게임 시작 버튼 클릭 이벤트
 startButton.MouseButton1Click:Connect(function()
-	-- 버튼 누르는 효과
-	TweenService:Create(startButton, TweenInfo.new(0.1), {Size = UDim2.new(0.17, 0, 0.045, 0)}):Play()
+	-- 버튼 누르는 효과 (가로축에 맞춰서 작아지는 효과 조절)
+	TweenService:Create(startButton, TweenInfo.new(0.1), {Size = UDim2.new(0.11, 0, 0.045, 0)}):Play()
 	task.wait(0.1)
 	
 	-- 화면 암전 혹은 페이드 아웃

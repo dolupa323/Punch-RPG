@@ -1,0 +1,169 @@
+
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:32:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:45:		bg = Color3.fromRGB(15, 15, 18),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:49:		strokeC = Color3.fromRGB(60, 60, 60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:86:			bg = Color3.fromRGB(40, 40, 45),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:102:		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:109:		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:124:		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:135:		bg=C.GOLD, r=5, ts=20, font=F.TITLE, color=Color3.fromRGB(20,20,20), vis=false, parent=detail
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:174:		btn.BackgroundColor3 = isSel and Color3.fromRGB(55, 50, 40) or Color3.fromRGB(35, 35, 40)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:188:			slot.icon.ImageColor3 = Color3.fromRGB(100, 100, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:189:			slot.frame.BackgroundColor3 = Color3.fromRGB(35, 30, 30)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:195:			slot.frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:210:	d.Icon.ImageColor3 = isUnlocked and Color3.new(1,1,1) or Color3.fromRGB(100,100,100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:241:		d.Btn.TextColor3 = Color3.fromRGB(20,20,20)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:244:		d.Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\BuildUI.lua:245:		d.Btn.TextColor3 = Color3.fromRGB(120, 120, 120)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:36:				st.Color = Color3.fromRGB(60, 60, 60)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:47:		bg = Color3.new(0, 0, 0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:59:		bg = Color3.fromRGB(15, 15, 18),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:61:		r = 0, stroke = 1, strokeC = Color3.fromRGB(60, 60, 60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:65:	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,45), bg=Color3.fromRGB(10,10,12), parent=main})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:67:	Utils.mkBtn({text="X", size=UDim2.new(0, 40, 0, 40), pos=UDim2.new(1, -6, 0.5, 0), anchor=Vector2.new(1,0.5), bg=Color3.fromRGB(40,40,40), bgT=0.5, ts=20, color=C.WHITE, r=5, fn=function() UIManager.closeCrafting() end, parent=header})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:99:		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:107:		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:122:		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:146:	local barBack = Utils.mkFrame({name="BarBack", size=UDim2.new(1, -24, 0, 6), pos=UDim2.new(0.5, 0, 0, 185), anchor=Vector2.new(0.5, 0), bg=Color3.fromRGB(40,40,40), r=3, vis=false, parent=detail})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:153:		bg=C.GOLD, color=Color3.fromRGB(20,20,20), ts=18, font=F.TITLE, r=5,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:183:			name = item.id, r = 8, bg = Color3.fromRGB(40, 40, 45), bgT = 0.2, 
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:184:			strokeC = Color3.fromRGB(60, 60, 60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:193:		slot.icon.ImageColor3 = Color3.new(1, 1, 1)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:196:			slot.frame.BackgroundColor3 = Color3.fromRGB(40, 25, 25)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:197:			slot.icon.ImageColor3 = Color3.new(0.4, 0.4, 0.4)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:202:			slot.frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:205:			slot.frame.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:254:		d.BtnCraft.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:255:		d.BtnCraft.TextColor3 = Color3.fromRGB(120, 120, 120)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:287:		d.BtnCraft.TextColor3 = Color3.fromRGB(20,20,20)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:290:		d.BtnCraft.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\CraftingUI.lua:291:		d.BtnCraft.TextColor3 = Color3.fromRGB(120, 120, 120)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\EquipmentUI.lua:164:		bg = Color3.fromRGB(10, 10, 12),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\EquipmentUI.lua:175:	EquipmentUI.Refs.TooltipSet = Utils.mkLabel({text="[ 세트 효과 ]", size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,1,-5), anchor=Vector2.new(0,1), ts=13, color=Color3.fromRGB(150, 255, 150), ax=Enum.TextXAlignment.Left, wrap=true, rich=true, parent=tt})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\EquipmentUI.lua:201:					if ratio > 0.5 then slot.durFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\EquipmentUI.lua:202:					elseif ratio > 0.2 then slot.durFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\EquipmentUI.lua:203:					else slot.durFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100) end
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:44:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:56:		bg = Color3.fromRGB(15, 15, 18),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:60:		strokeC = Color3.fromRGB(80, 80, 80),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:86:		name="Status", size=UDim2.new(1, 0, 0, 140), bg=Color3.fromRGB(30, 30, 35), bgT=0.4, r=4, stroke=1, parent=facilityPanel
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:96:		color=Color3.fromRGB(255, 180, 80), ts=14, ax=Enum.TextXAlignment.Left, parent=statusBox
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:114:	Utils.mkLabel({text="연료", pos=UDim2.new(0, 10, 0, 10), size=UDim2.new(0, slotSize, 0, 20), color=Color3.fromRGB(255, 150, 50), ts=14, parent=prodGrid})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:118:	FacilityUI.Refs.FuelSlot.frame.BackgroundColor3 = Color3.fromRGB(45, 30, 20)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:128:	FacilityUI.Refs.InputSlot.frame.BackgroundColor3 = Color3.fromRGB(40, 45, 40)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:137:	Utils.mkLabel({text="결과물", pos=UDim2.new(0, 250, 0, 10), size=UDim2.new(0, slotSize, 0, 20), color=Color3.fromRGB(150, 255, 150), ts=14, parent=prodGrid})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:141:	FacilityUI.Refs.OutputSlot.frame.BackgroundColor3 = Color3.fromRGB(30, 40, 30)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\FacilityUI.lua:150:		bg=C.GOLD, color=Color3.fromRGB(20, 20, 20), ts=16, font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:50:		bg = Color3.new(1, 1, 1),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:73:		bg = Color3.new(1, 1, 1),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:96:		bg = Color3.new(1, 1, 1),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:170:		iconLbl.ImageColor3 = Color3.new(1,1,1)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:195:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:206:		bg = Color3.new(1, 1, 1), 
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:359:	tooltip.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:371:	tipStroke.Color = Color3.fromRGB(255, 220, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:381:	tipTitle.TextColor3 = Color3.fromRGB(255, 230, 80)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:393:	tipBody.TextColor3 = Color3.fromRGB(220, 220, 220)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\HUDUI.lua:594:			bg = Color3.fromRGB(40, 0, 0), -- Dark red for debuffs
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InteractUI.lua:90:	Utils.mkLabel({text = "X : 건축 취소", ts = 14, color = Color3.fromRGB(255, 100, 100), ax = Enum.TextXAlignment.Left, parent = build})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:47:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:60:		bg = Color3.fromRGB(15, 15, 18),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:62:		r = 0, stroke = 1, strokeC = Color3.fromRGB(60, 60, 60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:135:				color = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:205:		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:213:		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:229:		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:242:	local durBarBack = Utils.mkFrame({name="Back", size=UDim2.new(1, 0, 1, 0), bg=Color3.fromRGB(40, 40, 40), r=3, parent=durWrap})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:259:	local barBack = Utils.mkFrame({name="BarBack", size=UDim2.new(1, -24, 0, 6), pos=UDim2.new(0.5, 0, 0, 185), anchor=Vector2.new(0.5, 0), bg=Color3.fromRGB(40,40,40), r=3, vis=false, parent=detail})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:270:		text="사용 / 장착", size=UDim2.new(1,0,0,48), bg=C.GOLD, r=5, font=F.TITLE, ts=18, color=Color3.fromRGB(20,20,20), parent=dFoot
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:275:		text="버리기", size=UDim2.new(1,0,0,42), bg=Color3.fromRGB(40,40,40), r=5, font=F.TITLE, ts=16, color=C.GRAY, parent=dFoot
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:413:		COMMON = Color3.fromRGB(180, 180, 180),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:414:		UNCOMMON = Color3.fromRGB(40, 200, 40),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:415:		RARE = Color3.fromRGB(40, 120, 255),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:416:		EPIC = Color3.fromRGB(180, 40, 255),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:417:		LEGENDARY = Color3.fromRGB(255, 180, 0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:442:		COMMON = Color3.fromRGB(180, 180, 180),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:443:		UNCOMMON = Color3.fromRGB(40, 200, 40),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:444:		RARE = Color3.fromRGB(40, 120, 255),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:445:		EPIC = Color3.fromRGB(180, 40, 255),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:446:		LEGENDARY = Color3.fromRGB(255, 180, 0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:474:					s.durFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:476:					s.durFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:478:					s.durFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:527:				d.BtnMain.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:555:					d.BtnMain.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:580:				d.DurFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:582:				d.DurFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\InventoryUI.lua:584:				d.DurFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\ShopUI.lua:66:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\StorageUI.lua:45:		bg = Color3.new(0,0,0),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\StorageUI.lua:57:		bg = Color3.fromRGB(15, 15, 18),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\StorageUI.lua:61:		strokeC = Color3.fromRGB(60, 60, 60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:59:				st.Color = isUnlocked and Color3.fromRGB(180, 150, 50) or Color3.fromRGB(60, 60, 60)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:171:			cell.BackgroundColor3 = Color3.fromRGB(30, 80, 40)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:174:			cell.BackgroundColor3 = Color3.fromRGB(40, 25, 25)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:177:			cell.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:183:		stk.Color = isUnlocked and Color3.fromRGB(180, 150, 50) or Color3.fromRGB(60, 60, 60)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:197:		icon.ImageColor3 = Color3.fromRGB(255, 255, 255) 
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:205:			d.BackgroundColor3=Color3.fromRGB(20,50,20); d.Text="✓"; d.TextColor3=Color3.fromRGB(100,255,100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:217:		nameL.TextColor3 = isUnlocked and C.GOLD or (preMet and lvlMet and C.WHITE or Color3.fromRGB(150,150,150))
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:223:		tpBadge.BackgroundColor3=Color3.fromRGB(20,20,20)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:225:		tpBadge.TextColor3=Color3.fromRGB(220,180,80)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:270:		bg = Color3.new(0,0,0), bgT = 0.85, vis = false, parent = parent,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:278:		bg = Color3.fromRGB(15, 15, 18), bgT = 0.5, stroke = 1, strokeC = Color3.fromRGB(60,60,60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:285:		bg=Color3.fromRGB(10,10,12), parent=main,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:300:		bg=Color3.fromRGB(40,40,40), bgT=0.5, ts=20, font=F.TITLE, color=C.WHITE, r=5,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:311:		name="TabList", size=UDim2.new(0, 180, 1, 0), bg=Color3.fromRGB(12,12,15), parent=contentBox
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:318:			bg = Color3.fromRGB(20,20,25), bgT = 0, color=Color3.fromRGB(180,180,180),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:337:					tref.Btn.BackgroundColor3 = Color3.fromRGB(35,35,30)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:341:					tref.Btn.BackgroundColor3 = Color3.fromRGB(20,20,25)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:342:					tref.Btn.TextColor3 = Color3.fromRGB(180,180,180)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:356:	TechUI.Refs.Tabs[1].Btn.BackgroundColor3 = Color3.fromRGB(35,35,30)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:363:		pos=UDim2.new(0,180,0,0), bg=Color3.fromRGB(20,22,25), parent=contentBox
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:388:		bg=Color3.fromRGB(10,10,12), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:396:		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:409:		color=Color3.fromRGB(220,220,220), ts=16, wrap=true,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:417:	TechUI.Refs.D_WarnBox.BackgroundColor3=Color3.fromRGB(50,20,20); TechUI.Refs.D_WarnBox.BorderSizePixel=0
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:422:		text="", size=UDim2.new(1,0,0,0), ts=16, color=Color3.fromRGB(255,140,140), font=F.TITLE,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:430:		bg=C.GOLD, color=Color3.fromRGB(20,20,20), ts=16, font=F.TITLE, r=5,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:497:			txt.TextColor3 = Color3.fromRGB(240, 100, 100)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:498:			box.BackgroundColor3 = Color3.fromRGB(50, 15, 15)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:503:			btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:504:			btn.TextColor3 = Color3.fromRGB(150,150,150)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:509:				txt.TextColor3 = Color3.fromRGB(230, 180, 50)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:510:				box.BackgroundColor3 = Color3.fromRGB(40, 30, 10)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:515:				btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:516:				btn.TextColor3 = Color3.fromRGB(150,150,150)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:523:				btn.TextColor3 = Color3.fromRGB(20,20,20)
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:535:		bg=Color3.fromRGB(20,50,20), stroke=1, strokeC=Color3.fromRGB(100,200,100), r=8, z=1000, parent=parent,
+src\StarterPlayer\StarterPlayerScripts\Client\UI\TechUI.lua:537:	Utils.mkLabel({text="연구 완료!", size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,10), ts=15, font=F.TITLE, color=Color3.fromRGB(150,255,150), parent=popup})
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:7:		BG_OVERLAY    = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:8:		BG_PANEL      = Color3.fromRGB(0, 63, 136), -- #003F88 
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:9:		BG_PANEL_L    = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:10:		BG_SLOT       = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:11:		BG_SLOT_SEL   = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:12:		GOLD_SEL      = Color3.fromRGB(255, 213, 0), -- #FFD500
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:15:		BORDER        = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:16:		BORDER_DIM    = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:17:		BORDER_SEL    = Color3.fromRGB(253, 197, 0), -- #FDC500
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:20:		HP            = Color3.fromRGB(253, 197, 0), -- #FDC500
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:21:		HP_BG         = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:22:		STA           = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:23:		STA_BG        = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:24:		HUNGER        = Color3.fromRGB(255, 213, 0), -- #FFD500
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:25:		XP            = Color3.fromRGB(0, 63, 136), -- #003F88
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:28:		WHITE         = Color3.fromRGB(240, 240, 240),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:29:		GRAY          = Color3.fromRGB(150, 150, 150),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:30:		DIM           = Color3.fromRGB(100, 100, 100),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:31:		GOLD          = Color3.fromRGB(253, 197, 0), -- #FDC500
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:32:		GREEN         = Color3.fromRGB(120, 200, 80),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:33:		RED           = Color3.fromRGB(230, 50, 50),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:36:		BTN           = Color3.fromRGB(0, 63, 136), -- #003F88
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:37:		BTN_H         = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:38:		BTN_DIS       = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:41:		LOCK          = Color3.fromRGB(0, 41, 107), -- #00296B
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UITheme.lua:42:		SUCCESS       = Color3.fromRGB(0, 80, 157), -- #00509D
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UIUtils.lua:211:		bg = Color3.fromRGB(50, 50, 50),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UIUtils.lua:222:		bg = Color3.fromRGB(150, 255, 150),
+src\StarterPlayer\StarterPlayerScripts\Client\UI\UIUtils.lua:251:		bg = p.bg or Color3.fromRGB(40, 40, 40),
+

@@ -289,10 +289,11 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local craftArea = Utils.mkFrame({name="CraftFrame", size=UDim2.new(1, -300, 1, 0), bgT=1, vis=false, parent=content})
 	InventoryUI.Refs.CraftFrame = craftArea
 	local craftScroll = Instance.new("ScrollingFrame")
-	craftScroll.Name = "GridScroll"
+	craftScroll.Name = "CraftGrid"
 	craftScroll.Size = UDim2.new(1, 0, 1, 0); craftScroll.BackgroundTransparency = 1; craftScroll.BorderSizePixel = 0; craftScroll.ScrollBarThickness = 4
 	craftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	craftScroll.Parent = craftArea
+	InventoryUI.Refs.CraftGrid = craftScroll
 	
 	local cGrid = Instance.new("UIGridLayout")
 	cGrid.CellSize = UDim2.new(0, 75, 0, 75); cGrid.CellPadding = UDim2.new(0, 8, 0, 8)

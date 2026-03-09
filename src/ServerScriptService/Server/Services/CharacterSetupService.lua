@@ -155,6 +155,37 @@ end
 local function onCharacterAdded(player: Player, character)
 	applyPrehistoricStyle(player, character) -- player 인자 추가
 	setupCharacterAttributes(player, character)
+	
+	-- [기존/신규 유저 첫 스폰 위치 설정 (수면 위치 복구)]
+	-- HasSpawnedFirstTime 속성으로 처음 1회 접속 시점만 체크 (사망 시에는 PlayerLifeService가 처리)
+	if not player:GetAttribute("HasSpawnedFirstTime") then
+		player:SetAttribute("HasSpawnedFirstTime", true)
+		
+		task.spawn(function()
+			local ok, SaveService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.SaveService) end)
+			if ok and SaveService then
+				-- 데이터 로딩 대기
+				local hrp = character:WaitForChild("HumanoidRootPart", 5)
+				if hrp then
+					local state = SaveService.getPlayerState(player.UserId)
+					if state and state.lastPosition then
+						-- 기존 유저: 마지막 수면 위치 복원
+						-- 약간의 대기 후 안전하게 텔레포트
+						task.wait(0.2)
+						character:PivotTo(CFrame.new(
+							state.lastPosition.x,
+							state.lastPosition.y + 5, -- 바닥에 끼지 않도록 조금 위쪽
+							state.lastPosition.z
+						))
+						print(string.format("[CharacterSetupService] Existing player %s spawned at previous sleep location", player.Name))
+					else
+						-- 신규 유저: 기본(첫 게임 시작 스폰 포인트) - 아무 동작도 하지 않으면 기본 SpawnLocation 으로 나타남
+						print(string.format("[CharacterSetupService] New player %s spawned at default starting point", player.Name))
+					end
+				end
+			end
+		end)
+	end
 end
 
 local function onPlayerAdded(player: Player)

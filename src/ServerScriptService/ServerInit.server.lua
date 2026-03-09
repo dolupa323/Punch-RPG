@@ -330,4 +330,8 @@ CombatService.SetStaminaService(StaminaService)
 local CharacterSetupService = require(Services.CharacterSetupService)
 CharacterSetupService.Init()
 
+-- PortalService 초기화 (플레이스 이동 테스트 포털)
+local PortalService = require(Services.PortalService)
+PortalService.Init()
+
 print("[ServerInit] Server initialized (Phase 10)") -- 최종 완료 로그

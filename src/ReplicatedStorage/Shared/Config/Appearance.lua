@@ -26,9 +26,10 @@ local Appearance = {
 	},
 
 	-- 의상 에셋 ID (기본 가죽 셔츠/바지)
+	-- ShirtTemplate/PantsTemplate은 반드시 http://www.roblox.com/asset/?id= 형식이어야 함
 	CLOTHING_IDS = {
-		DEFAULT_SHIRT = "rbxassetid://398633812", -- 가죽 셔츠
-		DEFAULT_PANTS = "rbxassetid://398634125"  -- 가죽 하의 (세트 의상)
+		DEFAULT_SHIRT = "http://www.roblox.com/asset/?id=398633812", -- 가죽 셔츠
+		DEFAULT_PANTS = "http://www.roblox.com/asset/?id=398634125"  -- 가죽 하의 (세트 의상)
 	}
 }
 

@@ -2,10 +2,6 @@
 -- 클라이언트와 서버에서 공통으로 사용하는 데이터 조회 유틸리티
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Data = ReplicatedStorage:WaitForChild("Data")
-local RunService = game:GetService("RunService")
-local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Data = ReplicatedStorage:WaitForChild("Data")
 
 local DataHelper = {}

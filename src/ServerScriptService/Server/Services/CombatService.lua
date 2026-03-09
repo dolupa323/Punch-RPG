@@ -30,8 +30,6 @@ local PVP_ENABLED = false       -- PvP 비활성화
 -- State
 local playerAttackCooldowns = {} -- [userId] = lastAttackTime
 
-
-
 -- Quest callback (Phase 8)
 local questCallback = nil
 
@@ -252,7 +250,6 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 			torporDamage = torporDamage,
 			killed = killed,
 			targetId = targetId,
-
 		})
 	end
 	

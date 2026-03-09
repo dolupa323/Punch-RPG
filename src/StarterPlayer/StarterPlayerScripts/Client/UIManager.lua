@@ -606,6 +606,10 @@ function UIManager.toggleCrafting()
 	UIManager.toggleBuild()
 end
 
+function UIManager.closeCrafting()
+	UIManager.closeBuild()
+end
+
 --- [제거] 작업대라는 개념은 존재하지 않습니다. 모든 아이템 제작은 인벤토리에서 진행됩니다.
 function UIManager.openWorkbench(structureId, facilityId)
 	UIManager.notify("시설에 접근했습니다. (제작은 인벤토리[I]에서 가능합니다)", C.GOLD)
@@ -1266,7 +1270,7 @@ function UIManager.refreshFacility()
 end
 
 function UIManager._onInventoryToFacility(slot)
-	local item = InventoryController.getItem(slot)
+	local item = InventoryController.getSlot(slot)
 	if not item then return end
 	
 	local itemData = DataHelper.GetData("ItemData", item.itemId)

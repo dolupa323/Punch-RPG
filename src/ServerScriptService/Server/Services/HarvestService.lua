@@ -25,25 +25,8 @@ local MAX_SPAWN_DIST = 60
 local DESPAWN_DIST = Balance.NODE_DESPAWN_DIST or 300
 local SEA_LEVEL = Balance.SEA_LEVEL or 10
 
--- 지형별 스폰 풀
--- 지형별 스폰 풀 (정리됨: 원시 시대 기획 우선)
-local GRASS_TERRAIN_NODES = {
-	"TREE_OAK", "TREE_PINE", "BUSH_BERRY", "FIBER_GRASS", 
-	"GROUND_BRANCH", "GROUND_BRANCH", "GROUND_BRANCH", -- 나뭇가지 비중 상향
-	"GROUND_STONE", "GROUND_STONE"
-}
-local ROCK_TERRAIN_NODES = {
-	"ROCK_NORMAL", "ROCK_NORMAL", "GROUND_STONE", "GROUND_STONE", "GROUND_STONE", -- 돌 비중 상향
-	"ORE_COPPER", "ORE_TIN" -- 철/석탄은 원시 시대 이후로 보류하여 정리
-}
-local SAND_TERRAIN_NODES = {
-	"ROCK_NORMAL", "FIBER_GRASS", "GROUND_STONE", "GROUND_STONE", "GROUND_STONE"
-}
-local GROUND_TERRAIN_NODES = {
-	"TREE_OAK", "ROCK_NORMAL", "BUSH_BERRY", "FIBER_GRASS", 
-	"GROUND_BRANCH", "GROUND_BRANCH", "GROUND_BRANCH", 
-	"GROUND_STONE", "GROUND_STONE", "GROUND_STONE"
-}
+-- 섬별 스폰 밸런싱 데이터
+local SpawnConfig = require(ReplicatedStorage.Shared.Config.SpawnConfig)
 
 -- 풀밑 (Grass) 지형 Material
 local GRASS_MATERIALS = {
@@ -666,8 +649,8 @@ function HarvestService._spawnLoop()
 			if math.random() <= 0.5 then
 				local pos, material = HarvestService._findSpawnPosition(char.HumanoidRootPart)
 				if pos and material then
-					-- 지형에 맞는 노드 선택
-					local nodeId = selectNodeForTerrain(material)
+					-- [변경] 지형에 상관없이 섬(Place ID)별 설정된 랜덤 자원을 스폰
+					local nodeId = SpawnConfig.GetRandomHarvest()
 					if nodeId then
 						HarvestService._spawnAutoNode(nodeId, pos)
 						

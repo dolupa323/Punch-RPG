@@ -96,6 +96,8 @@ local function _getDefaultPlayerSave()
 			Feet = nil,
 			Hand = nil,
 		},
+		-- 마지막 로그아웃/수면 위치 (Phase 4-3)
+		lastPosition = nil,
 		-- 세션 제어 (Session Locking)
 		_session = {
 			jobId = nil,
@@ -259,6 +261,19 @@ function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolea
 	if not state then
 		warn(string.format("[SaveService] No state for player %d", userId))
 		return false, "NO_STATE"
+	end
+	
+	-- [수면/로그아웃 위치 저장] 게임에 접속중인 상태라면 현재 좌표를 마지막 수면 위치로 갱신
+	local player = Players:GetPlayerByUserId(userId)
+	if player and player.Character then
+		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			state.lastPosition = {
+				x = hrp.Position.X,
+				y = hrp.Position.Y,
+				z = hrp.Position.Z
+			}
+		end
 	end
 	
 	-- [최적화] 스냅샷 로테이션은 주기적으로만 수행 (매 Autosave마다 딥카피 방지)
