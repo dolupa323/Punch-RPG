@@ -53,37 +53,37 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		parent = parent
 	})
 	
-	-- Main Panel
+	-- Main Panel (Modern Sleek Panel)
 	local main = Utils.mkWindow({
 		name = "Main",
-		size = UDim2.new(isSmall and 1 or 0.7, 0, isSmall and 1 or 0.85, 0),
-		maxSize = Vector2.new(950, 850),
+		size = UDim2.new(isSmall and 0.95 or 0.8, 0, isSmall and 0.9 or 0.85, 0),
+		maxSize = Vector2.new(1100, 850),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(15, 15, 18),
-		bgT = 0.5,
-		r = 0, stroke = 1, strokeC = Color3.fromRGB(60, 60, 60),
+		bg = C.BG_PANEL,
+		bgT = T.PANEL,
+		r = 6, stroke = 1.5, strokeC = C.BORDER,
 		parent = InventoryUI.Refs.Frame
 	})
 
-	-- [Header]
-	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,45), bgT=1, parent=main})
+	-- [Header] - Split into Left / Right with safe padding
+	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
 	
-	local titleContainer = Utils.mkFrame({size=UDim2.new(0.4, 0, 1, 0), pos=UDim2.new(0, 15, 0, 0), bgT=1, parent=header})
-	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, 15); titleList.Parent=titleContainer
+	local leftHeader = Utils.mkFrame({size=UDim2.new(0.6, -20, 1, 0), pos=UDim2.new(0, 15, 0, 0), bgT=1, parent=header})
+	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, 20); titleList.Parent=leftHeader
 	
-	InventoryUI.Refs.TabBag = Utils.mkBtn({text="소지품", size=UDim2.new(0, 80, 0, 30), bgT=1, font=F.TITLE, ts=24, color=C.GOLD_SEL, parent=titleContainer})
-	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="제작", size=UDim2.new(0, 80, 0, 30), bgT=1, font=F.TITLE, ts=24, color=C.GRAY, parent=titleContainer})
+	InventoryUI.Refs.TabBag = Utils.mkBtn({text="INVENTORY [B]", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GOLD_SEL, parent=leftHeader})
+	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="CRAFTING [C]", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
 	
-	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 100", ts=18, color=C.GRAY, font=F.NUM, parent=titleContainer})
+	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 100 kg", size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, parent=leftHeader})
 	
-	local rightHeader = Utils.mkFrame({size=UDim2.new(0.4, 0, 1, 0), pos=UDim2.new(1, -50, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=header})
-	local hList = Instance.new("UIListLayout"); hList.FillDirection=Enum.FillDirection.Horizontal; hList.HorizontalAlignment=Enum.HorizontalAlignment.Right; hList.VerticalAlignment=Enum.VerticalAlignment.Center; hList.Padding=UDim.new(0, 20); hList.Parent=rightHeader
+	local rightHeader = Utils.mkFrame({size=UDim2.new(0.3, 0, 1, 0), pos=UDim2.new(1, -140, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=header})
+	local hList = Instance.new("UIListLayout"); hList.FillDirection=Enum.FillDirection.Horizontal; hList.HorizontalAlignment=Enum.HorizontalAlignment.Right; hList.VerticalAlignment=Enum.VerticalAlignment.Center; hList.Padding=UDim.new(0, 15); hList.Parent=rightHeader
 	
-	InventoryUI.Refs.CurrencyText = Utils.mkLabel({text="소지금: 0", ts=18, color=C.GOLD, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=rightHeader})
+	InventoryUI.Refs.CurrencyText = Utils.mkLabel({text="TIS: 0", ts=18, color=C.GOLD, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=rightHeader})
 	
-	-- Close Button (Absolute position)
-	Utils.mkBtn({text="X", size=UDim2.new(0, 30, 0, 30), pos=UDim2.new(1, -15, 0, 7), anchor=Vector2.new(1, 0), bgT=1, ts=26, color=C.WHITE, fn=function() UIManager.closeInventory() end, parent=main})
+	-- Close Button (Fixed Text rendering)
+	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeInventory() end, parent=header})
 
 	-- Tab Events
 	InventoryUI.Refs.TabBag.MouseButton1Click:Connect(function() InventoryUI.SetTab("BAG") end)
@@ -95,25 +95,28 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	-- [Content Area]
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
 	
-	-- Left Side: Item Grid (스크롤바 공간 및 정보창 간격 확보)
-	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -310, 1, 0), bgT=1, parent=content})
+	-- Left Side: Item Grid (최근 트렌드 전용 여백 확보)
+	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -330, 1, 0), bgT=1, parent=content})
 	InventoryUI.Refs.BagFrame = gridArea
 	
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "GridScroll"
-	scroll.Size = UDim2.new(1, 0, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 4
+	scroll.Size = UDim2.new(1, -8, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 5
+	scroll.ScrollBarImageColor3 = C.GOLD
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scroll.Parent = gridArea
 	
 	local grid = Instance.new("UIGridLayout")
-	local cellSize = 75
+	local cellSize = isSmall and 65 or 75
 	grid.CellSize = UDim2.new(0, cellSize, 0, cellSize)
-	grid.CellPadding = UDim2.new(0, 8, 0, 8)
+	grid.CellPadding = UDim2.new(0, 10, 0, 10)
+	grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
 	
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 30); pad.PaddingLeft = UDim.new(0, 15) -- 패딩 넓혀서 라벨 공간 확보
+	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 12); pad.PaddingRight = UDim.new(0, 20)
 	pad.Parent = scroll
 
 	for i = 1, Balance.INV_SLOTS do
@@ -200,42 +203,45 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		InventoryUI.Refs.Slots[i] = slot
 	end
 	
-	-- Right Side: Detail Panel (사용자 요청: 가로폭 축소 및 겹침 방지)
-	local detailSize = 270
+	-- Right Side: Detail Panel (Responsive)
+	local detailSize = isSmall and 280 or 320
 	local detail = Utils.mkFrame({
-		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
-		pos=UDim2.new(1, -detailSize - 12, 0, 8),
-		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
-		vis=false, -- 초기에는 숨김
-		parent=content
+		name="Detail", 
+		size = isSmall and UDim2.new(1, -20, 0, 320) or UDim2.new(0, detailSize, 1, -16),
+		pos = isSmall and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(1, -detailSize - 12, 0, 8),
+		anchor = isSmall and Vector2.new(0.5, 0.5) or Vector2.new(0, 0),
+		bg = C.BG_PANEL, bgT = T.PANEL, r = 6, stroke = false,
+		vis = false,
+		z = 10,
+		parent = content
 	})
 	InventoryUI.Refs.Detail.Frame = detail
 	
 	local dtHead = Utils.mkLabel({
-		text="아이템 정보", size=UDim2.new(1,0,0,40),
-		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+		text="ITEM DETAILS", size=UDim2.new(1,0,0,45),
+		bg=C.BG_DARK, bgT=0.3, color=C.GOLD, ts=16, font=F.TITLE,
 		parent=detail
 	})
 	
 	InventoryUI.Refs.Detail.Name = Utils.mkLabel({
-		text="선택된 대상 없음", size=UDim2.new(1,-20,0,40), pos=UDim2.new(0,15,0,50),
-		color=C.WHITE, ts=20, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=detail
+		text="SELECT ITEM", size=UDim2.new(1,-30,0,40), pos=UDim2.new(0,15,0,55),
+		color=C.WHITE, ts=22, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=detail
 	})
 	
 	InventoryUI.Refs.Detail.Icon = Instance.new("ImageLabel")
-	InventoryUI.Refs.Detail.Icon.Size = UDim2.new(0, 80, 0, 80); InventoryUI.Refs.Detail.Icon.Position = UDim2.new(0,15,0,95)
+	InventoryUI.Refs.Detail.Icon.Size = UDim2.new(0, 90, 0, 90); InventoryUI.Refs.Detail.Icon.Position = UDim2.new(0,15,0,105)
 	InventoryUI.Refs.Detail.Icon.BackgroundTransparency = 1; InventoryUI.Refs.Detail.Icon.Parent = detail
 	InventoryUI.Refs.Detail.PreviewIcon = InventoryUI.Refs.Detail.Icon
 	
 	InventoryUI.Refs.Detail.Desc = Utils.mkLabel({
-		text="설명", size=UDim2.new(1,-110,0,100), pos=UDim2.new(0,105,0,95),
-		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+		text="Description", size=UDim2.new(1,-120,0,110), pos=UDim2.new(0,115,0,105),
+		color=C.GRAY, ts=15, wrap=true,
 		ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, parent=detail
 	})
 	
 	InventoryUI.Refs.Detail.Stats = Utils.mkLabel({
-		text="", size=UDim2.new(1,-30,0,150), pos=UDim2.new(0,15,0,230),
-		ts=16, color=C.WHITE, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, rich=true, parent=detail
+		text="", size=UDim2.new(1,-30,0,180), pos=UDim2.new(0,15,0,240),
+		color=C.WHITE, ts=16, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, rich=true, parent=detail
 	})
 	InventoryUI.Refs.Detail.Mats = InventoryUI.Refs.Detail.Stats -- Alias for crafting
 	InventoryUI.Refs.Detail.Weight = InventoryUI.Refs.Detail.Stats
@@ -270,12 +276,12 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local footList = Instance.new("UIListLayout"); footList.Padding=UDim.new(0, 8); footList.VerticalAlignment=Enum.VerticalAlignment.Bottom; footList.Parent=dFoot
 	
 	InventoryUI.Refs.Detail.BtnMain = Utils.mkBtn({
-		text="사용 / 장착", size=UDim2.new(1,0,0,48), bg=C.GOLD, r=5, font=F.TITLE, ts=18, color=Color3.fromRGB(20,20,20), parent=dFoot
+		text="[ EQUIP / USE ]", size=UDim2.new(1,0,0, isSmall and 40 or 45), bg=C.GOLD, r=4, font=F.TITLE, ts=16, color=C.BG_DARK, parent=dFoot
 	})
 	InventoryUI.Refs.Detail.BtnUse = InventoryUI.Refs.Detail.BtnMain -- Alias
 	
 	InventoryUI.Refs.Detail.BtnDrop = Utils.mkBtn({
-		text="버리기", size=UDim2.new(1,0,0,42), bg=Color3.fromRGB(40,40,40), r=5, font=F.TITLE, ts=16, color=C.GRAY, parent=dFoot
+		text="[ DROP ]", size=UDim2.new(1,0,0, isSmall and 35 or 40), bg=C.BTN, r=4, font=F.TITLE, ts=14, color=C.WHITE, parent=dFoot
 	})
 	
 	-- Events

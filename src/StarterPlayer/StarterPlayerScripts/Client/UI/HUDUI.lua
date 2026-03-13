@@ -6,6 +6,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local HUDUI = {}
 local Controllers = script.Parent.Parent:WaitForChild("Controllers")
@@ -35,78 +36,52 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.statusPanel = topLeftFrame
 
 	local statusList = Instance.new("UIListLayout")
-	statusList.Padding = UDim.new(0, 4)
+	statusList.Padding = UDim.new(0, 6) -- 간격 약간 확대
 	statusList.SortOrder = Enum.SortOrder.LayoutOrder
 	statusList.Parent = topLeftFrame
 
-	-- HP Bar (LayoutOrder 1)
+	-- HP Bar (High-Contrast Red)
 	HUDUI.Refs.healthBar = Utils.mkBar({
 		name = "HP",
-		size = UDim2.new(1, 0, 0, 16),
+		size = UDim2.new(1, 0, 0, 20),
 		fillC = C.HP,
-		r = 6,
+		r = 3,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.healthBar.container.LayoutOrder = 1
-	local hpDecay = Utils.mkFrame({
-		name = "Decay",
-		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(1, 1, 1),
-		bgT = 0.5,
-		r = 6,
-		z = HUDUI.Refs.healthBar.fill.ZIndex - 1,
-		parent = HUDUI.Refs.healthBar.container
-	})
-	HUDUI.Refs.hpDecay = hpDecay
 	HUDUI.Refs.healthBar.label.TextXAlignment = Enum.TextXAlignment.Left
-	HUDUI.Refs.healthBar.label.Position = UDim2.new(0, 5, 0, 0)
-	HUDUI.Refs.healthBar.label.Text = "100 / 100"
+	HUDUI.Refs.healthBar.label.Position = UDim2.new(0, 8, 0.5, 0)
+	HUDUI.Refs.healthBar.label.AnchorPoint = Vector2.new(0, 0.5)
+	HUDUI.Refs.healthBar.label.TextColor3 = C.WHITE
+	HUDUI.Refs.healthBar.label.Font = F.NUM
+	HUDUI.Refs.healthBar.label.TextSize = 13
 
-	-- Stamina Bar (LayoutOrder 2)
+	-- Stamina Bar (Vibrant Yellow - User Request)
 	HUDUI.Refs.staminaBar = Utils.mkBar({
 		name = "STA",
-		size = UDim2.new(1, 0, 0, 16), 
-		fillC = C.GOLD,
-		r = 6,
+		size = UDim2.new(1, 0, 0, 18), 
+		fillC = C.STA, 
+		r = 3,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.staminaBar.container.LayoutOrder = 2
-	local staDecay = Utils.mkFrame({
-		name = "Decay",
-		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(1, 1, 1),
-		bgT = 0.5,
-		r = 6,
-		z = HUDUI.Refs.staminaBar.fill.ZIndex - 1,
-		parent = HUDUI.Refs.staminaBar.container
-	})
-	HUDUI.Refs.staDecay = staDecay
 	HUDUI.Refs.staminaBar.label.TextXAlignment = Enum.TextXAlignment.Left
-	HUDUI.Refs.staminaBar.label.Position = UDim2.new(0, 5, 0, 0)
-	HUDUI.Refs.staminaBar.label.Text = "100 / 100"
+	HUDUI.Refs.staminaBar.label.Position = UDim2.new(0, 8, 0.5, 0)
+	HUDUI.Refs.staminaBar.label.AnchorPoint = Vector2.new(0, 0.5)
+	HUDUI.Refs.staminaBar.label.TextColor3 = C.WHITE
+	HUDUI.Refs.staminaBar.label.Font = F.NUM
+	HUDUI.Refs.staminaBar.label.TextSize = 12
 
-	-- Hunger Bar (LayoutOrder 3)
+	-- Hunger Bar (Vibrant Orange)
 	HUDUI.Refs.hungerBar = Utils.mkBar({
 		name = "HUNGER",
-		size = UDim2.new(1, -20, 0, 14), -- 약간 짧고 얇게 조정
-		fillC = C.XP, -- 기본 색상: 초록색
-		r = 6,
+		size = UDim2.new(1, -20, 0, 6), -- 더 얇고 깔끔하게
+		fillC = C.HUNGER, 
+		r = 2,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.hungerBar.container.LayoutOrder = 3
-	local hunDecay = Utils.mkFrame({
-		name = "Decay",
-		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(1, 1, 1),
-		bgT = 0.5,
-		r = 6,
-		z = HUDUI.Refs.hungerBar.fill.ZIndex - 1,
-		parent = HUDUI.Refs.hungerBar.container
-	})
-	HUDUI.Refs.hunDecay = hunDecay
-	HUDUI.Refs.hungerBar.label.TextXAlignment = Enum.TextXAlignment.Left
-	HUDUI.Refs.hungerBar.label.Position = UDim2.new(0, 5, 0, 0)
-	HUDUI.Refs.hungerBar.label.Text = "100 / 100"
+	HUDUI.Refs.hungerBar.label.Visible = false -- 너무 얇아서 텍스트 숨김 (툴팁으로 확인 가능)
 
 	-- Status Effect Icons Container (LayoutOrder 4)
 	local effectList = Utils.mkFrame({name="EffectList", size=UDim2.new(1,0,0,30), bgT=1, parent=topLeftFrame})
@@ -176,54 +151,65 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs["hex_"..hb.id] = btn
 	end
 
-	-- Interaction Prompt (Centered)
-	HUDUI.Refs.interactPrompt = Utils.mkLabel({
-		text = "",
-		size = UDim2.new(0, 400, 0, 80),
-		pos = UDim2.new(0.5, 0, 0.65, 0),
+	-- Interaction Prompt (Centered & Glassy)
+	local iPromptFrame = Utils.mkFrame({
+		name = "InteractPrompt",
+		size = UDim2.new(0, 300, 0, 50),
+		pos = UDim2.new(0.5, 0, 0.7, 0), -- 조금 아래로
 		anchor = Vector2.new(0.5, 0.5),
-		ts = 18,
-		bold = true,
-		color = C.WHITE,
-		rich = true,
+		bg = C.BG_PANEL,
+		bgT = 0.9, -- 초투명
+		r = 4,
+		stroke = true,
+		strokeC = C.BORDER_DIM,
 		vis = false,
 		parent = parent
 	})
+	HUDUI.Refs.interactPromptFrame = iPromptFrame
+	HUDUI.Refs.interactPrompt = Utils.mkLabel({
+		text = "",
+		size = UDim2.new(1, -20, 1, 0),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 16,
+		font = F.TITLE,
+		color = C.WHITE,
+		rich = true,
+		parent = iPromptFrame
+	})
 
-	-- [Bottom Edge] - Experience Bar & Menu
+	-- [Bottom Edge] - Experience Bar & Menu (Modern Minimalist)
 	local bottomEdge = Utils.mkFrame({
 		name = "BottomEdge",
-		size = UDim2.new(1, 0, 0, isSmall and 40 or 30),
+		size = UDim2.new(1, 0, 0, isSmall and 50 or 40),
 		pos = UDim2.new(0, 0, 1, 0),
 		anchor = Vector2.new(0, 1),
 		bg = Color3.new(0,0,0),
-		bgT = 0.3,
+		bgT = 0.6,
 		parent = parent
 	})
 	
 	local xpBackground = Utils.mkFrame({
 		name = "XPBG", 
-		size = UDim2.new(0.8, 0, 0, 4), 
-		pos = UDim2.new(0.5, 0, 1, 0), 
-		anchor = Vector2.new(0.5, 1), 
-		bgT = 0.8, 
-		bg = Color3.new(1, 1, 1), 
-		maxSize = Vector2.new(1200, 4),
+		size = UDim2.new(1, 0, 0, 2), 
+		pos = UDim2.new(0.5, 0, 0, 0), 
+		anchor = Vector2.new(0.5, 0), 
+		bgT = 0.5, 
+		bg = C.BORDER_DIM,
 		parent = bottomEdge
 	})
 	HUDUI.Refs.xpBar = Utils.mkFrame({name = "XPBar", size = UDim2.new(0, 0, 1, 0), bg = C.XP, bgT = 0, parent = xpBackground})
 
-	local bottomList = Instance.new("UIListLayout"); bottomList.FillDirection=Enum.FillDirection.Horizontal; bottomList.Padding=UDim.new(0, 15); bottomList.VerticalAlignment=Enum.VerticalAlignment.Center; bottomList.Parent=bottomEdge
+	local menuItems = Utils.mkFrame({name="MenuButtons", size=UDim2.new(0.7, 0, 1, 0), pos=UDim2.new(1, -20, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=bottomEdge})
+	local mList = Instance.new("UIListLayout"); mList.FillDirection=Enum.FillDirection.Horizontal; mList.VerticalAlignment=Enum.VerticalAlignment.Center; mList.HorizontalAlignment=Enum.HorizontalAlignment.Right; mList.Padding=UDim.new(0, isSmall and 6 or 12); mList.Parent=menuItems
 	
-	Utils.mkBtn({text="≡", size=UDim2.new(0,40,1,0), bgT=1, ts=24, color=C.WHITE, parent=bottomEdge})
-	HUDUI.Refs.bagBtn = Utils.mkBtn({text=isSmall and "🎒" or "소지품(B)", size=UDim2.new(0, isSmall and 60 or 100, 1, 0), bgT=1, ts=isSmall and 24 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleInventory() end, parent=bottomEdge})
-	HUDUI.Refs.buildBtn = Utils.mkBtn({text=isSmall and "🏗" or "건축(C)", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), bgT=1, ts=isSmall and 24 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleBuild() end, parent=bottomEdge})
-	HUDUI.Refs.equipBtn = Utils.mkBtn({text=isSmall and "👕" or "장비(E)", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), bgT=1, ts=isSmall and 24 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleEquipment() end, parent=bottomEdge})
-	HUDUI.Refs.techBtn = Utils.mkBtn({text=isSmall and "📜" or "기술(K)", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), bgT=1, ts=isSmall and 24 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleTechTree() end, parent=bottomEdge})
-	HUDUI.Refs.collectionBtn = Utils.mkBtn({text=isSmall and "📖" or "도감(P)", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), bgT=1, ts=isSmall and 24 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleCollection() end, parent=bottomEdge})
-
-
-	HUDUI.Refs.levelLabel = Utils.mkLabel({text="Lv. 1    0.0%", size=UDim2.new(0, isSmall and 100 or 150, 1, 0), ts=12, color=C.GRAY, parent=bottomEdge})
+	HUDUI.Refs.levelLabel = Utils.mkLabel({text="LV. 1 [ 0.0% ]", size=UDim2.new(0, 150, 0, 32), pos=UDim2.new(0, 20, 0.5, 0), anchor=Vector2.new(0, 0.5), ts=14, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=bottomEdge})
+	
+	HUDUI.Refs.bagBtn = Utils.mkBtn({text="[ INV: B ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleInventory() end, parent=menuItems})
+	HUDUI.Refs.buildBtn = Utils.mkBtn({text="[ BUILD: C ]", size=UDim2.new(0, isSmall and 85 or 110, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleBuild() end, parent=menuItems})
+	HUDUI.Refs.equipBtn = Utils.mkBtn({text="[ CHAR: E ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleEquipment() end, parent=menuItems})
+	HUDUI.Refs.techBtn = Utils.mkBtn({text="[ TECH: K ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleTechTree() end, parent=menuItems})
+	HUDUI.Refs.collectionBtn = Utils.mkBtn({text="[ LOG: P ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleCollection() end, parent=menuItems})
 
 	-- [Hotbar] (Center Bottom)
 	local hotbarSize = isSmall and 480 or 410
@@ -237,16 +223,16 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	})
 	HUDUI.Refs.hotbarSlots = {}
 	local hList = Instance.new("UIListLayout")
-	hList.FillDirection = Enum.FillDirection.Horizontal; hList.HorizontalAlignment = Enum.HorizontalAlignment.Center; hList.Padding = UDim.new(0, 5); hList.Parent = hotbarFrame
+	hList.FillDirection = Enum.FillDirection.Horizontal; hList.HorizontalAlignment = Enum.HorizontalAlignment.Center; hList.Padding = UDim.new(0, 8); hList.Parent = hotbarFrame
 
 	for i=1, 8 do
 		local slot = Utils.mkSlot({
 			name = "Slot"..i,
-			size = UDim2.new(0, isSmall and 55 or 45, 0, isSmall and 55 or 45),
+			size = UDim2.new(0, isSmall and 55 or 48, 0, isSmall and 55 or 48),
 			bg = C.BG_SLOT,
-			bgT = 0.4,
-			stroke = 1,
-			strokeC = C.BORDER_DIM,
+			bgT = 0.5, -- 가독성을 위해 투명도 낮춤
+			stroke = 1.5,
+			strokeC = C.BORDER,
 			parent = hotbarFrame
 		})
 		
@@ -365,8 +351,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local tooltip = Instance.new("Frame")
 	tooltip.Name = "HUDTooltip"
 	tooltip.Size = UDim2.new(0, 210, 0, 80)
-	tooltip.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
-	tooltip.BackgroundTransparency = 0.1
+	tooltip.BackgroundColor3 = C.BG_PANEL
+	tooltip.BackgroundTransparency = 0.05
 	tooltip.BorderSizePixel = 0
 	tooltip.ZIndex = 9500
 	tooltip.Visible = false
@@ -377,9 +363,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipCorner.Parent = tooltip
 
 	local tipStroke = Instance.new("UIStroke")
-	tipStroke.Color = Color3.fromRGB(255, 220, 100)
-	tipStroke.Thickness = 1.5
-	tipStroke.Transparency = 0.4
+	tipStroke.Color = C.BORDER
+	tipStroke.Thickness = 2
+	tipStroke.Transparency = 0.2
 	tipStroke.Parent = tooltip
 
 	local tipTitle = Instance.new("TextLabel")
@@ -387,9 +373,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipTitle.Size = UDim2.new(1, -20, 0, 30)
 	tipTitle.Position = UDim2.new(0, 10, 0, 5)
 	tipTitle.BackgroundTransparency = 1
-	tipTitle.TextColor3 = Color3.fromRGB(255, 230, 80)
-	tipTitle.TextSize = 16
-	tipTitle.Font = Enum.Font.GothamBold
+	tipTitle.TextColor3 = C.INK
+	tipTitle.TextSize = 18
+	tipTitle.Font = F.TITLE
 	tipTitle.TextXAlignment = Enum.TextXAlignment.Left
 	tipTitle.ZIndex = 9501
 	tipTitle.Parent = tooltip
@@ -399,9 +385,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipBody.Size = UDim2.new(1, -20, 1, -40)
 	tipBody.Position = UDim2.new(0, 10, 0, 35)
 	tipBody.BackgroundTransparency = 1
-	tipBody.TextColor3 = Color3.fromRGB(220, 220, 220)
-	tipBody.TextSize = 13
-	tipBody.Font = Enum.Font.Gotham
+	tipBody.TextColor3 = C.INK
+	tipBody.TextSize = 15
+	tipBody.Font = F.NORMAL
 	tipBody.TextXAlignment = Enum.TextXAlignment.Left
 	tipBody.TextYAlignment = Enum.TextYAlignment.Top
 	tipBody.TextWrapped = true
@@ -502,10 +488,10 @@ function HUDUI.UpdateHunger(cur, max)
 	if HUDUI.Refs.hunDecay then TweenService:Create(HUDUI.Refs.hunDecay, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(r, 0, 1, 0)}):Play() end
 	bar.label.Text = string.format("%d / %d", math.floor(cur), math.floor(max))
 	
-	-- 배고픔 수치에 따른 색상 변화 (초록 -> 노랑 -> 빨강)
-	if r > 0.5 then
-		bar.fill.BackgroundColor3 = C.XP -- 초록
-	elseif r > 0.25 then
+	-- 배고픔 수치에 따른 색상 변화 (초록 유지 강조)
+	if r > 0.4 then
+		bar.fill.BackgroundColor3 = C.HUNGER -- 초록
+	elseif r > 0.15 then
 		bar.fill.BackgroundColor3 = C.GOLD_SEL -- 노랑
 	else
 		bar.fill.BackgroundColor3 = C.HP -- 빨강
@@ -518,7 +504,7 @@ function HUDUI.UpdateXP(cur, max)
 	local r = math.clamp(cur/max, 0, 1)
 	TweenService:Create(bar, TweenInfo.new(0.3), {Size = UDim2.new(r, 0, 1, 0)}):Play()
 	if HUDUI.Refs.levelLabel then 
-		HUDUI.Refs.levelLabel.Text = string.format("Lv. %s    %.1f%%", tostring(HUDUI.Refs.currentLevel or 1), r * 100)
+		HUDUI.Refs.levelLabel.Text = string.format("LV. %s [ %.1f%% ]", tostring(HUDUI.Refs.currentLevel or 1), r * 100)
 	end
 end
 
@@ -571,14 +557,14 @@ function HUDUI.HideHarvestProgress()
 end
 
 function HUDUI.showInteractPrompt(text)
-	if HUDUI.Refs.interactPrompt then
+	if HUDUI.Refs.interactPrompt and HUDUI.Refs.interactPromptFrame then
 		HUDUI.Refs.interactPrompt.Text = text
-		HUDUI.Refs.interactPrompt.Visible = true
+		HUDUI.Refs.interactPromptFrame.Visible = true
 	end
 end
 
 function HUDUI.hideInteractPrompt()
-	if HUDUI.Refs.interactPrompt then HUDUI.Refs.interactPrompt.Visible = false end
+	if HUDUI.Refs.interactPromptFrame then HUDUI.Refs.interactPromptFrame.Visible = false end
 end
 
 function HUDUI.UpdateStatusEffects(debuffList)

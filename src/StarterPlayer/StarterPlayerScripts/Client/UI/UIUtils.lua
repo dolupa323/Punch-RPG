@@ -33,20 +33,26 @@ function UIUtils.mkFrame(p)
 	f.BorderSizePixel = 0
 	f.Visible = p.vis ~= false
 	f.ZIndex = p.z or 1
-	f.ClipsDescendants = p.clips or false
+	if not p.useCanvas then
+		f.ClipsDescendants = p.clips or false
+	end
 	f.Parent = p.parent
 	
-	if p.r then
+	-- Minimalist Corners
+	if p.r ~= false then
 		local c = Instance.new("UICorner")
-		c.CornerRadius = (p.r == "full") and UDim.new(1, 0) or UDim.new(0, p.r)
+		local radius = p.r or 4 -- 고정값 또는 유동적 값 (4가 모던함)
+		c.CornerRadius = (radius == "full") and UDim.new(1, 0) or UDim.new(0, radius)
 		c.Parent = f
 	end
 	
-	if p.stroke or p.strokeC then
+	-- Subtle Strokes: Default is now false unless explicitly asked
+	if p.stroke == true or p.strokeC then
 		local s = Instance.new("UIStroke")
-		s.Thickness = p.stroke or 1
+		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1
 		s.Color = p.strokeC or C.BORDER
-		s.Transparency = p.strokeT or 0.2
+		s.Transparency = p.strokeT or 0.7 -- 매우 희미하게
+		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		s.Parent = f
 	end
 	
@@ -67,12 +73,15 @@ function UIUtils.mkLabel(p)
 	l.AnchorPoint = p.anchor or Vector2.zero
 	l.BackgroundTransparency = 1
 	l.Text = p.text or ""
-	l.TextColor3 = p.color or C.WHITE
+	l.TextColor3 = p.ink and C.INK or (p.color or C.WHITE)
 	l.TextSize = p.ts or 14
-	l.Font = p.font or F.NORMAL
+	l.Font = p.ink and F.CLASSIC or (p.font or F.NORMAL)
 	l.TextXAlignment = p.ax or Enum.TextXAlignment.Center
 	l.TextYAlignment = p.ay or Enum.TextYAlignment.Center
-	l.TextStrokeTransparency = p.st or 0.7
+	
+	-- Clean Text: No more forced strokes/blurring effects
+	l.TextStrokeTransparency = 1 
+	
 	l.TextWrapped = p.wrap or false
 	l.RichText = p.rich or false
 	l.ZIndex = p.z or 1
@@ -90,35 +99,38 @@ function UIUtils.mkBtn(p)
 	b.Position = p.pos or UDim2.new(0, 0, 0, 0)
 	b.AnchorPoint = p.anchor or Vector2.zero
 	b.BackgroundColor3 = p.bg or C.BTN
-	b.BackgroundTransparency = p.bgT or 0.2
+	b.BackgroundTransparency = p.bgT or 0.3
 	b.BorderSizePixel = 0
 	b.Text = p.text or ""
 	b.TextColor3 = p.color or C.WHITE
-	b.TextSize = p.ts or 16
+	b.TextSize = p.ts or 15
 	b.Font = p.font or F.NORMAL
 	b.AutoButtonColor = false
 	b.ZIndex = p.z or 1
 	b.Parent = p.parent
 	
-	if p.r then
+	if p.r ~= false then
 		local c = Instance.new("UICorner")
-		c.CornerRadius = (p.r == "full") and UDim.new(1, 0) or UDim.new(0, p.r)
+		local radius = p.r or 4
+		c.CornerRadius = (radius == "full") and UDim.new(1, 0) or UDim.new(0, radius)
 		c.Parent = b
 	end
 	
-	if p.stroke then
+	if p.stroke == true or p.strokeC then
 		local s = Instance.new("UIStroke")
-		s.Thickness = p.stroke == true and 1.5 or p.stroke
+		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1
 		s.Color = p.strokeC or C.BORDER
+		s.Transparency = 0.7
 		s.Parent = b
 	end
 	
 	local nc, hc = b.BackgroundColor3, p.hbg or C.BTN_H
+	local nt = p.bgT or 0.3
 	b.MouseEnter:Connect(function() 
-		TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = hc, BackgroundTransparency = 0}):Play() 
+		TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = hc, BackgroundTransparency = 0.1}):Play() 
 	end)
 	b.MouseLeave:Connect(function() 
-		TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = nc, BackgroundTransparency = p.bgT or 0.2}):Play() 
+		TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = nc, BackgroundTransparency = nt}):Play() 
 	end)
 	
 	if p.fn then b.MouseButton1Click:Connect(p.fn) end

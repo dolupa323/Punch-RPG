@@ -321,34 +321,21 @@ function CollectionUI.Init(mainGui, uiManager)
 	if isUIInitialized then return end
 	UIManager = uiManager
 	
-	local Frame = Utils.CreateFrame("CollectionFrame", UDim2.new(0, 900, 0, 550), UDim2.new(0.5, -450, 0.5, -275), C.BG_PANEL)
+	-- Main Window (Using Modern Theme style)
+	local Frame = Utils.mkFrame({
+		name = "CollectionFrame", 
+		size = UDim2.new(0, 900, 0, 580), 
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL, bgT = 0.1, r = 6, stroke = 1.5, strokeC = C.BORDER
+	})
 	Frame.Visible = false
-	Utils.AddCorner(Frame, 12)
 	CollectionUI.Refs.Frame = Frame
 	
-	-- Title
-	local Title = Utils.CreateTextLabel("Title", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 0), "생존 도감 (Collection)")
-	Title.Font = F.TITLE
-	Title.TextSize = 22
-	Title.TextColor3 = C.GOLD
-	Title.BackgroundColor3 = C.BG_PANEL_L
-	Title.BackgroundTransparency = 0
-	Utils.AddCorner(Title, 12)
-	Title.Parent = Frame
-	
-	-- Bottom Flat
-	local btnFlat = Instance.new("Frame")
-	btnFlat.Size = UDim2.new(1, 0, 0.5, 0)
-	btnFlat.Position = UDim2.new(0, 0, 0.5, 0)
-	btnFlat.BackgroundColor3 = C.BG_PANEL_L
-	btnFlat.BorderSizePixel = 0
-	btnFlat.Parent = Title
-	Title.Parent = Frame
-	
-	-- Close Button
-	local CloseBtn = Utils.CreateCloseButton(UIManager, "COLLECTION")
-	CloseBtn.Position = UDim2.new(1, -30, 0, 10)
-	CloseBtn.Parent = Frame
+	-- Header
+	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=Frame})
+	Utils.mkLabel({text="JOURNAL [P]", pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
 	
 	-- 좌측 탭 영역
 	local TabList = Instance.new("ScrollingFrame")
@@ -365,11 +352,19 @@ function CollectionUI.Init(mainGui, uiManager)
 	-- 중앙 스크롤 (공룡카드)
 	local Scroll = Instance.new("ScrollingFrame")
 	Scroll.Name = "CreatureList"
-	Scroll.Size = UDim2.new(0, 490, 1, -60)
-	Scroll.Position = UDim2.new(0, 140, 0, 50)
+	Scroll.Size = UDim2.new(0, 490, 1, -70)
+	Scroll.Position = UDim2.new(0, 140, 0, 60)
 	Scroll.BackgroundColor3 = C.BG_OVERLAY
-	Scroll.BackgroundTransparency = 0.5
-	Scroll.ScrollBarThickness = 6
+	Scroll.BackgroundTransparency = 0.8
+	Scroll.ScrollBarThickness = 5
+	Scroll.ScrollBarImageColor3 = C.GOLD
+	Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	Scroll.CanvasSize = UDim2.new(0,0,0,0)
+	
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 20)
+	pad.Parent = Scroll
+	
 	Utils.AddCorner(Scroll, 8)
 	CollectionUI.Refs.Scroll = Scroll
 	Scroll.Parent = Frame

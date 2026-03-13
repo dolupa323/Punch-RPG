@@ -34,105 +34,7 @@ local screenGui = create("ScreenGui", {
 	ResetOnSpawn = false
 })
 
---=========================================
-local loadingFrame = create("Frame", {
-	Name = "LoadingFrame",
-	Parent = screenGui,
-	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundColor3 = Color3.fromRGB(0, 0, 0), -- 맵 배경용 살짝 어두운 오버레이
-	BackgroundTransparency = 0.3,
-	ZIndex = 10,
-	Visible = true
-})
-
--- 로고 이미지 (일단 비워두거나 Placeholder 처리)
-local loadingLogo = create("ImageLabel", {
-	Name = "Logo",
-	Parent = loadingFrame,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.4, 0),
-	Size = UDim2.new(0, 400, 0, 200),
-	BackgroundTransparency = 1,
-	Image = "rbxassetid://13192801438", -- 임시 로고
-	ZIndex = 11
-})
-
--- 안내 문구 (주의 사항)
-local warningIcon = create("ImageLabel", {
-	Name = "WarningIcon",
-	Parent = loadingFrame,
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(0.5, -170, 0.7, 0),
-	Size = UDim2.new(0, 30, 0, 30),
-	BackgroundTransparency = 1,
-	Image = "rbxassetid://6031280882", -- 경고 아이콘
-	ImageColor3 = Color3.fromRGB(255, 204, 0),
-	ZIndex = 11
-})
-
-local warningText = create("TextLabel", {
-	Name = "WarningText",
-	Parent = loadingFrame,
-	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(0.5, -130, 0.7, 0),
-	Size = UDim2.new(0, 300, 0, 40),
-	BackgroundTransparency = 1,
-	Text = "타인의 권리 침해 등 운영정책 위반 아바타 상품을 구매하지 않도록 유의해주세요.\n적발 시 이용 제한 및 상품이 임의 변경될 수 있습니다.",
-	TextColor3 = Color3.fromRGB(150, 150, 150),
-	TextSize = 12,
-	Font = Enum.Font.GothamMedium,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	ZIndex = 11
-})
-
--- 상태 텍스트
-local statusText = create("TextLabel", {
-	Name = "StatusText",
-	Parent = loadingFrame,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.85, -20),
-	Size = UDim2.new(0, 300, 0, 20),
-	BackgroundTransparency = 1,
-	Text = "월드를 불러오고 있습니다...",
-	TextColor3 = Color3.fromRGB(150, 150, 150),
-	TextSize = 12,
-	Font = Enum.Font.Gotham,
-	ZIndex = 11
-})
-
-local progressBarBG = create("Frame", {
-	Name = "ProgressBarBG",
-	Parent = loadingFrame,
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.85, 0),
-	Size = UDim2.new(0.6, 0, 0, 4),
-	BackgroundColor3 = Color3.fromRGB(200, 200, 200),
-	BorderSizePixel = 0,
-	ZIndex = 11
-})
-
-local progressBarFill = create("Frame", {
-	Name = "ProgressBarFill",
-	Parent = progressBarBG,
-	Size = UDim2.new(0, 0, 1, 0),
-	BackgroundColor3 = Color3.fromRGB(160, 140, 90),
-	BorderSizePixel = 0,
-	ZIndex = 12
-})
-
-local percentText = create("TextLabel", {
-	Name = "PercentText",
-	Parent = progressBarBG,
-	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(1, 10, 0.5, 0),
-	Size = UDim2.new(0, 40, 0, 20),
-	BackgroundTransparency = 1,
-	Text = "0%",
-	TextColor3 = Color3.fromRGB(120, 120, 120),
-	TextSize = 12,
-	Font = Enum.Font.GothamMedium,
-	ZIndex = 11
-})
+-- loadingFrame 및 기존 로딩 UI 제거 (titleFrame으로 통합)
 
 --=========================================
 -- 2. 타이틀 스크린 메인 메뉴 (Title Frame)
@@ -142,49 +44,120 @@ local titleFrame = create("Frame", {
 	Parent = screenGui,
 	Size = UDim2.new(1, 0, 1, 0),
 	BackgroundTransparency = 1,
+	BackgroundColor3 = Color3.fromRGB(0, 0, 0),
 	ZIndex = 1,
-	Visible = false
+	Visible = true
 })
 
--- 타이틀 배경 오버레이 (배경 이미지 대신 3D 월드가 보이도록 透明하게 설정)
+-- 타이틀 배경 오버레이 (배경 이미지 대신 3D 월드가 보이도록 설정)
 local titleBackground = create("Frame", {
 	Name = "Background",
 	Parent = titleFrame,
 	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundTransparency = 1,
+	BackgroundTransparency = 0, -- 처음엔 검은 암전 상태로 시작
 	BackgroundColor3 = Color3.fromRGB(0, 0, 0),
 	ZIndex = 2
 })
 
--- 새로 주신 동그란 로고 이미지
+-- 암전 해제 애니메이션 (월드 보여주기)
+task.spawn(function()
+	task.wait(1.5)
+	TweenService:Create(titleBackground, TweenInfo.new(2, Enum.EasingStyle.Sine), {
+		BackgroundTransparency = 1
+	}):Play()
+end)
+
 local originLogo = create("ImageLabel", {
 	Name = "TitleLogo",
 	Parent = titleBackground,
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.4, 0), -- 배치를 적절하게 약간 내림
-	Size = UDim2.new(0.6, 0, 0.6, 0),      -- 반응형으로 더 크게 (어차피 Fit이라 비율 유지됨)
+	Position = UDim2.new(0.5, 0, 0.4, 0),
+	Size = UDim2.new(0.6, 0, 0.6, 0),
 	BackgroundTransparency = 1,
-	Image = "rbxassetid://109740374827329",
+	Image = "rbxassetid://112021615167746",
 	ScaleType = Enum.ScaleType.Fit,
-	ImageTransparency = 1, -- 효과를 위해 전부 투명하게 시작
+	ImageTransparency = 0,               
 	ZIndex = 3,
 	Visible = true
 })
 
-local startButton = create("TextButton", {
-	Name = "StartButton",
+-- 로고 아래 로딩바 추가
+local progressBarBG = create("Frame", {
+	Name = "ProgressBarBG",
 	Parent = titleFrame,
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 0.75, 0), -- 로고 바로 아래로 버튼 위치 위로 수정
-	Size = UDim2.new(0.12, 0, 0.05, 0), -- 가로 길이를 줄여서 더 아담하고 정돈된 비율로 조정
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.75, 0),
+	Size = UDim2.new(0.4, 0, 0, 2),
+	BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+	BorderSizePixel = 0,
+	ZIndex = 11
+})
+
+local progressBarFill = create("Frame", {
+	Name = "ProgressBarFill",
+	Parent = progressBarBG,
+	Size = UDim2.new(0, 0, 1, 0),
 	BackgroundColor3 = Color3.fromRGB(245, 185, 50),
-	BackgroundTransparency = 0.25, -- 게임 시작 버튼 약간 투명하게 조정 (글씨 가림 방지)
-	Text = "START",
-	TextColor3 = Color3.fromRGB(30, 30, 30),
-	TextScaled = true, -- 크기가 변하면 안의 글자도 같이 반응형으로 커짐
-	Font = Enum.Font.GothamBold,
-	AutoButtonColor = false,
-	ZIndex = 4
+	BorderSizePixel = 0,
+	ZIndex = 12
+})
+
+local statusText = create("TextLabel", {
+	Name = "StatusText",
+	Parent = titleFrame,
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.75, -20),
+	Size = UDim2.new(0, 400, 0, 20),
+	BackgroundTransparency = 1,
+	Text = "데이터를 불러오고 있습니다...",
+	TextColor3 = Color3.fromRGB(150, 150, 150),
+	TextSize = 14,
+	Font = Enum.Font.Gotham,
+	ZIndex = 11
+})
+
+local percentText = create("TextLabel", {
+	Name = "PercentText",
+	Parent = progressBarBG,
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 1, 5),
+	Size = UDim2.new(0, 40, 0, 20),
+	BackgroundTransparency = 1,
+	Text = "0%",
+	TextColor3 = Color3.fromRGB(120, 120, 120),
+	TextSize = 12,
+	Font = Enum.Font.GothamMedium,
+	ZIndex = 11
+})
+
+-- 로고 비율 유지를 위한 제약 조건 추가
+create("UIAspectRatioConstraint", {
+	AspectRatio = 1.667, -- 850/510 비율 유지
+	Parent = originLogo
+})
+
+local touchToStartText = create("TextLabel", {
+	Name = "TouchToStartText",
+	Parent = titleFrame,
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.72, 0),
+	Size = UDim2.new(0.5, 0, 0.05, 0),
+	BackgroundTransparency = 1,
+	Text = "화면을 터치해주세요.",
+	TextColor3 = Color3.fromRGB(180, 180, 180), -- 회색 얇은 글씨
+	TextSize = 18,
+	Font = Enum.Font.Gotham,
+	TextTransparency = 1,
+	ZIndex = 11
+})
+
+local invisibleStartButton = create("TextButton", {
+	Name = "InvisibleStartButton",
+	Parent = titleFrame,
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	Text = "",
+	ZIndex = 10 -- 로고보다는 아래, 배경보다는 위 (설정상 creditsButton보다 아래여야 함)
 })
 
 -- Credits 버튼 추가
@@ -200,7 +173,7 @@ local creditsButton = create("TextButton", {
 	TextColor3 = Color3.fromRGB(200, 200, 200),
 	TextSize = 14,
 	Font = Enum.Font.GothamMedium,
-	ZIndex = 4
+	ZIndex = 20  -- 전역 클릭 버튼보다 위에 배치
 })
 
 create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = creditsButton })
@@ -263,25 +236,9 @@ local closeCredits = create("TextButton", {
 })
 create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = closeCredits })
 
--- 글자가 너무 커지거나 너무 작아지지 않게 한계값 설정
-local btnTextConstraint = create("UITextSizeConstraint", {
-	MaxTextSize = 28,
-	MinTextSize = 14,
-	Parent = startButton
-})
+-- (btnTextConstraint는 버튼 제거로 인해 삭제됨)
 
--- 버튼 라운딩 처리
-local btnUICorner = create("UICorner", {
-	CornerRadius = UDim.new(0, 8),
-	Parent = startButton
-})
-
-local btnUIStroke = create("UIStroke", {
-	Parent = startButton,
-	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	Color = Color3.fromRGB(80, 50, 10),
-	Thickness = 3
-})
+-- (전역 버튼이므로 테두리/라운딩 제거)
 --=========================================
 -- 로직 & 애니메이션
 --=========================================
@@ -358,7 +315,12 @@ task.spawn(function()
 	end
 end)
 
--- 실제 게임 로딩 대기
+-- [수정] 통합 로딩 시퀀스
+TweenService:Create(titleBackground, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
+	BackgroundTransparency = 0.4 -- 맵이 보이게 살짝 투명화 (로딩 시작 직전)
+}):Play()
+
+-- 실제 로딩 대기
 if not game:IsLoaded() then
 	game.Loaded:Wait()
 end
@@ -374,51 +336,48 @@ local t = 0
 while not player:GetAttribute("InventoryLoaded") and t < 60 do
 	task.wait(0.2)
 	t = t + 0.2
+	-- 프로그레스 강제 업데이트 (90%까지)
+	if progress < 95 then
+		progress = progress + 1
+	end
 end
 
 -- 로딩 완료
 isLoading = false
 progress = 100
-statusText.Text = "동기화 완료!"
+statusText.Text = "접속 완료!"
 TweenService:Create(progressBarFill, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {
 	Size = UDim2.new(1, 0, 1, 0)
 }):Play()
 percentText.Text = "100%"
 task.wait(0.6)
 
--- 페이드 아웃 & 타이틀 씬 전환
-statusText.Text = "환영합니다!"
+-- 로딩바 페이드 아웃
+local fadeOutInfo = TweenInfo.new(0.5, Enum.EasingStyle.Sine)
+TweenService:Create(progressBarBG, fadeOutInfo, {BackgroundTransparency = 1}):Play()
+TweenService:Create(progressBarFill, fadeOutInfo, {BackgroundTransparency = 1}):Play()
+TweenService:Create(percentText, fadeOutInfo, {TextTransparency = 1}):Play()
+TweenService:Create(statusText, fadeOutInfo, {TextTransparency = 1}):Play()
 task.wait(0.5)
 
--- 페이드 아웃 트윈
-local fadeTween = TweenService:Create(loadingFrame, TweenInfo.new(0.8, Enum.EasingStyle.Sine), {
-	BackgroundTransparency = 1
-})
-TweenService:Create(loadingLogo, TweenInfo.new(0.6), {ImageTransparency = 1}):Play()
-TweenService:Create(warningIcon, TweenInfo.new(0.6), {ImageTransparency = 1}):Play()
-TweenService:Create(warningText, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
-TweenService:Create(statusText, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
-TweenService:Create(progressBarBG, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
-TweenService:Create(progressBarFill, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
-TweenService:Create(percentText, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
-
-fadeTween:Play()
-fadeTween.Completed:Wait()
-
-loadingFrame.Visible = false
-
--- 타이블 메뉴 표시
-titleFrame.Visible = true
-
--- 로고 이미지 페이드 인
-TweenService:Create(originLogo, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-	ImageTransparency = 0
+-- 안내 텍스트 페이드 인
+TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
+	TextTransparency = 0
 }):Play()
 
--- 배경은 약간 어둡게 (맵이 잘 보이도록 0.4 투명도)
-TweenService:Create(titleBackground, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-	BackgroundTransparency = 0.4
-}):Play()
+-- 안내 텍스트 깜빡임 효과 (Blink)
+task.spawn(function()
+	while titleFrame.Visible do
+		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
+			TextTransparency = 0.6
+		}):Play()
+		task.wait(1.0)
+		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
+			TextTransparency = 0
+		}):Play()
+		task.wait(1.0)
+	end
+end)
 
 -- 메인 메뉴 버튼 이벤트
 local function applyHoverEffect(button, defaultColor, hoverColor, defaultTrans, hoverTrans)
@@ -436,8 +395,7 @@ local function applyHoverEffect(button, defaultColor, hoverColor, defaultTrans, 
 	end)
 end
 
--- 마우스 올렸을 때 조금 덜 투명하게 (0.15) 밝게 표시
-applyHoverEffect(startButton, Color3.fromRGB(245, 185, 50), Color3.fromRGB(255, 215, 100), 0.25, 0.15)
+-- 듀랑고 스타일 고대 문서 호버 효과 (전역 버튼은 스킵)
 applyHoverEffect(creditsButton, Color3.fromRGB(50, 50, 50), Color3.fromRGB(80, 80, 80), 0.5, 0.3)
 
 creditsButton.MouseButton1Click:Connect(function()
@@ -448,11 +406,13 @@ closeCredits.MouseButton1Click:Connect(function()
 	creditsFrame.Visible = false
 end)
 
--- 게임 시작 버튼 클릭 이벤트
-startButton.MouseButton1Click:Connect(function()
-	-- 버튼 누르는 효과 (가로축에 맞춰서 작아지는 효과 조절)
-	TweenService:Create(startButton, TweenInfo.new(0.1), {Size = UDim2.new(0.11, 0, 0.045, 0)}):Play()
-	task.wait(0.1)
+-- 아무데나 클릭 시 시작
+invisibleStartButton.MouseButton1Click:Connect(function()
+	-- 로딩이 완료되지 않았으면 클릭 무시
+	if progress < 100 then return end
+	
+	-- 클릭 시 텍스트 즉시 반응
+	touchToStartText.TextTransparency = 0
 	
 	-- 화면 암전 혹은 페이드 아웃
 	local blackFrame = create("Frame", {
@@ -461,7 +421,7 @@ startButton.MouseButton1Click:Connect(function()
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundColor3 = Color3.new(0, 0, 0),
 		BackgroundTransparency = 1,
-		ZIndex = 15
+		ZIndex = 30 -- 가장 위에
 	})
 	
 	local startFade = TweenService:Create(blackFrame, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {

@@ -1,0 +1,22 @@
+# Agent Skills
+_agent/
+.agent/
+
+# Roblox / Rojo
+*.rbxlx
+*.rbxl
+.rojo/
+
+# VS Code
+.vscode/
+.history/
+
+# Temporary files
+tmp/
+temp/
+*.log
+debug/
+
+# OS files
+.DS_Store
+Thumbs.db

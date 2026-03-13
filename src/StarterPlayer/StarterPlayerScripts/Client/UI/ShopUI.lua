@@ -5,6 +5,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local ShopUI = {}
 ShopUI.Refs = {
@@ -77,7 +78,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
-		bgT = 0.2,
+		bgT = T.PANEL,
 		r = 4,
 		stroke = 1,
 		parent = ShopUI.Refs.Frame

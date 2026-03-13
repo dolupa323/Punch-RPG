@@ -6,6 +6,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local TechUI = {}
 TechUI.Refs = { Tabs = {}, Nodes = {}, Lines = {} }
@@ -270,32 +271,33 @@ function TechUI.Init(parent, UIManager, isMobile)
 
 	local main = Utils.mkWindow({
 		name = "Main",
-		size = UDim2.new(isMobile and 1 or 0.7, 0, isMobile and 1 or 0.85, 0),
-		maxSize = Vector2.new(950, 850),
+		size = UDim2.new(isMobile and 1 or 0.8, 0, isMobile and 1 or 0.85, 0),
+		maxSize = Vector2.new(1100, 850),
 		pos = UDim2.new(0.5,0,0.5,0), anchor = Vector2.new(0.5,0.5),
-		bg = Color3.fromRGB(15, 15, 18), bgT = 0.5, stroke = 1, strokeC = Color3.fromRGB(60,60,60),
+		bg = C.BG_PANEL, bgT = 0.1, stroke = 1.5, strokeC = C.BORDER, r = 6,
 		parent = TechUI.Refs.Frame,
 	})
 
-	-- 헤더 (듀랑고 느낌의 슬림한 상단바)
+	-- 헤더 (Modern Thin Header)
 	local header = Utils.mkFrame({
-		name="Header", size=UDim2.new(1,0,0,45),
-		bg=Color3.fromRGB(10,10,12), parent=main,
+		name="Header", size=UDim2.new(1,0,0,50),
+		bg=C.BG_OVERLAY, parent=main,
 	})
 	Utils.mkLabel({
-		text="  ⚙ 기술 및 연구", pos=UDim2.new(0,0,0,0),
-		size=UDim2.new(0.3,0,1,0), ts=20, font=F.TITLE, color=C.WHITE,
+		text="  ⚙ KNOWLEDGE TREE", pos=UDim2.new(0,0,0,0),
+		size=UDim2.new(0.5,0,1,0), ts=18, font=F.TITLE, color=C.WHITE,
 		ax=Enum.TextXAlignment.Left, parent=header,
 	})
 	TechUI.Refs.TPText = Utils.mkLabel({
-		text="SP: 0", pos=UDim2.new(0.6,0,0,0),
-		size=UDim2.new(0.3,0,1,0), ts=18, font=F.TITLE, color=C.GOLD,
+		text="SP: 0", pos=UDim2.new(0.5,0,0,0),
+		size=UDim2.new(0.4,0,1,0), ts=16, font=F.NUM, color=C.GOLD,
 		ax=Enum.TextXAlignment.Right, parent=header,
 	})
+	-- Close Button (Fixed)
 	Utils.mkBtn({
-		text="X", size=UDim2.new(0,40,0,40),
-		pos=UDim2.new(1,-6,0.5,0), anchor=Vector2.new(1,0.5),
-		bg=Color3.fromRGB(40,40,40), bgT=0.5, ts=20, font=F.TITLE, color=C.WHITE, r=5,
+		text="X", size=UDim2.new(0,36,0,36),
+		pos=UDim2.new(1,-10,0.5,0), anchor=Vector2.new(1,0.5),
+		bg=C.BTN, bgT=0.5, ts=20, font=F.TITLE, color=C.WHITE, r=4,
 		fn=function() UIManager.closeTechTree() end, parent=header,
 	})
 
@@ -424,8 +426,8 @@ function TechUI.Init(parent, UIManager, isMobile)
 	TechUI.Refs.D_WarnBox.Parent = TechUI.Refs.DetailFrame
 	
 	TechUI.Refs.D_ActionBtn = Utils.mkBtn({
-		text="연구 시작", size=UDim2.new(1, -20, 0, 45), pos=UDim2.new(0, 10, 1, -55),
-		bg=C.GOLD, color=Color3.fromRGB(20,20,20), ts=16, font=F.TITLE, r=5,
+		text="RESEARCH", size=UDim2.new(1, -20, 0, 45), pos=UDim2.new(0, 10, 1, -55),
+		bg=C.GOLD, color=C.BG_DARK, ts=16, font=F.TITLE, r=5,
 		fn=function() UIManager._doUnlockTech() end, parent=TechUI.Refs.DetailFrame
 	})
 end
@@ -566,7 +568,7 @@ function TechUI.ShowUnlockSuccessPopup(node, getItemIcon, parent)
 		useCanvas = true,
 		name="UnlockPopup", size=UDim2.new(0,250,0,80),
 		pos=UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5),
-		bg=Color3.fromRGB(20,50,20), stroke=1, strokeC=Color3.fromRGB(100,200,100), r=8, z=1000, parent=parent,
+		bg=C.BG_PANEL, bgT=T.PANEL, stroke=false, r=6, z=1000, parent=parent,
 	})
 	Utils.mkLabel({text="연구 완료!", size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,10), ts=15, font=F.TITLE, color=Color3.fromRGB(150,255,150), parent=popup})
 	Utils.mkLabel({text=node.name or node.id, size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,40), ts=18, color=C.WHITE, parent=popup})

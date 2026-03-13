@@ -57,6 +57,7 @@ local EquipmentUI = require(UI.EquipmentUI)
 local StorageUI = require(UI.StorageUI)
 local FacilityUI = require(UI.FacilityUI)
 local CollectionUI = require(UI.CollectionUI)
+local PromptUI = require(UI.PromptUI)
 
 local CollectionController = require(Controllers.CollectionController)
 
@@ -1428,23 +1429,24 @@ function UIManager.notify(text, color)
 		currentToast:Destroy()
 	end
 	
-	-- Toast style (Durango 반투명 컨벤션에 맞춤)
+	-- Toast style (Durango Torn Paper style)
 	local toast = Utils.mkFrame({
 		name = "Toast",
-		size = UDim2.new(0, 300, 0, 40),
+		size = UDim2.new(0, 320, 0, 45),
 		pos = UDim2.new(0.5, 0, 0.2, -50),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
-		bgT = 0.95, -- 유리 수준으로 매우 투명하게 변경
-		r = 20,
+		bgT = 0.9, -- 요청 사항: 거의 투명하게
+		r = 4,
+		stroke = false,
 		parent = mainGui
 	})
 	
 	local label = Utils.mkLabel({
 		text = text,
-		ts = 16,
-		color = color or C.WHITE,
-		font = F.TITLE,
+		ts = 18,
+		color = color or C.WHITE, -- 컬러 지정 가능하도록 수정
+		ink = not color, -- 컬러가 없을 때만 잉크 스타일 적용
 		parent = toast
 	})
 	
@@ -1488,10 +1490,9 @@ function UIManager.sideNotify(text, color, icon)
 		name = "NotifyItem",
 		size = UDim2.new(1, 0, 0, 45),
 		bg = C.BG_PANEL,
-		bgT = 0.3,
-		stroke = 1,
-		strokeC = color or C.GOLD,
-		r = 8,
+		bgT = 0.9, -- 훨씬 더 투명하게
+		r = 4,
+		stroke = false,
 		parent = sideNotifyContainer
 	})
 	
@@ -1623,7 +1624,7 @@ local function setupEventListeners()
 				if d.level then UIManager.updateLevel(d.level) end
 				if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
 				if d.leveledUp then 
-					UIManager.notify(" 레벨업! Lv. "..d.level, C.GOLD)
+					UIManager.notify(" 레벨업! Lv. "..d.level, C.WHITE)
 				end
 				if d.statPointsAvailable ~= nil then UIManager.updateStatPoints(d.statPointsAvailable) end
 				if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
@@ -1792,6 +1793,7 @@ function UIManager.Init()
 	StorageUI.Init(mainGui, UIManager, isMobile)
 	FacilityUI.Init(mainGui, UIManager, isMobile)
 	CollectionUI.Init(mainGui, UIManager)
+	PromptUI.Init()
 
 	StorageController.Init()
 	FacilityController.Init()

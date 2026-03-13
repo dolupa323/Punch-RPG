@@ -5,6 +5,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local InteractUI = {}
 
@@ -43,10 +44,9 @@ function InteractUI.Init(parent, isMobile)
 		pos = UDim2.new(0.5, 0, 0.75, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
-		bgT = 0.5,
-		r = 30, -- Pill shape
-		stroke = 1.5,
-		strokeC = C.GOLD,
+		bgT = T.PANEL,
+		r = 30,
+		stroke = false,
 		vis = false,
 		parent = parent
 	})
@@ -70,10 +70,9 @@ function InteractUI.Init(parent, isMobile)
 		pos = UDim2.new(0.02, 0, isSmall and 0.8 or 0.85, 0),
 		anchor = Vector2.new(0, 0.5),
 		bg = C.BG_PANEL,
-		bgT = 0.6,
-		r = 10,
-		stroke = 1,
-		strokeC = C.BORDER,
+		bgT = T.PANEL,
+		r = 8,
+		stroke = false,
 		vis = false,
 		parent = parent
 	})

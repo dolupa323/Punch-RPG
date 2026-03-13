@@ -621,7 +621,7 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 	
 	if toData == nil then
 		-- 대상 슬롯이 비어있으면: 단순 이동
-		_increaseSlot(inv, toSlot, fromData.itemId, moveCount)
+		_increaseSlot(inv, toSlot, fromData.itemId, moveCount, fromData.durability)
 		_decreaseSlot(inv, fromSlot, moveCount)
 		
 		table.insert(changes, _makeChange(inv, fromSlot))
@@ -633,7 +633,7 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		local actualMove = math.min(moveCount, canAdd)
 		
 		if actualMove > 0 then
-			_increaseSlot(inv, toSlot, fromData.itemId, actualMove)
+			_increaseSlot(inv, toSlot, fromData.itemId, actualMove, fromData.durability)
 			_decreaseSlot(inv, fromSlot, actualMove)
 			
 			table.insert(changes, _makeChange(inv, fromSlot))
@@ -712,7 +712,7 @@ function InventoryService.split(player: Player, fromSlot: number, toSlot: number
 	local fromData = inv.slots[fromSlot]
 	
 	-- 분할 적용
-	_setSlot(inv, toSlot, fromData.itemId, count)
+	_setSlot(inv, toSlot, fromData.itemId, count, fromData.durability)
 	_decreaseSlot(inv, fromSlot, count)
 	
 	local changes = {
@@ -762,6 +762,7 @@ function InventoryService.drop(player: Player, slot: number, count: number?): (b
 	local droppedItem = {
 		itemId = slotData.itemId,
 		count = dropCount,
+		durability = slotData.durability, -- 내구도 보존
 	}
 	
 	-- 인벤에서 감소

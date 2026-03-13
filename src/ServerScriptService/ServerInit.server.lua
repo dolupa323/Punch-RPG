@@ -111,7 +111,7 @@ local function handleInventoryDropWithWorldDrop(player, payload)
 			if hrp then
 				-- 플레이어 앞 2스터드 위치에 드롭
 				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-				local spawnOk, spawnErr, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count)
+				local spawnOk, spawnErr, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability)
 				
 				if spawnOk then
 					print(string.format("[ServerInit] Inventory.Drop -> WorldDrop: %s x%d at (%.1f,%.1f,%.1f)", 

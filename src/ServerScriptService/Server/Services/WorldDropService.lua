@@ -249,7 +249,7 @@ end
 
 --- 드롭 생성
 --- 반환: (success, errorCode?, data?)
-function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number): (boolean, string?, any?)
+function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number, durability: number?): (boolean, string?, any?)
 	-- 아이템 존재 검증
 	local itemData = DataService.getItem(itemId)
 	if not itemData then
@@ -261,8 +261,11 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number)
 		return false, Enums.ErrorCode.INVALID_COUNT, nil
 	end
 	
-	-- 병합 대상 찾기
-	local mergeTarget = findMergeTarget(pos, itemId)
+	-- 병합 대상 찾기 (내구도가 있는 아이템은 병합 제외)
+	local mergeTarget = nil
+	if not durability then
+		mergeTarget = findMergeTarget(pos, itemId)
+	end
 	
 	if mergeTarget then
 		-- 병합
@@ -280,6 +283,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number)
 		pos = pos,
 		itemId = itemId,
 		count = count,
+		durability = durability, -- 내구도 보존
 		spawnedAt = now,
 		despawnAt = now + despawnSeconds,
 		inactive = false,
@@ -353,7 +357,7 @@ function WorldDropService.loot(player: Player, dropId: string): (boolean, string
 	end
 
 	-- 일반 아이템: 인벤토리에 추가
-	local added, remaining = InventoryService.addItem(userId, drop.itemId, drop.count)
+	local added, remaining = InventoryService.addItem(userId, drop.itemId, drop.count, drop.durability)
 	
 	if added <= 0 then
 		return false, Enums.ErrorCode.INV_FULL, nil

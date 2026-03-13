@@ -30,10 +30,10 @@ local function updateSelectionHighlight()
 	for id, slot in pairs(CraftingUI.Refs.Slots) do
 		local st = slot.frame:FindFirstChildOfClass("UIStroke")
 		if id == selectedRecipeId then
-			if st then st.Color = C.GOLD; st.Thickness = 2.5 end
+			if st then st.Color = C.GOLD; st.Thickness = 2 end
 		else
 			if st then
-				st.Color = Color3.fromRGB(60, 60, 60)
+				st.Color = C.BORDER_DIM
 				st.Thickness = 1
 			end
 		end
@@ -52,19 +52,19 @@ function CraftingUI.Init(parent, UIManager)
 	
 	local main = Utils.mkWindow({
 		name = "Main",
-		size = UDim2.new(0.7, 0, 0.85, 0),
-		maxSize = Vector2.new(950, 850),
+		size = UDim2.new(isSmall and 0.95 or 0.75, 0, isSmall and 0.9 or 0.85, 0),
+		maxSize = Vector2.new(1000, 850),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(15, 15, 18),
-		bgT = 0.5,
-		r = 0, stroke = 1, strokeC = Color3.fromRGB(60, 60, 60),
+		bg = C.BG_PANEL,
+		bgT = T.PANEL,
+		r = 6, stroke = 1.5, strokeC = C.BORDER,
 		parent = CraftingUI.Refs.Frame
 	})
 
-	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,45), bg=Color3.fromRGB(10,10,12), parent=main})
-	CraftingUI.Refs.Title = Utils.mkLabel({text="제작 도구", pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
-	Utils.mkBtn({text="X", size=UDim2.new(0, 40, 0, 40), pos=UDim2.new(1, -6, 0.5, 0), anchor=Vector2.new(1,0.5), bg=Color3.fromRGB(40,40,40), bgT=0.5, ts=20, color=C.WHITE, r=5, fn=function() UIManager.closeCrafting() end, parent=header})
+	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,55), bgT=1, parent=main})
+	CraftingUI.Refs.Title = Utils.mkLabel({text="CRAFTING TOOLS [C]", pos=UDim2.new(0, 20, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCrafting() end, parent=header})
 
 	local canvasWrapper = Utils.mkFrame({
 		name="CanvasWrap", size=UDim2.new(1, 0, 1, -45),
@@ -72,11 +72,13 @@ function CraftingUI.Init(parent, UIManager)
 	})
 	
 	-- Left Side: Grid
-	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -320, 1, 0), bgT=1, parent=canvasWrapper})
+	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(1, -340, 1, 0), bgT=1, parent=canvasWrapper})
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "GridScroll"
-	scroll.Size = UDim2.new(1, 0, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 4
+	scroll.Size = UDim2.new(1, -5, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 5
+	scroll.ScrollBarImageColor3 = C.GOLD
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0,0,0,0)
 	scroll.Parent = gridArea
 	
 	local grid = Instance.new("UIGridLayout")
@@ -86,31 +88,31 @@ function CraftingUI.Init(parent, UIManager)
 	grid.Parent = scroll
 	
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 15); pad.PaddingLeft = UDim.new(0, 15)
+	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 12); pad.PaddingRight = UDim.new(0, 20)
 	pad.Parent = scroll
 	
 	CraftingUI.Refs.GridScroll = scroll
 	
-	-- Right Side: Detail Panel (320px Fixed)
+	-- Right Side: Detail Panel (Modern Sleek)
 	local detailSize = 320
 	local detail = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
 		pos=UDim2.new(1, -detailSize - 8, 0, 8),
-		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+		bg=C.BG_PANEL, bgT=T.PANEL, r=6, stroke=false,
 		parent=canvasWrapper
 	})
 	CraftingUI.Refs.Detail.Frame = detail
 	detail.Visible = false
 	
 	local dtHead = Utils.mkLabel({
-		text="제작 상세 정보", size=UDim2.new(1,0,0,40),
-		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+		text="RECIPE INFO", size=UDim2.new(1,0,0,45),
+		bg=C.BG_DARK, bgT=0.3, color=C.GOLD, ts=16, font=F.TITLE,
 		parent=detail
 	})
 	
 	CraftingUI.Refs.Detail.Name = Utils.mkLabel({
-		text="이름", size=UDim2.new(1,-20,0,40), pos=UDim2.new(0,15,0,50),
-		color=C.WHITE, ts=20, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=detail
+		text="NAME", size=UDim2.new(1,-30,0,40), pos=UDim2.new(0,15,0,55),
+		color=C.WHITE, ts=22, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=detail
 	})
 	
 	CraftingUI.Refs.Detail.Icon = Instance.new("ImageLabel")
@@ -118,19 +120,19 @@ function CraftingUI.Init(parent, UIManager)
 	CraftingUI.Refs.Detail.Icon.BackgroundTransparency = 1; CraftingUI.Refs.Detail.Icon.Parent = detail
 	
 	CraftingUI.Refs.Detail.Desc = Utils.mkLabel({
-		text="설명", size=UDim2.new(1,-110,0,100), pos=UDim2.new(0,105,0,95),
-		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+		text="Description", size=UDim2.new(1,-120,0,105), pos=UDim2.new(0,115,0,105),
+		color=C.GRAY, ts=15, wrap=true,
 		ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, parent=detail
 	})
 
 	-- 재료 영역
 	local matLabel = Utils.mkLabel({
-		text="[ 필요 재료 ]", size=UDim2.new(1,-30,0,25), pos=UDim2.new(0,15,0,200),
+		text="[ MATS REQUIRED ]", size=UDim2.new(1,-30,0,25), pos=UDim2.new(0,15,0,210),
 		ts=15, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=detail
 	})
 	
 	CraftingUI.Refs.Detail.MatsText = Utils.mkLabel({
-		text="", size=UDim2.new(1,-30,0,150), pos=UDim2.new(0,15,0,230),
+		text="", size=UDim2.new(1,-30,0,150), pos=UDim2.new(0,15,0,240),
 		ts=16, color=C.WHITE, rich=true, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, parent=detail
 	})
 

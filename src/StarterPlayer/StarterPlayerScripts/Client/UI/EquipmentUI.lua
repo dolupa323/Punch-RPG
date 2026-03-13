@@ -30,21 +30,18 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	_UIManager = UIManager
 	EquipmentUI.Refs.Frame = Utils.mkWindow({
 		name = "EquipmentMenu",
-		size = UDim2.new(isSmall and 0.8 or 0.6, 0, isSmall and 0.85 or 0.75, 0),
-		maxSize = Vector2.new(800, 700),
+		size = UDim2.new(isSmall and 0.95 or 0.65, 0, isSmall and 0.9 or 0.8, 0),
+		maxSize = Vector2.new(900, 750),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_PANEL,
-		r = 0, stroke = 2,
+		bg = C.BG_PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER,
 		vis = false,
 		parent = parent
-		-- ratio removed: Responsive layout
 	})
 	
-	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,45), bgT=1, parent=EquipmentUI.Refs.Frame})
-	header.ZIndex = 10 -- 헤더가 캐릭터 위에 오도록 보정
-	Utils.mkLabel({text="장비", pos=UDim2.new(0, 15, 0, 0), ts=24, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=header})
-	Utils.mkBtn({text="X", size=UDim2.new(0, 30, 0, 30), pos=UDim2.new(1, -15, 0, 7), anchor=Vector2.new(1,0), bgT=1, ts=26, color=C.WHITE, fn=function() UIManager.closeEquipment() end, parent=header})
+	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=EquipmentUI.Refs.Frame})
+	Utils.mkLabel({text="EQUIPMENT [E]", pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
 	
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=EquipmentUI.Refs.Frame})
 	content.ClipsDescendants = true -- 캐릭터가 프레임 바깥으로 나가는 것 방지

@@ -28,6 +28,11 @@ local DropTableData = {
 		{ itemId = "LEATHER", chance = 0.9, min = 3, max = 5 },
 		{ itemId = "HORN", chance = 0.3, min = 1, max = 1 },
 	},
+	["BABY_TRICERATOPS"] = {
+		{ itemId = "MEAT", chance = 1.0, min = 1, max = 3 },
+		{ itemId = "LEATHER", chance = 0.7, min = 1, max = 2 },
+		{ itemId = "HORN", chance = 0.1, min = 1, max = 1 },
+	},
 	["STEGOSAURUS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 4, max = 7 },
 		{ itemId = "LEATHER", chance = 0.8, min = 3, max = 5 },

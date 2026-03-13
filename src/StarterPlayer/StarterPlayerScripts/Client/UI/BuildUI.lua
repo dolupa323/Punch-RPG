@@ -6,6 +6,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local BuildUI = {}
 BuildUI.Refs = {
@@ -53,16 +54,16 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	-- [Header]
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
 	Utils.mkLabel({
-		text="건축 설계도", pos=UDim2.new(0, 20, 0.5, 0), anchor=Vector2.new(0, 0.5), 
-		ts=24, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=header
+		text="BLUEPRINTS [C]", pos=UDim2.new(0, 20, 0.5, 0), anchor=Vector2.new(0, 0.5), 
+		ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header
 	})
 	
-	-- Close Button
+	-- Close Button (Fixed)
 	Utils.mkBtn({
-		text="X", size=UDim2.new(0, 40, 0, 40), pos=UDim2.new(1, -5, 0, 5), anchor=Vector2.new(1, 0), 
-		bgT=1, ts=24, color=C.WHITE, 
+		text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), 
+		bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4,
 		fn=function() UIManager.closeBuild() end, 
-		parent=main
+		parent=header
 	})
 
 	-- [Content Area]
@@ -99,7 +100,7 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	local detail = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -8),
 		pos=UDim2.new(1, -detailSize - 4, 0, 4),
-		bg=Color3.fromRGB(12,12,15), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+		bg=C.BG_PANEL, bgT=T.PANEL, r=6, stroke=false,
 		parent=content
 	})
 	BuildUI.Refs.DetailFrame = detail
@@ -146,8 +147,10 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	})
 	
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Size = UDim2.new(1,0,1,0); scroll.BackgroundTransparency=1; scroll.BorderSizePixel=0; scroll.ScrollBarThickness=4
+	scroll.Size = UDim2.new(1, -5, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 5
+	scroll.ScrollBarImageColor3 = C.GOLD
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scroll.Parent = gridArea
 	
 	local grid = Instance.new("UIGridLayout")
@@ -156,7 +159,10 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
 	
-	local pad = Instance.new("UIPadding"); pad.PaddingTop=UDim.new(0, 5); pad.PaddingLeft=UDim.new(0, 5); pad.Parent=scroll
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 20)
+	pad.Parent = scroll
+	
 	BuildUI.Refs.Grid = scroll
 end
 

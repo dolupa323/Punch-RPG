@@ -202,7 +202,8 @@ local function createDropModel(dropData)
 	prompt.HoldDuration = 0
 	prompt.KeyboardKeyCode = Enum.KeyCode.Z
 	prompt.RequiresLineOfSight = false
-	prompt.UIOffset = Vector2.new(0, 0) -- 아이템 정중앙에 위치
+	prompt.Style = Enum.ProximityPromptStyle.Custom
+	prompt.UIOffset = Vector2.new(0, 0) -- PromptUI에서 BillboardGui offset으로 제어
 	prompt.Parent = attachmentPoint
 	
 	-- 줍기 이벤트
