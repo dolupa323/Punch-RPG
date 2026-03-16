@@ -3,8 +3,10 @@
 
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local EquipmentUI = {}
 
@@ -34,7 +36,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		maxSize = Vector2.new(900, 750),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER,
+		bg = C.BG_PANEL, bgT = T.PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER,
 		vis = false,
 		parent = parent
 	})
@@ -84,7 +86,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 			parent = wrapper
 		})
 		
-		Utils.mkLabel({text=conf.name, size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, ax=Enum.TextXAlignment.Left, parent=wrapper})
+		Utils.mkLabel({text=UILocalizer.Localize(conf.name), size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, ax=Enum.TextXAlignment.Left, parent=wrapper})
 		
 		slot.click.MouseButton1Click:Connect(function()
 			if _UIManager.onEquipmentSlotClick then _UIManager.onEquipmentSlotClick(conf.id) end
@@ -98,7 +100,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	
 	-- [Right: Stats Distribution] (55%)
 	local statArea = Utils.mkFrame({name="StatArea", size=UDim2.new(0.55, 0, 1, 0), pos=UDim2.new(1, 0, 0, 0), anchor=Vector2.new(1,0), bg=C.BG_PANEL_L, parent=content})
-	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text="보유 포인트: 0", size=UDim2.new(1, -20, 0, 40), pos=UDim2.new(0,10,0,0), ts=18, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
+	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text=UILocalizer.Localize("보유 포인트: 0"), size=UDim2.new(1, -20, 0, 40), pos=UDim2.new(0,10,0,0), ts=18, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
 	
 	local statsScroll = Instance.new("ScrollingFrame")
 	statsScroll.Size = UDim2.new(1,-20,1,-120); statsScroll.Position = UDim2.new(0,10,0,50); statsScroll.BackgroundTransparency = 1; statsScroll.BorderSizePixel = 0; statsScroll.ScrollBarThickness = 2; statsScroll.Parent = statArea
@@ -115,7 +117,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	for _, s in ipairs(stats) do
 		-- 스텟 라인 크기 비율화 (0.18 Scale)
 		local line = Utils.mkFrame({size=UDim2.new(1, 0, 0, 50), bg=C.BG_SLOT, bgT=0.3, parent=statsScroll})
-		Utils.mkLabel({text=s.name, size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0,10,0,0), ts=14, ax=Enum.TextXAlignment.Left, parent=line})
+		Utils.mkLabel({text=UILocalizer.Localize(s.name), size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0,10,0,0), ts=14, ax=Enum.TextXAlignment.Left, parent=line})
 		local val = Utils.mkLabel({text="0", size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0.8,-40,0,0), anchor=Vector2.new(1,0), ts=15, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=line})
 		
 		-- 강화 버튼: 필요한 스탯에만 노출
@@ -151,8 +153,8 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.ActionFrame = actionFrame
 	local aList = Instance.new("UIListLayout"); aList.FillDirection=Enum.FillDirection.Horizontal; aList.Padding=UDim.new(0.05,0); aList.HorizontalAlignment=Enum.HorizontalAlignment.Center; aList.VerticalAlignment=Enum.VerticalAlignment.Center; aList.Parent=actionFrame
 
-	Utils.mkBtn({text="적용", size=UDim2.new(0.45,0,0.8,0), bg=C.GREEN, font=F.TITLE, color=C.BG_PANEL, fn=function() UIManager.confirmPendingStats() end, parent=actionFrame})
-	Utils.mkBtn({text="초기화", size=UDim2.new(0.45,0,0.8,0), bg=C.BTN, font=F.TITLE, fn=function() UIManager.cancelPendingStats() end, parent=actionFrame})
+	Utils.mkBtn({text=UILocalizer.Localize("적용"), size=UDim2.new(0.45,0,0.8,0), bg=C.GREEN, font=F.TITLE, color=C.BG_PANEL, fn=function() UIManager.confirmPendingStats() end, parent=actionFrame})
+	Utils.mkBtn({text=UILocalizer.Localize("초기화"), size=UDim2.new(0.45,0,0.8,0), bg=C.BTN, font=F.TITLE, fn=function() UIManager.cancelPendingStats() end, parent=actionFrame})
 	
 	-- [New] Tooltip Frame (Initially Hidden)
 	EquipmentUI.Refs.Tooltip = Utils.mkFrame({
@@ -167,9 +169,9 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.Tooltip.ZIndex = 100
 	
 	local tt = EquipmentUI.Refs.Tooltip
-	EquipmentUI.Refs.TooltipName = Utils.mkLabel({text="아이템 이름", size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,0,5), ts=16, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=tt})
-	EquipmentUI.Refs.TooltipInfo = Utils.mkLabel({text="정보", size=UDim2.new(1,-20,1,-70), pos=UDim2.new(0,10,0,35), ts=14, color=C.WHITE, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, rich=true, parent=tt})
-	EquipmentUI.Refs.TooltipSet = Utils.mkLabel({text="[ 세트 효과 ]", size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,1,-5), anchor=Vector2.new(0,1), ts=13, color=Color3.fromRGB(150, 255, 150), ax=Enum.TextXAlignment.Left, wrap=true, rich=true, parent=tt})
+	EquipmentUI.Refs.TooltipName = Utils.mkLabel({text=UILocalizer.Localize("아이템 이름"), size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,0,5), ts=16, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=tt})
+	EquipmentUI.Refs.TooltipInfo = Utils.mkLabel({text=UILocalizer.Localize("정보"), size=UDim2.new(1,-20,1,-70), pos=UDim2.new(0,10,0,35), ts=14, color=C.WHITE, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, rich=true, parent=tt})
+	EquipmentUI.Refs.TooltipSet = Utils.mkLabel({text=UILocalizer.Localize("[ 세트 효과 ]"), size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,1,-5), anchor=Vector2.new(0,1), ts=13, color=Color3.fromRGB(150, 255, 150), ax=Enum.TextXAlignment.Left, wrap=true, rich=true, parent=tt})
 end
 
 function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIcon, Enums)
@@ -206,20 +208,23 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				local conn1 = slot.click.MouseEnter:Connect(function()
 					if not EquipmentUI.Refs.Tooltip then return end
 					EquipmentUI.Refs.Tooltip.Visible = true
-					EquipmentUI.Refs.TooltipName.Text = itemData.name
+					EquipmentUI.Refs.TooltipName.Text = UILocalizer.Localize(itemData.name)
 					
-					local info = string.format("등급: %s\n방어력: %d\n내구도: %d/%d", 
+					local info = string.format("%s: %s\n%s: %d\n%s: %d/%d", 
+						UILocalizer.Localize("등급"),
 						itemData.rarity or "COMMON", 
+						UILocalizer.Localize("방어력"),
 						itemData.defense or 0,
+						UILocalizer.Localize("내구도"),
 						item.durability or 0,
 						itemData.durability or 0
 					)
-					EquipmentUI.Refs.TooltipInfo.Text = info
+					EquipmentUI.Refs.TooltipInfo.Text = UILocalizer.Localize(info)
 					
 					if itemData.armorSet then
 						local setData = ArmorSetData[itemData.armorSet]
 						if setData then
-							EquipmentUI.Refs.TooltipSet.Text = string.format("<b>[%s]</b>\n%s", setData.name, setData.bonusText)
+							EquipmentUI.Refs.TooltipSet.Text = string.format("<b>[%s]</b>\n%s", UILocalizer.Localize(setData.name), UILocalizer.Localize(setData.bonusText))
 							EquipmentUI.Refs.TooltipSet.Visible = true
 						else
 							EquipmentUI.Refs.TooltipSet.Visible = false
@@ -254,7 +259,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 	-- 스탯 업데이트
 	if not cachedStats then return end
 	local available = (cachedStats.statPointsAvailable or 0) - (totalPending or 0)
-	refs.StatPoints.Text = "남은 강화 포인트: " .. available
+	refs.StatPoints.Text = UILocalizer.Localize("남은 강화 포인트: " .. available)
 	
 	local calc = cachedStats.calculated or {}
 	local invested = cachedStats.statInvested or {}

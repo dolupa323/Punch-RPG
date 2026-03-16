@@ -148,13 +148,12 @@ local function lazyUpdate(runtime)
 		return
 	end
 	
-	-- [보안/기획] 기술 해금 검증 (Relinquish 어뷰징 방지)
-	-- 시설 소유자가 해당 시설에 대한 기술 권한을 잃었으면 가동 중단
-	if TechService and not TechService.isFacilityUnlocked(runtime.ownerId, runtime.facilityId) then
-		runtime.state = Enums.FacilityState.IDLE
-		runtime.lastUpdateAt = now
-		return
-	end
+	-- [보안/기획] 기술 해금 검증 (장기적 리뉴얼을 위해 일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(runtime.ownerId, runtime.facilityId) then
+	-- 	runtime.state = Enums.FacilityState.IDLE
+	-- 	runtime.lastUpdateAt = now
+	-- 	return
+	-- end
 
 	local facilityData = DataService.getFacility(runtime.facilityId)
 	if not facilityData then
@@ -337,10 +336,10 @@ function FacilityService.getInfo(player: Player, structureId: string)
 		end
 	end
 	
-	-- [보안/기획] 기술 해금 검증 (Relinquish 어뷰징 방지)
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (장기적 리뉴얼을 위해 일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	-- 🔥 Lazy Update 실행
 	lazyUpdate(runtime)
@@ -381,6 +380,9 @@ function FacilityService.getInfo(player: Player, structureId: string)
 		-- Phase 5-5: 팰 배치 정보
 		assignedPalUID = runtime.assignedPalUID,
 		assignedPalOwnerId = runtime.assignedPalOwnerId,
+		-- [추가] 내구도 정보
+		health = structure.health,
+		maxHealth = facilityData.maxHealth,
 	}
 end
 
@@ -392,10 +394,10 @@ function FacilityService.addFuel(player: Player, structureId: string, invSlot: n
 	end
 	
 	local facilityData = DataService.getFacility(runtime.facilityId)
-	-- [보안/기획] 기술 해금 검증
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
@@ -473,10 +475,10 @@ function FacilityService.addInput(player: Player, structureId: string, invSlot: 
 		return false, Enums.ErrorCode.BAD_REQUEST, nil
 	end
 	
-	-- [보안/기획] 기술 해금 검증
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
@@ -560,10 +562,10 @@ function FacilityService.collectOutput(player: Player, structureId: string)
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- [보안/기획] 기술 해금 검증
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	-- Lazy Update 선행
 	lazyUpdate(runtime)
@@ -619,10 +621,10 @@ function FacilityService.removeInput(player: Player, structureId: string)
 		return false, Enums.ErrorCode.SLOT_EMPTY, nil
 	end
 	
-	-- [보안/기획] 기술 해금 검증
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	-- Lazy Update 선행 (중도 포기 시 진행률 초기화)
 	lazyUpdate(runtime)
@@ -663,10 +665,10 @@ function FacilityService.removeFuel(player: Player, structureId: string)
 		return false, Enums.ErrorCode.SLOT_EMPTY, nil
 	end
 	
-	-- [보안/기획] 기술 해금 검증
-	if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- [보안/기획] 기술 해금 검증 (일체 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(player.UserId, runtime.facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 
 	lazyUpdate(runtime)
 	
@@ -949,6 +951,22 @@ function FacilityService.Init(_NetController, _DataService, _InventoryService, _
 	TechService = _TechService
 	
 	-- PlayerRemoving: 별도 정리 불필요 (시설 상태는 structureId 기반)
+
+	-- 모닥불 등 시설 자연 내구도 감소 루프
+	task.spawn(function()
+		while true do
+			local tickSec = Balance.FACILITY_PASSIVE_DECAY_TICK or 5
+			task.wait(tickSec)
+
+			for structureId, runtime in pairs(facilityStates) do
+				local facilityData = DataService.getFacility(runtime.facilityId)
+				local drainPerSec = facilityData and facilityData.passiveHealthDecayPerSec
+				if drainPerSec and drainPerSec > 0 and BuildService and BuildService.takeDamage then
+					BuildService.takeDamage(structureId, drainPerSec * tickSec)
+				end
+			end
+		end
+	end)
 	
 	print("[FacilityService] Initialized")
 end

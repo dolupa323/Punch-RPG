@@ -7,6 +7,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local StorageUI = {}
 StorageUI.Refs = {
@@ -54,11 +55,11 @@ function StorageUI.Init(parent, UIManager, isMobile)
 		size = UDim2.new(0, 750, 0, 500),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(15, 15, 18),
-		bgT = 0.3,
-		r = 0,
-		stroke = 1,
-		strokeC = Color3.fromRGB(60, 60, 60),
+		bg = C.BG_PANEL,
+		bgT = T.PANEL,
+		r = 6,
+		stroke = 1.5,
+		strokeC = C.BORDER,
 		parent = StorageUI.Refs.Frame
 	})
 	
@@ -70,10 +71,10 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	})
 	
 	Utils.mkBtn({
-		text="X", size=UDim2.new(0, 40, 0, 40), pos=UDim2.new(1, -5, 0, 5), anchor=Vector2.new(1, 0), 
-		bgT=1, ts=24, color=C.WHITE, 
-		fn=function() UIManager.closeStorage() end, 
-		parent=main
+		text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5),
+		bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE,
+		fn=function() UIManager.closeStorage() end,
+		parent=header
 	})
 
 	-- [Content]
@@ -85,7 +86,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	list.Parent = content
 
 	-- Left: Storage (20 slots default)
-	local leftPanel = Utils.mkFrame({name="Left", size=UDim2.new(0, 340, 1, 0), bgT=1, parent=content})
+	local leftPanel = Utils.mkFrame({name="Left", size=UDim2.new(0, 340, 1, 0), bg=C.BG_PANEL, bgT=T.PANEL, r=6, parent=content})
 	Utils.mkLabel({text="보관함 아이템", size=UDim2.new(1,0,0,30), color=C.GOLD, ts=16, parent=leftPanel})
 	
 	local sScroll = Instance.new("ScrollingFrame")
@@ -99,7 +100,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	StorageUI.Refs.StorageGrid = sScroll
 
 	-- Right: Player Inventory (For transferring)
-	local rightPanel = Utils.mkFrame({name="Right", size=UDim2.new(0, 340, 1, 0), bgT=1, parent=content})
+	local rightPanel = Utils.mkFrame({name="Right", size=UDim2.new(0, 340, 1, 0), bg=C.BG_PANEL, bgT=T.PANEL, r=6, parent=content})
 	Utils.mkLabel({text="내 소지품", size=UDim2.new(1,0,0,30), color=C.WHITE, ts=16, parent=rightPanel})
 	
 	local iScroll = Instance.new("ScrollingFrame")

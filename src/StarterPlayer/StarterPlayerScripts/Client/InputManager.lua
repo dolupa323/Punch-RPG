@@ -166,7 +166,11 @@ end
 local function onInputBegan(input: InputObject, gameProcessed: boolean)
 	-- 키보드 입력 (채팅 등 UI 입력 처리 중이면 무시)
 	if input.UserInputType == Enum.UserInputType.Keyboard then
-		if gameProcessed then return end
+		-- [UX 개선] UI가 열려있을 때도 특정 키(Z 등)는 동작해야 함 (TextBox 포커스 시만 제외)
+		if gameProcessed then
+			local focused = game:GetService("UserInputService"):GetFocusedTextBox()
+			if focused then return end
+		end
 		
 		-- 키 홀드 상태 업데이트
 		heldKeys[input.KeyCode] = true

@@ -16,8 +16,12 @@ local initialized = false
 
 local function onCraftStarted(data)
 	if data and data.craftTime and data.craftTime > 0 then
-		UIManager.showCraftingProgress(data.craftTime)
+		-- 시설 제작이 아니면(개인 제작) 채집바 표시
+		if not data.structureId then
+			UIManager.showCraftingProgress(data.craftTime)
+		end
 	end
+	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
 end
 
 local function onCraftCompleted(data)
@@ -42,16 +46,20 @@ local function onCraftCompleted(data)
 	if UIManager.refreshPersonalCrafting then
 		UIManager.refreshPersonalCrafting(true)
 	end
+	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
 end
 
 local function onCraftReady(data)
+	UIManager.stopCraftingProgress()
 	-- 수거 가능 알림 (시설 제작 등의 경우)
 	UIManager.sideNotify("📦 제작 완료: 수거 가능", Color3.fromRGB(255, 215, 0))
+	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
 end
 
 local function onCraftCancelled(data)
 	UIManager.stopCraftingProgress()
 	UIManager.notify("제작 취소됨", Color3.fromRGB(150, 150, 150)) -- GRAY
+	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
 end
 
 --========================================

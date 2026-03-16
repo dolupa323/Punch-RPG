@@ -5,11 +5,13 @@
 local TweenService = game:GetService("TweenService")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local WindowManager = require(script.Parent.Parent.Utils.WindowManager)
 local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
 local CollectionController = require(script.Parent.Parent.Controllers.CollectionController)
 local C = Theme.Colors
 local F = Theme.Fonts
+local T = Theme.Transp
 
 local CollectionUI = {}
 CollectionUI.Refs = {}
@@ -17,11 +19,11 @@ local isUIInitialized = false
 local UIManager = nil
 
 local CATEGORY_TABS = {
-	{ name = "전체", key = "ALL" },
-	{ name = "초원", key = "GRASSLAND" },
-	{ name = "열대", key = "TROPICAL" },
-	{ name = "사막", key = "DESERT" },
-	{ name = "툰드라", key = "TUNDRA" }
+	{ label = "전체", key = "ALL" },
+	{ label = "초원", key = "GRASSLAND" },
+	{ label = "열대", key = "TROPICAL" },
+	{ label = "사막", key = "DESERT" },
+	{ label = "툰드라", key = "TUNDRA" }
 }
 
 -- 공룡들을 임의로 기후에 매핑 (초원섬 위주이므로 대부분 초원에 배정)
@@ -44,12 +46,10 @@ local selectedCreatureId = nil
 --========================================
 
 local function getCreatureIcon(cid)
-	-- 1. CreatureData에서 직접 아이콘 ID 확인 (우선 순위)
-	local CreatureData = require(game:GetService("ReplicatedStorage").Data.CreatureData)
-	for _, data in ipairs(CreatureData) do
-		if data.id == cid and data.icon then
-			return data.icon
-		end
+	-- 1. CreatureData 아이콘 ID 확인 (DataHelper 경유)
+	local creature = DataHelper.GetData("CreatureData", cid)
+	if creature and creature.icon then
+		return creature.icon
 	end
 
 	-- 2. Assets/ItemIcons 폴더에서 검색 (기존 방식)
@@ -84,7 +84,7 @@ local function _renderTabs()
 		btn.Size = UDim2.new(1, 0, 0, 50)
 		btn.Font = F.TITLE
 		btn.TextSize = 18
-		btn.Text = tab.name
+		btn.Text = UILocalizer.Localize(tab.label)
 		
 		if activeTabKey == tab.key then
 			btn.BackgroundColor3 = C.GOLD
@@ -119,7 +119,7 @@ local function _renderDetails()
 	if not selectedCreatureId then
 		local mt = detailFrame:FindFirstChild("EmptyText")
 		if not mt then
-			mt = Utils.CreateTextLabel("EmptyText", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), "동물을 선택하세요.")
+			mt = Utils.CreateTextLabel("EmptyText", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), UILocalizer.Localize("동물을 선택하세요."))
 			mt.TextColor3 = C.DIM
 			mt.Parent = detailFrame
 		end
@@ -143,14 +143,14 @@ local function _renderDetails()
 		local iconImg = Utils.CreateImage("IconImg", UDim2.new(0.8,0,0.8,0), UDim2.new(0.1,0,0.1,0), "")
 		iconImg.Parent = iconBg
 		
-		local nameTxt = Utils.CreateTextLabel("NameTxt", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 130), "이름")
+		local nameTxt = Utils.CreateTextLabel("NameTxt", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 130), UILocalizer.Localize("이름"))
 		nameTxt.Font = F.TITLE
 		nameTxt.TextSize = 24
 		
 		local dnaTxt = Utils.CreateTextLabel("DnaTxt", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 160), "DNA: 0/5")
 		dnaTxt.TextColor3 = C.GOLD
 		
-		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 60), UDim2.new(0.05, 0, 0, 190), "동물 정보 및 연구 보너스\n[연구 완료 시 상시 효과가 적용됩니다]")
+		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 60), UDim2.new(0.05, 0, 0, 190), UILocalizer.Localize("동물 정보 및 연구 보너스\n[연구 완료 시 상시 효과가 적용됩니다]"))
 		infoTxt.TextColor3 = C.DIM
 		infoTxt.TextXAlignment = Enum.TextXAlignment.Left
 		infoTxt.TextYAlignment = Enum.TextYAlignment.Top
@@ -164,12 +164,12 @@ local function _renderDetails()
 		local effBg = Utils.CreateFrame("EffBg", UDim2.new(0.9,0,0,80), UDim2.new(0.05,0,0,260), C.BTN)
 		Instance.new("UICorner", effBg).CornerRadius = UDim.new(0,8)
 		
-		local effTit = Utils.CreateTextLabel("EffTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), "장착 시 플레이어 효과")
+		local effTit = Utils.CreateTextLabel("EffTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), UILocalizer.Localize("장착 시 플레이어 효과"))
 		effTit.TextSize = 14
 		effTit.Font = F.TITLE
 		effTit.Parent = effBg
 		
-		local effVal = Utils.CreateTextLabel("EffVal", UDim2.new(0.9,0,0,40), UDim2.new(0.05,0,0,30), "초원 이동 속도 +5.0%")
+		local effVal = Utils.CreateTextLabel("EffVal", UDim2.new(0.9,0,0,40), UDim2.new(0.05,0,0,30), UILocalizer.Localize("[장착 보너스 비활성]\n준비 중인 기능입니다."))
 		effVal.TextXAlignment = Enum.TextXAlignment.Left
 		effVal.Parent = effBg
 		effBg.Parent = pnl
@@ -178,12 +178,12 @@ local function _renderDetails()
 		local pasBg = Utils.CreateFrame("PasBg", UDim2.new(0.9,0,0,100), UDim2.new(0.05,0,0,350), C.BTN)
 		Instance.new("UICorner", pasBg).CornerRadius = UDim.new(0,8)
 		
-		local pasTit = Utils.CreateTextLabel("PasTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), "업그레이드 상시 효과")
+		local pasTit = Utils.CreateTextLabel("PasTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), UILocalizer.Localize("업그레이드 상시 효과"))
 		pasTit.TextSize = 14
 		pasTit.Font = F.TITLE
 		pasTit.Parent = pasBg
 		
-		local pasVal = Utils.CreateTextLabel("PasVal", UDim2.new(0.9,0,0,60), UDim2.new(0.05,0,0,30), "초원 공격력 +3\n최대 생명력 +15")
+		local pasVal = Utils.CreateTextLabel("PasVal", UDim2.new(0.9,0,0,60), UDim2.new(0.05,0,0,30), UILocalizer.Localize("연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)"))
 		pasVal.TextXAlignment = Enum.TextXAlignment.Left
 		pasVal.TextYAlignment = Enum.TextYAlignment.Top
 		pasVal.Parent = pasBg
@@ -199,23 +199,26 @@ local function _renderDetails()
 		iconBg.IconImg.Image = getCreatureIcon(selectedCreatureId)
 	end
 	local nameTxt = pnl:FindFirstChild("NameTxt")
-	if nameTxt then nameTxt.Text = data and data.name or selectedCreatureId end
+	if nameTxt then
+		local sourceName = (data and data.name) or selectedCreatureId
+		nameTxt.Text = UILocalizer.LocalizeDataText("CreatureData", selectedCreatureId, "name", sourceName)
+	end
 	
 	local pasVal = pnl:FindFirstChild("PasBg") and pnl.PasBg:FindFirstChild("PasVal")
 	if pasVal then
 		if selectedCreatureId == "COMPY" then
 			local bonus = math.min(10, math.floor(dnaCount / 20))
-			pasVal.Text = string.format("공격력 보너스: +%d%%\n(20개당 1%% 증가, 최대 10%%)", bonus)
+			pasVal.Text = UILocalizer.Localize(string.format("공격력 보너스: +%d%%\n(20개당 1%% 증가, 최대 10%%)", bonus))
 			pasVal.TextColor3 = (bonus > 0) and C.GOLD or C.DIM
 		else
-			pasVal.Text = "연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)"
+			pasVal.Text = UILocalizer.Localize("연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)")
 			pasVal.TextColor3 = C.DIM
 		end
 	end
 	
 	local effVal = pnl:FindFirstChild("EffBg") and pnl.EffBg:FindFirstChild("EffVal")
 	if effVal then
-		effVal.Text = "[장착 보너스 비활성]\n준비 중인 기능입니다."
+		effVal.Text = UILocalizer.Localize("[장착 보너스 비활성]\n준비 중인 기능입니다.")
 		effVal.TextColor3 = C.DIM
 	end
 end
@@ -264,7 +267,9 @@ function CollectionUI.refreshData()
 			icon.Parent = card
 			
 			-- 이름
-			local nameL = Utils.CreateTextLabel("Name", UDim2.new(1,0,0,20), UDim2.new(0,0,0,80), data.name or cid)
+			local sourceName = data.name or cid
+			local localizedName = UILocalizer.LocalizeDataText("CreatureData", cid, "name", sourceName)
+			local nameL = Utils.CreateTextLabel("Name", UDim2.new(1,0,0,20), UDim2.new(0,0,0,80), localizedName)
 			nameL.TextSize = 13
 			nameL.Parent = card
 			
@@ -327,14 +332,14 @@ function CollectionUI.Init(mainGui, uiManager)
 		size = UDim2.new(0, 900, 0, 580), 
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_PANEL, bgT = 0.1, r = 6, stroke = 1.5, strokeC = C.BORDER
+		bg = C.BG_PANEL, bgT = T.PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER
 	})
 	Frame.Visible = false
 	CollectionUI.Refs.Frame = Frame
 	
 	-- Header
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=Frame})
-	Utils.mkLabel({text="JOURNAL [P]", pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkLabel({text=UILocalizer.Localize("JOURNAL [P]"), pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
 	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
 	
 	-- 좌측 탭 영역
@@ -354,8 +359,8 @@ function CollectionUI.Init(mainGui, uiManager)
 	Scroll.Name = "CreatureList"
 	Scroll.Size = UDim2.new(0, 490, 1, -70)
 	Scroll.Position = UDim2.new(0, 140, 0, 60)
-	Scroll.BackgroundColor3 = C.BG_OVERLAY
-	Scroll.BackgroundTransparency = 0.8
+	Scroll.BackgroundColor3 = C.BG_SLOT
+	Scroll.BackgroundTransparency = 0.35
 	Scroll.ScrollBarThickness = 5
 	Scroll.ScrollBarImageColor3 = C.GOLD
 	Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -375,7 +380,7 @@ function CollectionUI.Init(mainGui, uiManager)
 	DetailFrame.Size = UDim2.new(0, 240, 1, -60)
 	DetailFrame.Position = UDim2.new(0, 640, 0, 50)
 	DetailFrame.BackgroundColor3 = C.BG_PANEL_L
-	DetailFrame.BackgroundTransparency = 0.3
+	DetailFrame.BackgroundTransparency = 0.15
 	Utils.AddCorner(DetailFrame, 8)
 	CollectionUI.Refs.DetailFrame = DetailFrame
 	DetailFrame.Parent = Frame

@@ -8,27 +8,31 @@ local TechUnlockData = {
 	--========================================
 	{
 		id = "TECH_BASICS",
-		name = "기초 생존",
+		name = "기초 생존 및 건축",
 		cost = {},
 		prerequisites = {},
 		unlocks = { 
 			recipes = { 
 				"CRAFT_CRUDE_STONE_PICKAXE", "CRAFT_CRUDE_STONE_AXE", 
-				"CRAFT_CRUDE_WOODEN_SPEAR", "CRAFT_TORCH" 
+				"CRAFT_CRUDE_WOODEN_SPEAR", "CRAFT_TORCH",
+				"CRAFT_FIRM_STONE_AXE", "CRAFT_FIRM_STONE_PICKAXE"
 			}, 
-			facilities = { "CAMPFIRE" } 
+			facilities = { 
+				"CAMPFIRE", "PRIMITIVE_WORKBENCH", "STORAGE_BOX",
+				"WOODEN_FOUNDATION", "WOODEN_WALL", "WOODEN_ROOF", "WOODEN_DOOR"
+			} 
 		},
 		category = "SURVIVAL",
-		description = "맨손으로 재료를 모아 기초 도구와 모닥불을 만듭니다. (기본 지급)",
+		description = "맨손으로 재료를 모아 기초 도구와 모닥불, 그리고 기본적인 나무 가옥을 건설합니다. (기본 지급)",
 	},
 	{
 		id = "TECH_SETTLEMENT",
-		name = "정착의 시작",
+		name = "부락의 발전",
 		cost = { { itemId = "LOG", amount = 10 }, { itemId = "SMALL_STONE", amount = 10 } },
 		prerequisites = { "TECH_BASICS" },
-		unlocks = { recipes = { "CRAFT_FIRM_STONE_AXE", "CRAFT_FIRM_STONE_PICKAXE" }, facilities = { "PRIMITIVE_WORKBENCH", "STORAGE_BOX" } },
+		unlocks = { recipes = {}, facilities = { "CAMP_TOTEM" } },
 		category = "SETTLEMENT",
-		description = "돌과 통나무를 이용해 조잡한 작업대와 상자를 지어 본격적인 정착을 준비합니다.",
+		description = "본격적인 정착을 위해 거점 영역을 확보합니다.",
 	},
 	{
 		id = "TECH_CLOTHES",
@@ -40,15 +44,6 @@ local TechUnlockData = {
 		description = "주변 풀과 섬유를 엮어 초보적인 방어구를 만듭니다.",
 	},
 	{
-		id = "TECH_BASE_TOTEM",
-		name = "거점 선언",
-		cost = { { itemId = "LOG", amount = 10 }, { itemId = "COMPY_DNA", amount = 1 } },
-		prerequisites = { "TECH_SETTLEMENT" },
-		unlocks = { recipes = {}, facilities = { "CAMP_TOTEM" } },
-		category = "SETTLEMENT",
-		description = "콤피의 DNA 에너지를 이용해 영역을 선언할 수 있는 토템을 활성화합니다.",
-	},
-	{
 		id = "TECH_HUNTING",
 		name = "본격 수렵",
 		cost = { { itemId = "SHARP_TOOTH", amount = 2 }, { itemId = "FIBER", amount = 20 } },
@@ -56,15 +51,6 @@ local TechUnlockData = {
 		unlocks = { recipes = { "CRAFT_BONE_SPEAR" }, facilities = {} },
 		category = "WEAPONS",
 		description = "야수들의 부산물을 연마하여 강력한 뼈 창을 제작합니다.",
-	},
-	{
-		id = "TECH_WOOD_BUILD",
-		name = "목조 건축",
-		cost = { { itemId = "LOG", amount = 40 }, { itemId = "RESIN", amount = 10 } },
-		prerequisites = { "TECH_BASE_TOTEM" },
-		unlocks = { recipes = {}, facilities = { "WOODEN_FOUNDATION", "WOODEN_WALL", "WOODEN_ROOF", "WOODEN_DOOR" } },
-		category = "SETTLEMENT",
-		description = "야생의 맹수들로부터 몸을 숨길 수 있는 안전한 목조 가옥 건축술을 익힙니다.",
 	},
 	{
 		id = "TECH_BOW",

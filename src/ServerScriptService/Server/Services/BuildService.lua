@@ -76,36 +76,46 @@ end
 --========================================
 -- Internal: 위치 검증
 --========================================
-local function validatePosition(position: Vector3): (boolean, string?)
-	-- 기본 위치 검증 (Y 좌표 체크)
-	if position.Y < Balance.BUILD_MIN_GROUND_DIST then
+local function validatePosition(position: Vector3): (boolean, string?, string?, number?)
+	-- 1. 해수면/최소 높이 검증 (지하 건설 및 수중 건설 방지)
+	local minHeight = math.max(Balance.BUILD_MIN_GROUND_DIST, Balance.SEA_LEVEL or 0)
+	if position.Y < minHeight then
 		return false, Enums.ErrorCode.INVALID_POSITION
 	end
 	
-	-- Raycast로 지면 확인 (간이 구현)
+	-- 2. Raycast로 지면 확인
 	local rayOrigin = position + Vector3.new(0, 5, 0)
-	local rayDirection = Vector3.new(0, -10, 0)
+	local rayDirection = Vector3.new(0, -15, 0)
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	raycastParams.FilterDescendantsInstances = { facilitiesFolder }
+	
+	-- 시설물 외에도 플레이어, 크리처 등 동적 개체 제외
+	local ignoreList = { facilitiesFolder }
+	local charFolder = workspace:FindFirstChild("Characters")
+	if charFolder then table.insert(ignoreList, charFolder) end
+	local creatureFolder = workspace:FindFirstChild("Creatures")
+	if creatureFolder then table.insert(ignoreList, creatureFolder) end
+	
+	raycastParams.FilterDescendantsInstances = ignoreList
 	
 	local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 	if not result then
-		return false, Enums.ErrorCode.INVALID_POSITION, nil
+		return false, Enums.ErrorCode.INVALID_POSITION
 	end
 	
-	-- 지지대(Structure) 찾기
-	local parentId = nil
 	local hitInstance = result.Instance
+	local groundY = result.Position.Y
+	local parentId = nil
+	
 	if hitInstance then
-		-- 부모 모델에서 StructureId 속성 찾기
+		-- 부모 모델에서 StructureId 속성 찾기 (시설물 위에 짓는 경우)
 		local model = hitInstance:FindFirstAncestorWhichIsA("Model")
 		if model then
 			parentId = model:GetAttribute("StructureId")
 		end
 	end
 	
-	return true, nil, parentId
+	return true, nil, parentId, groundY
 end
 
 --========================================
@@ -270,6 +280,7 @@ local function spawnFacilityModel(facilityId: string, position: Vector3, rotatio
 	-- 속성 설정
 	model:SetAttribute("FacilityId", facilityId)
 	model:SetAttribute("StructureId", structureId)
+	model:SetAttribute("DisplayName", facilityData.name or facilityId)
 	model:SetAttribute("OwnerId", ownerId)
 	model:SetAttribute("Health", facilityData.maxHealth)
 	
@@ -307,10 +318,10 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- 1a. 기술 해금 검증 (Phase 6)
-	if TechService and not TechService.isFacilityUnlocked(userId, facilityId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- 1a. 기술 해금 검증 (장기적 리뉴얼을 위해 일시 제거)
+	-- if TechService and not TechService.isFacilityUnlocked(userId, facilityId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 	
 	-- 1b. 타 유저 베이스 영역 검증 (Griefing Protection)
 	if BaseClaimService and BaseClaimService.getOwnerAt then
@@ -346,14 +357,14 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	end
 	
 	-- 5. 위치 검증
-	local posOk, posErr, parentId = validatePosition(position)
+	local posOk, posErr, parentId, groundY = validatePosition(position)
 	if not posOk then
 		return false, posErr, nil
 	end
 	
-	-- 지면이 아닌데 지지대(parentId)도 없으면 공중부양 금지 (Phase 11-4)
-	-- 단, 특정 시설(예: 공중 설치 가능 시설)이 있다면 예외 처리 필요
-	if position.Y > Balance.BUILD_MIN_GROUND_DIST + 2 and not parentId then
+	-- 지면이 아닌데 지지대(parentId)도 없으면 공중부양 금지
+	-- 절대좌표가 아닌, 감지된 지면과의 거리(오차 범위 3.5 스터드)로 체크
+	if math.abs(position.Y - groundY) > 3.5 and not parentId then
 		return false, Enums.ErrorCode.INVALID_POSITION, nil
 	end
 	

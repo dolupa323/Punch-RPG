@@ -642,6 +642,8 @@ local ItemData = {
 		maxStack = 99,
 		description = "불에 구워 노릇노릇해진 고기. 허기를 크게 채워준다.",
 		foodValue = 50,
+		icon = "rbxassetid://13515086700", 
+		modelName = "COOKED_MEAT",
 	},
 	{
 		id = "COOKED_BERRY", 
@@ -651,6 +653,8 @@ local ItemData = {
 		maxStack = 99,
 		description = "불에 구워 단맛이 도는 열매. 가벼운 활력을 준다.",
 		foodValue = 25,
+		icon = "rbxassetid://13515082103", 
+		modelName = "COOKED_BERRY",
 	},
 	{
 		id = "LEATHER", name = "가죽", type = "RESOURCE", rarity = "COMMON", maxStack = 99,
@@ -667,6 +671,17 @@ local ItemData = {
 	{
 		id = "HORN", name = "뿔", type = "RESOURCE", rarity = "UNCOMMON", maxStack = 99,
 		description = "강력한 크리처의 뿔. 고급 장비 제작에 사용된다.",
+	},
+	{
+		id = "MEAT_SKEWER",
+		name = "고기 꼬치구이",
+		type = "FOOD",
+		rarity = "COMMON",
+		maxStack = 99,
+		description = "고기로 꼬치구이를 만든다. 꼬치구이를 먹으면 허기가 조금 회복된다.",
+		foodValue = 45,
+		icon = "rbxassetid://13515086700", 
+		modelName = "MEAT_SKEWER",
 	},
 }
 

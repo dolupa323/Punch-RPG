@@ -8,6 +8,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 
 local NetClient = require(script.Parent.Parent.NetClient)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local DataHelper = require(Shared.Util.DataHelper)
@@ -196,7 +197,7 @@ local function createDropModel(dropData)
 	-- ProximityPrompt (줍기)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "PickupPrompt"
-	prompt.ActionText = "줍기"
+	prompt.ActionText = UILocalizer.Localize("줍기")
 	prompt.ObjectText = getItemDisplayName(dropData.itemId) .. " (x" .. tostring(dropData.count) .. ")"
 	prompt.MaxActivationDistance = Balance.DROP_PROMPT_RANGE
 	prompt.HoldDuration = 0

@@ -13,6 +13,10 @@ local Client = script.Parent.Parent
 local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local UILocalizer = require(Client.Localization.UILocalizer)
+local BuildController = require(Client.Controllers.BuildController)
+local WindowManager = require(Client.Utils.WindowManager)
+local UIManager = nil -- Circular dependency check (will require inside if needed)
 
 local InteractController = {}
 
@@ -28,6 +32,7 @@ local currentTargetType = nil  -- "resource", "npc", "facility", "drop"
 
 -- 상호작용 거리 (Balance에서 가져옴, 여유분 추가)
 local INTERACT_DISTANCE = (Balance.HARVEST_RANGE or 10) + (Balance.INTERACT_OFFSET or 4)
+local FACILITY_INTERACT_BONUS = 6
 
 -- UIManager 참조 (Init 후 설정)
 local UIManager = nil
@@ -153,9 +158,15 @@ local function findNearbyInteractable(): (Instance?, string?)
 			continue
 		end
 		
-		-- 거리 계산 (표면 거리 대신 중심 거리로 근사화해도 충분히 빠름)
-		local dist = (part.Position - playerPos).Magnitude
-		if dist < closestDist then
+		local allowedDistance = INTERACT_DISTANCE
+		if currentType == "facility" then
+			allowedDistance = INTERACT_DISTANCE + FACILITY_INTERACT_BONUS
+		elseif currentType == "npc" then
+			allowedDistance = math.max(INTERACT_DISTANCE, (Balance.SHOP_INTERACT_RANGE or 10) + 2)
+		end
+
+		local dist = getDistToModel(entity, playerPos)
+		if dist <= allowedDistance and dist < closestDist then
 			closestDist = dist
 			closestTarget = entity
 			closestType = currentType
@@ -202,7 +213,11 @@ local function interactFacility(target: Instance)
 	local facilityData = DataHelper.GetData("FacilityData", facilityId)
 	if not facilityData then return end
 	
-	if facilityData.functionType == "CRAFTING" or facilityData.functionType == "CRAFTING_T1" or facilityData.functionType == "CRAFTING_T2" or facilityData.functionType == "CRAFTING_T3" then
+	if facilityData.functionType == "CRAFTING_T1" then
+		-- 기초작업대는 이제 전용 제작 UI(FacilityUI)를 엽니다.
+		local FacilityController = require(Client.Controllers.FacilityController)
+		FacilityController.openFacility(structureId)
+	elseif facilityData.functionType == "CRAFTING" or facilityData.functionType == "CRAFTING_T2" or facilityData.functionType == "CRAFTING_T3" then
 		-- 일반 제작대는 인벤토리 제작 탭 안내
 		if UIManager then
 			UIManager.notify("도구 및 장비 제작은 인벤토리[I]의 제작 탭에서 가능합니다.", Color3.fromRGB(255, 210, 80))
@@ -215,11 +230,6 @@ local function interactFacility(target: Instance)
 		-- 보관함 UI 열기
 		local StorageController = require(Client.Controllers.StorageController)
 		StorageController.openStorage(structureId)
-	elseif facilityData.functionType == "TECH_UNLOCK" then
-		-- 기술 연구소 UI 열기
-		if UIManager then
-			UIManager.toggleTechTree()
-		end
 	elseif facilityData.functionType == "RESPAWN" then
 		-- 리스폰 위치 설정
 		print("[InteractController] Respawn point set")
@@ -233,7 +243,7 @@ end
 -- Public API
 --========================================
 
---- Z키 눌림 처리 (줍기, 대화 등)
+--- Z키 눌림 처리 (NPC/일반 상호작용)
 function InteractController.onInteractPress()
 	if InputManager.isUIOpen() then
 		return
@@ -245,34 +255,74 @@ function InteractController.onInteractPress()
 			print("[InteractController] 공격(좌클릭)으로 채집하세요.")
 		elseif currentTargetType == "npc" then
 			interactNPC(currentTarget)
-		elseif currentTargetType == "facility" then
-			interactFacility(currentTarget)
 		end
+	end
+end
+
+--- R키 눌림 처리 (건물/시설 상호작용 전용)
+function InteractController.onFacilityInteractPress()
+	if InputManager.isUIOpen() then
+		-- 시설 상호작용 키(R)로 UI 닫기까지 일관 처리
+		if WindowManager then
+			WindowManager.closeAll()
+		end
+		return
+	end
+
+	if currentTarget and currentTargetType == "facility" then
+		interactFacility(currentTarget)
 	end
 end
 
 --- 주변 대상 감지 업데이트 (10Hz)
 local function onUpdate()
+	-- UI가 열려있거나 제작 중이면 상호작용 레이블 숨김
+	if InputManager.isUIOpen() or (UIManager and UIManager.isCrafting and UIManager.isCrafting()) then
+		if currentTarget then
+			currentTarget = nil
+			currentTargetType = nil
+			if UIManager then UIManager.hideInteractPrompt() end
+		end
+		return
+	end
+
 	local target, targetType = findNearbyInteractable()
 	
-	if target ~= currentTarget then
+	if target ~= currentTarget or targetType == "facility" then
 		currentTarget = target
 		currentTargetType = targetType
 		
 		if UIManager then
 			if target then
-				local promptText = "[Z] "
-				local rawName = target:GetAttribute("DisplayName") or target:GetAttribute("Name") or target.Name
-				local targetName = rawName
+				local promptText = ""
+				local targetName = nil
+				local fId = target:GetAttribute("FacilityId") or target:GetAttribute("id")
+				local structureId = target:GetAttribute("StructureId") or target:GetAttribute("id") or target.Name
+				if fId then
+					local fid = tostring(fId):upper()
+					local data = DataHelper.GetData("FacilityData", fid)
+					targetName = UILocalizer.LocalizeDataText("FacilityData", fid, "name", data and data.name or fid)
+				end
+				
+				if not targetName then
+					local nId = target:GetAttribute("NodeId")
+					if nId then
+						local nid = tostring(nId):upper()
+						local data = DataHelper.GetData("ResourceNodeData", nid)
+						targetName = UILocalizer.LocalizeDataText("ResourceNodeData", nid, "name", data and data.name or nid)
+					end
+				end
+
+				targetName = targetName or target:GetAttribute("DisplayName")
 				
 				if targetType == "resource" then
-					promptText = "" -- 안내문 삭제 (HP바로 대체)
+					promptText = "" -- HP바로 대체
 				elseif targetType == "npc" then
-					promptText = promptText .. "대화"
+					promptText = "[Z] 대화"
 				elseif targetType == "facility" then
-					promptText = promptText .. "사용"
+					promptText = "[R] 사용"
 				else
-					promptText = promptText .. "상호작용"
+					promptText = "[Z] 상호작용"
 				end
 				
 				if promptText ~= "" then
@@ -314,7 +364,7 @@ function InteractController.Init()
 	end)
 	
 	initialized = true
-	print("[InteractController] Initialized (Z = Interact)")
+	print("[InteractController] Initialized (Z = Interact, R = Facility)")
 end
 
 return InteractController

@@ -45,14 +45,11 @@ if success then
 	-- FacilityController 초기화 (이벤트 소비자)
 	local FacilityController = require(Controllers.FacilityController)
 	FacilityController.Init()
-	
+
 	-- ShopController 초기화 (Phase 9)
 	local ShopController = require(Controllers.ShopController)
 	ShopController.Init()
 	
-	-- TechController 초기화
-	local TechController = require(Controllers.TechController)
-	TechController.Init()
 	
 	-- CombatController 초기화 (공격 시스템)
 	local CombatController = require(Controllers.CombatController)
@@ -82,8 +79,16 @@ if success then
 	local HitFeedbackController = require(Controllers.HitFeedbackController)
 	HitFeedbackController.Init()
 	
+	-- [추가] PromptUI 초기화 (커스텀 ProximityPrompt)
+	local PromptUI = require(Client:WaitForChild("UI"):WaitForChild("PromptUI"))
+	PromptUI.Init()
+	
 	-- UIManager 초기화 (UI 생성 - 컨트롤러들 초기화 후)
 	UIManager.Init()
+
+	-- TutorialController 초기화 (첫 진입 튜토리얼)
+	local TutorialController = require(Controllers.TutorialController)
+	TutorialController.Init()
 	
 	-- MovementController 스태미나 → UIManager 연동
 	MovementController.onStaminaChanged(function(current, max)
@@ -96,31 +101,32 @@ if success then
 	end)
 	
 	-- 키 바인딩 설정
-	-- E = 장비창, B = 인벤토리
-	InputManager.bindKey(Enum.KeyCode.E, "ToggleEquipment", function()
-		UIManager.toggleEquipment()
-	end)
-	InputManager.bindKey(Enum.KeyCode.B, "ToggleInventory", function()
-		UIManager.toggleInventory()
-	end)
-	-- C = 건축 (기존 N키 역할 통합, 제작 탭 삭제)
-	InputManager.bindKey(Enum.KeyCode.C, "ToggleBuilding", function()
-		UIManager.toggleBuild()
-	end)
-	-- K = 기술 트리 (T에서 K로 변경)
-	InputManager.bindKey(Enum.KeyCode.K, "ToggleTechTree", function()
-		UIManager.toggleTechTree()
-	end)
+	-- [Key Bindings] B = 인벤토리, C = 건축, E = 장비창, P = 도감
+	InputManager.bindKey(Enum.KeyCode.B, "ToggleInventory", function() UIManager.toggleInventory() end)
+	InputManager.bindKey(Enum.KeyCode.C, "ToggleBuilding", function() UIManager.toggleBuild() end)
+	InputManager.bindKey(Enum.KeyCode.E, "ToggleEquipment", function() UIManager.toggleEquipment() end)
+	InputManager.bindKey(Enum.KeyCode.P, "ToggleCollection", function() UIManager.toggleCollection() end)
+	InputManager.bindKey(Enum.KeyCode.Tab, "ToggleInventory_Tab", function() UIManager.toggleInventory() end)
+	
 	-- Z = 상호작용 (줍기, NPC 등)
 	InputManager.bindKey(Enum.KeyCode.Z, "InteractZ", function()
 		InteractController.onInteractPress()
+	end)
+
+	-- R = 건물/시설 상호작용 (Z 줍기 프롬프트와 충돌 방지)
+	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
+		if InteractController.onFacilityInteractPress then
+			InteractController.onFacilityInteractPress()
+		end
 	end)
 	
 	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
 		UIManager.closeInventory()
 		UIManager.closeCrafting()
+		UIManager.closeEquipment()
+		UIManager.closeBuild()
+		UIManager.closeCollection()
 		UIManager.closeShop()
-		UIManager.closeTechTree()
 	end)
 end
 

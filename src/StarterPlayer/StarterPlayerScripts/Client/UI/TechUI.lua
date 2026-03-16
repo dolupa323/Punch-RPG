@@ -4,6 +4,8 @@
 local TweenService = game:GetService("TweenService")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local DataHelper = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -274,7 +276,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 		size = UDim2.new(isMobile and 1 or 0.8, 0, isMobile and 1 or 0.85, 0),
 		maxSize = Vector2.new(1100, 850),
 		pos = UDim2.new(0.5,0,0.5,0), anchor = Vector2.new(0.5,0.5),
-		bg = C.BG_PANEL, bgT = 0.1, stroke = 1.5, strokeC = C.BORDER, r = 6,
+		bg = C.BG_PANEL, bgT = T.PANEL, stroke = 1.5, strokeC = C.BORDER, r = 6,
 		parent = TechUI.Refs.Frame,
 	})
 
@@ -308,14 +310,14 @@ function TechUI.Init(parent, UIManager, isMobile)
 	
 	-- 좌측 탭 영역
 	local tabListPanel = Utils.mkFrame({
-		name="TabList", size=UDim2.new(0, 180, 1, 0), bg=Color3.fromRGB(12,12,15), parent=contentBox
+		name="TabList", size=UDim2.new(0, 180, 1, 0), bg=C.BG_SLOT, bgT=0.3, parent=contentBox
 	})
 	local tlLayout = Instance.new("UIListLayout"); tlLayout.Padding=UDim.new(0,1); tlLayout.Parent=tabListPanel
 	
 	for i, cat in ipairs(CATEGORY_TABS) do
 		local tBtn = Utils.mkBtn({
 			text = "   " .. cat.name, size = UDim2.new(1,0,0,50),
-			bg = Color3.fromRGB(20,20,25), bgT = 0, color=Color3.fromRGB(180,180,180),
+			bg = C.BTN, bgT = 0, color=C.GRAY,
 			ts = 15, font = F.TITLE, r=0,
 			parent = tabListPanel
 		})
@@ -334,12 +336,12 @@ function TechUI.Init(parent, UIManager, isMobile)
 			activeTab = i
 			for j, tref in ipairs(TechUI.Refs.Tabs) do
 				if j == activeTab then
-					tref.Btn.BackgroundColor3 = Color3.fromRGB(35,35,30)
+					tref.Btn.BackgroundColor3 = C.BTN_H
 					tref.Btn.TextColor3 = C.GOLD
 					tref.Ind.Visible = true
 				else
-					tref.Btn.BackgroundColor3 = Color3.fromRGB(20,20,25)
-					tref.Btn.TextColor3 = Color3.fromRGB(180,180,180)
+					tref.Btn.BackgroundColor3 = C.BTN
+					tref.Btn.TextColor3 = C.GRAY
 					tref.Ind.Visible = false
 				end
 			end
@@ -353,14 +355,14 @@ function TechUI.Init(parent, UIManager, isMobile)
 	end
 	
 	-- 초기 탭 세팅
-	TechUI.Refs.Tabs[1].Btn.BackgroundColor3 = Color3.fromRGB(35,35,30)
+	TechUI.Refs.Tabs[1].Btn.BackgroundColor3 = C.BTN_H
 	TechUI.Refs.Tabs[1].Btn.TextColor3 = C.GOLD
 	TechUI.Refs.Tabs[1].Ind.Visible = true
 
 	-- 중앙 캔버스 영역
 	local canvasWrapper = Utils.mkFrame({
 		name="CanvasWrap", size=UDim2.new(1, -180, 1, 0),
-		pos=UDim2.new(0,180,0,0), bg=Color3.fromRGB(20,22,25), parent=contentBox
+		pos=UDim2.new(0,180,0,0), bg=C.BG_PANEL_L, bgT=0.2, parent=contentBox
 	})
 	
 	TechUI.Refs.Canvas = Instance.new("ScrollingFrame")
@@ -385,7 +387,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	TechUI.Refs.DetailFrame = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
 		pos=UDim2.new(1, -detailSize - 8, 0, 8),
-		bg=Color3.fromRGB(10,10,12), bgT=0.4, r=6, stroke=1, strokeC=Color3.fromRGB(60,60,60),
+		bg=C.BG_PANEL, bgT=T.PANEL, r=6, stroke=1, strokeC=C.BORDER,
 		parent=canvasWrapper
 	})
 	-- 선택 전엔 숨김
@@ -393,7 +395,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	
 	local dtHead = Utils.mkLabel({
 		text="해당 노드 정보", size=UDim2.new(1,0,0,40),
-		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+		bg=C.BG_DARK, bgT=0.3, color=C.GOLD, ts=16, font=F.TITLE,
 		parent=TechUI.Refs.DetailFrame
 	})
 	TechUI.Refs.D_Name = Utils.mkLabel({
@@ -406,7 +408,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	
 	TechUI.Refs.D_Desc = Utils.mkLabel({
 		text="설명", size=UDim2.new(1,-110,0,100), pos=UDim2.new(0,100,0,95),
-		color=Color3.fromRGB(220,220,220), ts=16, wrap=true,
+		color=C.GRAY, ts=16, wrap=true,
 		ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, parent=TechUI.Refs.DetailFrame
 	})
 	
@@ -444,7 +446,7 @@ function TechUI.Refresh(techList, unlocked, tp, playerLevel, getItemIcon, UIMana
 	TechUI.lastLevel = playerLevel
 	TechUI.lastIconFn = getItemIcon
 	
-	if TechUI.Refs.TPText then TechUI.Refs.TPText.Text = "SP: " .. tostring(tp) end
+	if TechUI.Refs.TPText then TechUI.Refs.TPText.Text = UILocalizer.Localize("SP: ") .. tostring(tp) end
 	
 	renderTree(techList, unlocked, playerLevel, getItemIcon, UIManager)
 end
@@ -459,9 +461,9 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 	end
 	
 	d.Visible = true
-	TechUI.Refs.D_Name.Text = node.name or node.id
+	TechUI.Refs.D_Name.Text = UILocalizer.Localize(node.name or node.id)
 	TechUI.Refs.D_Icon.Image = resolveNodeIcon(node, getItemIcon)
-	TechUI.Refs.D_Desc.Text = node.description or "이 레시피와 시설을 활성화합니다."
+	TechUI.Refs.D_Desc.Text = UILocalizer.Localize(node.description or "이 레시피와 시설을 활성화합니다.")
 	
 	-- 조건/경고 로직
 	local lvl = type(playerLevel)=="number" and playerLevel or (tonumber(tostring(playerLevel)) or 1)
@@ -487,36 +489,33 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 					preMet = false
 					local pname = pid
 					for _, tn in ipairs(TechUI.lastTechList) do if tn.id == pid then pname = tn.name or pid break end end
-					table.insert(lines, "✗ 선행 필요: " .. pname)
+					table.insert(lines, "✗ " .. UILocalizer.Localize("선행 필요: ") .. UILocalizer.Localize(pname))
 				end
 			end
 		end
 		
-		if lvl < reqLvl then table.insert(lines, string.format("✗ 레벨 부족: Lv.%d 필요", reqLvl)) 		end
+		if lvl < reqLvl then table.insert(lines, "✗ " .. UILocalizer.Localize(string.format("레벨 부족: Lv.%d 필요", reqLvl))) 		end
 		
 		-- 비용 표시 문자열 생성
 		local costStr = ""
 		if node.cost and #node.cost > 0 then
 			local invCounts = require(game.Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController).getItemCounts()
-			-- 서버/클라이언트 공통 Data 폴더에 직접 접근
-			local itemDataList = require(game.ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
 			
 			local cLines = {}
 			for _, req in ipairs(node.cost) do
 				local currentAmount = invCounts[req.itemId] or 0
 				
 				local name = req.itemId
-				for _, iData in ipairs(itemDataList) do
-					if iData.id == req.itemId then
-						name = iData.name
-						break
-					end
+				local itemData = DataHelper.GetData("ItemData", req.itemId)
+				if itemData and itemData.name then
+					name = itemData.name
 				end
+				name = UILocalizer.Localize(name)
 				
 				local color = currentAmount >= req.amount and "#aaffaa" or "#ffaaaa"
 				table.insert(cLines, string.format(" • %s: <font color='%s'>%d</font> / %d", name, color, currentAmount, req.amount))
 			end
-			costStr = "필요 자원:\n" .. table.concat(cLines, "\n")
+			costStr = UILocalizer.Localize("필요 자원:") .. "\n" .. table.concat(cLines, "\n")
 		end
 		
 		if #lines > 0 then
@@ -527,25 +526,25 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 			box.Visible = true
 			
 			btn.Visible = true
-			btn.Text = "조건 미충족"
+			btn.Text = UILocalizer.Localize("조건 미충족")
 			btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 			btn.TextColor3 = Color3.fromRGB(150,150,150)
 			btn.AutoButtonColor = false
 		else
 			if not canAfford then
-				txt.Text = "💰 자원 부족\n" .. costStr
+				txt.Text = UILocalizer.Localize("💰 자원 부족") .. "\n" .. costStr
 				txt.TextColor3 = Color3.fromRGB(230, 230, 230)
 				box.BackgroundColor3 = Color3.fromRGB(40, 30, 10)
 				box.Visible = true
 				
 				btn.Visible = true
-				btn.Text = "자원 부족"
+				btn.Text = UILocalizer.Localize("자원 부족")
 				btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 				btn.TextColor3 = Color3.fromRGB(150,150,150)
 				btn.AutoButtonColor = false
 			else
 				if costStr ~= "" then
-					txt.Text = "✅ 필요 자원\n" .. costStr
+					txt.Text = UILocalizer.Localize("✅ 필요 자원") .. "\n" .. costStr
 					txt.TextColor3 = Color3.fromRGB(230, 230, 230)
 					box.BackgroundColor3 = Color3.fromRGB(20, 30, 20)
 					box.Visible = true
@@ -554,7 +553,7 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 				end
 				
 				btn.Visible = true
-				btn.Text = "연구 시작"
+				btn.Text = UILocalizer.Localize("연구 시작")
 				btn.BackgroundColor3 = C.GOLD
 				btn.TextColor3 = Color3.fromRGB(20,20,20)
 				btn.AutoButtonColor = true

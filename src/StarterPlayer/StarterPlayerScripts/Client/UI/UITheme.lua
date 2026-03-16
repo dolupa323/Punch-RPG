@@ -24,8 +24,8 @@ local UITheme = {
 		STA           = Color3.fromRGB(255, 225, 50), 
 		STA_BG        = Color3.fromRGB(40, 35, 5),
 		HUNGER        = Color3.fromRGB(100, 255, 120), 
-		XP            = Color3.fromRGB(150, 255, 120), -- 연두색 (Light Green)
-		XP_BG         = Color3.fromRGB(20, 30, 20),
+		XP            = Color3.fromRGB(100, 255, 50), -- 연두색 (Vivid Light Green)
+		XP_BG         = Color3.fromRGB(15, 30, 15),
 
 		-- Text (Modern Clean)
 		WHITE         = Color3.fromRGB(255, 255, 255),
@@ -35,6 +35,7 @@ local UITheme = {
 		GOLD          = Color3.fromRGB(255, 230, 100),
 		GREEN         = Color3.fromRGB(100, 255, 120),
 		RED           = Color3.fromRGB(255, 70, 70),
+		ORANGE        = Color3.fromRGB(255, 160, 50),
 
 		-- Buttons
 		BTN           = Color3.fromRGB(20, 22, 28),
@@ -57,9 +58,9 @@ local UITheme = {
 	},
 
 	Transp = {
-		PANEL = 0.9, -- 훨씬 더 투명하게 (요청 사항: 거의 투명하게)
-		SLOT  = 0.7,
-		BG    = 0.9,
+		PANEL = 0.95, -- 거의 투명하게
+		SLOT  = 0.6,
+		BG    = 0.95,
 	}
 }
 

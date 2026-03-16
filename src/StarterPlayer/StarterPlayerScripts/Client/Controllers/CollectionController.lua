@@ -5,7 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local NetClient = require(script.Parent.Parent.NetClient)
-local CreatureData = require(ReplicatedStorage.Data.CreatureData)
+local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
 
 local CollectionController = {}
 local initialized = false
@@ -29,16 +29,19 @@ end
 
 -- 전체 동물 리스트 반환 (분류별 필터링을 위함)
 function CollectionController.getCreatureList()
-	return CreatureData
+	local tbl = DataHelper.GetTable("CreatureData") or {}
+	local list = {}
+	for _, data in pairs(tbl) do
+		table.insert(list, data)
+	end
+	table.sort(list, function(a, b)
+		return tostring(a.id or "") < tostring(b.id or "")
+	end)
+	return list
 end
 
 function CollectionController.getCreatureData(creatureId: string)
-	for _, data in ipairs(CreatureData) do
-		if data.id == creatureId then
-			return data
-		end
-	end
-	return nil
+	return DataHelper.GetData("CreatureData", creatureId)
 end
 
 function CollectionController.updateLocalDna(statsData)

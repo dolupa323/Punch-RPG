@@ -4,6 +4,7 @@
 
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -43,11 +44,11 @@ function BuildUI.Init(parent, UIManager, isMobile)
 		maxSize = Vector2.new(950, 850),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(15, 15, 18),
-		bgT = 0.5, -- 투명 컨셉 유지
-		r = 0,
-		stroke = 1,
-		strokeC = Color3.fromRGB(60, 60, 60),
+		bg = C.BG_PANEL,
+		bgT = T.PANEL,
+		r = 6,
+		stroke = 1.5,
+		strokeC = C.BORDER,
 		parent = BuildUI.Refs.Frame
 	})
 	
@@ -75,16 +76,14 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	local sList = Instance.new("UIListLayout"); sList.Padding=UDim.new(0, 10); sList.Parent=sidebar
 	
 	local categories = {
-		{id="STRUCTURES", name="구조물"},
-		{id="PRODUCTION", name="생산 시설"},
-		{id="SURVIVAL", name="생존 시설"},
+		{id="BASIC", name="기초 건축"},
 	}
 	
 	for _, cat in ipairs(categories) do
 		local btn = Utils.mkBtn({
-			text = cat.name,
+			text = UILocalizer.Localize(cat.name),
 			size = UDim2.new(1, 0, 0, 45),
-			bg = Color3.fromRGB(40, 40, 45),
+			bg = C.BTN,
 			bgT = 0.3,
 			ts = 16,
 			font = F.TITLE,
@@ -106,13 +105,13 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	BuildUI.Refs.DetailFrame = detail
 	
 	local dtHead = Utils.mkLabel({
-		text="설계도 상세", size=UDim2.new(1,0,0,40),
-		bg=Color3.fromRGB(30,30,30), bgT=0.2, color=C.GOLD, ts=16, font=F.TITLE,
+		text=UILocalizer.Localize("설계도 상세"), size=UDim2.new(1,0,0,40),
+		bg=C.BG_DARK, bgT=0.3, color=C.GOLD, ts=16, font=F.TITLE,
 		parent=detail
 	})
 	
 	BuildUI.Refs.Detail.Name = Utils.mkLabel({
-		text="시설을 선택하세요", size=UDim2.new(1,-30,0,40), pos=UDim2.new(0,15,0,50),
+		text=UILocalizer.Localize("시설을 선택하세요"), size=UDim2.new(1,-30,0,40), pos=UDim2.new(0,15,0,50),
 		color=C.WHITE, ts=22, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=detail
 	})
 	
@@ -122,7 +121,7 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	
 	BuildUI.Refs.Detail.Desc = Utils.mkLabel({
 		text="", size=UDim2.new(1,-120,0,100), pos=UDim2.new(0,115,0,95),
-		color=Color3.fromRGB(200,200,200), ts=16, wrap=true,
+		color=C.GRAY, ts=16, wrap=true,
 		ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, parent=detail
 	})
 	
@@ -132,7 +131,7 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	})
 	
 	local buildBtn = Utils.mkBtn({
-		text="건설 하기", size=UDim2.new(1,-30,0,50), pos=UDim2.new(0.5,0,1,-15), anchor=Vector2.new(0.5,1),
+		text=UILocalizer.Localize("건설 하기"), size=UDim2.new(1,-30,0,50), pos=UDim2.new(0.5,0,1,-15), anchor=Vector2.new(0.5,1),
 		bg=C.GOLD, r=5, ts=20, font=F.TITLE, color=Color3.fromRGB(20,20,20), vis=false, parent=detail
 	})
 	BuildUI.Refs.Detail.Btn = buildBtn
@@ -177,7 +176,7 @@ function BuildUI.Refresh(facilityList, unlockedTech, catId, getIcon, UIManager)
 	for cid, btn in pairs(BuildUI.Refs.CategoryBtns) do
 		local isSel = (cid == catId)
 		btn.TextColor3 = isSel and C.GOLD or C.GRAY
-		btn.BackgroundColor3 = isSel and Color3.fromRGB(55, 50, 40) or Color3.fromRGB(35, 35, 40)
+		btn.BackgroundColor3 = isSel and C.BTN_H or C.BTN
 		-- 과한 효과 제거 (UIStroke 등)
 		local stroke = btn:FindFirstChildOfClass("UIStroke")
 		if stroke then stroke.Enabled = false end
@@ -192,13 +191,13 @@ function BuildUI.Refresh(facilityList, unlockedTech, catId, getIcon, UIManager)
 		
 		if not isUnlocked then
 			slot.icon.ImageColor3 = Color3.fromRGB(100, 100, 100)
-			slot.frame.BackgroundColor3 = Color3.fromRGB(35, 30, 30)
+			slot.frame.BackgroundColor3 = C.BG_SLOT
 			
 			local lock = Instance.new("ImageLabel")
 			lock.Size = UDim2.new(0, 24, 0, 24); lock.Position = UDim2.new(1,0,0,0); lock.AnchorPoint = Vector2.new(1,0)
 			lock.BackgroundTransparency = 1; lock.Image = "rbxassetid://6031084651"; lock.ZIndex = 10; lock.Parent = slot.frame
 		else
-			slot.frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+			slot.frame.BackgroundColor3 = C.BG_SLOT
 		end
 		
 		slot.click.MouseButton1Click:Connect(function() UIManager._onBuildItemClick(data) end)
@@ -210,19 +209,29 @@ function BuildUI.UpdateDetail(data, canAfford, getIcon, isUnlocked, playerItemCo
 	local d = BuildUI.Refs.Detail
 	if not d.Name then return end
 	
-	d.Name.Text = data.name or data.id
+	local resolvedName = data.name or data.id
+	if type(data.id) == "string" then
+		resolvedName = UILocalizer.LocalizeDataText("FacilityData", data.id, "name", resolvedName)
+	else
+		resolvedName = UILocalizer.Localize(resolvedName)
+	end
+	d.Name.Text = resolvedName
 	d.Icon.Image = getIcon(data.id)
 	d.Icon.Visible = true
 	d.Icon.ImageColor3 = isUnlocked and Color3.new(1,1,1) or Color3.fromRGB(100,100,100)
-	d.Desc.Text = data.description or ""
+	if type(data.id) == "string" then
+		d.Desc.Text = UILocalizer.LocalizeDataText("FacilityData", data.id, "description", data.description or "")
+	else
+		d.Desc.Text = UILocalizer.Localize(data.description or "")
+	end
 	
 	if not isUnlocked then
-		d.Mats.Text = "<font color='#ff6464'>[미해금] 기술 연구가 필요합니다.</font>"
+		d.Mats.Text = string.format("<font color='#ff6464'>%s</font>", UILocalizer.Localize("[미해금] 기술 연구가 필요합니다."))
 		d.Btn.Visible = false
 		return
 	end
 	
-	local matStr = "[ 필요 재료 ]\n"
+	local matStr = UILocalizer.Localize("[ 필요 재료 ]") .. "\n"
 	if data.requirements then
 		for _, req in ipairs(data.requirements) do
 			local have = playerItemCounts[req.itemId] or 0
@@ -235,6 +244,7 @@ function BuildUI.UpdateDetail(data, canAfford, getIcon, isUnlocked, playerItemCo
 				local md = DataHelper.GetData("ItemData", mName)
 				if md then mName = md.name end
 			end
+			mName = UILocalizer.Localize(mName)
 			
 			matStr = matStr .. string.format("<font color='%s'>%s%s: %d / %d</font>\n", color, prefix, mName, have, req.amount)
 		end

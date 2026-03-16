@@ -11,6 +11,7 @@ local DataStoreClient = {}
 --========================================
 local RETRY_COUNT = 3
 local RETRY_DELAY = 1
+local STUDIO_FALLBACK_TO_MOCK_ON_FAILURE = true
 
 -- DataStore 인스턴스 (스튜디오에서는 nil)
 local mainStore = nil
@@ -18,6 +19,20 @@ local isStudio = RunService:IsStudio()
 
 -- 스튜디오 모킹 데이터 (테스트용)
 local mockData = {}
+
+local function shouldFallbackToMock(errorText: any): boolean
+	if not isStudio or not STUDIO_FALLBACK_TO_MOCK_ON_FAILURE then
+		return false
+	end
+
+	local msg = string.lower(tostring(errorText or ""))
+	return msg:find("internal server error", 1, true) ~= nil
+		or msg:find("dns", 1, true) ~= nil
+		or msg:find("timed out", 1, true) ~= nil
+		or msg:find("502", 1, true) ~= nil
+		or msg:find("api services rejected request", 1, true) ~= nil
+		or msg:find("max_retries_exceeded", 1, true) ~= nil
+end
 
 --========================================
 -- Key Rules
@@ -76,9 +91,16 @@ function DataStoreClient.get(key: string): (boolean, any)
 		return false, "DATASTORE_NOT_INITIALIZED"
 	end
 	
-	return withRetry(function()
+	local success, data = withRetry(function()
 		return mainStore:GetAsync(key)
 	end, "GET " .. key)
+
+	if not success and shouldFallbackToMock(data) then
+		warn(string.format("[DataStoreClient] GET fallback to mock in Studio for key %s: %s", key, tostring(data)))
+		return true, mockData[key]
+	end
+
+	return success, data
 end
 
 --- 데이터 쓰기
@@ -97,10 +119,18 @@ function DataStoreClient.set(key: string, value: any): (boolean, string?)
 		return false, "DATASTORE_NOT_INITIALIZED"
 	end
 	
-	return withRetry(function()
+	local success, err = withRetry(function()
 		mainStore:SetAsync(key, value)
 		return nil
 	end, "SET " .. key)
+
+	if not success and shouldFallbackToMock(err) then
+		warn(string.format("[DataStoreClient] SET fallback to mock in Studio for key %s: %s", key, tostring(err)))
+		mockData[key] = value
+		return true, nil
+	end
+
+	return success, err
 end
 
 --- 데이터 업데이트 (원자적)
@@ -121,9 +151,19 @@ function DataStoreClient.update(key: string, updateFn: (any) -> any): (boolean, 
 		return false, "DATASTORE_NOT_INITIALIZED"
 	end
 	
-	return withRetry(function()
+	local success, result = withRetry(function()
 		return mainStore:UpdateAsync(key, updateFn)
 	end, "UPDATE " .. key)
+
+	if not success and shouldFallbackToMock(result) then
+		warn(string.format("[DataStoreClient] UPDATE fallback to mock in Studio for key %s: %s", key, tostring(result)))
+		local oldValue = mockData[key]
+		local newValue = updateFn(oldValue)
+		mockData[key] = newValue
+		return true, newValue
+	end
+
+	return success, result
 end
 
 --- 데이터 삭제
@@ -140,10 +180,18 @@ function DataStoreClient.remove(key: string): (boolean, string?)
 		return false, "DATASTORE_NOT_INITIALIZED"
 	end
 	
-	return withRetry(function()
+	local success, err = withRetry(function()
 		mainStore:RemoveAsync(key)
 		return nil
 	end, "REMOVE " .. key)
+
+	if not success and shouldFallbackToMock(err) then
+		warn(string.format("[DataStoreClient] REMOVE fallback to mock in Studio for key %s: %s", key, tostring(err)))
+		mockData[key] = nil
+		return true, nil
+	end
+
+	return success, err
 end
 
 --========================================

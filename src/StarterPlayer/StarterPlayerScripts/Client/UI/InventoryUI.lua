@@ -3,6 +3,7 @@
 
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -73,7 +74,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, 20); titleList.Parent=leftHeader
 	
 	InventoryUI.Refs.TabBag = Utils.mkBtn({text="INVENTORY [B]", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GOLD_SEL, parent=leftHeader})
-	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="CRAFTING [C]", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
+	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="CRAFTING", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
 	
 	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 100 kg", size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, parent=leftHeader})
 	
@@ -515,35 +516,43 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 	if data and (data.itemId or data.id) then
 		d.Frame.Visible = true -- 아이템/레시피가 있으면 표시
 		local itemId = data.itemId or data.id
+		local displayItemId = itemId
 		local itemData = DataHelper.GetData("ItemData", itemId)
 		
 		-- [수정] 레시피인 경우 결과물 아이템의 정보를 참조하여 이름/설명을 표시
 		if not itemData and data.outputs and data.outputs[1] then
-			itemData = DataHelper.GetData("ItemData", data.outputs[1].itemId)
+			displayItemId = data.outputs[1].itemId or data.outputs[1].id or displayItemId
+			itemData = DataHelper.GetData("ItemData", displayItemId)
+		elseif itemData and itemData.id then
+			displayItemId = itemData.id
 		end
 		
-		d.Name.Text = data.name or (itemData and itemData.name) or itemId
+		d.Name.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "name", data.name or (itemData and itemData.name) or itemId)
 		d.Icon.Image = getItemIcon(itemData and itemData.id or itemId)
 		d.Icon.Visible = true
 		
 		local weightValue = (itemData and itemData.weight or 0.1) * (data.count or 1)
 		local weightStr = string.format("무게: %.1f", weightValue)
-		d.Stats.Text = weightStr .. " | 수량: " .. (data.count or 1)
+		d.Stats.Text = UILocalizer.Localize(weightStr .. " | 수량: " .. (data.count or 1))
 		
-		d.Desc.Text = (itemData and itemData.description) or (itemData and (itemData.name .. " 입니다.")) or ""
+		if itemData and itemData.description then
+			d.Desc.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)
+		else
+			d.Desc.Text = UILocalizer.Localize((itemData and (itemData.name .. " 입니다.")) or "")
+		end
 		
 		-- [제작 탭 대응] 재료 정보 표시 (실시간 보유량 체크 및 색상 적용)
 		local recipe = data
 		local mats = recipe.inputs or recipe.requirements
 		if mats and #mats > 0 then
 			if isLocked then
-				d.Stats.Text = "<font color=\"#E63232\">기술 트리(K)에서 해금이 필요합니다.</font>"
-				d.BtnMain.Text = "잠김 (해금 필요)"
+				d.Stats.Text = string.format("<font color=\"#E63232\">%s</font>", UILocalizer.Localize("기술 트리(K)에서 해금이 필요합니다."))
+				d.BtnMain.Text = UILocalizer.Localize("잠김 (해금 필요)")
 				d.BtnMain.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 				d.BtnMain.Visible = true
 				d.BtnDrop.Visible = false
 			else
-				local matsText = "<b>[ 필요 재료 ]</b>\n"
+				local matsText = string.format("<b>%s</b>\n", UILocalizer.Localize("[ 필요 재료 ]"))
 				local allMet = true
 				for _, m in ipairs(mats) do
 					local matId = m.itemId or m.id
@@ -552,6 +561,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 						local md = DataHelper.GetData("ItemData", matId)
 						if md then mName = md.name end
 					end
+					mName = UILocalizer.LocalizeDataText("ItemData", tostring(matId), "name", mName)
 					
 					local req = m.count or m.amount or 1
 					local have = (itemCounts and itemCounts[matId]) or 0
@@ -563,10 +573,10 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.Stats.Text = matsText
 				
 				if allMet then
-					d.BtnMain.Text = "제작 시작"
+					d.BtnMain.Text = UILocalizer.Localize("제작 시작")
 					d.BtnMain.BackgroundColor3 = C.GOLD_SEL
 				else
-					d.BtnMain.Text = "재료 부족"
+					d.BtnMain.Text = UILocalizer.Localize("재료 부족")
 					d.BtnMain.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 				end
 				d.BtnMain.Visible = true
@@ -578,7 +588,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			d.BtnDrop.Visible = true
 			d.BtnMain.BackgroundColor3 = C.GOLD_SEL
 			local isEquippable = (itemData and (itemData.type == Enums.ItemType.ARMOR or itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL))
-			d.BtnMain.Text = isEquippable and "장착" or "사용"
+			d.BtnMain.Text = UILocalizer.Localize(isEquippable and "장착" or "사용")
 		end
 		
 		-- Durability Display

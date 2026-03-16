@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CreatureAnimationIds = require(Shared.Config.CreatureAnimationIds)
+local DataHelper = require(Shared.Util.DataHelper)
 
 local Client = script.Parent.Parent
 local NetClient = require(Client.NetClient)
@@ -19,6 +20,28 @@ local CreatureAnimationController = {}
 --========================================
 local initialized = false
 local activeCreatures = {} -- [model] = { currentTrack = AnimationTrack, lastAnim = string }
+
+local function refreshCreatureLabel(model)
+	if not model or not model:IsA("Model") then return end
+
+	local creatureId = tostring(model:GetAttribute("CreatureId") or model.Name or ""):upper()
+	if creatureId == "" then return end
+
+	local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+	if not root then return end
+
+	local label = root:FindFirstChild("CreatureLabel")
+	if not label then return end
+
+	local main = label:FindFirstChildWhichIsA("Frame")
+	if not main then return end
+
+	local nameLabel = main:FindFirstChild("NameLabel")
+	if nameLabel and nameLabel:IsA("TextLabel") then
+		local creatureData = DataHelper.GetData("CreatureData", creatureId)
+		nameLabel.Text = (creatureData and creatureData.name) or creatureId
+	end
+end
 
 --========================================
 -- Private Functions
@@ -125,6 +148,14 @@ local function setupFolderListeners(creatureFolder)
 			if not activeCreatures[child] then
 				activeCreatures[child] = { lastAnim = "", isAttacking = false }
 			end
+			refreshCreatureLabel(child)
+			child.DescendantAdded:Connect(function(desc)
+				if desc.Name == "NameLabel" then
+					task.defer(function()
+						refreshCreatureLabel(child)
+					end)
+				end
+			end)
 		end
 	end
 

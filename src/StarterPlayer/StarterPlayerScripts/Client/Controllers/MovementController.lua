@@ -245,8 +245,8 @@ local function onInputBegan(input: InputObject, gameProcessed: boolean)
 		updateSprint()
 	end
 	
-	-- LeftControl, Q: 구르기
-	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.Q then
+	-- LeftControl: 구르기
+	if input.KeyCode == Enum.KeyCode.LeftControl then
 		performDodge()
 	end
 end
@@ -299,7 +299,6 @@ function MovementController.Init()
 	
 	-- 키 바인딩 안내 추가
 	InputManager.bindKey(Enum.KeyCode.LeftControl, "Dodge", performDodge)
-	InputManager.bindKey(Enum.KeyCode.Q, "Dodge", performDodge)
 	
 	-- 프레임 업데이트 (스프린트 상태 체크)
 	RunService.Heartbeat:Connect(function()

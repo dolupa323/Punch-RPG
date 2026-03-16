@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local Client = script.Parent.Parent
 local NetClient = require(Client.NetClient)
 local UIManager = require(Client.UIManager)
+local UILocalizer = require(Client.Localization.UILocalizer)
 
 local DeathController = {}
 
@@ -59,12 +60,12 @@ function DeathController.showDeathScreen(delayTime)
 	task.spawn(function()
 		local remaining = delayTime
 		while remaining > 0 and container.Visible do
-			deathUI.countdownLabel.Text = string.format("%d초 후 부활합니다", math.ceil(remaining))
+			deathUI.countdownLabel.Text = UILocalizer.Localize(string.format("%d초 후 부활합니다", math.ceil(remaining)))
 			task.wait(1)
 			remaining -= 1
 		end
 		if container.Visible then
-			deathUI.countdownLabel.Text = "리스폰 중..."
+			deathUI.countdownLabel.Text = UILocalizer.Localize("리스폰 중...")
 		end
 	end)
 end

@@ -44,29 +44,41 @@ function TechController.isUnlocked(techId: string): boolean
 end
 
 function TechController.isRecipeUnlocked(recipeId: string): boolean
+	local isRestricted = false
 	
-	-- 모든 해금된 기술을 순회하여 해당 레시피가 포함되어 있는지 확인
-	for techId, _ in pairs(unlockedTech) do
-		local tech = techTreeData[techId]
-		if tech and tech.unlocks and tech.unlocks.recipes then
+	-- 모든 기술을 순회하여 해당 레시피가 기술 트리에 포함되어 있는지 확인
+	for techId, tech in pairs(techTreeData) do
+		if tech.unlocks and tech.unlocks.recipes then
 			for _, rid in ipairs(tech.unlocks.recipes) do
-				if rid == recipeId then return true end
+				if rid == recipeId then
+					isRestricted = true
+					-- 해금된 상태라면 즉시 true 반환
+					if unlockedTech[techId] then return true end
+				end
 			end
 		end
 	end
-	return false
+	
+	-- 기술 트리에 아예 없는 아이템은 '기본 해금'된 것으로 간주 (맨손 제작 등)
+	return not isRestricted
 end
 
 function TechController.isFacilityUnlocked(facilityId: string): boolean
-	for techId, _ in pairs(unlockedTech) do
-		local tech = techTreeData[techId]
-		if tech and tech.unlocks and tech.unlocks.facilities then
+	local isRestricted = false
+	
+	for techId, tech in pairs(techTreeData) do
+		if tech.unlocks and tech.unlocks.facilities then
 			for _, fid in ipairs(tech.unlocks.facilities) do
-				if fid == facilityId then return true end
+				if fid == facilityId then
+					isRestricted = true
+					if unlockedTech[techId] then return true end
+				end
 			end
 		end
 	end
-	return false
+	
+	-- 기술 트리에 없는 시설은 기본 해금으로 간주 (기초 건축 등)
+	return not isRestricted
 end
 
 --========================================
@@ -78,7 +90,14 @@ function TechController.requestTechInfo(callback: ((boolean) -> ())?)
 	task.spawn(function()
 		local ok, data = NetClient.Request("Tech.List.Request", {})
 		if ok and data then
-			unlockedTech = data.unlocked or {}
+			local serverUnlocked = data.unlocked or {}
+			-- 기본 기술 (비용 없음) 강제 해금 유지
+			for id, tech in pairs(techTreeData) do
+				if not tech.cost or #tech.cost == 0 then
+					serverUnlocked[id] = true
+				end
+			end
+			unlockedTech = serverUnlocked
 			techPoints = data.techPoints or 0
 			for _, cb in ipairs(listeners.techUpdated) do pcall(cb) end
 		end
@@ -152,7 +171,14 @@ end
 
 local function onTechListChanged(data)
 	if not data then return end
-	unlockedTech = data.unlocked or {}
+	local serverUnlocked = data.unlocked or {}
+	-- 기본 기술 (비용 없음) 강제 해금 유지
+	for id, tech in pairs(techTreeData) do
+		if not tech.cost or #tech.cost == 0 then
+			serverUnlocked[id] = true
+		end
+	end
+	unlockedTech = serverUnlocked
 	techPoints = data.techPointsAvailable or 0
 	for _, cb in ipairs(listeners.techUpdated) do pcall(cb) end
 end

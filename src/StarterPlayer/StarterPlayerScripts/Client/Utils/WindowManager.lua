@@ -19,12 +19,23 @@ end
 
 --- 특정 창 제외 모두 닫기
 function WindowManager.closeOthers(exceptId: string?)
+	local closedAny = false
 	for id, config in pairs(windowConfigs) do
 		if id ~= exceptId and activeWindows[id] then
 			activeWindows[id] = false
 			config.close()
+			closedAny = true
 		end
 	end
+	
+	if closedAny and updateCallback then
+		updateCallback()
+	end
+end
+
+--- 모든 창 닫기
+function WindowManager.closeAll()
+	WindowManager.closeOthers(nil)
 end
 
 --- 창 열기

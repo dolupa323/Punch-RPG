@@ -71,7 +71,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	})
 	
 	-- Main Panel
-	local main = Utils.mkFrame({
+	local main = Utils.mkWindow({
 		name = "Main",
 		size = UDim2.new(0.85, 0, 0.8, 0),
 		maxSize = Vector2.new(1150, 650),
@@ -79,8 +79,9 @@ function ShopUI.Init(parent, UIManager, isMobile)
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
 		bgT = T.PANEL,
-		r = 4,
-		stroke = 1,
+		r = 6,
+		stroke = 1.5,
+		strokeC = C.BORDER,
 		parent = ShopUI.Refs.Frame
 	})
 
@@ -95,7 +96,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	local tabContainer = Utils.mkFrame({size=UDim2.new(0, 300, 0, 40), pos=UDim2.new(0, 20, 0, 70), bgT=1, parent=main})
 	local tabList = Instance.new("UIListLayout"); tabList.FillDirection = Enum.FillDirection.Horizontal; tabList.Padding = UDim.new(0, 10); tabList.Parent = tabContainer
 	
-	ShopUI.Refs.BtnBuyTab = Utils.mkBtn({text="구매", size=UDim2.new(0, 140, 0, 40), bg=C.GOLD_SEL, ts=14, bold=true, r=4, parent=tabContainer})
+	ShopUI.Refs.BtnBuyTab = Utils.mkBtn({text="구매", size=UDim2.new(0, 140, 0, 40), bg=C.BTN_H, ts=14, bold=true, r=4, parent=tabContainer})
 	ShopUI.Refs.BtnSellTab = Utils.mkBtn({text="판매", size=UDim2.new(0, 140, 0, 40), bg=C.BTN, ts=14, bold=true, r=4, parent=tabContainer})
 
 	-- Content area
@@ -120,12 +121,12 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	
 	-- Tab Logic
 	ShopUI.Refs.BtnBuyTab.MouseButton1Click:Connect(function()
-		ShopUI.Refs.BtnBuyTab.BackgroundColor3 = C.GOLD_SEL
+		ShopUI.Refs.BtnBuyTab.BackgroundColor3 = C.BTN_H
 		ShopUI.Refs.BtnSellTab.BackgroundColor3 = C.BTN
 		ShopUI.Refs.TabBuy.Visible = true; ShopUI.Refs.TabSell.Visible = false
 	end)
 	ShopUI.Refs.BtnSellTab.MouseButton1Click:Connect(function()
-		ShopUI.Refs.BtnSellTab.BackgroundColor3 = C.GOLD_SEL
+		ShopUI.Refs.BtnSellTab.BackgroundColor3 = C.BTN_H
 		ShopUI.Refs.BtnBuyTab.BackgroundColor3 = C.BTN
 		ShopUI.Refs.TabSell.Visible = true; ShopUI.Refs.TabBuy.Visible = false
 	end)

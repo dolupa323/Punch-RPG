@@ -6,9 +6,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local NetClient = require(script.Parent.Parent.NetClient)
 local InputManager = require(script.Parent.Parent.InputManager)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
 
 local BuildController = {}
@@ -29,6 +31,15 @@ local currentFacilityId = nil
 local currentGhost = nil
 local currentRotation = 0 -- Degree
 local heartbeatConn = nil
+
+-- World Durability Bar (look-at structure)
+local lookConn = nil
+local durabilityBillboard = nil
+local durabilityFill = nil
+local durabilityLabel = nil
+local durabilityTitle = nil
+local focusedStructureId = nil
+local lookRayAccumulator = 0
 
 --========================================
 -- Helpers
@@ -74,6 +85,175 @@ local function createGhost(facilityId)
 	ghost.Name = "BUILD_GHOST"
 	ghost.Parent = workspace
 	return ghost
+end
+
+local function getStructureModel(structureId: string)
+	local facilitiesFolder = workspace:FindFirstChild("Facilities")
+	if not facilitiesFolder then return nil end
+	return facilitiesFolder:FindFirstChild(structureId)
+end
+
+local function getAdorneeFromModel(model: Instance)
+	if not model then return nil end
+	if model:IsA("Model") then
+		return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	elseif model:IsA("BasePart") then
+		return model
+	end
+	return nil
+end
+
+local function ensureDurabilityBillboard()
+	if durabilityBillboard then return end
+
+	durabilityBillboard = Instance.new("BillboardGui")
+	durabilityBillboard.Name = "StructureDurabilityBar"
+	durabilityBillboard.Size = UDim2.new(0, 140, 0, 34)
+	durabilityBillboard.StudsOffsetWorldSpace = Vector3.new(0, 3.8, 0)
+	durabilityBillboard.AlwaysOnTop = true
+	durabilityBillboard.MaxDistance = 70
+	durabilityBillboard.Enabled = false
+	durabilityBillboard.Parent = player:WaitForChild("PlayerGui")
+
+	local bg = Instance.new("Frame")
+	bg.Name = "BG"
+	bg.Size = UDim2.new(1, 0, 1, 0)
+	bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	bg.BackgroundTransparency = 0.45
+	bg.BorderSizePixel = 0
+	bg.Parent = durabilityBillboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = bg
+
+	durabilityTitle = Instance.new("TextLabel")
+	durabilityTitle.Name = "Title"
+	durabilityTitle.Size = UDim2.new(1, -8, 0, 14)
+	durabilityTitle.Position = UDim2.new(0, 4, 0, 1)
+	durabilityTitle.BackgroundTransparency = 1
+	durabilityTitle.Font = Enum.Font.GothamBold
+	durabilityTitle.TextSize = 10
+	durabilityTitle.TextColor3 = Color3.fromRGB(255, 235, 170)
+	durabilityTitle.TextStrokeTransparency = 0.7
+	durabilityTitle.TextXAlignment = Enum.TextXAlignment.Center
+	durabilityTitle.Text = UILocalizer.Localize("시설")
+	durabilityTitle.Parent = bg
+
+	local barBg = Instance.new("Frame")
+	barBg.Name = "BarBG"
+	barBg.Size = UDim2.new(1, -10, 0, 10)
+	barBg.Position = UDim2.new(0, 5, 1, -14)
+	barBg.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+	barBg.BorderSizePixel = 0
+	barBg.Parent = bg
+
+	local barCorner = Instance.new("UICorner")
+	barCorner.CornerRadius = UDim.new(0, 5)
+	barCorner.Parent = barBg
+
+	durabilityFill = Instance.new("Frame")
+	durabilityFill.Name = "Fill"
+	durabilityFill.Size = UDim2.new(1, 0, 1, 0)
+	durabilityFill.BackgroundColor3 = Color3.fromRGB(95, 200, 120)
+	durabilityFill.BorderSizePixel = 0
+	durabilityFill.Parent = barBg
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 5)
+	fillCorner.Parent = durabilityFill
+
+	durabilityLabel = Instance.new("TextLabel")
+	durabilityLabel.Name = "Percent"
+	durabilityLabel.Size = UDim2.new(1, 0, 1, 0)
+	durabilityLabel.BackgroundTransparency = 1
+	durabilityLabel.Font = Enum.Font.GothamSemibold
+	durabilityLabel.TextSize = 9
+	durabilityLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	durabilityLabel.Text = "100%"
+	durabilityLabel.Parent = barBg
+end
+
+local function hideWorldDurabilityBar()
+	focusedStructureId = nil
+	if durabilityBillboard then
+		durabilityBillboard.Enabled = false
+		durabilityBillboard.Adornee = nil
+	end
+end
+
+local function updateWorldDurabilityBar(structureId: string)
+	local struct = structuresCache[structureId]
+	if not struct then
+		hideWorldDurabilityBar()
+		return
+	end
+
+	local facilityData = DataHelper.GetData("FacilityData", struct.facilityId)
+	if not facilityData or not facilityData.maxHealth or facilityData.maxHealth <= 0 then
+		hideWorldDurabilityBar()
+		return
+	end
+
+	local model = getStructureModel(structureId)
+	local adornee = getAdorneeFromModel(model)
+	if not adornee then
+		hideWorldDurabilityBar()
+		return
+	end
+
+	ensureDurabilityBillboard()
+	local ratio = math.clamp((struct.health or 0) / facilityData.maxHealth, 0, 1)
+
+	durabilityBillboard.Adornee = adornee
+	durabilityBillboard.Enabled = true
+	focusedStructureId = structureId
+
+	if durabilityTitle then
+		durabilityTitle.Text = UILocalizer.Localize(facilityData.name or struct.facilityId or "시설")
+	end
+
+	if durabilityLabel then
+		durabilityLabel.Text = string.format("%d%%", math.floor(ratio * 100))
+	end
+
+	if durabilityFill then
+		TweenService:Create(durabilityFill, TweenInfo.new(0.1), { Size = UDim2.new(ratio, 0, 1, 0) }):Play()
+		if ratio < 0.25 then
+			durabilityFill.BackgroundColor3 = Color3.fromRGB(210, 80, 80)
+		elseif ratio < 0.5 then
+			durabilityFill.BackgroundColor3 = Color3.fromRGB(220, 150, 70)
+		else
+			durabilityFill.BackgroundColor3 = Color3.fromRGB(95, 200, 120)
+		end
+	end
+end
+
+local function getLookedStructureId(): string?
+	local camera = workspace.CurrentCamera
+	if not camera then return nil end
+
+	local viewport = camera.ViewportSize
+	local ray = camera:ViewportPointToRay(viewport.X * 0.5, viewport.Y * 0.5)
+
+	local facilitiesFolder = workspace:FindFirstChild("Facilities")
+	if not facilitiesFolder then return nil end
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { facilitiesFolder }
+
+	local result = workspace:Raycast(ray.Origin, ray.Direction * 90, params)
+	if not result then return nil end
+
+	local hit = result.Instance
+	if not hit then return nil end
+	local model = hit:FindFirstAncestorWhichIsA("Model")
+
+	return hit:GetAttribute("StructureId")
+		or (hit.Parent and hit.Parent:GetAttribute("StructureId"))
+		or (model and model:GetAttribute("StructureId"))
+		or (model and model.Name)
 end
 
 --========================================
@@ -281,6 +461,14 @@ function BuildController.cancelPlacement()
 	InputManager.unbindKey(Enum.KeyCode.R)
 	InputManager.unbindKey(Enum.KeyCode.X)
 	InputManager.unbindLeftClick("BuildPlace")
+
+	-- Build 모드가 R 바인딩을 덮어쓰므로 종료 시 시설 상호작용 R 바인딩을 복구
+	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
+		local InteractController = require(script.Parent.InteractController)
+		if InteractController.onFacilityInteractPress then
+			InteractController.onFacilityInteractPress()
+		end
+	end)
 	
 	isPlacing = false
 	currentFacilityId = nil
@@ -359,6 +547,10 @@ local function onRemoved(data)
 		structuresCache[data.id] = nil
 		structureCount = structureCount - 1
 	end
+
+	if focusedStructureId == data.id then
+		hideWorldDurabilityBar()
+	end
 end
 
 local function onChanged(data)
@@ -370,6 +562,10 @@ local function onChanged(data)
 		for key, value in pairs(data.changes) do
 			structure[key] = value
 		end
+	end
+
+	if focusedStructureId == data.id then
+		updateWorldDurabilityBar(data.id)
 	end
 end
 
@@ -383,6 +579,21 @@ function BuildController.Init()
 	NetClient.On("Build.Placed", onPlaced)
 	NetClient.On("Build.Removed", onRemoved)
 	NetClient.On("Build.Changed", onChanged)
+
+	lookConn = RunService.Heartbeat:Connect(function(dt)
+		lookRayAccumulator = lookRayAccumulator + dt
+		if lookRayAccumulator < 0.08 then
+			return
+		end
+		lookRayAccumulator = 0
+
+		local lookedId = getLookedStructureId()
+		if lookedId then
+			updateWorldDurabilityBar(lookedId)
+		else
+			hideWorldDurabilityBar()
+		end
+	end)
 	
 	initialized = true
 	print("[BuildController] Initialized")

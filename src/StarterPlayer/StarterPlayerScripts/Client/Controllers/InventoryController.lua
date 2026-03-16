@@ -234,7 +234,9 @@ local function onInventoryChanged(data)
 						local name = itemId
 						if DSuccess and DataHelper then
 							local itemData = DataHelper.GetData("ItemData", itemId)
-							if itemData then name = itemData.name or itemId end
+							if itemData then
+								name = itemData.name or itemId
+							end
 						end
 						UIMgr.notify(string.format("획득: %s x%d", name, diff)) -- 색상 파라미터 제외하여 UITheme의 기본 흰색(C.WHITE)을 따르게 함
 					end

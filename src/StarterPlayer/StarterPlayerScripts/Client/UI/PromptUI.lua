@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -19,7 +20,7 @@ local function createPromptUI(prompt, inputType, gui)
 		name = "PromptFrame",
 		size = UDim2.new(0, 200, 0, 50),
 		bg = C.BG_PANEL,
-		bgT = 0.9, -- 초투명 (요청 사항)
+		bgT = T.PANEL, -- 거의 투명 테마 적용
 		r = 4,
 		stroke = true,
 		strokeC = C.BORDER_DIM,
@@ -55,7 +56,7 @@ local function createPromptUI(prompt, inputType, gui)
 	content.Parent = frame
 	
 	local objLabel = Utils.mkLabel({
-		text = prompt.ObjectText,
+		text = UILocalizer.Localize(prompt.ObjectText),
 		ts = 12,
 		pos = UDim2.new(0, 0, 0.3, 0),
 		anchor = Vector2.new(0, 0.5),
@@ -65,7 +66,7 @@ local function createPromptUI(prompt, inputType, gui)
 	})
 	
 	local actLabel = Utils.mkLabel({
-		text = prompt.ActionText,
+		text = UILocalizer.Localize(prompt.ActionText),
 		ts = 16,
 		font = F.TITLE,
 		pos = UDim2.new(0, 0, 0.7, 0),
@@ -80,7 +81,16 @@ local function createPromptUI(prompt, inputType, gui)
 		local textWidth = math.max(objLabel.TextBounds.X, actLabel.TextBounds.X)
 		frame.Size = UDim2.new(0, textWidth + 70, 0, 50)
 	end
+
+	local function refreshLocalizedPromptText()
+		objLabel.Text = UILocalizer.Localize(prompt.ObjectText)
+		actLabel.Text = UILocalizer.Localize(prompt.ActionText)
+		updateSize()
+	end
 	updateSize()
+
+	prompt:GetPropertyChangedSignal("ObjectText"):Connect(refreshLocalizedPromptText)
+	prompt:GetPropertyChangedSignal("ActionText"):Connect(refreshLocalizedPromptText)
 	
 	-- 진행률 (Hold 특성용)
 	if prompt.HoldDuration > 0 then
@@ -119,7 +129,7 @@ function PromptUI.Init()
 		gui.Name = "PromptGui"
 		gui.AlwaysOnTop = true
 		gui.Size = UDim2.new(0, 250, 0, 80)
-		gui.SizeOffset = Vector2.new(0, 0.5) -- 아이템에 더 가깝게 조정 (1.2 -> 0.5)
+		gui.SizeOffset = Vector2.new(0, 0.2) -- 아이템에 아주 가깝게 더 조정 (0.5 -> 0.2)
 		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 		gui.Adornee = prompt.Parent
 		

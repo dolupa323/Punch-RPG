@@ -1,5 +1,6 @@
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -98,7 +99,7 @@ function CraftingUI.Init(parent, UIManager)
 	local detail = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
 		pos=UDim2.new(1, -detailSize - 8, 0, 8),
-		bg=C.BG_PANEL, bgT=T.PANEL, r=6, stroke=false,
+		bg=C.BG_PANEL, bgT=math.max((T.PANEL or 0.95) - 0.03, 0), r=6, stroke=false,
 		parent=canvasWrapper
 	})
 	CraftingUI.Refs.Detail.Frame = detail
@@ -151,7 +152,7 @@ function CraftingUI.Init(parent, UIManager)
 	CraftingUI.Refs.Detail.ProgFill = barFill
 	
 	CraftingUI.Refs.Detail.BtnCraft = Utils.mkBtn({
-		text="제작 시작", size=UDim2.new(1, -24, 0, 50), pos=UDim2.new(0, 12, 1, -62),
+		text=UILocalizer.Localize("제작 시작"), size=UDim2.new(1, -24, 0, 50), pos=UDim2.new(0, 12, 1, -62),
 		bg=C.GOLD, color=Color3.fromRGB(20,20,20), ts=18, font=F.TITLE, r=5,
 		fn=function() UIManager._doCraft() end, parent=detail
 	})
@@ -229,7 +230,7 @@ function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts
 	end
 
 	d.Frame.Visible = true
-	d.Name.Text = (item.name or item.id)
+	local displayName = item.name or item.id
 	d.Icon.Image = getItemIcon and getItemIcon(item.id) or item.id
 	
 	if DataHelper then
@@ -238,21 +239,26 @@ function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts
 		if item.outputs and #item.outputs > 0 then
 			targetId = item.outputs[1].itemId or item.outputs[1].id
 		end
+
+		displayName = UILocalizer.LocalizeDataText("ItemData", tostring(targetId), "name", displayName)
+		d.Name.Text = displayName
 		
 		local data = DataHelper.GetData("ItemData", targetId)
 		if data and data.description then
-			d.Desc.Text = data.description
+			d.Desc.Text = UILocalizer.Localize(data.description)
 		elseif data and data.name then
-			d.Desc.Text = data.name .. " 을(를) 제작합니다."
+			d.Desc.Text = UILocalizer.Localize(data.name .. " 을(를) 제작합니다.")
 		else
-			d.Desc.Text = "선택한 대상을 제작합니다."
+			d.Desc.Text = UILocalizer.Localize("선택한 대상을 제작합니다.")
 		end
+	else
+		d.Name.Text = UILocalizer.Localize(displayName)
 	end
 
 	if isLocked then
-		d.MatsText.Text = "<font color=\"#E63232\">✗ 기술 트리에서 해금 필요</font>"
+		d.MatsText.Text = string.format("<font color=\"#E63232\">✗ %s</font>", UILocalizer.Localize("기술 트리에서 해금 필요"))
 		d.BtnCraft.Visible = true
-		d.BtnCraft.Text = "잠김"
+		d.BtnCraft.Text = UILocalizer.Localize("잠김")
 		d.BtnCraft.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 		d.BtnCraft.TextColor3 = Color3.fromRGB(120, 120, 120)
 		d.BtnCraft.AutoButtonColor = false
@@ -272,6 +278,7 @@ function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts
 				local itemData = DataHelper.GetData("ItemData", itemName)
 				if itemData then itemName = itemData.name end
 			end
+			itemName = UILocalizer.Localize(itemName)
 			
 			local colorStr = ok and "#8CDC64" or "#E63232"
 			local prefix = ok and "✓ " or "✗ "
@@ -282,7 +289,7 @@ function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts
 	d.MatsText.Text = matsText
 	
 	d.BtnCraft.Visible = true
-	d.BtnCraft.Text = (mode == "CRAFTING") and "제작 시작" or "건축 시작"
+	d.BtnCraft.Text = UILocalizer.Localize((mode == "CRAFTING") and "제작 시작" or "건축 시작")
 	
 	if canMake then
 		d.BtnCraft.BackgroundColor3 = C.GOLD

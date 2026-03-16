@@ -148,6 +148,19 @@ local function onFacilityStateChanged(data)
 	UIManager.refreshFacility()
 end
 
+local function onBuildChanged(data)
+	if not currentStructureId or not data or data.id ~= currentStructureId then return end
+	if not currentFacilityData then return end
+
+	if data.changes and data.changes.health ~= nil then
+		currentFacilityData.health = data.changes.health
+		local UIManager = require(script.Parent.Parent.UIManager)
+		if UIManager and UIManager.refreshFacility then
+			UIManager.refreshFacility()
+		end
+	end
+end
+
 --========================================
 -- Initialization
 --========================================
@@ -156,6 +169,7 @@ function FacilityController.Init()
 	if initialized then return end
 	
 	NetClient.On("Facility.StateChanged", onFacilityStateChanged)
+	NetClient.On("Build.Changed", onBuildChanged)
 	
 	initialized = true
 	print("[FacilityController] Initialized")

@@ -3,6 +3,7 @@
 
 local TweenService = game:GetService("TweenService")
 local Theme = require(script.Parent.UITheme)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -72,7 +73,7 @@ function UIUtils.mkLabel(p)
 	l.Position = p.pos or UDim2.new(0, 0, 0, 0)
 	l.AnchorPoint = p.anchor or Vector2.zero
 	l.BackgroundTransparency = 1
-	l.Text = p.text or ""
+	l.Text = UILocalizer.Localize(p.text or "")
 	l.TextColor3 = p.ink and C.INK or (p.color or C.WHITE)
 	l.TextSize = p.ts or 14
 	l.Font = p.ink and F.CLASSIC or (p.font or F.NORMAL)
@@ -101,7 +102,7 @@ function UIUtils.mkBtn(p)
 	b.BackgroundColor3 = p.bg or C.BTN
 	b.BackgroundTransparency = p.bgT or 0.3
 	b.BorderSizePixel = 0
-	b.Text = p.text or ""
+	b.Text = UILocalizer.Localize(p.text or "")
 	b.TextColor3 = p.color or C.WHITE
 	b.TextSize = p.ts or 15
 	b.Font = p.font or F.NORMAL
@@ -373,8 +374,6 @@ function UIUtils.CreateCloseButton(UIManager, winId)
 			UIManager.closeCollection()
 		elseif UIManager.closeInventory and winId == "INV" then
 			UIManager.closeInventory()
-		elseif UIManager.closeTechTree and winId == "TECH" then
-			UIManager.closeTechTree()
 		else
 			-- Fallback
 			btn.Parent.Visible = false

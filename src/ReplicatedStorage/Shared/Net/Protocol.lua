@@ -135,6 +135,12 @@ Protocol.Commands = {
 	-- Hunger 명령어 (Phase 11)
 	["Hunger.GetState"] = true,
 	["Hunger.Update"] = true,
+
+	-- Tutorial 명령어
+	["Tutorial.GetStatus.Request"] = true,
+	["Tutorial.Step.Complete.Request"] = true,
+	["Tutorial.Admin.Reset.Request"] = true,
+	["Tutorial.Admin.SetStep.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

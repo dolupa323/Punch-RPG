@@ -33,6 +33,8 @@ local SaveService = nil
 local PlayerStatService = nil
 -- EquipService 참조 (시각화용)
 local EquipService = nil
+-- 튜토리얼/퀘스트용 아이템 획득 콜백
+local questItemCallback = nil
 
 local function _getDefaultEquipment()
 	return {
@@ -464,11 +466,20 @@ function InventoryService.getOrCreateInventory(userId: number): any
 
 	if SaveService then
 		local state = SaveService.getPlayerState(userId)
+		local lastLoadErr = nil
 		if not state then
-			-- [수정] 5초 -> 30초 대기 증가 및 접속 중/성공 체크 추가
-			local deadline = os.clock() + 30
+			-- SaveService의 초기 로드가 일시 실패했을 수 있으므로 폴링 중 재시도
+			local deadline = os.clock() + 45
+			local nextRetryAt = 0
 			while not state and os.clock() < deadline do
-				task.wait(0.1)
+				if os.clock() >= nextRetryAt then
+					local ok, err = SaveService.loadPlayer(userId)
+					if not ok then
+						lastLoadErr = err
+					end
+					nextRetryAt = os.clock() + 2
+				end
+				task.wait(0.15)
 				state = SaveService.getPlayerState(userId)
 				if not game.Players:GetPlayerByUserId(userId) then break end
 			end
@@ -482,7 +493,11 @@ function InventoryService.getOrCreateInventory(userId: number): any
 			warn(string.format("[InventoryService] Timed out waiting for player state %d! Kicking to prevent wipe.", userId))
 			local plr = game.Players:GetPlayerByUserId(userId)
 			if plr then
-				plr:Kick("데이터 로드 시간이 초과되었습니다. 재접속해 주세요.")
+				if lastLoadErr == "SESSION_LOCKED" then
+					plr:Kick("이전 접속 세션이 아직 정리되지 않았습니다. 잠시 후 재접속해 주세요.")
+				else
+					plr:Kick("데이터 로드 시간이 초과되었습니다. 재접속해 주세요.")
+				end
 			end
 			return nil -- 중단
 		end
@@ -1025,6 +1040,12 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 			table.insert(changes, _makeChange(inv, slot))
 		end
 		_emitChanged(player, changes)
+	end
+
+	if added > 0 and questItemCallback then
+		task.spawn(function()
+			questItemCallback(userId, itemId, added)
+		end)
 	end
 	
 	-- [FIX] Ensure items are packed during sort request only, not every add (Performance optimization)
@@ -1615,6 +1636,10 @@ function InventoryService.GetHandlers()
 		end,
 		["Inventory.GiveItem"] = handleGiveItem,
 	}
+end
+
+function InventoryService.SetQuestItemCallback(callback)
+	questItemCallback = callback
 end
 
 return InventoryService

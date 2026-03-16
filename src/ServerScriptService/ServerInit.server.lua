@@ -301,11 +301,40 @@ AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, Palbo
 local AutoDepositService = require(Services.AutoDepositService)
 AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
 
--- (Quest 시스템 삭제됨)
+-- TutorialQuestService 초기화 (첫 진입 튜토리얼)
+local TutorialQuestService = require(Services.TutorialQuestService)
+TutorialQuestService.Init(NetController, SaveService, PlayerStatService, InventoryService, nil)
+
+-- TutorialQuestService 핸들러 등록
+for command, handler in pairs(TutorialQuestService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+
+-- 액션 콜백 연결 (기존 서비스 훅 재사용)
+InventoryService.SetQuestItemCallback(function(userId, itemId, count)
+	TutorialQuestService.onItemAdded(userId, itemId, count)
+end)
+
+HarvestService.SetQuestCallback(function(userId, nodeType)
+	TutorialQuestService.onHarvest(userId, nodeType)
+end)
+
+CraftingService.SetQuestCallback(function(userId, recipeId)
+	TutorialQuestService.onCrafted(userId, recipeId)
+end)
+
+BuildService.SetQuestCallback(function(userId, facilityId)
+	TutorialQuestService.onBuilt(userId, facilityId)
+end)
+
+CombatService.SetQuestCallback(function(userId, creatureId)
+	TutorialQuestService.onKilled(userId, creatureId)
+end)
 
 -- NPCShopService 초기화 (Phase 9)
 local NPCShopService = require(Services.NPCShopService)
 NPCShopService.Init(NetController, DataService, InventoryService, TimeService)
+TutorialQuestService.SetRewardDependencies(PlayerStatService, InventoryService, NPCShopService)
 
 -- NPCShopService 핸들러 등록
 for command, handler in pairs(NPCShopService.GetHandlers()) do

@@ -255,10 +255,10 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 
-	-- 1a. 기술 해금 검증 (Phase 6)
-	if TechService and not TechService.isRecipeUnlocked(userId, recipeId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- 1a. 기술 해금 검증 (장기적 리뉴얼을 위해 일시 제거)
+	-- if TechService and not TechService.isRecipeUnlocked(userId, recipeId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 	
 	-- 2. 큐 크기 검증
 	if getQueueSize(userId) >= Balance.CRAFT_QUEUE_MAX then
@@ -355,6 +355,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 		recipeId = recipeId,
 		craftTime = realCraftTime,
 		completesAt = craftEntry.completesAt,
+		structureId = structureId,
 	}
 	
 	_syncToSave(userId)
@@ -437,10 +438,10 @@ function CraftingService.collect(player: Player, craftId: string)
 		entry.state = Enums.CraftState.PENDING_COLLECT
 	end
 	
-	-- 1. 아직 해금 상태인지 재검증 (Relinquish 어뷰징 방지)
-	if TechService and not TechService.isRecipeUnlocked(userId, entry.recipeId) then
-		return false, Enums.ErrorCode.RECIPE_LOCKED, nil
-	end
+	-- 1. 아직 해금 상태인지 재검증 (장기적 리뉴얼을 위해 일시 제거)
+	-- if TechService and not TechService.isRecipeUnlocked(userId, entry.recipeId) then
+	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
+	-- end
 	
 	-- 아직 제작 중이면 수거 불가
 	if entry.state ~= Enums.CraftState.PENDING_COLLECT then
@@ -513,6 +514,7 @@ function CraftingService.getQueue(player: Player)
 			startedAt = entry.startedAt,
 			completesAt = entry.completesAt,
 			remaining = math.max(0, entry.completesAt - now),
+			structureId = entry.structureId,
 		})
 	end
 	

@@ -4,25 +4,42 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
+local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
 
 local HUDUI = {}
 local Controllers = script.Parent.Parent:WaitForChild("Controllers")
+local tutorialWantedVisible = false
+local tutorialReady = false
+local tutorialPulseTween = nil
 
 -- [에셋 참조] 하드코딩 방지를 위한 폴더 경로
-local Assets = ReplicatedStorage:WaitForChild("Assets")
-local StatusIcons = Assets:WaitForChild("StatusIcons")
-
+local StatusIcons = nil
 
 HUDUI.Refs = {
 	harvestPct = nil,
 	harvestName = nil,
 	interactPrompt = nil,
+	tutorialFrame = nil,
+	tutorialTitle = nil,
+	tutorialStep = nil,
+	tutorialProgress = nil,
+	tutorialReward = nil,
+	tutorialCompleteBtn = nil,
+	tutorialClickArea = nil,
 }
 
 function HUDUI.Init(parent, UIManager, InputManager, isMobile)
+	-- [수정] 차단성 WaitForChild를 Init 내부로 이동하고 타임아웃 추가
+	task.spawn(function()
+		local Assets = ReplicatedStorage:WaitForChild("Assets", 5)
+		if Assets then
+			StatusIcons = Assets:WaitForChild("StatusIcons", 3)
+		end
+	end)
+
 	local isSmall = isMobile 
 	
 	-- [Top Left Area] - HP, Stamina, Status Effects
@@ -99,6 +116,154 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		parent = effectList
 	})
 
+	-- Tutorial quest: fixed HUD panel (non-toast)
+	local tutorialFrame = Utils.mkFrame({
+		name = "TutorialPanel",
+		size = UDim2.new(0, isSmall and 320 or 290, 0, isSmall and 122 or 106),
+		pos = UDim2.new(1, -20, 0, isSmall and 182 or 174),
+		anchor = Vector2.new(1, 0),
+		bg = C.BG_PANEL,
+		bgT = 0.62,
+		r = 8,
+		stroke = 1.5,
+		strokeC = C.BORDER,
+		vis = false,
+		parent = parent,
+	})
+	HUDUI.Refs.tutorialFrame = tutorialFrame
+
+	HUDUI.Refs.tutorialTitle = Utils.mkLabel({
+		name = "TutorialTitle",
+		text = "튜토리얼 퀘스트",
+		size = UDim2.new(1, -16, 0, 24),
+		pos = UDim2.new(0, 8, 0, 6),
+		ax = Enum.TextXAlignment.Left,
+		font = F.TITLE,
+		ts = 15,
+		color = C.GOLD,
+		parent = tutorialFrame,
+	})
+
+	HUDUI.Refs.tutorialStep = Utils.mkLabel({
+		name = "TutorialStep",
+		text = "",
+		size = UDim2.new(1, -16, 0, 42),
+		pos = UDim2.new(0, 8, 0, 30),
+		ax = Enum.TextXAlignment.Left,
+		ay = Enum.TextYAlignment.Top,
+		wrap = true,
+		ts = 14,
+		color = C.WHITE,
+		parent = tutorialFrame,
+	})
+
+	HUDUI.Refs.tutorialProgress = Utils.mkLabel({
+		name = "TutorialProgress",
+		text = "",
+		size = UDim2.new(1, -100, 0, 20),
+		pos = UDim2.new(0, 8, 1, -24),
+		ax = Enum.TextXAlignment.Left,
+		ts = 13,
+		color = C.GOLD,
+		parent = tutorialFrame,
+	})
+
+	HUDUI.Refs.tutorialReward = Utils.mkLabel({
+		name = "TutorialReward",
+		text = "",
+		size = UDim2.new(1, -16, 0, 18),
+		pos = UDim2.new(0, 8, 1, -44),
+		ax = Enum.TextXAlignment.Left,
+		ts = 12,
+		color = C.GREEN,
+		parent = tutorialFrame,
+	})
+
+	local tutorialCompleteBtn = Utils.mkBtn({
+		name = "TutorialCompleteBtn",
+		text = "완료",
+		size = UDim2.new(0, 76, 0, 24),
+		pos = UDim2.new(1, -8, 1, -24),
+		anchor = Vector2.new(1, 1),
+		bg = C.BTN,
+		bgT = 0.25,
+		ts = 13,
+		font = F.TITLE,
+		color = C.WHITE,
+		fn = function()
+			if UIManager and UIManager.requestTutorialStepComplete then
+				UIManager.requestTutorialStepComplete()
+			end
+		end,
+		parent = tutorialFrame,
+	})
+	HUDUI.Refs.tutorialCompleteBtn = tutorialCompleteBtn
+
+	local tutorialClickArea = Instance.new("TextButton")
+	tutorialClickArea.Name = "TutorialClickArea"
+	tutorialClickArea.Size = UDim2.new(1, 0, 1, 0)
+	tutorialClickArea.Position = UDim2.new(0, 0, 0, 0)
+	tutorialClickArea.BackgroundTransparency = 1
+	tutorialClickArea.Text = ""
+	tutorialClickArea.AutoButtonColor = false
+	tutorialClickArea.ZIndex = 40
+	tutorialClickArea.Parent = tutorialFrame
+	tutorialClickArea.MouseButton1Click:Connect(function()
+		if tutorialReady and UIManager and UIManager.requestTutorialStepComplete then
+			UIManager.requestTutorialStepComplete()
+		end
+	end)
+	HUDUI.Refs.tutorialClickArea = tutorialClickArea
+
+	-- Keep tutorial panel/text responsive with actual viewport size.
+	local function updateTutorialLayout()
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return
+		end
+
+		local vp = camera.ViewportSize
+		local panelWidth = math.clamp(math.floor(vp.X * (isSmall and 0.42 or 0.24)), isSmall and 300 or 270, isSmall and 430 or 390)
+		local panelHeight = math.clamp(math.floor(vp.Y * (isSmall and 0.17 or 0.15)), isSmall and 112 or 98, isSmall and 170 or 150)
+
+		tutorialFrame.Size = UDim2.new(0, panelWidth, 0, panelHeight)
+		tutorialFrame.Position = UDim2.new(1, -20, 0, isSmall and 188 or 178)
+
+		local titleSize = math.clamp(math.floor(panelHeight * 0.14), 14, 22)
+		local bodySize = math.clamp(math.floor(panelHeight * 0.13), 13, 20)
+		local progressSize = math.clamp(math.floor(panelHeight * 0.12), 12, 18)
+
+		HUDUI.Refs.tutorialTitle.TextSize = titleSize
+		HUDUI.Refs.tutorialStep.TextSize = bodySize
+		HUDUI.Refs.tutorialProgress.TextSize = progressSize
+
+		HUDUI.Refs.tutorialTitle.Size = UDim2.new(1, -16, 0, math.floor(panelHeight * 0.26))
+		HUDUI.Refs.tutorialTitle.Position = UDim2.new(0, 8, 0, 6)
+
+		HUDUI.Refs.tutorialStep.Size = UDim2.new(1, -16, 0, math.floor(panelHeight * 0.40))
+		HUDUI.Refs.tutorialStep.Position = UDim2.new(0, 8, 0, math.floor(panelHeight * 0.28))
+
+		HUDUI.Refs.tutorialReward.Size = UDim2.new(1, -16, 0, math.floor(panelHeight * 0.18))
+		HUDUI.Refs.tutorialReward.Position = UDim2.new(0, 8, 1, -math.floor(panelHeight * 0.44))
+		HUDUI.Refs.tutorialReward.TextSize = math.clamp(math.floor(panelHeight * 0.11), 11, 16)
+
+		local btnWidth = math.clamp(math.floor(panelWidth * 0.24), 72, 110)
+		local btnHeight = math.clamp(math.floor(panelHeight * 0.24), 22, 34)
+		HUDUI.Refs.tutorialCompleteBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
+		HUDUI.Refs.tutorialCompleteBtn.Position = UDim2.new(1, -8, 1, -8)
+		HUDUI.Refs.tutorialCompleteBtn.TextSize = math.clamp(math.floor(panelHeight * 0.12), 12, 18)
+
+		HUDUI.Refs.tutorialProgress.Size = UDim2.new(1, -(btnWidth + 22), 0, math.floor(panelHeight * 0.2))
+		HUDUI.Refs.tutorialProgress.Position = UDim2.new(0, 8, 1, -math.floor(panelHeight * 0.24))
+		HUDUI.Refs.tutorialClickArea.ZIndex = HUDUI.Refs.tutorialCompleteBtn.ZIndex + 1
+	end
+
+	updateTutorialLayout()
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateTutorialLayout)
+	end
+
 	-- [Bottom Right Area] - Action / Hexagon Buttons
 	local actionArea = Utils.mkFrame({
 		name = "ActionArea",
@@ -151,32 +316,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs["hex_"..hb.id] = btn
 	end
 
-	-- Interaction Prompt (Centered & Glassy)
-	local iPromptFrame = Utils.mkFrame({
-		name = "InteractPrompt",
-		size = UDim2.new(0, 300, 0, 50),
-		pos = UDim2.new(0.5, 0, 0.7, 0), -- 조금 아래로
-		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_PANEL,
-		bgT = 0.9, -- 초투명
-		r = 4,
-		stroke = true,
-		strokeC = C.BORDER_DIM,
-		vis = false,
-		parent = parent
-	})
-	HUDUI.Refs.interactPromptFrame = iPromptFrame
-	HUDUI.Refs.interactPrompt = Utils.mkLabel({
-		text = "",
-		size = UDim2.new(1, -20, 1, 0),
-		pos = UDim2.new(0.5, 0, 0.5, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		ts = 16,
-		font = F.TITLE,
-		color = C.WHITE,
-		rich = true,
-		parent = iPromptFrame
-	})
+	-- [X] Redundant interact prompt removed (Using InteractUI instead)
 
 	-- [Bottom Edge] - Experience Bar & Menu (Modern Minimalist)
 	local bottomEdge = Utils.mkFrame({
@@ -208,7 +348,6 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.bagBtn = Utils.mkBtn({text="[ INV: B ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleInventory() end, parent=menuItems})
 	HUDUI.Refs.buildBtn = Utils.mkBtn({text="[ BUILD: C ]", size=UDim2.new(0, isSmall and 85 or 110, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleBuild() end, parent=menuItems})
 	HUDUI.Refs.equipBtn = Utils.mkBtn({text="[ CHAR: E ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleEquipment() end, parent=menuItems})
-	HUDUI.Refs.techBtn = Utils.mkBtn({text="[ TECH: K ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleTechTree() end, parent=menuItems})
 	HUDUI.Refs.collectionBtn = Utils.mkBtn({text="[ LOG: P ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleCollection() end, parent=menuItems})
 
 	-- [Hotbar] (Center Bottom)
@@ -289,18 +428,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		parent = minimap
 	})
 	HUDUI.Refs.coordLabel = coordLabel
-
-	-- Action Bindings Connect to Controller directly
-	InputManager.bindAction("Interact", function() 
-		local IC = require(Controllers.InteractController)
-		if IC.interact then IC.interact() end
-	end, false, "상호작용", Enum.KeyCode.Z)
-	HUDUI.Refs.hex_Interact.MouseButton1Click:Connect(function() local IC = require(Controllers.InteractController); if IC.interact then IC.interact() end end)
 	
-	InputManager.bindAction("Attack", function()
-		local CC = require(Controllers.CombatController)
-		if CC.attack then CC.attack() end
-	end, false, "공격", Enum.UserInputType.MouseButton1)
+	-- Action 버튼 클릭 연동 (모바일/클릭 지원)
+	HUDUI.Refs.hex_Interact.MouseButton1Click:Connect(function() local IC = require(Controllers.InteractController); if IC.onInteractPress then IC.onInteractPress() end end)
 	HUDUI.Refs.hex_Attack.MouseButton1Click:Connect(function() local CC = require(Controllers.CombatController); if CC.attack then CC.attack() end end)
 
 	-- Dodge & Sprint & Jump (Mobile Bindings)
@@ -323,20 +453,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		if MC.updateSprintState then MC.updateSprintState(false) end
 	end)
 
-	InputManager.bindAction("Equipment", function() UIManager.toggleEquipment() end, false, "장비창", Enum.KeyCode.E)
-	InputManager.bindAction("Character", function() UIManager.toggleInventory() end, false, "캐릭터", Enum.KeyCode.B, Enum.KeyCode.Tab, Enum.KeyCode.I)
-	InputManager.bindAction("Building", function() UIManager.toggleBuild() end, false, "건축", Enum.KeyCode.C)
-	-- [수정] K키 직접 진입 폐기. 기술 연구소 시설 상호작용으로 이전.
-	-- InputManager.bindAction("TechTree", function() UIManager.toggleTechTree() end, false, "기술", Enum.KeyCode.K)
-	InputManager.bindAction("Collection", function() UIManager.toggleCollection() end, false, "도감", Enum.KeyCode.P)
-	InputManager.bindAction("CloseUI", function()
-		UIManager.closeInventory()
-		UIManager.closeCrafting()
-		UIManager.closeEquipment()
-		UIManager.closeTechTree()
-		UIManager.closeBuild()
-		UIManager.closeCollection()
-	end, false, nil, Enum.KeyCode.Escape)
+	-- [UX] UI Toggle Key Bindings moved to ClientInit for consistency
 
 	-- Harvest Setup
 	HUDUI.Refs.harvestFrame = Utils.mkFrame({name="Harvest", size=UDim2.new(0, 300, 0, 60), pos=UDim2.new(0.4, 0, 0.5, 0), anchor=Vector2.new(0.5, 0.5), bgT=1, vis=false, parent=parent})
@@ -429,8 +546,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		overlay.Parent = container
 
 		overlay.MouseEnter:Connect(function()
-			HUDUI.Refs.tipTitle.Text = data.title
-			HUDUI.Refs.tipBody.Text = data.body
+			HUDUI.Refs.tipTitle.Text = UILocalizer.Localize(data.title)
+			HUDUI.Refs.tipBody.Text = UILocalizer.Localize(data.body)
 			-- 텍스트 길이에 맞춰 높이 조정
 			local lines = select(2, data.body:gsub("\n", "\n")) + 1
 			HUDUI.Refs.tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
@@ -455,10 +572,160 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 end
 
+local function _buildRewardText(reward)
+	if type(reward) ~= "table" then
+		return ""
+	end
+	local chunks = {}
+	if (reward.xp or 0) > 0 then
+		table.insert(chunks, string.format("XP +%d", reward.xp))
+	end
+	if (reward.gold or 0) > 0 then
+		table.insert(chunks, string.format("골드 +%d", reward.gold))
+	end
+	if type(reward.items) == "table" then
+		for _, item in ipairs(reward.items) do
+			if type(item) == "table" and item.itemId and item.count then
+				table.insert(chunks, string.format("%s x%d", tostring(item.itemId), tonumber(item.count) or 1))
+			end
+		end
+	end
+	return table.concat(chunks, ", ")
+end
+
+local function _setReadyPulse(ready)
+	tutorialReady = ready == true
+	if tutorialPulseTween then
+		tutorialPulseTween:Cancel()
+		tutorialPulseTween = nil
+	end
+
+	if not HUDUI.Refs.tutorialFrame then
+		return
+	end
+
+	local stroke = HUDUI.Refs.tutorialFrame:FindFirstChildOfClass("UIStroke")
+	if ready then
+		if stroke then
+			stroke.Color = C.GOLD
+			stroke.Transparency = 0.15
+		end
+		tutorialPulseTween = TweenService:Create(
+			HUDUI.Refs.tutorialFrame,
+			TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ BackgroundTransparency = 0.46 }
+		)
+		tutorialPulseTween:Play()
+	else
+		HUDUI.Refs.tutorialFrame.BackgroundTransparency = 0.62
+		if stroke then
+			stroke.Color = C.BORDER
+			stroke.Transparency = 0.4
+		end
+	end
+end
+
 function HUDUI.SetVisible(visible)
 	if HUDUI.Refs.statusPanel then HUDUI.Refs.statusPanel.Visible = visible end
 	if HUDUI.Refs.xpBar then HUDUI.Refs.xpBar.Parent.Parent.Visible = visible end
 	if HUDUI.Refs.hex_Attack then HUDUI.Refs.hex_Attack.Parent.Visible = visible end
+	if HUDUI.Refs.tutorialFrame then
+		HUDUI.Refs.tutorialFrame.Visible = visible and tutorialWantedVisible
+	end
+end
+
+local function _sortedKeys(map)
+	local keys = {}
+	for key in pairs(map or {}) do
+		table.insert(keys, key)
+	end
+	table.sort(keys)
+	return keys
+end
+
+local function _buildProgressText(status)
+	if type(status) ~= "table" then
+		return ""
+	end
+
+	local progress = type(status.progress) == "table" and status.progress or {}
+	if status.stepKind == "MULTI_ITEM" and type(status.needs) == "table" then
+		local chunks = {}
+		for _, itemId in ipairs(_sortedKeys(status.needs)) do
+			local needCount = status.needs[itemId] or 0
+			local nowCount = progress[itemId] or 0
+			table.insert(chunks, string.format("%s %d/%d", tostring(itemId), nowCount, needCount))
+		end
+		return table.concat(chunks, "  |  ")
+	end
+
+	if status.stepKind == "ITEM_ANY" then
+		local nowCount = progress.count or 0
+		local needCount = status.stepCount or 1
+		return string.format("진행도: %d / %d", nowCount, needCount)
+	end
+
+	return string.format("단계: %d / %d", status.stepIndex or 0, status.totalSteps or 0)
+end
+
+function HUDUI.SetTutorialVisible(visible)
+	tutorialWantedVisible = visible == true
+	if HUDUI.Refs.tutorialFrame then
+		local hudVisible = (HUDUI.Refs.statusPanel == nil) or HUDUI.Refs.statusPanel.Visible
+		HUDUI.Refs.tutorialFrame.Visible = tutorialWantedVisible and hudVisible
+	end
+end
+
+function HUDUI.UpdateTutorialStatus(status)
+	if type(status) ~= "table" or not HUDUI.Refs.tutorialFrame then
+		return
+	end
+
+	if status.completed then
+		HUDUI.Refs.tutorialTitle.Text = "튜토리얼 완료"
+		HUDUI.Refs.tutorialStep.Text = "기본 생존 가이드를 모두 마쳤습니다."
+		local completedReward = _buildRewardText(status.reward or status.rewardPreview)
+		HUDUI.Refs.tutorialProgress.Text = "보상이 지급되었습니다"
+		HUDUI.Refs.tutorialReward.Text = completedReward ~= "" and ("획득: " .. completedReward) or "획득: -"
+		if HUDUI.Refs.tutorialCompleteBtn then
+			HUDUI.Refs.tutorialCompleteBtn.Visible = false
+		end
+		if HUDUI.Refs.tutorialClickArea then
+			HUDUI.Refs.tutorialClickArea.Active = false
+		end
+		_setReadyPulse(false)
+		HUDUI.SetTutorialVisible(true)
+		return
+	end
+
+	if not status.active then
+		HUDUI.SetTutorialVisible(false)
+		return
+	end
+
+	HUDUI.Refs.tutorialTitle.Text = string.format("튜토리얼 퀘스트 (%d/%d)", status.stepIndex or 0, status.totalSteps or 0)
+	HUDUI.Refs.tutorialStep.Text = status.currentStepText or "다음 튜토리얼 목표 진행 중"
+	HUDUI.Refs.tutorialProgress.Text = _buildProgressText(status)
+	local previewReward = _buildRewardText(status.rewardPreview)
+	HUDUI.Refs.tutorialReward.Text = previewReward ~= "" and ("완료 보상: " .. previewReward) or "완료 보상: -"
+
+	if HUDUI.Refs.tutorialCompleteBtn then
+		local ready = status.stepReady == true
+		HUDUI.Refs.tutorialCompleteBtn.Visible = true
+		HUDUI.Refs.tutorialCompleteBtn.AutoButtonColor = ready
+		HUDUI.Refs.tutorialCompleteBtn.Active = ready
+		HUDUI.Refs.tutorialCompleteBtn.BackgroundTransparency = ready and 0.25 or 0.6
+		HUDUI.Refs.tutorialCompleteBtn.Text = ready and "완료" or "진행중"
+		if HUDUI.Refs.tutorialClickArea then
+			HUDUI.Refs.tutorialClickArea.Active = ready
+		end
+		_setReadyPulse(ready)
+	end
+
+	local shownStep = math.max(1, tonumber(status.stepIndex) or 1)
+	local totalSteps = math.max(1, tonumber(status.totalSteps) or 1)
+	HUDUI.Refs.tutorialTitle.Text = string.format("튜토리얼 퀘스트 (%d/%d)", shownStep, totalSteps)
+	HUDUI.SetTutorialVisible(true)
 end
 
 function HUDUI.UpdateHealth(cur, max)
@@ -556,16 +823,7 @@ function HUDUI.HideHarvestProgress()
 	if HUDUI.Refs.harvestFrame then HUDUI.Refs.harvestFrame.Visible = false end
 end
 
-function HUDUI.showInteractPrompt(text)
-	if HUDUI.Refs.interactPrompt and HUDUI.Refs.interactPromptFrame then
-		HUDUI.Refs.interactPrompt.Text = text
-		HUDUI.Refs.interactPromptFrame.Visible = true
-	end
-end
-
-function HUDUI.hideInteractPrompt()
-	if HUDUI.Refs.interactPromptFrame then HUDUI.Refs.interactPromptFrame.Visible = false end
-end
+-- [X] show/hideInteractPrompt moved to InteractUI
 
 function HUDUI.UpdateStatusEffects(debuffList)
 	local container = HUDUI.Refs.effectList
@@ -580,6 +838,7 @@ function HUDUI.UpdateStatusEffects(debuffList)
 	
 	-- 에셋 타입 호환성 체크 (Decal은 Texture, ImageLabel은 Image 속성 사용)
 	local function getIcon(name)
+		if not StatusIcons then return "" end
 		local asset = StatusIcons:FindFirstChild(name)
 		if not asset then return "" end
 		if asset:IsA("Decal") then return asset.Texture end
@@ -629,8 +888,8 @@ function HUDUI.UpdateStatusEffects(debuffList)
 
 		btn.MouseEnter:Connect(function()
 			if HUDUI.Refs.tooltip then
-				HUDUI.Refs.tipTitle.Text = debuff.name or debuff.id
-				HUDUI.Refs.tipBody.Text = debuff.description or ""
+				HUDUI.Refs.tipTitle.Text = UILocalizer.Localize(debuff.name or debuff.id)
+				HUDUI.Refs.tipBody.Text = UILocalizer.Localize(debuff.description or "")
 				local lines = select(2, (debuff.description or ""):gsub("\n", "\n")) + 1
 				HUDUI.Refs.tooltip.Size = UDim2.new(0, 210, 0, 50 + lines * 16)
 				HUDUI.Refs.tooltip.Visible = true
