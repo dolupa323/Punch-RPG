@@ -114,6 +114,8 @@ local function _initPlayerStats(userId: number)
 		-- 연구 도감 (DNA 데이터 - Phase 11+)
 		dnaData = savedStats and savedStats.dnaData or {
 			COMPY = savedStats and savedStats.dnaCompy or 0,
+			DODO = 0,
+			BABY_TRICERATOPS = 0,
 		},
 		dnaCompy = savedStats and savedStats.dnaCompy or 0, -- 하위 호환 유지
 	}
@@ -132,6 +134,7 @@ local function _savePlayerStats(userId: number)
 			state.stats.totalXP = stats.totalXP
 			state.stats.techPointsSpent = stats.techPointsSpent
 			state.stats.statInvested = stats.statInvested
+			state.stats.dnaData = stats.dnaData
 			state.stats.dnaCompy = stats.dnaCompy
 			return state
 		end)
@@ -292,19 +295,9 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		if setBonuses.attackMult then finalAtk = finalAtk + setBonuses.attackMult end
 	end
 	
-	-- 3. 연구 도감(DNA) 보너스 계산
+	-- 도감 상시 효과는 비활성화: 수집/표시용 데이터만 유지한다.
 	local dnaBonuses = { attackMult = 0, workSpeedMult = 0 }
-	local dData = playerStats[userId].dnaData or {}
-	
-	-- [콤피] 공격력 보너스: 20개당 1%, 최대 10% (200개)
-	local compyDna = dData.COMPY or playerStats[userId].dnaCompy or 0
-	local compyBonus = math.min(0.1, math.floor(compyDna / 20) * 0.01)
-	dnaBonuses.attackMult = dnaBonuses.attackMult + compyBonus
-	
-	-- 최종 합산
-	finalAtk = finalAtk + dnaBonuses.attackMult
 	local finalWork = 100 + ((stats[Enums.StatId.WORK_SPEED] or 0) * Balance.WORKSPEED_PER_POINT)
-	finalWork = finalWork + (dnaBonuses.workSpeedMult * 100)
 	
 	return {
 		maxHealth = finalHp,
@@ -378,6 +371,7 @@ function PlayerStatService.getStats(userId: number): { [string]: any }
 		statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		statInvested = stats.statInvested,
 		calculated = PlayerStatService.GetCalculatedStats(userId),
+		dnaData = stats.dnaData,
 		dnaCompy = stats.dnaCompy,
 	}
 end
@@ -444,8 +438,6 @@ function PlayerStatService.addCollectionDna(userId: number, creatureId: string, 
 	end
 	
 	_savePlayerStats(userId)
-	-- 스탯 재적용 (상시 효과 갱신)
-	PlayerStatService.applyStats(userId)
 	
 	-- 클라이언트 동기화
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)

@@ -101,7 +101,16 @@ function NetClient.Request(command: string, payload: any?): (boolean, any)
 		return true, decompressedData
 	else
 		-- [수정] 서버의 errorCode와 error 필드를 모두 지원
-		return false, response.errorCode or response.error or "UNKNOWN_ERROR"
+		local errorCode = response.errorCode or response.error or "UNKNOWN_ERROR"
+		if errorCode == "INV_FULL" then
+			task.spawn(function()
+				local UIManager = require(script.Parent.UIManager)
+				if UIManager and UIManager.notify then
+					UIManager.notify("가방이 가득 찼습니다.", Color3.fromRGB(255, 140, 140))
+				end
+			end)
+		end
+		return false, errorCode
 	end
 end
 

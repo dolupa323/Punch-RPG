@@ -3,6 +3,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
@@ -22,6 +24,7 @@ local CombatController = {}
 --========================================
 local initialized = false
 local player = Players.LocalPlayer
+local itemDataTable = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
 
 -- 공격 쿨다운
 local lastAttackTime = 0
@@ -33,6 +36,41 @@ local comboResetTime = 1.0  -- 1초 내 다음 공격 안하면 콤보 리셋
 
 -- 애니메이션 트랙
 local currentAttackTrack = nil
+local currentBowDrawTrack = nil
+local currentBowDrawConn = nil
+local bowDrawPassedHalf = false
+local bowDrawReadyToFire = false
+local bowDrawActive = false
+local bowDrawStartedAt = 0
+local bowDrawPressedHitPos: Vector3? = nil
+local bowDrawPressedTargetCenter: Vector3? = nil
+local bowPreviousAutoRotate: boolean? = nil
+local bowPreviewLinePart: BasePart? = nil
+local bowPreviewTipPart: BasePart? = nil
+local bowPredictedOrigin: Vector3? = nil
+local bowPredictedDirection: Vector3? = nil
+local bowPredictedHitPos: Vector3? = nil
+local bowPredictedChargeRatio = 0
+local bowPredictedHeldSec = 0
+
+-- 화살 비주얼 회전 보정
+local ARROW_MODEL_ROTATION_OFFSET = CFrame.Angles(0, math.rad(90), 0)
+local BOW_DRAW_FRONT_SPEED = 0.85
+local DEFAULT_MIN_AIM_TIME = 0.2
+local DEFAULT_MAX_CHARGE_TIME = 1.2
+local BOW_DRAW_HOLD_SPEED = 0.45
+local BOW_DRAW_FRONT_RATIO = 0.45
+local BOW_DRAW_END_EPSILON = 0.03
+local BOW_PREVIEW_WIDTH = 0.06
+local BOW_PREVIEW_MIN_DISTANCE = 0.2
+local BOW_AIM_RAYCAST_DISTANCE = 1200
+local BOW_GHOST_LINE_COLOR = Color3.fromRGB(218, 255, 210)
+local BOW_GHOST_TIP_COLOR = Color3.fromRGB(232, 255, 226)
+local BOW_AIM_SNAP_RADIUS = 8
+local BOW_NOTIFY_COOLDOWN = 0.45
+local BOW_AIM_VERTICAL_COMPENSATION = -1.15
+local bowNoAmmoNotifyAt = 0
+local bowIncompleteNotifyAt = 0
 
 --========================================
 -- Internal Functions
@@ -51,8 +89,630 @@ local function getEquippedToolType(): string?
 	return nil
 end
 
+local function getEquippedItemData()
+	local selectedSlot = UIManager.getSelectedSlot and UIManager.getSelectedSlot() or nil
+	if not selectedSlot then return nil end
+	local InventoryController = require(Client.Controllers.InventoryController)
+	local slotData = InventoryController.getSlot(selectedSlot)
+	if not slotData or not slotData.itemId then return nil end
+	for _, v in ipairs(itemDataTable) do
+		if v.id == slotData.itemId then
+			return v
+		end
+	end
+	return nil
+end
+
+local function isBowWeapon(itemData, toolType: string?): boolean
+	local upperTool = string.upper(tostring(toolType or ""))
+	if upperTool:find("BOW", 1, true) then
+		return true
+	end
+	if not itemData then return false end
+	local itemId = string.upper(tostring(itemData.id or ""))
+	if itemId:find("BOW", 1, true) then
+		return true
+	end
+	local opt = string.upper(tostring(itemData.optimalTool or ""))
+	return opt == "BOW" or opt == "CROSSBOW"
+end
+
+local function getBowMuzzleOrigin(): Vector3?
+	local character = player.Character
+	if not character then return nil end
+
+	local tool = character:FindFirstChildOfClass("Tool")
+	if tool then
+		local handle = tool:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			return handle.Position
+		end
+	end
+
+	local rightHand = character:FindFirstChild("RightHand")
+	if rightHand and rightHand:IsA("BasePart") then
+		return rightHand.Position
+	end
+	local rightArm = character:FindFirstChild("Right Arm")
+	if rightArm and rightArm:IsA("BasePart") then
+		return rightArm.Position
+	end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		return hrp.Position + Vector3.new(0, 1.35, 0)
+	end
+	return character:GetPivot().Position
+end
+
+local function getBowForwardDirection(): Vector3
+	local character = player.Character
+	if not character then
+		return Vector3.new(0, 0, -1)
+	end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local refForward = (hrp and hrp:IsA("BasePart") and hrp.CFrame.LookVector) or character:GetPivot().LookVector
+	refForward = Vector3.new(refForward.X, 0, refForward.Z)
+	if refForward.Magnitude <= 0.001 then
+		refForward = Vector3.new(0, 0, -1)
+	end
+	refForward = refForward.Unit
+
+	local tool = character:FindFirstChildOfClass("Tool")
+	if tool then
+		local handle = tool:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			local candidates = {
+				handle.CFrame.LookVector,
+				handle.CFrame.RightVector,
+				handle.CFrame.UpVector,
+				-handle.CFrame.LookVector,
+				-handle.CFrame.RightVector,
+				-handle.CFrame.UpVector,
+			}
+			local best = refForward
+			local bestDot = -1
+			for _, v in ipairs(candidates) do
+				local u = v.Unit
+				local d = refForward:Dot(u)
+				if d > bestDot then
+					bestDot = d
+					best = u
+				end
+			end
+			best = Vector3.new(best.X, 0, best.Z)
+			if best.Magnitude <= 0.001 then
+				return refForward
+			end
+			return best.Unit
+		end
+	end
+
+	return refForward
+end
+
+local function resolveMouseTargetCenter(fallbackHitPos: Vector3?): Vector3?
+	local target = InputManager.getMouseTarget()
+	if target then
+		local model = target:FindFirstAncestorWhichIsA("Model")
+		if model and model ~= player.Character then
+			return model:GetPivot().Position
+		end
+		if target:IsA("BasePart") then
+			return target.Position
+		end
+	end
+	return fallbackHitPos
+end
+
+local function notifyBowNoAmmo()
+	local now = tick()
+	if now - bowNoAmmoNotifyAt < BOW_NOTIFY_COOLDOWN then
+		return
+	end
+	bowNoAmmoNotifyAt = now
+	UIManager.notify("화살이 없습니다.", Color3.fromRGB(255, 150, 80))
+end
+
+local function notifyBowIncomplete()
+	local now = tick()
+	if now - bowIncompleteNotifyAt < BOW_NOTIFY_COOLDOWN then
+		return
+	end
+	bowIncompleteNotifyAt = now
+	UIManager.notify("조준이 완료되지 않았습니다.", Color3.fromRGB(255, 210, 120))
+end
+
+local function resolveNearbyAimSnap(basePos: Vector3, origin: Vector3): Vector3?
+	local creaturesFolder = workspace:FindFirstChild("ActiveCreatures") or workspace:FindFirstChild("Creatures")
+	if not creaturesFolder then
+		return nil
+	end
+
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Include
+	overlap.FilterDescendantsInstances = { creaturesFolder }
+	local parts = workspace:GetPartBoundsInRadius(basePos, BOW_AIM_SNAP_RADIUS, overlap)
+
+	local bestPos = nil
+	local bestDist = math.huge
+	for _, p in ipairs(parts) do
+		local model = p:FindFirstAncestorWhichIsA("Model")
+		if model and model:GetAttribute("InstanceId") then
+			local pos = model:GetPivot().Position
+			local d = (pos - basePos).Magnitude
+			if d < bestDist and (pos - origin).Magnitude <= BOW_AIM_RAYCAST_DISTANCE then
+				bestDist = d
+				bestPos = pos
+			end
+		end
+	end
+
+	return bestPos
+end
+
+local function getMouseAimTarget(origin: Vector3): Vector3?
+	local _, pos = InputManager.raycastFromMouse(nil, BOW_AIM_RAYCAST_DISTANCE)
+	if pos then
+		local snap = resolveNearbyAimSnap(pos, origin)
+		return snap or pos
+	end
+
+	local camera = workspace.CurrentCamera
+	if camera then
+		local mouse = player:GetMouse()
+		local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+		local fallback = ray.Origin + (ray.Direction * 300)
+		local snap = resolveNearbyAimSnap(fallback, origin)
+		return snap or fallback
+	end
+
+	return nil
+end
+
+local function getAmmoForWeapon(itemId: string?): string?
+	local upper = string.upper(tostring(itemId or ""))
+	if upper == "WOODEN_BOW" then return "STONE_ARROW" end
+	if upper == "BRONZE_BOW" then return "BRONZE_ARROW" end
+	if upper == "CROSSBOW" then return "IRON_BOLT" end
+	return nil
+end
+
+local function hasRequiredBowAmmo(itm): boolean
+	if not itm or not itm.id then
+		return false
+	end
+	local ammoId = getAmmoForWeapon(itm.id)
+	if not ammoId then
+		return true
+	end
+	local InventoryController = require(Client.Controllers.InventoryController)
+	local counts = InventoryController.getItemCounts and InventoryController.getItemCounts() or nil
+	if not counts then
+		return false
+	end
+	return (tonumber(counts[ammoId]) or 0) > 0
+end
+
+local function getLiveBowAimDirection(origin: Vector3): Vector3
+	local targetPos = getMouseAimTarget(origin)
+	if targetPos then
+		targetPos = targetPos + Vector3.new(0, BOW_AIM_VERTICAL_COMPENSATION, 0)
+		local dir = targetPos - origin
+		if dir.Magnitude > 0.001 then
+			return dir.Unit
+		end
+	end
+	return getBowForwardDirection()
+end
+
+local function orientCharacterToAim(direction: Vector3)
+	local character = player.Character
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not (hrp and hrp:IsA("BasePart")) then return end
+
+	local flat = Vector3.new(direction.X, 0, direction.Z)
+	if flat.Magnitude <= 0.001 then return end
+	flat = flat.Unit
+
+	local pos = hrp.Position
+	hrp.CFrame = CFrame.lookAt(pos, pos + flat)
+end
+
+local function clearBowPreview()
+	if bowPreviewLinePart and bowPreviewLinePart.Parent then
+		bowPreviewLinePart:Destroy()
+	end
+	if bowPreviewTipPart and bowPreviewTipPart.Parent then
+		bowPreviewTipPart:Destroy()
+	end
+	bowPreviewLinePart = nil
+	bowPreviewTipPart = nil
+	bowPredictedOrigin = nil
+	bowPredictedDirection = nil
+	bowPredictedHitPos = nil
+	bowPredictedChargeRatio = 0
+	bowPredictedHeldSec = 0
+end
+
+local function hideBowPreviewVisuals()
+	if bowPreviewLinePart and bowPreviewLinePart.Parent then
+		bowPreviewLinePart:Destroy()
+	end
+	if bowPreviewTipPart and bowPreviewTipPart.Parent then
+		bowPreviewTipPart:Destroy()
+	end
+	bowPreviewLinePart = nil
+	bowPreviewTipPart = nil
+end
+
+local function ensureBowPreviewParts()
+	if not bowPreviewLinePart then
+		local line = Instance.new("Part")
+		line.Name = "BowGhostLine"
+		line.Anchored = true
+		line.CanCollide = false
+		line.CanQuery = false
+		line.CanTouch = false
+		line.Material = Enum.Material.Neon
+		line.Color = BOW_GHOST_LINE_COLOR
+		line.Transparency = 0.82
+		line.Size = Vector3.new(BOW_PREVIEW_WIDTH, BOW_PREVIEW_WIDTH, 1)
+		line.Parent = workspace
+		bowPreviewLinePart = line
+	end
+
+	if not bowPreviewTipPart then
+		local tip = Instance.new("Part")
+		tip.Name = "BowGhostTip"
+		tip.Anchored = true
+		tip.CanCollide = false
+		tip.CanQuery = false
+		tip.CanTouch = false
+		tip.Material = Enum.Material.Neon
+		tip.Color = BOW_GHOST_TIP_COLOR
+		tip.Transparency = 0.7
+		tip.Size = Vector3.new(0.22, 0.22, 0.22)
+		tip.Shape = Enum.PartType.Ball
+		tip.Parent = workspace
+		bowPreviewTipPart = tip
+	end
+end
+
+local function updateBowPreview(itm)
+	if not bowDrawActive then
+		clearBowPreview()
+		return
+	end
+
+	local origin = getBowMuzzleOrigin()
+	if not origin then
+		clearBowPreview()
+		return
+	end
+	local direction = getLiveBowAimDirection(origin)
+	orientCharacterToAim(direction)
+	local heldSec = math.max(0, tick() - bowDrawStartedAt)
+	local minAimTime = math.max(0.05, tonumber(itm and itm.minAimTime) or DEFAULT_MIN_AIM_TIME)
+	local maxChargeTime = math.max(minAimTime + 0.1, tonumber(itm and itm.maxChargeTime) or DEFAULT_MAX_CHARGE_TIME)
+	local chargeRatio = math.clamp((heldSec - minAimTime) / (maxChargeTime - minAimTime), 0, 1)
+	local maxRange = tonumber(itm and (itm.maxRange or itm.range)) or 120
+	local minRange = math.max(8, tonumber(itm and itm.minRange) or math.floor(maxRange * 0.25))
+	local effectiveRange = minRange + ((maxRange - minRange) * chargeRatio)
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = { player.Character }
+	local rayResult = workspace:Raycast(origin, direction * effectiveRange, rayParams)
+	local hitPos = rayResult and rayResult.Position or (origin + (direction * effectiveRange))
+
+	bowPredictedOrigin = origin
+	bowPredictedDirection = direction
+	bowPredictedHitPos = hitPos
+	bowPredictedChargeRatio = chargeRatio
+	bowPredictedHeldSec = math.min(heldSec, maxChargeTime)
+
+	-- 요구사항: DRAW 애니메이션이 완료되기 전에는 조준선을 표시하지 않는다.
+	if not bowDrawReadyToFire then
+		hideBowPreviewVisuals()
+		return
+	end
+
+	ensureBowPreviewParts()
+	if bowPreviewLinePart then
+		local distance = math.max(BOW_PREVIEW_MIN_DISTANCE, (hitPos - origin).Magnitude)
+		bowPreviewLinePart.Size = Vector3.new(BOW_PREVIEW_WIDTH, BOW_PREVIEW_WIDTH, distance)
+		local mid = origin:Lerp(hitPos, 0.5)
+		bowPreviewLinePart.CFrame = CFrame.lookAt(mid, hitPos)
+	end
+	if bowPreviewTipPart then
+		bowPreviewTipPart.Position = hitPos
+	end
+end
+
+local function beginBowDraw(pressedHitPos: Vector3?)
+	if bowDrawActive or InputManager.isUIOpen() then
+		return
+	end
+	local itm = getEquippedItemData()
+	if isBowWeapon(itm, getEquippedToolType()) and not hasRequiredBowAmmo(itm) then
+		notifyBowNoAmmo()
+		return
+	end
+	bowDrawActive = true
+	bowDrawStartedAt = tick()
+	bowDrawPressedHitPos = pressedHitPos
+	bowDrawPressedTargetCenter = resolveMouseTargetCenter(pressedHitPos)
+	bowDrawPassedHalf = false
+	bowDrawReadyToFire = false
+	clearBowPreview()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChild("Humanoid")
+	if humanoid then
+		bowPreviousAutoRotate = humanoid.AutoRotate
+		humanoid.AutoRotate = false
+	end
+	if currentBowDrawConn then
+		currentBowDrawConn:Disconnect()
+		currentBowDrawConn = nil
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChild("Humanoid")
+	if humanoid and AnimationIds.ATTACK_BOW and AnimationIds.ATTACK_BOW.DRAW then
+		local equippedBow = getEquippedItemData()
+		local track = AnimationManager.play(humanoid, AnimationIds.ATTACK_BOW.DRAW, 0.05)
+		if track then
+			track.TimePosition = 0
+			track.Priority = Enum.AnimationPriority.Action
+			track.Looped = false
+			track:AdjustSpeed(BOW_DRAW_FRONT_SPEED)
+			currentBowDrawTrack = track
+
+			currentBowDrawConn = RunService.RenderStepped:Connect(function()
+				updateBowPreview(equippedBow)
+				if not bowDrawActive then
+					return
+				end
+
+				if not currentBowDrawTrack then
+					return
+				end
+				if not currentBowDrawTrack.IsPlaying then
+					if currentBowDrawConn then
+						currentBowDrawConn:Disconnect()
+						currentBowDrawConn = nil
+					end
+					return
+				end
+
+				local length = currentBowDrawTrack.Length
+				if length <= 0 then
+					return
+				end
+
+				if (not bowDrawPassedHalf) and currentBowDrawTrack.TimePosition >= (length * BOW_DRAW_FRONT_RATIO) then
+					bowDrawPassedHalf = true
+					currentBowDrawTrack:AdjustSpeed(BOW_DRAW_HOLD_SPEED)
+				end
+
+				if currentBowDrawTrack.TimePosition >= (length - BOW_DRAW_END_EPSILON) then
+					bowDrawReadyToFire = true
+					currentBowDrawTrack.TimePosition = math.max(0, length - BOW_DRAW_END_EPSILON)
+					currentBowDrawTrack:AdjustSpeed(0)
+				end
+			end)
+		end
+	end
+end
+
+local playAttackAnimation
+local spawnArrowTracer
+
+local function endBowDraw(releaseHitPos: Vector3?)
+	if not bowDrawActive then
+		return
+	end
+	bowDrawActive = false
+	if currentBowDrawConn then
+		currentBowDrawConn:Disconnect()
+		currentBowDrawConn = nil
+	end
+	local predictedOrigin = bowPredictedOrigin
+	local predictedDirection = bowPredictedDirection
+	local predictedHitPos = bowPredictedHitPos
+	local predictedChargeRatio = bowPredictedChargeRatio
+	local predictedHeldSec = bowPredictedHeldSec
+	clearBowPreview()
+	bowDrawPassedHalf = false
+	local canFire = bowDrawReadyToFire
+	bowDrawReadyToFire = false
+	local character = player.Character
+	local humanoid = character and character:FindFirstChild("Humanoid")
+	if humanoid then
+		humanoid.AutoRotate = (bowPreviousAutoRotate ~= nil) and bowPreviousAutoRotate or true
+	end
+	bowPreviousAutoRotate = nil
+	if currentBowDrawTrack and currentBowDrawTrack.IsPlaying then
+		currentBowDrawTrack:Stop(0.04)
+	end
+	currentBowDrawTrack = nil
+	if not canFire then
+		notifyBowIncomplete()
+		bowDrawStartedAt = 0
+		bowDrawPressedHitPos = nil
+		bowDrawPressedTargetCenter = nil
+		return
+	end
+
+	local itm = getEquippedItemData()
+	if not isBowWeapon(itm, getEquippedToolType()) then
+		bowDrawStartedAt = 0
+		bowDrawPressedHitPos = nil
+		bowDrawPressedTargetCenter = nil
+		return
+	end
+
+	local heldSec = predictedHeldSec > 0 and predictedHeldSec or math.max(0, tick() - bowDrawStartedAt)
+	bowDrawStartedAt = 0
+
+	local minAimTime = math.max(0.05, tonumber(itm and itm.minAimTime) or DEFAULT_MIN_AIM_TIME)
+	local maxChargeTime = math.max(minAimTime + 0.1, tonumber(itm and itm.maxChargeTime) or DEFAULT_MAX_CHARGE_TIME)
+	if heldSec < minAimTime then
+		bowDrawPressedHitPos = nil
+		bowDrawPressedTargetCenter = nil
+		return
+	end
+
+	local chargeRatio = math.clamp((heldSec - minAimTime) / (maxChargeTime - minAimTime), 0, 1)
+	local maxRange = tonumber(itm and (itm.maxRange or itm.range)) or 120
+	local minRange = math.max(8, tonumber(itm and itm.minRange) or math.floor(maxRange * 0.25))
+	local effectiveRange = minRange + ((maxRange - minRange) * chargeRatio)
+
+	local origin = getBowMuzzleOrigin()
+	if not origin then
+		bowDrawPressedHitPos = nil
+		return
+	end
+
+	bowDrawPressedHitPos = nil
+	bowDrawPressedTargetCenter = nil
+
+	local direction = getLiveBowAimDirection(origin)
+
+	local aimHitPos = predictedHitPos
+	if not aimHitPos then
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		rayParams.FilterDescendantsInstances = { player.Character }
+		local rayResult = workspace:Raycast(origin, direction * effectiveRange, rayParams)
+		aimHitPos = rayResult and rayResult.Position or (origin + (direction * effectiveRange))
+	end
+
+	if predictedDirection and predictedDirection.Magnitude > 0.001 then
+		direction = predictedDirection
+	end
+	if predictedOrigin then
+		origin = predictedOrigin
+	end
+	if predictedChargeRatio > 0 then
+		chargeRatio = predictedChargeRatio
+	end
+
+	local ok, errorOrData = NetClient.Request("Combat.Hit.Request", {
+		targetId = nil,
+		toolSlot = UIManager.getSelectedSlot(),
+		bowShot = true,
+		chargeRatio = chargeRatio,
+		aimDirection = { x = direction.X, y = direction.Y, z = direction.Z },
+		aimOrigin = { x = origin.X, y = origin.Y, z = origin.Z },
+		heldSec = heldSec,
+	})
+
+	if not ok then
+		if errorOrData == Enums.ErrorCode.MISSING_REQUIREMENTS then
+			notifyBowNoAmmo()
+		elseif errorOrData == Enums.ErrorCode.INVALID_STATE then
+			UIManager.notify("조건이 맞지 않아 발사되지 않았습니다.", Color3.fromRGB(255, 140, 100))
+		end
+		return
+	end
+
+	spawnArrowTracer(aimHitPos, origin, direction)
+end
+
+spawnArrowTracer = function(targetPos: Vector3?, startPos: Vector3?, directionOverride: Vector3?)
+	if not targetPos then return end
+	if not startPos then
+		local camera = workspace.CurrentCamera
+		if camera then
+			startPos = camera.CFrame.Position
+		else
+			local character = player.Character
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			startPos = hrp.Position + Vector3.new(0, 1.45, 0)
+		end
+	end
+
+	local direction = directionOverride
+	if not direction or direction.Magnitude < 0.001 then
+		direction = targetPos - startPos
+	end
+	if direction.Magnitude < 0.001 then
+		direction = Vector3.new(0, 0, -1)
+	end
+	direction = direction.Unit
+
+	local distance = (targetPos - startPos).Magnitude
+	local travel = math.clamp(distance / 42, 0.55, 1.9)
+	local finalPos = startPos + (direction * distance)
+
+	local visual: Instance? = nil
+	local isModelVisual = false
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local itemModels = assets and (assets:FindFirstChild("ItemModels") or assets:FindFirstChild("Models"))
+	local template = itemModels and (itemModels:FindFirstChild("ARROW_PROJECTILE") or itemModels:FindFirstChild("ArrowProjectile") or itemModels:FindFirstChild("ARROW"))
+
+	if template and (template:IsA("Model") or template:IsA("BasePart") or template:IsA("MeshPart")) then
+		visual = template:Clone()
+		if visual:IsA("Model") then
+			isModelVisual = true
+			for _, d in ipairs(visual:GetDescendants()) do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+					d.CanCollide = false
+					d.CanQuery = false
+					d.CanTouch = false
+				end
+			end
+		elseif visual:IsA("BasePart") then
+			visual.Anchored = true
+			visual.CanCollide = false
+			visual.CanQuery = false
+			visual.CanTouch = false
+		end
+		visual.Parent = workspace
+	else
+		local part = Instance.new("Part")
+		part.Name = "ArrowTracer"
+		part.Size = Vector3.new(0.15, 0.15, 1.4)
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Material = Enum.Material.Neon
+		part.Color = Color3.fromRGB(245, 215, 120)
+		part.CFrame = CFrame.lookAt(startPos, startPos + direction)
+		part.Parent = workspace
+		visual = part
+	end
+
+	task.spawn(function()
+		local t0 = tick()
+		while true do
+			local alpha = math.clamp((tick() - t0) / travel, 0, 1)
+			local pos = startPos:Lerp(finalPos, alpha)
+			if visual then
+				local cf = CFrame.lookAt(pos, pos + direction)
+				if isModelVisual and visual:IsA("Model") then
+					visual:PivotTo(cf * ARROW_MODEL_ROTATION_OFFSET)
+				elseif visual:IsA("BasePart") then
+					visual.CFrame = cf * ARROW_MODEL_ROTATION_OFFSET
+				end
+			end
+			if alpha >= 1 then break end
+			task.wait()
+		end
+		if visual and visual.Parent then
+			visual:Destroy()
+		end
+	end)
+end
+
 --- 공격 애니메이션 재생
-local function playAttackAnimation(isHit: boolean)
+playAttackAnimation = function(isHit: boolean)
 	local character = player.Character
 	if not character then return end
 	
@@ -182,11 +842,17 @@ local function findTarget()
 	
 	-- 도구별 사거리 결정
 	local toolType = getEquippedToolType()
+	local equippedItem = getEquippedItemData()
 	local reach = Balance.REACH_BAREHAND or 10
 	if toolType == "SPEAR" then
 		reach = Balance.REACH_SPEAR or 16
 	elseif toolType == "AXE" or toolType == "PICKAXE" or toolType == "CLUB" then
 		reach = Balance.REACH_TOOL or 12
+	end
+	if equippedItem and equippedItem.range then
+		reach = math.max(reach, equippedItem.range)
+	elseif isBowWeapon(equippedItem, toolType) then
+		reach = math.max(reach, 120)
 	end
 
 	-- 1. 캐릭터 주변 엔티티 탐색 (Sphere)
@@ -238,25 +904,51 @@ local function findTarget()
 			
 			-- 마우스로 직접 찍은 경우 정면 판정 완화 (히트박스 우선)
 			if mDist <= reach + 8 then
+				if mType ~= "creature" then
+					local nearestCreature = nil
+					local nearestDist = math.huge
+					for _, data in pairs(reachableTargets) do
+						if data.type == "creature" and data.dist < nearestDist then
+							nearestDist = data.dist
+							nearestCreature = data
+						end
+					end
+					if nearestCreature then
+						return nearestCreature.model, nearestCreature.pos, nearestCreature.id, nearestCreature.type
+					end
+				end
 				return mModel, mPos, mId, mType
 			end
 		end
 	end
 
 	-- [우선순위 2] 정면에서 가장 가깝거나 점수가 높은 대상
-	local bestTarget = nil
-	local minScore = math.huge
+	local bestCreature = nil
+	local bestCreatureScore = math.huge
+	local bestOther = nil
+	local bestOtherScore = math.huge
 	
 	for id, data in pairs(reachableTargets) do
 		local score = data.dist * (1 + data.angle / 45)
-		if score < minScore then
-			minScore = score
-			bestTarget = data
+		if data.type == "creature" then
+			if score < bestCreatureScore then
+				bestCreatureScore = score
+				bestCreature = data
+			end
+		else
+			if score < bestOtherScore then
+				bestOtherScore = score
+				bestOther = data
+			end
 		end
 	end
 
-	if bestTarget then
-		return bestTarget.model, bestTarget.pos, bestTarget.id, bestTarget.type
+	if bestCreature then
+		return bestCreature.model, bestCreature.pos, bestCreature.id, bestCreature.type
+	end
+
+	if bestOther then
+		return bestOther.model, bestOther.pos, bestOther.id, bestOther.type
 	end
 
 	return nil
@@ -280,7 +972,8 @@ end
 --========================================
 
 --- 공격 실행
-function CombatController.attack()
+function CombatController.attack(attackMeta)
+	attackMeta = attackMeta or {}
 	-- UI가 열려있으면 무시
 	if InputManager.isUIOpen() then
 		return
@@ -290,14 +983,8 @@ function CombatController.attack()
 	local selectedSlot = UIManager.getSelectedSlot()
 	local InventoryController = require(Client.Controllers.InventoryController)
 	local slotData = InventoryController.getSlot(selectedSlot)
-	local itm = nil
-	
-	if slotData then
-		local ItemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
-		for _, v in ipairs(ItemData) do
-			if v.id == slotData.itemId then itm = v; break end
-		end
-	end
+	local itm = getEquippedItemData()
+	local isBow = isBowWeapon(itm, getEquippedToolType())
 	
 	-- 2. 도구별 동적 쿨다운 결정
 	local dynamicCooldown = ATTACK_COOLDOWN -- 기본 0.5초
@@ -320,6 +1007,11 @@ function CombatController.attack()
 			AnimationManager.play(humanoid, AnimationIds.CONSUME.EAT)
 		end
 		InventoryController.requestUse(selectedSlot)
+		return
+	end
+
+	if isBow then
+		-- 활은 홀드-릴리즈 입력 경로에서만 발사한다.
 		return
 	end
 	
@@ -467,7 +1159,43 @@ function CombatController.Init()
 	
 	-- 좌클릭 = 공격
 	InputManager.onLeftClick("CombatAttack", function(hitPos)
+		local itm = getEquippedItemData()
+		if isBowWeapon(itm, getEquippedToolType()) then
+			beginBowDraw(hitPos)
+			return
+		end
 		CombatController.attack()
+	end)
+
+	UserInputService.InputEnded:Connect(function(input, _gameProcessed)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			endBowDraw(nil)
+		end
+	end)
+
+	UserInputService.WindowFocusReleased:Connect(function()
+				local character = player.Character
+				local humanoid = character and character:FindFirstChild("Humanoid")
+				if humanoid then
+					humanoid.AutoRotate = (bowPreviousAutoRotate ~= nil) and bowPreviousAutoRotate or true
+				end
+				bowPreviousAutoRotate = nil
+		bowDrawActive = false
+		bowDrawReadyToFire = false
+		clearBowPreview()
+		bowDrawStartedAt = 0
+		bowDrawPressedHitPos = nil
+		bowDrawPressedTargetCenter = nil
+	end)
+
+	player.CharacterAdded:Connect(function()
+				bowPreviousAutoRotate = nil
+		bowDrawActive = false
+		bowDrawReadyToFire = false
+		clearBowPreview()
+		bowDrawStartedAt = 0
+		bowDrawPressedHitPos = nil
+		bowDrawPressedTargetCenter = nil
 	end)
 	
 	initialized = true

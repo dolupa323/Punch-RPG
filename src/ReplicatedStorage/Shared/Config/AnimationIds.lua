@@ -45,6 +45,10 @@ AnimationIds.BOLA = {
 	THROW = "AttackBola_Throw",
 }
 
+AnimationIds.ATTACK_BOW = {
+	DRAW = "AttackBow_Draw",
+}
+
 --========================================
 -- 채집 애니메이션
 --========================================

@@ -1522,6 +1522,10 @@ function UIManager.refreshFacility()
 			if d.health and d.maxHealth then
 				FacilityUI.UpdateHealth(d.health, d.maxHealth)
 			end
+		elseif fInfo == "OUT_OF_RANGE" then
+			UIManager.notify("시설과 거리가 멀어 창을 닫았습니다.", C.RED)
+			UIManager.closeFacility()
+			return
 		end
 
 		FacilityUI.Refresh(recipes, UIManager.getItemIcon, UIManager)
@@ -1547,36 +1551,42 @@ function UIManager._onFacilityRecipeClick(recipe)
 	FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, UIManager.getItemIcon, canCraft)
 end
 
-function UIManager._onStartFacilityCraft(recipe)
+function UIManager._onStartFacilityCraft(recipe, count)
 	if not currentFacilityStructureId then return end
+	local batchCount = tonumber(count) or 1
+	batchCount = math.max(1, math.floor(batchCount))
 	
 	task.spawn(function()
-		local success, errorCode, data = NetClient.Request("Craft.Start.Request", {
+		local success, response = NetClient.Request("Craft.Start.Request", {
 			recipeId = recipe.id,
-			structureId = currentFacilityStructureId
+			structureId = currentFacilityStructureId,
+			count = batchCount,
 		})
 		
 		if success then
-			UIManager.notify("제작 의뢰 완료!", C.GOLD)
+			UIManager.notify(string.format("제작 의뢰 완료! x%d", batchCount), C.GOLD)
 			UIManager.refreshFacility() -- Refresh to show in queue
 		else
-			UIManager.notify("제작 실패: " .. (errorCode or "알 수 없는 오류"), C.RED)
+			UIManager.notify("제작 실패: " .. (response or "알 수 없는 오류"), C.RED)
 		end
 	end)
 end
 
-function UIManager._onCollectFacilityCraft(craftId)
+function UIManager._onCollectFacilityCraft(craftId, collectCount)
 	task.spawn(function()
-		local success, errorCode, data = NetClient.Request("Craft.Collect.Request", {
-			craftId = craftId
+		local success, response = NetClient.Request("Craft.Collect.Request", {
+			craftId = craftId,
+			count = collectCount,
 		})
 		
 		if success then
-			UIManager.notify("수령 완료!", C.GOLD)
+			local data = response
+			local got = tonumber(data and data.collectedCount) or 1
+			UIManager.notify(string.format("수령 완료! x%d", got), C.GOLD)
 			UIManager.refreshFacility()
 			UIManager.refreshInventory()
 		else
-			UIManager.notify("수령 실패: " .. (errorCode or "알 수 없는 오류"), C.RED)
+			UIManager.notify("수령 실패: " .. (response or "알 수 없는 오류"), C.RED)
 		end
 	end)
 end

@@ -169,6 +169,74 @@ local function consumeMaterials(userId: number, inputs: { any }): boolean
 	return true
 end
 
+local function scaleInputs(inputs: { any }, multiplier: number): { any }
+	local out = {}
+	for _, input in ipairs(inputs or {}) do
+		table.insert(out, {
+			itemId = input.itemId,
+			count = (input.count or 0) * multiplier,
+		})
+	end
+	return out
+end
+
+local function getBatchCount(entry: any): number
+	return math.max(1, tonumber(entry and entry.batchCount) or 1)
+end
+
+local function getUnitDuration(entry: any): number
+	local unit = tonumber(entry and entry.unitDuration)
+	if unit and unit > 0 then
+		return math.max(1, math.floor(unit))
+	end
+	local total = tonumber(entry and entry.totalDuration) or 0
+	return math.max(1, math.floor(total / getBatchCount(entry)))
+end
+
+local function syncEntryProgress(entry: any, now: number?): number
+	now = now or os.time()
+	if not entry then return 0 end
+
+	local batchCount = getBatchCount(entry)
+	entry.completedCount = math.max(0, math.min(batchCount, tonumber(entry.completedCount) or 0))
+	entry.collectedCount = math.max(0, math.min(batchCount, tonumber(entry.collectedCount) or 0))
+
+	if entry.completedCount >= batchCount then
+		entry.nextCompleteAt = nil
+		entry.completesAt = entry.startedAt + (getUnitDuration(entry) * batchCount)
+		if entry.collectedCount >= batchCount then
+			entry.state = Enums.CraftState.COMPLETED
+		else
+			entry.state = Enums.CraftState.PENDING_COLLECT
+		end
+		return 0
+	end
+
+	local unitDuration = getUnitDuration(entry)
+	entry.nextCompleteAt = tonumber(entry.nextCompleteAt) or (entry.startedAt + unitDuration)
+
+	local produced = 0
+	while entry.completedCount < batchCount and now >= entry.nextCompleteAt do
+		entry.completedCount = entry.completedCount + 1
+		produced = produced + 1
+		entry.nextCompleteAt = entry.nextCompleteAt + unitDuration
+	end
+
+	entry.completesAt = entry.startedAt + (unitDuration * batchCount)
+	if entry.completedCount >= batchCount then
+		entry.nextCompleteAt = nil
+		if entry.collectedCount >= batchCount then
+			entry.state = Enums.CraftState.COMPLETED
+		else
+			entry.state = Enums.CraftState.PENDING_COLLECT
+		end
+	else
+		entry.state = Enums.CraftState.CRAFTING
+	end
+
+	return produced
+end
+
 --========================================
 -- Internal: 이벤트 발행
 --========================================
@@ -246,8 +314,9 @@ end
 --========================================
 -- Public API: 제작 시작
 --========================================
-function CraftingService.start(player: Player, recipeId: string, structureId: string?)
+function CraftingService.start(player: Player, recipeId: string, structureId: string?, count: number?)
 	local userId = player.UserId
+	local craftCount = math.max(1, math.floor(tonumber(count) or 1))
 	
 	-- 1. 레시피 존재 여부
 	local recipe = DataService.getRecipe(recipeId)
@@ -272,7 +341,8 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	end
 	
 	-- 4. 재료 보유 검증
-	local matOk, matErr = validateMaterials(player, recipe.inputs)
+	local requiredInputs = scaleInputs(recipe.inputs, craftCount)
+	local matOk, matErr = validateMaterials(player, requiredInputs)
 	if not matOk then
 		return false, matErr, nil
 	end
@@ -285,12 +355,20 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 		local structure = BuildService.get(structureId)
 		if structure then context.facilityId = structure.facilityId end
 	end
-	local realCraftTime = RecipeService.calculateCraftTime(recipeId, context)
+	local perCraftTime = RecipeService.calculateCraftTime(recipeId, context)
+	local perUnitDuration = perCraftTime
+
+	-- 기초작업대 이상 제작물은 체감 제작 시간이 나도록 최소 시간 보장
+	if recipe.requiredFacility and recipe.requiredFacility ~= "COOKING" then
+		perUnitDuration = math.max(3, math.floor(perUnitDuration * 1.35 + 0.5))
+	end
+	perUnitDuration = math.max(0, math.floor(perUnitDuration))
+	local realCraftTime = perUnitDuration * craftCount
 	
 	-- 5. 인벤토리 여유 검증 (즉시제작일 때만 사전 체크)
 	if realCraftTime == 0 then
 		for _, output in ipairs(recipe.outputs) do
-			local canAdd = InventoryService.canAdd(userId, output.itemId, output.count)
+			local canAdd = InventoryService.canAdd(userId, output.itemId, output.count * craftCount)
 			if not canAdd then
 				return false, Enums.ErrorCode.INV_FULL, nil
 			end
@@ -300,7 +378,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	-- === 실행 단계 ===
 	
 	-- 6. 재료 차감
-	local consumed = consumeMaterials(userId, recipe.inputs)
+	local consumed = consumeMaterials(userId, requiredInputs)
 	if not consumed then
 		return false, Enums.ErrorCode.INTERNAL_ERROR, nil
 	end
@@ -308,7 +386,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	-- 7. 즉시 제작
 	if realCraftTime <= 0 then -- Changed from == 0 to <= 0
 		for _, output in ipairs(recipe.outputs) do
-			InventoryService.addItem(userId, output.itemId, output.count)
+			InventoryService.addItem(userId, output.itemId, output.count * craftCount)
 		end
 		
 		-- Phase 6: XP 보상
@@ -324,6 +402,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 		local resultData = {
 			recipeId = recipeId,
 			outputs = recipe.outputs,
+			batchCount = craftCount,
 			instant = true,
 		}
 		
@@ -343,7 +422,13 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 		structureId = structureId,
 		userId = userId,
 		startedAt = now,
+		nextCompleteAt = now + math.max(1, perUnitDuration),
 		completesAt = now + realCraftTime,
+		batchCount = craftCount,
+		completedCount = 0,
+		collectedCount = 0,
+		unitDuration = math.max(1, perUnitDuration),
+		totalDuration = realCraftTime,
 		state = Enums.CraftState.CRAFTING,
 	}
 	
@@ -353,8 +438,11 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	local startData = {
 		craftId = craftId,
 		recipeId = recipeId,
+		batchCount = craftCount,
+		perCraftTime = perCraftTime,
 		craftTime = realCraftTime,
 		completesAt = craftEntry.completesAt,
+		totalDuration = realCraftTime,
 		structureId = structureId,
 	}
 	
@@ -362,8 +450,8 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	
 	emitCraftEvent("Craft.Started", player, startData)
 	
-	print(string.format("[CraftingService] Queued craft %s (%s) for player %d, completes in %ds",
-		craftId, recipeId, player.UserId, realCraftTime))
+	print(string.format("[CraftingService] Queued craft %s (%s x%d) for player %d, completes in %ds",
+		craftId, recipeId, craftCount, player.UserId, realCraftTime))
 	return true, nil, startData
 end
 
@@ -389,8 +477,9 @@ function CraftingService.cancel(player: Player, craftId: string)
 	local recipe = DataService.getRecipe(entry.recipeId)
 	if recipe and Balance.CRAFT_CANCEL_REFUND > 0 then
 		local pPos = getPlayerPosition(player)
+		local batchCount = math.max(1, tonumber(entry.batchCount) or 1)
 		for _, input in ipairs(recipe.inputs) do
-			local refundCount = math.floor(input.count * Balance.CRAFT_CANCEL_REFUND)
+			local refundCount = math.floor((input.count * batchCount) * Balance.CRAFT_CANCEL_REFUND)
 			if refundCount > 0 then
 				local added, remaining = InventoryService.addItem(userId, input.itemId, refundCount)
 				
@@ -422,7 +511,7 @@ end
 --========================================
 -- Public API: 완성품 수거
 --========================================
-function CraftingService.collect(player: Player, craftId: string)
+function CraftingService.collect(player: Player, craftId: string, count: number?)
 	local userId = player.UserId
 	local queue = craftQueues[userId]
 	
@@ -431,22 +520,24 @@ function CraftingService.collect(player: Player, craftId: string)
 	end
 	
 	local entry = queue[craftId]
-	
-	-- Lazy Update: 완료 시간 확인
 	local now = os.time()
-	if entry.state == Enums.CraftState.CRAFTING and now >= entry.completesAt then
-		entry.state = Enums.CraftState.PENDING_COLLECT
-	end
+	syncEntryProgress(entry, now)
 	
 	-- 1. 아직 해금 상태인지 재검증 (장기적 리뉴얼을 위해 일시 제거)
 	-- if TechService and not TechService.isRecipeUnlocked(userId, entry.recipeId) then
 	-- 	return false, Enums.ErrorCode.RECIPE_LOCKED, nil
 	-- end
 	
-	-- 아직 제작 중이면 수거 불가
-	if entry.state ~= Enums.CraftState.PENDING_COLLECT then
+	local batchCount = getBatchCount(entry)
+	local completedCount = math.max(0, math.min(batchCount, tonumber(entry.completedCount) or 0))
+	local collectedCount = math.max(0, math.min(batchCount, tonumber(entry.collectedCount) or 0))
+	local readyCount = math.max(0, completedCount - collectedCount)
+	if readyCount <= 0 then
 		return false, Enums.ErrorCode.INVALID_STATE, nil
 	end
+
+	local collectCount = tonumber(count) and math.max(1, math.floor(tonumber(count))) or readyCount
+	collectCount = math.min(collectCount, readyCount)
 	
 	-- 결과물 인벤토리 추가
 	local recipe = DataService.getRecipe(entry.recipeId)
@@ -456,7 +547,8 @@ function CraftingService.collect(player: Player, craftId: string)
 	
 	-- 인벤토리 여유 사전 체크
 	for _, output in ipairs(recipe.outputs) do
-		local canAdd = InventoryService.canAdd(userId, output.itemId, output.count)
+		local totalOut = output.count * collectCount
+		local canAdd = InventoryService.canAdd(userId, output.itemId, totalOut)
 		if not canAdd then
 			return false, Enums.ErrorCode.INV_FULL, nil
 		end
@@ -464,32 +556,44 @@ function CraftingService.collect(player: Player, craftId: string)
 	
 	-- 결과물 추가
 	for _, output in ipairs(recipe.outputs) do
-		InventoryService.addItem(userId, output.itemId, output.count)
+		local totalOut = output.count * collectCount
+		InventoryService.addItem(userId, output.itemId, totalOut)
 	end
 	
 	-- 3a. 경험치 보상 (Phase 6)
 	if PlayerStatService then
-		PlayerStatService.addXP(userId, (Balance.XP_CRAFT_ITEM or 5) * (recipe.xpMultiplier or 1), Enums.XPSource.CRAFT_ITEM)
+		PlayerStatService.addXP(userId, ((Balance.XP_CRAFT_ITEM or 5) * (recipe.xpMultiplier or 1)) * collectCount, Enums.XPSource.CRAFT_ITEM)
 	end
 	
 	-- 3b. 퀘스트 콜백 (Phase 8)
 	if questCallback then
-		questCallback(userId, entry.recipeId)
+		for _ = 1, collectCount do
+			questCallback(userId, entry.recipeId)
+		end
 	end
-	
-	-- 큐에서 제거
-	queue[craftId] = nil
+
+	entry.collectedCount = math.min(batchCount, collectedCount + collectCount)
+	syncEntryProgress(entry, now)
+
+	local doneAll = entry.collectedCount >= batchCount and entry.completedCount >= batchCount
+	if doneAll then
+		queue[craftId] = nil
+	end
 	_syncToSave(userId)
 	
 	local collectData = {
 		craftId = craftId,
 		recipeId = entry.recipeId,
+		batchCount = batchCount,
+		collectedCount = collectCount,
+		readyRemaining = math.max(0, (tonumber(entry.completedCount) or 0) - (tonumber(entry.collectedCount) or 0)),
+		completedCount = tonumber(entry.completedCount) or 0,
 		outputs = recipe.outputs,
 	}
 	
 	emitCraftEvent("Craft.Completed", player, collectData)
 	
-	print(string.format("[CraftingService] Collected craft %s for player %d", craftId, userId))
+	print(string.format("[CraftingService] Collected craft %s x%d for player %d", craftId, collectCount, userId))
 	return true, nil, collectData
 end
 
@@ -501,19 +605,39 @@ function CraftingService.getQueue(player: Player)
 	local queue = craftQueues[userId] or {}
 	local now = os.time()
 	
-	-- Lazy Update: 완료된 항목 상태 갱신
+	-- Lazy Update: 배치 단위 진행 상태 갱신
 	local result = {}
 	for craftId, entry in pairs(queue) do
-		if entry.state == Enums.CraftState.CRAFTING and now >= entry.completesAt then
-			entry.state = Enums.CraftState.PENDING_COLLECT
-		end
+		syncEntryProgress(entry, now)
+		local batchCount = getBatchCount(entry)
+		local completedCount = math.max(0, math.min(batchCount, tonumber(entry.completedCount) or 0))
+		local collectedCount = math.max(0, math.min(batchCount, tonumber(entry.collectedCount) or 0))
+		local readyCount = math.max(0, completedCount - collectedCount)
+		local inProgressCount = math.max(0, batchCount - completedCount)
+		local unitDuration = getUnitDuration(entry)
+		local totalDuration = tonumber(entry.totalDuration) or (unitDuration * batchCount)
+		local remainingToNext = entry.nextCompleteAt and math.max(0, entry.nextCompleteAt - now) or 0
+		local elapsedInCurrent = (inProgressCount > 0) and math.max(0, unitDuration - remainingToNext) or 0
+		local elapsedTotal = math.max(0, math.min(totalDuration, (completedCount * unitDuration) + elapsedInCurrent))
+		local remainingTotal = math.max(0, totalDuration - elapsedTotal)
+		local progressRatio = (totalDuration > 0) and math.clamp(elapsedTotal / totalDuration, 0, 1) or 1
+
 		table.insert(result, {
 			craftId = craftId,
 			recipeId = entry.recipeId,
 			state = entry.state,
 			startedAt = entry.startedAt,
 			completesAt = entry.completesAt,
-			remaining = math.max(0, entry.completesAt - now),
+			remaining = remainingTotal,
+			remainingToNext = remainingToNext,
+			batchCount = batchCount,
+			completedCount = completedCount,
+			collectedCount = collectedCount,
+			readyCount = readyCount,
+			inProgressCount = inProgressCount,
+			unitDuration = unitDuration,
+			totalDuration = totalDuration,
+			progressRatio = progressRatio,
 			structureId = entry.structureId,
 		})
 	end
@@ -601,52 +725,39 @@ processTick = function()
 	
 	for userId, queue in pairs(craftQueues) do
 		for craftId, entry in pairs(queue) do
-			if entry.state == Enums.CraftState.CRAFTING and now >= entry.completesAt then
-				entry.state = Enums.CraftState.PENDING_COLLECT
+			local producedNow = syncEntryProgress(entry, now)
+			if producedNow > 0 then
 				_syncToSave(userId)
-				
 				local player = Players:GetPlayerByUserId(userId)
 				if player then
-					-- [NEW] 맨손 제작(Hand Craft)인 경우 즉시 자동 수거
 					if not entry.structureId then
 						task.spawn(function()
-							local success, _, _ = CraftingService.collect(player, craftId)
+							local success = CraftingService.collect(player, craftId, producedNow)
 							if not success then
-								-- [개선] 인벤토리 가득 참 시 수동 수거 UI가 없는 맨손 제작은 월드 드롭 처리 (Softlock 방지)
 								local recipe = DataService.getRecipe(entry.recipeId)
 								local pPos = getPlayerPosition(player)
-								
 								if recipe and pPos and WorldDropService then
 									for _, output in ipairs(recipe.outputs) do
-										WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, output.count)
+										WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, output.count * producedNow)
 									end
-									
-									-- 강제로 큐에서 제거 및 완료 이벤트 전송
-									queue[craftId] = nil
+									entry.collectedCount = math.min(getBatchCount(entry), (tonumber(entry.collectedCount) or 0) + producedNow)
+									syncEntryProgress(entry, os.time())
+									if entry.collectedCount >= getBatchCount(entry) and entry.completedCount >= getBatchCount(entry) then
+										queue[craftId] = nil
+									end
 									_syncToSave(userId)
-									
-									emitCraftEvent("Craft.Completed", player, {
-										craftId = craftId,
-										recipeId = entry.recipeId,
-										outputs = recipe.outputs,
-										dropped = true -- 클라이언트 알림용 플래그
-									})
-									
-									print(string.format("[CraftingService] INV_FULL: Hand craft %s dropped as WorldDrop for userId %d", craftId, userId))
-								else
-									-- 극단적인 예외 상황 (데이터 없음 등) 시 PENDING_COLLECT 유지
-									print(string.format("[CraftingService] Critical failure in auto-collect for %s, keeping pending", craftId))
 								end
 							end
 						end)
-						print(string.format("[CraftingService] Auto-collecting personal craft %s for userId %d", craftId, userId))
 					else
-						-- 시설 제작인 경우 '수거 대기' 알림만 발송
 						emitCraftEvent("Craft.Ready", player, {
 							craftId = craftId,
 							recipeId = entry.recipeId,
+							producedCount = producedNow,
+							readyCount = math.max(0, (tonumber(entry.completedCount) or 0) - (tonumber(entry.collectedCount) or 0)),
+							batchCount = getBatchCount(entry),
+							completedCount = tonumber(entry.completedCount) or 0,
 						})
-						print(string.format("[CraftingService] Craft %s ready at facility for userId %d", craftId, userId))
 					end
 				end
 			end
@@ -690,12 +801,13 @@ function CraftingService.GetHandlers()
 		["Craft.Start.Request"] = function(player, payload)
 			local recipeId = payload.recipeId
 			local structureId = payload.structureId  -- optional
+			local count = payload.count
 			
 			if not recipeId or type(recipeId) ~= "string" then
 				return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
 			end
 			
-			local success, errorCode, data = CraftingService.start(player, recipeId, structureId)
+			local success, errorCode, data = CraftingService.start(player, recipeId, structureId, count)
 			if not success then
 				return { success = false, errorCode = errorCode }
 			end
@@ -718,12 +830,13 @@ function CraftingService.GetHandlers()
 		
 		["Craft.Collect.Request"] = function(player, payload)
 			local craftId = payload.craftId
+			local count = payload.count
 			
 			if not craftId or type(craftId) ~= "string" then
 				return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
 			end
 			
-			local success, errorCode, data = CraftingService.collect(player, craftId)
+			local success, errorCode, data = CraftingService.collect(player, craftId, count)
 			if not success then
 				return { success = false, errorCode = errorCode }
 			end

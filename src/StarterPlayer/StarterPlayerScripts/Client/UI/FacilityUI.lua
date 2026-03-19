@@ -13,6 +13,9 @@ local T = Theme.Transp
 
 local UIManagerRef = nil
 local currentSelectedRecipe = nil
+local currentCraftCount = 1
+local maxCraftCount = 1
+local currentCanCraft = false
 
 local FacilityUI = {}
 FacilityUI.Refs = {
@@ -25,6 +28,10 @@ FacilityUI.Refs = {
 		Icon = nil,
 		Time = nil,
 		Mats = nil,
+		QtyWrap = nil,
+		QtyLabel = nil,
+		QtyMinus = nil,
+		QtyPlus = nil,
 		Btn = nil,
 		BagCount = nil,
 	},
@@ -173,6 +180,68 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		color=C.GRAY, ts=14, ax=Enum.TextXAlignment.Center, parent=rightPanel
 	})
 
+	local qtyWrap = Utils.mkFrame({
+		name="QtyWrap", size=UDim2.new(0, 240, 0, 36), pos=UDim2.new(0.5, 0, 0, 330), anchor=Vector2.new(0.5, 0),
+		bgT=1, parent=rightPanel
+	})
+	FacilityUI.Refs.Detail.QtyWrap = qtyWrap
+
+	local qtyMinus = Utils.mkBtn({
+		text="-", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(0, 0, 0, 0),
+		bg=C.BTN, ts=20, font=F.TITLE, parent=qtyWrap
+	})
+	FacilityUI.Refs.Detail.QtyMinus = qtyMinus
+
+	local qtyLabel = Utils.mkLabel({
+		text=UILocalizer.Localize("수량 x1"), size=UDim2.new(1, -92, 1, 0), pos=UDim2.new(0, 46, 0, 0),
+		ts=16, color=C.WHITE, ax=Enum.TextXAlignment.Center, parent=qtyWrap
+	})
+	FacilityUI.Refs.Detail.QtyLabel = qtyLabel
+
+	local qtyPlus = Utils.mkBtn({
+		text="+", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -36, 0, 0),
+		bg=C.BTN, ts=20, font=F.TITLE, parent=qtyWrap
+	})
+	FacilityUI.Refs.Detail.QtyPlus = qtyPlus
+
+	local function syncQtyUI()
+		currentCraftCount = math.clamp(currentCraftCount, 1, math.max(1, maxCraftCount))
+		if FacilityUI.Refs.Detail.QtyLabel then
+			FacilityUI.Refs.Detail.QtyLabel.Text = UILocalizer.Localize(string.format("수량 x%d", currentCraftCount))
+		end
+		if FacilityUI.Refs.Detail.Time and currentSelectedRecipe then
+			local perCraftTime = currentSelectedRecipe.craftTime or 0
+			FacilityUI.Refs.Detail.Time.Text = UILocalizer.Localize(string.format("맡김 제작 : %d초 (x%d = %d초)", perCraftTime, currentCraftCount, perCraftTime * currentCraftCount))
+		end
+		if FacilityUI.Refs.Detail.Btn then
+			if currentCanCraft then
+				FacilityUI.Refs.Detail.Btn.Text = UILocalizer.Localize(string.format("제작 시작 x%d", currentCraftCount))
+			else
+				FacilityUI.Refs.Detail.Btn.Text = UILocalizer.Localize("재료 부족")
+			end
+		end
+		if FacilityUI.Refs.Detail.QtyMinus then
+			FacilityUI.Refs.Detail.QtyMinus.Active = currentCraftCount > 1
+			FacilityUI.Refs.Detail.QtyMinus.AutoButtonColor = currentCraftCount > 1
+			FacilityUI.Refs.Detail.QtyMinus.TextTransparency = (currentCraftCount > 1) and 0 or 0.5
+		end
+		if FacilityUI.Refs.Detail.QtyPlus then
+			FacilityUI.Refs.Detail.QtyPlus.Active = currentCraftCount < maxCraftCount
+			FacilityUI.Refs.Detail.QtyPlus.AutoButtonColor = currentCraftCount < maxCraftCount
+			FacilityUI.Refs.Detail.QtyPlus.TextTransparency = (currentCraftCount < maxCraftCount) and 0 or 0.5
+		end
+	end
+
+	qtyMinus.MouseButton1Click:Connect(function()
+		currentCraftCount = math.max(1, currentCraftCount - 1)
+		syncQtyUI()
+	end)
+
+	qtyPlus.MouseButton1Click:Connect(function()
+		currentCraftCount = math.min(maxCraftCount, currentCraftCount + 1)
+		syncQtyUI()
+	end)
+
 	-- Materials
 	local matArea = Utils.mkFrame({
 		name="Mats", size=UDim2.new(1, -40, 0, 150), pos=UDim2.new(0, 20, 0, 160), bgT=1, parent=rightPanel
@@ -189,9 +258,11 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	
 	startBtn.MouseButton1Click:Connect(function()
 		if currentSelectedRecipe and UIManagerRef then
-			UIManagerRef._onStartFacilityCraft(currentSelectedRecipe)
+			UIManagerRef._onStartFacilityCraft(currentSelectedRecipe, currentCraftCount)
 		end
 	end)
+
+	syncQtyUI()
 end
 
 function FacilityUI.Refresh(recipeList, getIcon, UIManager)
@@ -218,9 +289,11 @@ end
 function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon, canCraft)
 	local d = FacilityUI.Refs.Detail
 	currentSelectedRecipe = recipe
+	currentCanCraft = canCraft and true or false
 	
 	if not recipe then
 		FacilityUI.Refs.DetailFrame.Visible = false
+		currentCanCraft = false
 		return
 	end
 	FacilityUI.Refs.DetailFrame.Visible = true
@@ -230,8 +303,34 @@ function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon,
 
 	d.Name.Text = UILocalizer.Localize(recipe.name or output.itemId)
 	d.Icon.Image = getIcon(output.itemId)
-	d.Time.Text = UILocalizer.Localize(string.format("맡김 제작 : %d초", recipe.craftTime or 0))
 	d.BagCount.Text = tostring(playerItemCounts[output.itemId] or 0)
+
+	maxCraftCount = 99
+	for _, req in ipairs(recipe.inputs) do
+		local have = playerItemCounts[req.itemId] or 0
+		local possible = (req.count and req.count > 0) and math.floor(have / req.count) or 0
+		maxCraftCount = math.min(maxCraftCount, possible)
+	end
+	maxCraftCount = math.max(1, maxCraftCount)
+	currentCraftCount = math.clamp(currentCraftCount, 1, maxCraftCount)
+
+	if d.QtyLabel then
+		d.QtyLabel.Text = UILocalizer.Localize(string.format("수량 x%d", currentCraftCount))
+	end
+	if d.QtyWrap then d.QtyWrap.Visible = true end
+	if d.QtyMinus then
+		d.QtyMinus.Active = currentCraftCount > 1
+		d.QtyMinus.AutoButtonColor = currentCraftCount > 1
+		d.QtyMinus.TextTransparency = (currentCraftCount > 1) and 0 or 0.5
+	end
+	if d.QtyPlus then
+		d.QtyPlus.Active = currentCraftCount < maxCraftCount
+		d.QtyPlus.AutoButtonColor = currentCraftCount < maxCraftCount
+		d.QtyPlus.TextTransparency = (currentCraftCount < maxCraftCount) and 0 or 0.5
+	end
+
+	local perCraftTime = recipe.craftTime or 0
+	d.Time.Text = UILocalizer.Localize(string.format("맡김 제작 : %d초 (x%d = %d초)", perCraftTime, currentCraftCount, perCraftTime * currentCraftCount))
 
 	-- Clear mats
 	for _, ch in ipairs(d.Mats:GetChildren()) do if ch:IsA("GuiObject") then ch:Destroy() end end
@@ -267,7 +366,7 @@ function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon,
 
 	-- Start Button State
 	if canCraft then
-		d.Btn.Text = UILocalizer.Localize("제작 시작")
+		d.Btn.Text = UILocalizer.Localize(string.format("제작 시작 x%d", currentCraftCount))
 		d.Btn.BackgroundColor3 = C.GOLD
 		d.Btn.AutoButtonColor = true
 	else
@@ -302,19 +401,27 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 			local outputItemId = recipe and recipe.outputs and recipe.outputs[1] and recipe.outputs[1].itemId
 			icon.Image = outputItemId and getIcon(outputItemId) or getIcon(entry.recipeId); icon.BackgroundTransparency = 1; icon.Parent = item
 			
-			local isDone = (entry.remaining <= 0)
-			local statusText = isDone and UILocalizer.Localize("완료") or UILocalizer.Localize(string.format("제작 중 (%ds)", entry.remaining))
+			local batchCount = math.max(1, tonumber(entry.batchCount) or 1)
+			local completedCount = math.max(0, math.min(batchCount, tonumber(entry.completedCount) or 0))
+			local collectedCount = math.max(0, math.min(batchCount, tonumber(entry.collectedCount) or 0))
+			local readyCount = math.max(0, tonumber(entry.readyCount) or (completedCount - collectedCount))
+			local inProgressCount = math.max(0, tonumber(entry.inProgressCount) or (batchCount - completedCount))
+			local remainingToNext = math.max(0, tonumber(entry.remainingToNext) or tonumber(entry.remaining) or 0)
+			local statusText = string.format("완료 %d/%d", completedCount, batchCount)
+			if inProgressCount > 0 then
+				statusText = string.format("진행 %d | 완료 %d/%d (%ds)", inProgressCount, completedCount, batchCount, remainingToNext)
+			end
 			
 			local lbl = Utils.mkLabel({
-				text = statusText, pos = UDim2.new(0, 55, 0.5, 0), anchor=Vector2.new(0, 0.5), size=UDim2.new(0.5, 0, 0.8, 0),
-				ts = 14, color = isDone and C.GOLD or C.WHITE, ax=Enum.TextXAlignment.Left, parent=item
+				text = string.format("x%d  %s", batchCount, statusText), pos = UDim2.new(0, 55, 0.5, 0), anchor=Vector2.new(0, 0.5), size=UDim2.new(0.62, 0, 0.8, 0),
+				ts = 14, color = (readyCount > 0) and C.GOLD or C.WHITE, ax=Enum.TextXAlignment.Left, parent=item
 			})
 			
-			if isDone then
+			if readyCount > 0 then
 				local collectBtn = Utils.mkBtn({
-					text = UILocalizer.Localize("수령"), size = UDim2.new(0, 60, 0, 34), pos = UDim2.new(1, -5, 0.5, 0), anchor = Vector2.new(1, 0.5),
+					text = UILocalizer.Localize(string.format("수령 x%d", readyCount)), size = UDim2.new(0, 92, 0, 34), pos = UDim2.new(1, -5, 0.5, 0), anchor = Vector2.new(1, 0.5),
 					bg = C.GOLD, ts = 14, color = Color3.fromRGB(20, 20, 20), r = 4,
-					fn = function() UIManager._onCollectFacilityCraft(entry.craftId) end,
+					fn = function() UIManager._onCollectFacilityCraft(entry.craftId, readyCount) end,
 					parent = item
 				})
 			else
@@ -330,9 +437,15 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 					parent = item
 				})
 				
-				if recipe and recipe.craftTime and recipe.craftTime > 0 then
-					local total = recipe.craftTime
-					local ratio = math.clamp(1 - (entry.remaining / total), 0, 1)
+				local total = tonumber(entry.totalDuration) or (recipe and recipe.craftTime) or 0
+				if total > 0 then
+					local ratio = tonumber(entry.progressRatio)
+					if ratio == nil then
+						local remainingTotal = math.max(0, tonumber(entry.remaining) or 0)
+						ratio = math.clamp(1 - (remainingTotal / total), 0, 1)
+					else
+						ratio = math.clamp(ratio, 0, 1)
+					end
 					local fill = Utils.mkFrame({
 						size = UDim2.new(ratio, 0, 1, 0),
 						bg = Color3.fromRGB(210, 190, 90),

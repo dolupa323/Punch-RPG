@@ -12,6 +12,14 @@ local initialized = false
 
 local localDnaData = {
 	COMPY = 0,
+	DODO = 0,
+	BABY_TRICERATOPS = 0,
+}
+
+local CURRENT_GRASSLAND_CREATURES = {
+	COMPY = true,
+	DODO = true,
+	BABY_TRICERATOPS = true,
 }
 
 local onDnaUpdatedCallbacks = {}
@@ -21,10 +29,7 @@ local onDnaUpdatedCallbacks = {}
 --========================================
 
 function CollectionController.getDnaCount(creatureId: string): number
-	if creatureId == "COMPY" then
-		return localDnaData.COMPY or 0
-	end
-	return 0
+	return localDnaData[tostring(creatureId or "")] or 0
 end
 
 -- 전체 동물 리스트 반환 (분류별 필터링을 위함)
@@ -32,7 +37,10 @@ function CollectionController.getCreatureList()
 	local tbl = DataHelper.GetTable("CreatureData") or {}
 	local list = {}
 	for _, data in pairs(tbl) do
-		table.insert(list, data)
+		local cid = tostring(data.id or "")
+		if CURRENT_GRASSLAND_CREATURES[cid] then
+			table.insert(list, data)
+		end
 	end
 	table.sort(list, function(a, b)
 		return tostring(a.id or "") < tostring(b.id or "")
@@ -48,6 +56,17 @@ function CollectionController.updateLocalDna(statsData)
 	if not statsData then return end
 	
 	local changed = false
+	if type(statsData.dnaData) == "table" then
+		for cid, amount in pairs(statsData.dnaData) do
+			local key = string.upper(tostring(cid))
+			local value = tonumber(amount) or 0
+			if localDnaData[key] ~= value then
+				localDnaData[key] = value
+				changed = true
+			end
+		end
+	end
+
 	if statsData.dnaCompy and localDnaData.COMPY ~= statsData.dnaCompy then
 		localDnaData.COMPY = statsData.dnaCompy
 		changed = true

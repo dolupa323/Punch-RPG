@@ -33,10 +33,10 @@ local ISLAND_CONFIGS = {
 	-- [확장] 열대 섬 생태계 설정
 	[PORTAL_MAP.TROPICAL] = {
 		Creatures = {
-			-- 조금 더 거친 생태계 테마
-			{ id = "RAPTOR", weight = 80 },
-			{ id = "TREX", weight = 20 },
-			{ id = "TRICERATOPS", weight = 40 }
+			-- 현재 운영 중인 초원섬/튜토리얼 빌드에서는 3종만 유지
+			{ id = "DODO", weight = 90 },
+			{ id = "BABY_TRICERATOPS", weight = 50 },
+			{ id = "COMPY", weight = 80 }
 		},
 		Harvests = {
 			-- 열대 느낌에 맞춘 자원 비중 변화 (예: 야자수, 희귀식물 중심)

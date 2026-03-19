@@ -35,6 +35,59 @@ local playerAttackCooldowns = {} -- [userId] = lastAttackTime
 -- Quest callback (Phase 8)
 local questCallback = nil
 
+local function isBowWeapon(itemData): boolean
+	if not itemData then return false end
+	local itemId = string.upper(tostring(itemData.id or ""))
+	if itemId:find("BOW", 1, true) then
+		return true
+	end
+	local opt = string.upper(tostring(itemData.optimalTool or ""))
+	return opt == "BOW" or opt == "CROSSBOW"
+end
+
+local function getAmmoForWeapon(itemId: string): string?
+	local upper = string.upper(tostring(itemId or ""))
+	if upper == "WOODEN_BOW" then return "STONE_ARROW" end
+	if upper == "BRONZE_BOW" then return "BRONZE_ARROW" end
+	if upper == "CROSSBOW" then return "IRON_BOLT" end
+	return nil
+end
+
+local function findAttackTargetByRay(player: Player, direction: Vector3, range: number, originOverride: Vector3?)
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not char or not hrp then return nil, nil end
+
+	if direction.Magnitude <= 0.001 then return nil, nil end
+	local dirUnit = direction.Unit
+	local origin = originOverride or (hrp.Position + Vector3.new(0, 1.6, 0))
+	if (origin - hrp.Position).Magnitude > 8 then
+		origin = hrp.Position + Vector3.new(0, 1.6, 0)
+	end
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { char }
+
+	local result = workspace:Raycast(origin, dirUnit * range, params)
+	if not result or not result.Instance then
+		return nil, origin + (dirUnit * range)
+	end
+
+	local current = result.Instance
+	while current and current ~= workspace do
+		if current:IsA("Model") then
+			local instanceId = current:GetAttribute("InstanceId")
+			if instanceId then
+				return instanceId, result.Position
+			end
+		end
+		current = current.Parent
+	end
+
+	return nil, result.Position
+end
+
 --========================================
 -- StaminaService Integration (Phase 10)
 --========================================
@@ -81,10 +134,11 @@ function CombatService.Init(_NetController, _DataService, _CreatureService, _Inv
 end
 
 --- 플레이어가 대상을 공격 (Client Request)
-function CombatService.processPlayerAttack(player: Player, targetId: string)
-	if not player or not targetId then 
+function CombatService.processPlayerAttack(player: Player, targetId: string?, attackMeta: any?)
+	if not player then 
 		return false, Enums.ErrorCode.BAD_REQUEST 
 	end
+	attackMeta = attackMeta or {}
 
 	-- 0. 서버 메모리의 실제 활성 슬롯 데이터 로드 (보안: 클라이언트 요청 슬롯 무시)
 	local userId = player.UserId
@@ -99,6 +153,15 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	local itemData = nil
 	local toolItem = nil
 	local isBlunt = true -- 맨손은 기본적으로 타격(Blunt) 판정 (기절 수치 부여)
+	local isBowShot = false
+	local ammoItemId = nil
+	local bowChargeRatio = 0
+	local bowHeldSec = 0
+	local bowEffectiveRange = nil
+	local bowMinAimTime = 0.2
+	local bowOrigin = nil
+	local rawAimDir = attackMeta.aimDirection
+	local rawAimOrigin = attackMeta.aimOrigin
 	
 	if InventoryService then
 		local slotData = InventoryService.getSlot(userId, toolSlot)
@@ -124,8 +187,32 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 				if itemData.attackSpeed then
 					dynamicCooldown = math.max(0.15, itemData.attackSpeed - 0.05)
 				end
+
+				isBowShot = (attackMeta.bowShot == true) and isBowWeapon(itemData)
+				if isBowShot then
+					ammoItemId = getAmmoForWeapon(slotData.itemId)
+					bowChargeRatio = math.clamp(tonumber(attackMeta.chargeRatio) or 0, 0, 1)
+					bowHeldSec = math.max(0, tonumber(attackMeta.heldSec) or 0)
+					bowMinAimTime = math.max(0.05, tonumber(itemData.minAimTime) or 0.2)
+					local maxRange = tonumber(itemData.maxRange or itemData.range) or 120
+					local minRange = math.max(8, tonumber(itemData.minRange) or math.floor(maxRange * 0.25))
+					bowMaxRange = maxRange
+					bowEffectiveRange = minRange + ((maxRange - minRange) * bowChargeRatio)
+
+					if type(rawAimOrigin) == "table" then
+						bowOrigin = Vector3.new(
+							tonumber(rawAimOrigin.x) or 0,
+							tonumber(rawAimOrigin.y) or 0,
+							tonumber(rawAimOrigin.z) or 0
+						)
+					end
+				end
 			end
 		end
+	end
+
+	if isBowShot and bowHeldSec < bowMinAimTime then
+		return false, Enums.ErrorCode.INVALID_STATE
 	end
 
 	-- 1. 서버 측 공격 쿨다운 검증 (Exploit 방지)
@@ -141,6 +228,25 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return false, Enums.ErrorCode.INTERNAL_ERROR end
 	
+	if isBowShot and (not targetId or targetId == "") then
+		local aimDir = nil
+		if type(rawAimDir) == "table" then
+			aimDir = Vector3.new(tonumber(rawAimDir.x) or 0, tonumber(rawAimDir.y) or 0, tonumber(rawAimDir.z) or 0)
+		elseif typeof(rawAimDir) == "Vector3" then
+			aimDir = rawAimDir
+		end
+		if aimDir then
+			targetId = findAttackTargetByRay(player, aimDir, bowEffectiveRange or range, bowOrigin)
+		end
+	end
+
+	if isBowShot and ammoItemId then
+		local removed = InventoryService.removeItem(userId, ammoItemId, 1)
+		if removed < 1 then
+			return false, Enums.ErrorCode.MISSING_REQUIREMENTS
+		end
+	end
+
 	-- 2. 대상(크리처 또는 건축물) 확인 및 거리 검증
 	local targetObject = nil
 	local targetType = "NONE"
@@ -168,16 +274,34 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	end
 	
 	if not targetObject then
+		if isBowShot then
+			if NetController then
+				NetController.FireClient(player, "Combat.Hit.Result", {
+					damage = 0,
+					torporDamage = 0,
+					killed = false,
+					targetId = "",
+					miss = true,
+				})
+			end
+			return true, nil, { damage = 0, torporDamage = 0, killed = false, miss = true }
+		end
 		return false, Enums.ErrorCode.NOT_FOUND
 	end
 	
 	local targetPos = (targetType == "STRUCTURE" and targetObject.Position) or targetObject.Position
-	local p1 = Vector2.new(hrp.Position.X, hrp.Position.Z)
-	local p2 = Vector2.new(targetPos.X, targetPos.Z)
-	local dist = (p1 - p2).Magnitude
+	local dist
+	if isBowShot and bowOrigin then
+		dist = (targetPos - bowOrigin).Magnitude
+	else
+		local p1 = Vector2.new(hrp.Position.X, hrp.Position.Z)
+		local p2 = Vector2.new(targetPos.X, targetPos.Z)
+		dist = (p1 - p2).Magnitude
+	end
 	
-	-- 서버 측 검증은 클라이언트보다 약간 더 여유를 둡니다
-	if dist > range + 50 then 
+	-- 활은 조준 시간 기반 유효 사거리로 엄격 검증, 근접 무기는 기존 완화 검증 유지
+	local allowedRange = isBowShot and (bowEffectiveRange or range) or (range + 50)
+	if dist > allowedRange + (isBowShot and 2 or 0) then 
 		return false, Enums.ErrorCode.OUT_OF_RANGE
 	end
 	
@@ -195,6 +319,10 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	end
 
 	local totalDamage = baseDamage * attackMult
+	if isBowShot then
+		local chargeMult = 0.55 + (bowChargeRatio * 0.85) -- 55% ~ 140%
+		totalDamage = totalDamage * chargeMult
+	end
 
 	-- 4. 데미지 및 기절 수치 적용
 	local hpDamage = totalDamage
@@ -218,7 +346,7 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 	end
 	
 	-- 4. 도구 내구도 감소
-	if toolItem and toolSlot and toolItem.durability then
+	if (not isBowShot) and toolItem and toolSlot and toolItem.durability then
 		DurabilityService.reduceDurability(player, toolSlot, 1)
 	end
 	
@@ -275,6 +403,8 @@ function CombatService.processPlayerAttack(player: Player, targetId: string)
 			torporDamage = torporDamage,
 			killed = killed,
 			targetId = targetId,
+			bowShot = isBowShot,
+			chargeRatio = bowChargeRatio,
 		})
 	end
 	
@@ -366,8 +496,15 @@ end
 
 local function handleHitRequest(player, payload)
 	local targetId = payload.targetId or payload.targetInstanceId
+	local attackMeta = {
+		bowShot = payload.bowShot,
+		chargeRatio = payload.chargeRatio,
+		aimDirection = payload.aimDirection,
+		aimOrigin = payload.aimOrigin,
+		heldSec = payload.heldSec,
+	}
 	
-	local success, errorCode, result = CombatService.processPlayerAttack(player, targetId)
+	local success, errorCode, result = CombatService.processPlayerAttack(player, targetId, attackMeta)
 	
 	if not success then
 		return { success = false, errorCode = errorCode }

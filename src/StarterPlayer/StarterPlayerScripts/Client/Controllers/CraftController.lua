@@ -40,7 +40,8 @@ local function onCraftCompleted(data)
 		end
 	end
 	
-	UIManager.sideNotify("🛠️ 제작 완료: " .. name, Color3.fromRGB(100, 255, 100))
+	local collectedCount = tonumber(data and data.collectedCount) or tonumber(data and data.batchCount) or 1
+	UIManager.sideNotify(string.format("🛠️ 제작 완료: %s x%d", name, math.max(1, collectedCount)), Color3.fromRGB(100, 255, 100))
 	UIManager.refreshInventory()
 	
 	if UIManager.refreshPersonalCrafting then
@@ -52,7 +53,8 @@ end
 local function onCraftReady(data)
 	UIManager.stopCraftingProgress()
 	-- 수거 가능 알림 (시설 제작 등의 경우)
-	UIManager.sideNotify("📦 제작 완료: 수거 가능", Color3.fromRGB(255, 215, 0))
+	local readyCount = tonumber(data and data.readyCount) or tonumber(data and data.producedCount) or 1
+	UIManager.sideNotify(string.format("📦 제작 완료: 수거 가능 x%d", math.max(1, readyCount)), Color3.fromRGB(255, 215, 0))
 	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
 end
 

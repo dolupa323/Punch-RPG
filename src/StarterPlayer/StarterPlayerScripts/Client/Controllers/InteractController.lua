@@ -259,12 +259,23 @@ local function findNearbyInteractable(): (Instance?, string?)
 		
 		local allowedDistance = INTERACT_DISTANCE
 		if currentType == "facility" then
-			allowedDistance = INTERACT_DISTANCE + FACILITY_INTERACT_BONUS
+			local facilityId = entity:GetAttribute("FacilityId")
+			local facilityData = facilityId and DataHelper.GetData("FacilityData", tostring(facilityId)) or nil
+			local serverRange = (facilityData and facilityData.interactRange) or INTERACT_DISTANCE
+			-- 서버의 getInfo 거리 검증 기준과 클라 탐지 기준을 맞춰 접근 실패를 줄인다.
+			allowedDistance = math.max(4, serverRange + 1)
 		elseif currentType == "npc" then
 			allowedDistance = math.max(INTERACT_DISTANCE, (Balance.SHOP_INTERACT_RANGE or 10) + 2)
 		end
 
 		local dist = getDistToModel(entity, playerPos)
+		if currentType == "facility" then
+			if entity:IsA("Model") then
+				dist = (entity:GetPivot().Position - playerPos).Magnitude
+			elseif entity:IsA("BasePart") then
+				dist = (entity.Position - playerPos).Magnitude
+			end
+		end
 		if dist <= allowedDistance and dist < closestDist then
 			closestDist = dist
 			closestTarget = entity

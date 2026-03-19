@@ -26,16 +26,17 @@ local CATEGORY_TABS = {
 	{ label = "툰드라", key = "TUNDRA" }
 }
 
--- 공룡들을 임의로 기후에 매핑 (초원섬 위주이므로 대부분 초원에 배정)
+-- 현재 운영 기준: 초원섬 도감은 3종 중심으로 노출
 local REGION_MAP = {
 	COMPY = "GRASSLAND",
 	DODO = "GRASSLAND",
-	PARASAUR = "GRASSLAND",
-	TRICERATOPS = "GRASSLAND",
-	STEGOSAURUS = "GRASSLAND",
-	ANKYLOSAURUS = "GRASSLAND",
-	RAPTOR = "GRASSLAND",
-	TREX = "GRASSLAND" -- 일단 임의로
+	BABY_TRICERATOPS = "GRASSLAND",
+	PARASAUR = "TROPICAL",
+	TRICERATOPS = "TROPICAL",
+	STEGOSAURUS = "TROPICAL",
+	ANKYLOSAURUS = "DESERT",
+	RAPTOR = "DESERT",
+	TREX = "TUNDRA"
 }
 
 local activeTabKey = "ALL"
@@ -52,17 +53,46 @@ local function getCreatureIcon(cid)
 		return creature.icon
 	end
 
-	-- 2. Assets/ItemIcons 폴더에서 검색 (기존 방식)
-	local Assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
-	local Icons = Assets and Assets:FindFirstChild("ItemIcons")
-	
-	if Icons then
-		for _, child in ipairs(Icons:GetChildren()) do
-			local cname = child.Name:lower():gsub("_", "")
-			if cname == cid:lower():gsub("_", "") then
-				if child:IsA("Decal") or child:IsA("Texture") then return child.Texture end
-				if child:IsA("ImageLabel") or child:IsA("ImageButton") then return child.Image end
-				if child:IsA("StringValue") then return child.Value end
+	local function normalize(name: string): string
+		return string.lower(tostring(name or "")):gsub("[^%w]", "")
+	end
+
+	local function extractImageAsset(inst)
+		if inst:IsA("Decal") or inst:IsA("Texture") then return inst.Texture end
+		if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then return inst.Image end
+		if inst:IsA("StringValue") then return inst.Value end
+		return ""
+	end
+
+	-- 2. Assets 폴더 내 다중 후보 경로를 순회해 가장 먼저 매칭되는 아이콘 사용
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if assets then
+		local searchFolders = {
+			assets:FindFirstChild("CreatureIcons"),
+			assets:FindFirstChild("ItemIcons"),
+			assets:FindFirstChild("Icons"),
+		}
+
+		local aliases = {
+			cid,
+			creature and creature.modelName,
+			creature and creature.name,
+		}
+
+		for _, folder in ipairs(searchFolders) do
+			if folder then
+				for _, child in ipairs(folder:GetChildren()) do
+					local cname = normalize(child.Name)
+					for _, alias in ipairs(aliases) do
+						if alias and cname == normalize(alias) then
+							local imageId = extractImageAsset(child)
+							if imageId and imageId ~= "" then
+								return imageId
+							end
+						end
+					end
+				end
 			end
 		end
 	end
@@ -147,10 +177,10 @@ local function _renderDetails()
 		nameTxt.Font = F.TITLE
 		nameTxt.TextSize = 24
 		
-		local dnaTxt = Utils.CreateTextLabel("DnaTxt", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 160), "DNA: 0/5")
+		local dnaTxt = Utils.CreateTextLabel("DnaTxt", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 160), UILocalizer.Localize("DNA: 0/5"))
 		dnaTxt.TextColor3 = C.GOLD
 		
-		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 60), UDim2.new(0.05, 0, 0, 190), UILocalizer.Localize("동물 정보 및 연구 보너스\n[연구 완료 시 상시 효과가 적용됩니다]"))
+		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 60), UDim2.new(0.05, 0, 0, 190), UILocalizer.Localize("동물 정보"))
 		infoTxt.TextColor3 = C.DIM
 		infoTxt.TextXAlignment = Enum.TextXAlignment.Left
 		infoTxt.TextYAlignment = Enum.TextYAlignment.Top
@@ -174,20 +204,6 @@ local function _renderDetails()
 		effVal.Parent = effBg
 		effBg.Parent = pnl
 		
-		-- 상시 효과
-		local pasBg = Utils.CreateFrame("PasBg", UDim2.new(0.9,0,0,100), UDim2.new(0.05,0,0,350), C.BTN)
-		Instance.new("UICorner", pasBg).CornerRadius = UDim.new(0,8)
-		
-		local pasTit = Utils.CreateTextLabel("PasTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), UILocalizer.Localize("업그레이드 상시 효과"))
-		pasTit.TextSize = 14
-		pasTit.Font = F.TITLE
-		pasTit.Parent = pasBg
-		
-		local pasVal = Utils.CreateTextLabel("PasVal", UDim2.new(0.9,0,0,60), UDim2.new(0.05,0,0,30), UILocalizer.Localize("연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)"))
-		pasVal.TextXAlignment = Enum.TextXAlignment.Left
-		pasVal.TextYAlignment = Enum.TextYAlignment.Top
-		pasVal.Parent = pasBg
-		pasBg.Parent = pnl
 	end
 	pnl.Visible = true
 	
@@ -203,17 +219,9 @@ local function _renderDetails()
 		local sourceName = (data and data.name) or selectedCreatureId
 		nameTxt.Text = UILocalizer.LocalizeDataText("CreatureData", selectedCreatureId, "name", sourceName)
 	end
-	
-	local pasVal = pnl:FindFirstChild("PasBg") and pnl.PasBg:FindFirstChild("PasVal")
-	if pasVal then
-		if selectedCreatureId == "COMPY" then
-			local bonus = math.min(10, math.floor(dnaCount / 20))
-			pasVal.Text = UILocalizer.Localize(string.format("공격력 보너스: +%d%%\n(20개당 1%% 증가, 최대 10%%)", bonus))
-			pasVal.TextColor3 = (bonus > 0) and C.GOLD or C.DIM
-		else
-			pasVal.Text = UILocalizer.Localize("연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)")
-			pasVal.TextColor3 = C.DIM
-		end
+	local dnaTxt = pnl:FindFirstChild("DnaTxt")
+	if dnaTxt then
+		dnaTxt.Text = UILocalizer.Localize(string.format("DNA: %d/5", dnaCount))
 	end
 	
 	local effVal = pnl:FindFirstChild("EffBg") and pnl.EffBg:FindFirstChild("EffVal")
@@ -282,7 +290,7 @@ function CollectionUI.refreshData()
 			Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 5)
 			barFill.Parent = barBg
 			
-			local countT = Utils.CreateTextLabel("Cnt", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), dCount.."/5")
+			local countT = Utils.CreateTextLabel("Cnt", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), UILocalizer.Localize(string.format("%d/5", dCount)))
 			countT.TextSize = 10
 			countT.Parent = barBg
 			
@@ -339,7 +347,7 @@ function CollectionUI.Init(mainGui, uiManager)
 	
 	-- Header
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=Frame})
-	Utils.mkLabel({text=UILocalizer.Localize("JOURNAL [P]"), pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkLabel({text=UILocalizer.Localize("도감 [P]"), pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
 	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
 	
 	-- 좌측 탭 영역

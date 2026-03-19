@@ -581,14 +581,14 @@ local function updateDialogueLayout()
 	end
 
 	if speakerLabel then
-		speakerLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.24))
+		speakerLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.2))
 		speakerLabel.Position = UDim2.new(0, 16, 0, 10)
 		speakerLabel.TextSize = math.clamp(math.floor(panelHeight * 0.21), 22, 34)
 	end
 
 	if lineLabel then
-		lineLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.44))
-		lineLabel.Position = UDim2.new(0, 16, 0, math.floor(panelHeight * 0.26))
+		lineLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.42))
+		lineLabel.Position = UDim2.new(0, 16, 0, math.floor(panelHeight * 0.33))
 		lineLabel.TextSize = math.clamp(math.floor(panelHeight * 0.20), 24, 36)
 	end
 
@@ -657,6 +657,7 @@ local function ensureDialogueUI()
 	speakerLabel.Font = Enum.Font.Highway
 	speakerLabel.TextSize = 30
 	speakerLabel.TextXAlignment = Enum.TextXAlignment.Left
+	speakerLabel.TextYAlignment = Enum.TextYAlignment.Top
 	speakerLabel.Text = ""
 	speakerLabel.ZIndex = 10001
 	speakerLabel.Parent = dialogueFrame
@@ -664,7 +665,7 @@ local function ensureDialogueUI()
 	lineLabel = Instance.new("TextLabel")
 	lineLabel.Name = "Line"
 	lineLabel.Size = UDim2.new(1, -300, 0, 72)
-	lineLabel.Position = UDim2.new(0, 42, 0, 64)
+	lineLabel.Position = UDim2.new(0, 42, 0, 78)
 	lineLabel.BackgroundTransparency = 1
 	lineLabel.TextColor3 = Color3.fromRGB(255, 236, 168)
 	lineLabel.Font = Enum.Font.Gotham
