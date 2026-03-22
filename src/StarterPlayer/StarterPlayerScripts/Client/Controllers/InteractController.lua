@@ -31,11 +31,14 @@ local player = Players.LocalPlayer
 -- 상호작용 가능 대상
 local currentTarget = nil
 local currentTargetType = nil  -- "resource", "npc", "facility", "drop"
+local currentFacilityTarget = nil  -- 가장 가까운 시설 (별도 추적, 채집노드와 겹쳐도 R키 사용 가능)
 
 -- 상호작용 거리 (Balance에서 가져옴, 여유분 추가)
 local INTERACT_DISTANCE = (Balance.HARVEST_RANGE or 10) + (Balance.INTERACT_OFFSET or 4)
 local FACILITY_INTERACT_BONUS = 6
 local sleepTransitionBusy = false
+local sleepConfirmGui = nil
+local sleepConfirmActive = false
 local RADIO_MODEL_NAME = "Motorola DP4800"
 local RADIO_INTERACT_DISTANCE = 14
 local REMOVE_CONFIRM_WINDOW = 2.5
@@ -59,6 +62,110 @@ end
 local function clearPendingRemove()
 	pendingRemoveStructureId = nil
 	pendingRemoveExpireAt = 0
+end
+
+local function closeSleepConfirm()
+	if sleepConfirmGui then
+		sleepConfirmGui:Destroy()
+		sleepConfirmGui = nil
+	end
+	sleepConfirmActive = false
+end
+
+local function showSleepConfirm(structureId: string)
+	if sleepConfirmActive or sleepTransitionBusy then return end
+	sleepConfirmActive = true
+
+	local playerGui = player:FindFirstChild("PlayerGui")
+	if not playerGui then sleepConfirmActive = false return end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SleepConfirmGui"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 9998
+	gui.Parent = playerGui
+	sleepConfirmGui = gui
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = Color3.new(0, 0, 0)
+	bg.BackgroundTransparency = 0.5
+	bg.BorderSizePixel = 0
+	bg.Parent = gui
+
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(0, 320, 0, 160)
+	box.Position = UDim2.new(0.5, 0, 0.5, 0)
+	box.AnchorPoint = Vector2.new(0.5, 0.5)
+	box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	box.BorderSizePixel = 0
+	box.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = box
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1.5
+	stroke.Color = Color3.fromRGB(180, 160, 100)
+	stroke.Parent = box
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 50)
+	title.Position = UDim2.new(0, 0, 0, 15)
+	title.BackgroundTransparency = 1
+	title.Text = "간이천막에서 취침하시겠습니까?"
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.TextSize = 18
+	title.Font = Enum.Font.GothamBold
+	title.Parent = box
+
+	local subtext = Instance.new("TextLabel")
+	subtext.Size = UDim2.new(1, 0, 0, 24)
+	subtext.Position = UDim2.new(0, 0, 0, 58)
+	subtext.BackgroundTransparency = 1
+	subtext.Text = "체력/스태미나 회복, 시간 경과 (정오)"
+	subtext.TextColor3 = Color3.fromRGB(180, 180, 160)
+	subtext.TextSize = 13
+	subtext.Font = Enum.Font.Gotham
+	subtext.Parent = box
+
+	local yesBtn = Instance.new("TextButton")
+	yesBtn.Size = UDim2.new(0, 120, 0, 40)
+	yesBtn.Position = UDim2.new(0.5, -130, 1, -55)
+	yesBtn.BackgroundColor3 = Color3.fromRGB(80, 170, 80)
+	yesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	yesBtn.Text = "예"
+	yesBtn.TextSize = 18
+	yesBtn.Font = Enum.Font.GothamBold
+	yesBtn.Parent = box
+	Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 8)
+
+	local noBtn = Instance.new("TextButton")
+	noBtn.Size = UDim2.new(0, 120, 0, 40)
+	noBtn.Position = UDim2.new(0.5, 10, 1, -55)
+	noBtn.BackgroundColor3 = Color3.fromRGB(120, 60, 60)
+	noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	noBtn.Text = "아니오"
+	noBtn.TextSize = 18
+	noBtn.Font = Enum.Font.GothamBold
+	noBtn.Parent = box
+	Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 8)
+
+	yesBtn.MouseButton1Click:Connect(function()
+		closeSleepConfirm()
+		playSleepTransitionAndRequest(structureId)
+	end)
+
+	noBtn.MouseButton1Click:Connect(function()
+		closeSleepConfirm()
+	end)
+
+	-- 배경 클릭으로도 닫기
+	bg.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			closeSleepConfirm()
+		end
+	end)
 end
 
 local function playSleepTransitionAndRequest(structureId: string)
@@ -212,6 +319,9 @@ local function findNearbyInteractable(): (Instance?, string?)
 	local closestTarget = nil
 	local closestType = nil
 	local closestDist = INTERACT_DISTANCE + 1
+
+	local closestFacility = nil
+	local closestFacilityDist = INTERACT_DISTANCE + FACILITY_INTERACT_BONUS + 1
 	
 	local typeMap = {
 		ResourceNodes = "resource",
@@ -275,6 +385,11 @@ local function findNearbyInteractable(): (Instance?, string?)
 			elseif entity:IsA("BasePart") then
 				dist = (entity.Position - playerPos).Magnitude
 			end
+			-- 시설은 별도 추적 (채집노드가 가까워도 R키로 상호작용 가능)
+			if dist <= allowedDistance and dist < closestFacilityDist then
+				closestFacilityDist = dist
+				closestFacility = entity
+			end
 		end
 		if dist <= allowedDistance and dist < closestDist then
 			closestDist = dist
@@ -296,7 +411,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 		end
 	end
 	
-	return closestTarget, closestType
+	return closestTarget, closestType, closestFacility
 end
 
 --========================================
@@ -357,7 +472,7 @@ local function interactFacility(target: Instance)
 		local TotemController = require(Client.Controllers.TotemController)
 		TotemController.openTotem(structureId)
 	elseif facilityData.functionType == "RESPAWN" then
-		playSleepTransitionAndRequest(structureId)
+		showSleepConfirm(structureId)
 	end
 end
 
@@ -440,8 +555,10 @@ function InteractController.onFacilityInteractPress()
 		return
 	end
 
-	if currentTarget and currentTargetType == "facility" then
-		interactFacility(currentTarget)
+	-- 시설은 별도 추적된 대상 우선 사용 (채집노드가 가까워도 R키 작동)
+	local facTarget = currentFacilityTarget or (currentTargetType == "facility" and currentTarget)
+	if facTarget then
+		interactFacility(facTarget)
 	end
 end
 
@@ -450,8 +567,9 @@ function InteractController.onFacilityRemovePress()
 		return
 	end
 
-	if currentTarget and currentTargetType == "facility" then
-		removeFacility(currentTarget)
+	local facTarget = currentFacilityTarget or (currentTargetType == "facility" and currentTarget)
+	if facTarget then
+		removeFacility(facTarget)
 	else
 		clearPendingRemove()
 	end
@@ -469,7 +587,8 @@ local function onUpdate()
 		return
 	end
 
-	local target, targetType = findNearbyInteractable()
+	local target, targetType, nearbyFacility = findNearbyInteractable()
+	currentFacilityTarget = nearbyFacility
 	
 	if target ~= currentTarget or targetType == "facility" or targetType == "radio" then
 		if target ~= currentTarget or targetType ~= currentTargetType then
@@ -507,7 +626,16 @@ local function onUpdate()
 				end
 				
 				if targetType == "resource" then
-					promptText = "" -- HP바로 대체
+					-- 채집노드가 가장 가까운데 시설도 근처에 있으면 R키 힌트 표시
+					if nearbyFacility then
+						local facId = nearbyFacility:GetAttribute("FacilityId")
+						local facData = facId and DataHelper.GetData("FacilityData", tostring(facId):upper()) or nil
+						local facName = facData and UILocalizer.LocalizeDataText("FacilityData", tostring(facId):upper(), "name", facData.name) or ""
+						targetName = facName
+						promptText = UILocalizer.Localize("[R] 사용") .. "  " .. UILocalizer.Localize("[T] 해체")
+					else
+						promptText = "" -- HP바로 대체
+					end
 				elseif targetType == "npc" then
 					promptText = UILocalizer.Localize("[Z] 대화")
 				elseif targetType == "facility" then

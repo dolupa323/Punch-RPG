@@ -1631,12 +1631,10 @@ end
 -- Public API: Interact / Harvest
 ----------------------------------------------------------------
 function UIManager.showInteractPrompt(text, targetName, durability)
-	local displayText = UILocalizer.Localize(text or "[Z] 상호작용")
-	if targetName and targetName ~= "" then
-		displayText = string.format("%s\n<font color='#ffd250' size='14'>%s</font>", displayText, targetName)
-	end
-	
-	InteractUI.UpdatePrompt(displayText)
+	local keyHint = UILocalizer.Localize(text or "[Z] 상호작용")
+	local buildingName = targetName and targetName ~= "" and targetName or ""
+
+	InteractUI.UpdatePrompt(buildingName, keyHint)
 	if durability and durability.current ~= nil and durability.max ~= nil then
 		InteractUI.SetDurabilityVisible(true)
 		InteractUI.UpdateDurability(durability.current, durability.max)

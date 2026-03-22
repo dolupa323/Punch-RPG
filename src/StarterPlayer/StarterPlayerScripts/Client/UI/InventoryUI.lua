@@ -48,8 +48,8 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.Frame = Utils.mkFrame({
 		name = "InventoryMenu",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0,0,0),
-		bgT = 0.7,
+		bg = C.BG_OVERLAY,
+		bgT = 0.5,
 		vis = false,
 		parent = parent
 	})
@@ -126,26 +126,26 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		
 		-- 핫바 배지 추가 (HOTBAR 전용 디자인)
 		if i <= 8 then
-			local vividHotbarYellow = Color3.fromRGB(255, 232, 35)
+			local vividHotbarYellow = C.GOLD
 			local badge = Utils.mkFrame({
 				name = "HotbarBadge",
 				size = UDim2.new(0, 18, 0, 18),
 				pos = UDim2.new(0, 3, 0, 3),
 				bg = vividHotbarYellow,
 				bgT = 0,
-				r = 3,
+				r = 4,
 				z = slot.frame.ZIndex + 9,
 				parent = slot.frame
 			})
 			local badgeStroke = Instance.new("UIStroke")
 			badgeStroke.Thickness = 2
-			badgeStroke.Color = Color3.fromRGB(20, 20, 20)
+			badgeStroke.Color = C.WOOD_DARK
 			badgeStroke.Parent = badge
 			Utils.mkLabel({
 				text = tostring(i),
 				ts = 13,
 				bold = true,
-				color = Color3.new(0,0,0),
+				color = C.BG_DARK,
 				z = slot.frame.ZIndex + 10,
 				parent = badge
 			})
@@ -162,7 +162,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 				parent = slot.frame
 			})
 			hotbarTag.TextStrokeTransparency = 0.35
-			hotbarTag.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+			hotbarTag.TextStrokeColor3 = C.BG_DARK
 			local stk = slot.frame:FindFirstChildOfClass("UIStroke")
 			if stk then stk.Color = vividHotbarYellow; stk.Thickness = 1.8 end -- 핫바 슬롯은 상시 강조
 		end
@@ -270,7 +270,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 
 	-- Durability Bar (Detail Panel)
 	local durWrap = Utils.mkFrame({name="DurWrap", size=UDim2.new(1, -30, 0, 15), pos=UDim2.new(0, 15, 0, 195), bgT=1, vis=false, parent=detail})
-	local durBarBack = Utils.mkFrame({name="Back", size=UDim2.new(1, 0, 1, 0), bg=Color3.fromRGB(40, 40, 40), r=3, parent=durWrap})
+	local durBarBack = Utils.mkFrame({name="Back", size=UDim2.new(1, 0, 1, 0), bg=C.BG_SLOT, r=3, parent=durWrap})
 	local durBarFill = Utils.mkFrame({name="Fill", size=UDim2.new(1, 0, 1, 0), bg=C.GOLD, r=3, parent=durBarBack})
 	local durText = Utils.mkLabel({text="100/100", size=UDim2.new(1, 0, 1, 0), ts=10, bold=true, color=C.WHITE, parent=durBarBack})
 	
@@ -287,7 +287,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	spinner.BackgroundTransparency = 1; spinner.Image = "rbxassetid://6034445544"; spinner.ImageColor3 = C.GOLD; spinner.ZIndex = 15; spinner.Parent = progWrap
 	InventoryUI.Refs.Detail.Spinner = spinner
 
-	local barBack = Utils.mkFrame({name="BarBack", size=UDim2.new(1, -24, 0, 6), pos=UDim2.new(0.5, 0, 0, 185), anchor=Vector2.new(0.5, 0), bg=Color3.fromRGB(40,40,40), r=3, vis=false, parent=detail})
+	local barBack = Utils.mkFrame({name="BarBack", size=UDim2.new(1, -24, 0, 6), pos=UDim2.new(0.5, 0, 0, 185), anchor=Vector2.new(0.5, 0), bg=C.BG_SLOT, r=3, vis=false, parent=detail})
 	local barFill = Utils.mkFrame({name="Fill", size=UDim2.new(0, 0, 1, 0), bg=C.GOLD, r=3, parent=barBack})
 	InventoryUI.Refs.Detail.ProgBar = barBack
 	InventoryUI.Refs.Detail.ProgFill = barFill
@@ -441,11 +441,11 @@ end
 
 function InventoryUI.UpdateSlotSelectionHighlight(selectedIndex, items, DataHelper)
 	local RarityColors = {
-		COMMON = Color3.fromRGB(180, 180, 180),
-		UNCOMMON = Color3.fromRGB(40, 200, 40),
-		RARE = Color3.fromRGB(40, 120, 255),
-		EPIC = Color3.fromRGB(180, 40, 255),
-		LEGENDARY = Color3.fromRGB(255, 180, 0),
+		COMMON = Color3.fromRGB(168, 165, 155),
+		UNCOMMON = Color3.fromRGB(80, 180, 60),
+		RARE = Color3.fromRGB(70, 140, 220),
+		EPIC = Color3.fromRGB(170, 70, 220),
+		LEGENDARY = Color3.fromRGB(255, 200, 60),
 	}
 	
 	for i = 1, Balance.INV_SLOTS do
@@ -455,7 +455,7 @@ function InventoryUI.UpdateSlotSelectionHighlight(selectedIndex, items, DataHelp
 		if st then
 			if i == selectedIndex then
 				st.Color = C.GOLD_SEL
-				st.Thickness = 2
+				st.Thickness = 2.5
 			else
 				local item = items and items[i]
 				local itemData = item and DataHelper.GetData("ItemData", item.itemId)
@@ -470,11 +470,11 @@ end
 function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper)
 	local slots = InventoryUI.Refs.Slots
 	local RarityColors = {
-		COMMON = Color3.fromRGB(180, 180, 180),
-		UNCOMMON = Color3.fromRGB(40, 200, 40),
-		RARE = Color3.fromRGB(40, 120, 255),
-		EPIC = Color3.fromRGB(180, 40, 255),
-		LEGENDARY = Color3.fromRGB(255, 180, 0),
+		COMMON = Color3.fromRGB(168, 165, 155),
+		UNCOMMON = Color3.fromRGB(80, 180, 60),
+		RARE = Color3.fromRGB(70, 140, 220),
+		EPIC = Color3.fromRGB(170, 70, 220),
+		LEGENDARY = Color3.fromRGB(255, 200, 60),
 	}
 
 	for i = 1, Balance.INV_SLOTS do
@@ -502,11 +502,11 @@ function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper)
 				s.durFill.Size = UDim2.new(ratio, 0, 1, 0)
 				
 				if ratio > 0.5 then
-					s.durFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+					s.durFill.BackgroundColor3 = Color3.fromRGB(120, 200, 80)
 				elseif ratio > 0.2 then
-					s.durFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+					s.durFill.BackgroundColor3 = Color3.fromRGB(230, 180, 60)
 				else
-					s.durFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+					s.durFill.BackgroundColor3 = Color3.fromRGB(200, 70, 50)
 				end
 			else
 				if s.durBg then s.durBg.Visible = false end
@@ -575,7 +575,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			if isLocked then
 				d.Stats.Text = string.format("<font color=\"#E63232\">%s</font>", UILocalizer.Localize("기술 트리(K)에서 해금이 필요합니다."))
 				d.BtnMain.Text = UILocalizer.Localize("잠김 (해금 필요)")
-				d.BtnMain.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+				d.BtnMain.BackgroundColor3 = C.BG_SLOT
 				d.BtnMain.Visible = true
 				d.BtnDrop.Visible = false
 			else
@@ -604,7 +604,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 					d.BtnMain.BackgroundColor3 = C.GOLD_SEL
 				else
 					d.BtnMain.Text = UILocalizer.Localize("재료 부족")
-					d.BtnMain.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+					d.BtnMain.BackgroundColor3 = C.BG_SLOT
 				end
 				d.BtnMain.Visible = true
 				d.BtnDrop.Visible = false
@@ -629,11 +629,11 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			d.DurText.Text = string.format("내구도: %d / %d", math.floor(curDur), math.floor(maxDur))
 			
 			if ratio > 0.5 then
-				d.DurFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
+				d.DurFill.BackgroundColor3 = Color3.fromRGB(120, 200, 80)
 			elseif ratio > 0.2 then
-				d.DurFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+				d.DurFill.BackgroundColor3 = Color3.fromRGB(230, 180, 60)
 			else
-				d.DurFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+				d.DurFill.BackgroundColor3 = Color3.fromRGB(200, 70, 50)
 			end
 		else
 			d.DurWrap.Visible = false

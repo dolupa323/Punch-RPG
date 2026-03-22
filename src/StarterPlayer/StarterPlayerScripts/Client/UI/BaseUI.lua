@@ -83,7 +83,7 @@ function BaseUI.Init(parent, UIManager, isMobile)
 	local nameInputBg = Instance.new("Frame")
 	nameInputBg.Size = UDim2.new(1, 0, 0, 40)
 	nameInputBg.Position = UDim2.new(0, 0, 0, 25)
-	nameInputBg.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+	nameInputBg.BackgroundColor3 = C.BG_SLOT
 	nameInputBg.BorderSizePixel = 0
 	nameInputBg.Parent = content
 	local cor = Instance.new("UICorner"); cor.CornerRadius = UDim.new(0, 6); cor.Parent = nameInputBg
@@ -118,7 +118,7 @@ function BaseUI.Init(parent, UIManager, isMobile)
 		name = "InfoBox",
 		size = UDim2.new(1, 0, 0, 80),
 		pos = UDim2.new(0, 0, 0, 80),
-		bg = Color3.fromRGB(25, 25, 30),
+		bg = C.BG_DARK,
 		r = 6,
 		parent = content
 	})
@@ -149,7 +149,7 @@ function BaseUI.Init(parent, UIManager, isMobile)
 		size = UDim2.new(1, 0, 0, 50),
 		pos = UDim2.new(0, 0, 1, -60),
 		bg = C.GOLD,
-		color = Color3.fromRGB(30, 30, 30),
+		color = C.BG_DARK,
 		ts = 18,
 		font = F.TITLE,
 		r = 8,

@@ -35,8 +35,8 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.Frame = Utils.mkFrame({
 		name = "EquipmentMenu",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0, 0, 0),
-		bgT = 0.7,
+		bg = C.BG_OVERLAY,
+		bgT = 0.5,
 		vis = false,
 		parent = parent
 	})
@@ -180,9 +180,9 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.Tooltip = Utils.mkFrame({
 		name = "Tooltip",
 		size = UDim2.new(0, 220, 0, 160),
-		bg = Color3.fromRGB(10, 10, 12),
-		bgT = 0.2,
-		r = 6, stroke = 1, strokeC = C.GOLD,
+		bg = C.BG_DARK,
+		bgT = 0.15,
+		r = 6, stroke = 1.5, strokeC = C.GOLD,
 		vis = false,
 		parent = parent -- ScreenGui parent to show above everything
 	})
@@ -191,7 +191,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	local tt = EquipmentUI.Refs.Tooltip
 	EquipmentUI.Refs.TooltipName = Utils.mkLabel({text=UILocalizer.Localize("아이템 이름"), size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,0,5), ts=16, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=tt})
 	EquipmentUI.Refs.TooltipInfo = Utils.mkLabel({text=UILocalizer.Localize("정보"), size=UDim2.new(1,-20,1,-70), pos=UDim2.new(0,10,0,35), ts=14, color=C.WHITE, ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, wrap=true, rich=true, parent=tt})
-	EquipmentUI.Refs.TooltipSet = Utils.mkLabel({text=UILocalizer.Localize("[ 세트 효과 ]"), size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,1,-5), anchor=Vector2.new(0,1), ts=13, color=Color3.fromRGB(150, 255, 150), ax=Enum.TextXAlignment.Left, wrap=true, rich=true, parent=tt})
+	EquipmentUI.Refs.TooltipSet = Utils.mkLabel({text=UILocalizer.Localize("[ 세트 효과 ]"), size=UDim2.new(1,-20,0,30), pos=UDim2.new(0,10,1,-5), anchor=Vector2.new(0,1), ts=13, color=Color3.fromRGB(120, 200, 80), ax=Enum.TextXAlignment.Left, wrap=true, rich=true, parent=tt})
 
 	if tooltipMoveConn then
 		tooltipMoveConn:Disconnect()
@@ -237,9 +237,9 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 					local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
 					slot.durBg.Visible = true
 					slot.durFill.Size = UDim2.new(ratio, 0, 1, 0)
-					if ratio > 0.5 then slot.durFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
-					elseif ratio > 0.2 then slot.durFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
-					else slot.durFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100) end
+					if ratio > 0.5 then slot.durFill.BackgroundColor3 = Color3.fromRGB(120, 200, 80)
+					elseif ratio > 0.2 then slot.durFill.BackgroundColor3 = Color3.fromRGB(230, 180, 60)
+					else slot.durFill.BackgroundColor3 = Color3.fromRGB(200, 70, 50) end
 				else
 					if slot.durBg then slot.durBg.Visible = false end
 				end

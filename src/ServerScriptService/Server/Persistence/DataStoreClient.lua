@@ -211,6 +211,10 @@ function DataStoreClient.Init()
 		warn("[DataStoreClient] DataStore not available, using mock:", store)
 		print("[DataStoreClient] Initialized with mock data (Studio mode)")
 	end
+
+	if isStudio and not mainStore then
+		warn("[DataStoreClient] ⚠ MOCK MODE — 데이터가 세션 종료 시 사라집니다! Game Settings에서 'Enable Studio Access to API Services'를 활성화하세요.")
+	end
 end
 
 return DataStoreClient

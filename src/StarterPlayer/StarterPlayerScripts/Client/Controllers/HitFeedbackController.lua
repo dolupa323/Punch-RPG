@@ -1,5 +1,5 @@
 -- HitFeedbackController.lua
--- 플레이어 피격 연출 및 물리적 상태 보정
+-- 플레이어 피격 연출 및 물리적 상태 보정, 히트스톱, 크리처 피격 연출
 -- Phase 11-5: 전투 피드백 강화
 
 local Players = game:GetService("Players")
@@ -12,12 +12,18 @@ local NetClient = require(Client.NetClient)
 
 local HitFeedbackController = {}
 
--- Constant
+-- Constants
 local SHAKE_INTENSITY = 0.8
 local SHAKE_DURATION = 0.15
+local HITSTOP_DURATION = 0.06       -- 히트스톱 프레임 정지 시간 (60ms)
+local ATTACKER_HITSTOP_DURATION = 0.05 -- 공격자 히트스톱 (50ms)
+local STAGGER_DURATION = 0.25       -- 경직 시간 (이동속도 감소)
+local STAGGER_SPEED_MULT = 0.15     -- 경직 중 이동속도 배율 (15%)
+local VIGNETTE_FADE_TIME = 0.35     -- 피격 레드 비네트 페이드아웃 시간
 
 local player = Players.LocalPlayer
 local initialized = false
+local isStaggered = false            -- 경직 중복 방지
 
 --========================================
 -- Internal Functions
@@ -29,16 +35,17 @@ local function playScreenShake(intensity)
 	if not cam then return end
 	
 	task.spawn(function()
-		local startPos = Vector3.new(0, 0, 0)
+		local originalCF = cam.CFrame
 		for i = 1, 6 do
 			local offset = Vector3.new(
 				(math.random() - 0.5) * intensity,
 				(math.random() - 0.5) * intensity,
 				(math.random() - 0.5) * intensity
 			)
-			cam.CFrame = cam.CFrame * CFrame.new(offset)
+			cam.CFrame = originalCF * CFrame.new(offset)
 			task.wait(0.02)
 		end
+		cam.CFrame = originalCF
 	end)
 end
 
@@ -69,6 +76,69 @@ local function playCharacterShake(sourcePos)
 	end)
 end
 
+--- 경직 효과 (피격 시 짧은 이동속도 감소)
+local function applyStagger()
+	if isStaggered then return end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	
+	isStaggered = true
+	local origSpeed = hum.WalkSpeed
+	hum.WalkSpeed = origSpeed * STAGGER_SPEED_MULT
+	
+	task.delay(STAGGER_DURATION, function()
+		if hum and hum.Parent then
+			hum.WalkSpeed = origSpeed
+		end
+		isStaggered = false
+	end)
+end
+
+--- 피격 레드 비네트 플래시 (화면 테두리 빨갛게)
+local function flashRedVignette()
+	task.spawn(function()
+		local playerGui = player:FindFirstChild("PlayerGui")
+		if not playerGui then return end
+		
+		-- 기존 비네트 제거
+		local existing = playerGui:FindFirstChild("HitVignette")
+		if existing then existing:Destroy() end
+		
+		local screen = Instance.new("ScreenGui")
+		screen.Name = "HitVignette"
+		screen.IgnoreGuiInset = true
+		screen.DisplayOrder = 100
+		screen.Parent = playerGui
+		
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.new(1, 0, 1, 0)
+		frame.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+		frame.BackgroundTransparency = 0.65
+		frame.BorderSizePixel = 0
+		frame.Parent = screen
+		
+		-- 가장자리만 보이게 하는 UIGradient (중앙 투명, 가장자리 빨강)
+		local gradient = Instance.new("UIGradient")
+		gradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.4, 1),
+			NumberSequenceKeypoint.new(0.6, 1),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		gradient.Parent = frame
+		
+		-- 페이드아웃
+		local tween = TweenService:Create(frame, TweenInfo.new(VIGNETTE_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 1
+		})
+		tween:Play()
+		tween.Completed:Connect(function()
+			screen:Destroy()
+		end)
+	end)
+end
+
 --- 캐릭터 상태 리셋 (드러눕는 현상 방지)
 local function preventLyingDown()
 	local char = player.Character
@@ -85,6 +155,102 @@ local function preventLyingDown()
 	end
 end
 
+--- 히트스톱 (애니메이션 속도를 0으로 잠시 정지)
+local function applyHitStop(humanoid: Humanoid, duration: number)
+	if not humanoid then return end
+	task.spawn(function()
+		-- 현재 재생 중인 모든 애니메이션 트랙을 일시 정지
+		local tracks = humanoid:GetPlayingAnimationTracks()
+		for _, track in ipairs(tracks) do
+			track:AdjustSpeed(0)
+		end
+		task.wait(duration)
+		for _, track in ipairs(tracks) do
+			if track.IsPlaying then
+				track:AdjustSpeed(1)
+			end
+		end
+	end)
+end
+
+--- 피격 파티클 효과 생성
+local function spawnHitParticle(position: Vector3)
+	task.spawn(function()
+		-- 임팩트 파트 (작은 원형 파티클 + 스파크)
+		local emitterPart = Instance.new("Part")
+		emitterPart.Size = Vector3.new(0.5, 0.5, 0.5)
+		emitterPart.Transparency = 1
+		emitterPart.CanCollide = false
+		emitterPart.Anchored = true
+		emitterPart.Position = position
+		emitterPart.Parent = workspace.CurrentCamera
+
+		-- 1. 메인 임팩트 파티클 (방사형 스파크)
+		local spark = Instance.new("ParticleEmitter")
+		spark.Color = ColorSequence.new(Color3.fromRGB(255, 200, 100), Color3.fromRGB(255, 80, 50))
+		spark.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.8),
+			NumberSequenceKeypoint.new(0.5, 0.3),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		spark.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.7, 0.3),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		spark.Lifetime = NumberRange.new(0.15, 0.35)
+		spark.Speed = NumberRange.new(8, 18)
+		spark.SpreadAngle = Vector2.new(180, 180)
+		spark.Rate = 0
+		spark.LightEmission = 1
+		spark.LightInfluence = 0
+		spark.Drag = 5
+		spark.Parent = emitterPart
+
+		-- 2. 작은 파편 파티클
+		local debris = Instance.new("ParticleEmitter")
+		debris.Color = ColorSequence.new(Color3.fromRGB(255, 255, 200))
+		debris.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.3),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		debris.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.2),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		debris.Lifetime = NumberRange.new(0.2, 0.5)
+		debris.Speed = NumberRange.new(4, 12)
+		debris.SpreadAngle = Vector2.new(360, 360)
+		debris.Rate = 0
+		debris.LightEmission = 0.8
+		debris.Drag = 3
+		debris.Acceleration = Vector3.new(0, -20, 0)
+		debris.Parent = emitterPart
+
+		-- 버스트 방출
+		spark:Emit(8)
+		debris:Emit(6)
+
+		task.wait(0.6)
+		emitterPart:Destroy()
+	end)
+end
+
+--- 크리처 모델 찾기
+local function findCreatureModel(instanceId: string): Model?
+	for _, folderName in ipairs({"ActiveCreatures", "Creatures"}) do
+		local folder = workspace:FindFirstChild(folderName)
+		if folder then
+			for _, model in ipairs(folder:GetChildren()) do
+				if model:GetAttribute("InstanceId") == instanceId then
+					return model
+				end
+			end
+		end
+	end
+	return nil
+end
+
 --========================================
 -- Public API
 --========================================
@@ -92,10 +258,8 @@ end
 function HitFeedbackController.Init()
 	if initialized then return end
 	
-	-- 서버로부터 피격 이벤트 수신
+	-- 서버로부터 플레이어 피격 이벤트 수신
 	NetClient.On("Combat.Player.Hit", function(data)
-		print("[HitFeedbackController] Received hit! Damage:", data.damage)
-		
 		-- 1. 화면 흔들림
 		playScreenShake(SHAKE_INTENSITY)
 		
@@ -104,8 +268,69 @@ function HitFeedbackController.Init()
 			playCharacterShake(data.sourcePos)
 		end
 		
-		-- 3. 피격 사운드 (임시)
-		-- TODO: 사운드 시스템 추가
+		-- 3. 피격 히트스톱 (피격자: 잠깐 모든 애니메이션 정지)
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			applyHitStop(hum, HITSTOP_DURATION)
+		end
+		
+		-- 4. 경직 (이동속도 감소)
+		applyStagger()
+		
+		-- 5. 피격 레드 비네트 플래시
+		flashRedVignette()
+		
+		-- 6. 피격 파티클 (플레이어 위치)
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			spawnHitParticle(hrp.Position + Vector3.new(0, 1, 0))
+		end
+	end)
+	
+	-- 크리처 피격 연출 이벤트 수신 (모든 클라이언트)
+	NetClient.On("Combat.Creature.Hit", function(data)
+		-- data: { instanceId, hitPosition {x,y,z}, damage, killed }
+		if not data then return end
+		
+		local hitPos
+		if data.hitPosition then
+			hitPos = Vector3.new(data.hitPosition.x or 0, data.hitPosition.y or 0, data.hitPosition.z or 0)
+		end
+		
+		-- 1. 피격 파티클 생성 (킬 시에도 재생)
+		if hitPos then
+			spawnHitParticle(hitPos)
+		end
+		
+		-- 2. 크리처 히트스톱 (생존 시만 — 사망 시 사망 연출 방해 방지)
+		if not data.killed then
+			local model = findCreatureModel(data.instanceId)
+			if model then
+				local creatureHum = model:FindFirstChildOfClass("Humanoid")
+				if creatureHum then
+					applyHitStop(creatureHum, HITSTOP_DURATION)
+				end
+			end
+		end
+		
+		-- 3. 공격자(로컬 플레이어) 히트스톱
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			applyHitStop(hum, ATTACKER_HITSTOP_DURATION)
+		end
+	end)
+	
+	-- 전투 중 접촉 경직 이벤트 수신 (크리처와 접촉 시 밀어내기)
+	NetClient.On("Combat.Contact.Stagger", function(data)
+		if not data then return end
+		
+		-- 가벼운 화면 흔들림 (공격 피격보다 약하게)
+		playScreenShake(SHAKE_INTENSITY * 0.5)
+		
+		-- 짧은 비네트 (접촉 피드백)
+		flashRedVignette()
 	end)
 	
 	-- 눕는 현상을 방지하기 위한 주기적 체크 부하가 적으므로 Heartbeat 사용

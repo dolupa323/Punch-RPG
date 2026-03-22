@@ -43,6 +43,12 @@ end
 local activeCreatures = {} -- [instanceId] = { model=Part, data=Data, state=..., targetPosition=Vector3, lastStateChange=number }
 local creatureCount = 0
 
+-- groupSize > 1인 크리처는 cap 기여량을 줄여 과잉 점유 방지
+local function getCapWeight(data)
+	local gs = (data and data.groupSize) or 1
+	return gs > 1 and (1 / gs) or 1
+end
+
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
@@ -110,19 +116,10 @@ function CreatureService.Init(_NetController, _DataService, _WorldDropService, _
 	-- DropTableData 로드 (ReplicatedStorage)
 	DropTableData = require(game:GetService("ReplicatedStorage").Data.DropTableData)
 	
-	-- [추가] 충돌 그룹 설정 (플레이어와 크리처는 서로 통과하게 함)
+	-- [충돌 그룹] ServerInit에서 이미 등록/비활성화 완료
+	-- Players vs Creatures = false (비전투 상태에서 서로 통과)
+	-- CombatCreatures vs Players = true (전투 상태에서 충돌)
 	local PhysicsService = game:GetService("PhysicsService")
-	pcall(function()
-		-- 그룹이 없을 경우 생성
-		if not PhysicsService:IsCollisionGroupRegistered("Players") then
-			PhysicsService:RegisterCollisionGroup("Players")
-		end
-		if not PhysicsService:IsCollisionGroupRegistered("Creatures") then
-			PhysicsService:RegisterCollisionGroup("Creatures")
-		end
-		-- 플레이어 vs 크리처 충돌 비활성화 (날아감/드러눕기 방지)
-		PhysicsService:CollisionGroupSetCollidable("Players", "Creatures", false)
-	end)
 	
 	-- [추가] 신규 플레이어 충돌 그룹 할당 루틴
 	local function setCharGroup(char)
@@ -602,7 +599,7 @@ function CreatureService.spawn(creatureId, position)
 		gui = healthFill, -- HP 바 업데이트용
 		torporGui = torporFill, -- 기절 바 업데이트용
 	}
-	creatureCount = creatureCount + 1
+	creatureCount = creatureCount + getCapWeight(data)
 	
 	print(string.format("[CreatureService] Spawned %s (%s)", creatureId, instanceId))
 	
@@ -614,14 +611,30 @@ function CreatureService.getCreatureRuntime(instanceId: string)
 	return activeCreatures[instanceId]
 end
 
+--- 크리처 현재 위치 반환
+function CreatureService.getCreaturePosition(instanceId: string): Vector3?
+	local creature = activeCreatures[instanceId]
+	if creature and creature.rootPart then
+		return creature.rootPart.Position
+	end
+	return nil
+end
+
 --- 크리처 강제 제거 (포획 등 특수 상황용)
 function CreatureService.removeCreature(instanceId: string)
 	local creature = activeCreatures[instanceId]
 	if not creature then return end
 	
+	-- 전투 교전 상태 정리
+	local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+	if CombatService.disengageCreature then
+		CombatService.disengageCreature(instanceId)
+	end
+	
 	-- 즉시 런타임에서 제거
+	local weight = getCapWeight(creature.data)
 	activeCreatures[instanceId] = nil
-	creatureCount = creatureCount - 1
+	creatureCount = creatureCount - weight
 	
 	-- 시각적 제거 (BillboardGui 및 관련 UI 명시적 파괴)
 	if creature.rootPart then
@@ -793,8 +806,9 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 			if labels then labels:Destroy() end
 		end
 		
+		local weight = getCapWeight(creature.data)
 		activeCreatures[instanceId] = nil 
-		creatureCount = creatureCount - 1
+		creatureCount = creatureCount - weight
 		playNaturalDeathSequence(creature)
 		
 		return true, deathPos
@@ -1169,6 +1183,8 @@ function CreatureService._updateAILoop()
 	-- 3. 각 크리처별 AI 로직 실행 (상태 머신)
 	for id, creature in pairs(activeCreatures) do
 		if not creature.model or not creature.model.Parent then
+			local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+			if CombatService.disengageCreature then CombatService.disengageCreature(id) end
 			activeCreatures[id] = nil
 			creatureCount = creatureCount - 1
 			continue
@@ -1215,6 +1231,8 @@ function CreatureService._updateAILoop()
 		-- [FIX] 플레이어가 1명이라도 있을 때만 Despawn 체크 수행 (서버 시작 시 멸종 방지)
 		-- 또한 minDist가 9999(초기값)라는 것은 주변에 플레이어가 아예 없다는 뜻임.
 		if #allPlayers > 0 and minDist > DESPAWN_DIST then
+			local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+			if CombatService.disengageCreature then CombatService.disengageCreature(id) end
 			creature.model:Destroy()
 			activeCreatures[id] = nil
 			creatureCount = creatureCount - 1
@@ -1304,10 +1322,19 @@ function CreatureService._updateAILoop()
 					creature.lostAggroAt = now -- 어그로 상실 시점 기록
 				end
 			elseif minDist <= detectRange then
+				-- 전투 중인 플레이어는 선공 대상에서 제외
+				local playerInCombat = false
+				if closestPlayerUserId then
+					local CS = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+					if CS.getPlayerCombatTarget and CS.getPlayerCombatTarget(closestPlayerUserId) then
+						playerInCombat = true
+					end
+				end
+				
 				-- 어그로 쿨다운 체크 (한번 따돌리면 잠시 동안 다시 인식 못하게 함)
 				local isCold = not creature.lostAggroAt or (now - creature.lostAggroAt > AGGRO_COOLDOWN)
 				
-				if isCold then
+				if isCold and not playerInCombat then
 					newState = "CHASE"
 					if not creature.chaseStartTime then
 						creature.chaseStartTime = now
@@ -1597,7 +1624,12 @@ function CreatureService._updateAILoop()
 
 			-- 3. 속도 설정
 			if creature.state == "CHASE" then
-				humanoid.WalkSpeed = creature.data.runSpeed or 20
+				-- 공격 사거리 내 도달 시 정지 (제자리 달리기 방지)
+				if isInAttackRange then
+					humanoid.WalkSpeed = 0
+				else
+					humanoid.WalkSpeed = creature.data.runSpeed or 20
+				end
 			elseif creature.state == "FLEE" then
 				humanoid.WalkSpeed = (creature.data.runSpeed or 20) * 1.2
 			else
@@ -1649,15 +1681,19 @@ function CreatureService._updateAILoop()
 						continue
 					end
 
-					if not creature.lastAttackTime or (now - creature.lastAttackTime >= CREATURE_ATTACK_COOLDOWN) then
+					if not creature.lastAttackTime or (now - creature.lastAttackTime >= (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN)) then
 						creature.lastAttackTime = now
 						if closestPlayerHum and closestPlayerHum.Health > 0 then
+							-- 근접 여부 판단 (공격사거리 60% 이내 = 이미 밀착)
+							local isClose = (headDist <= attackRange * 0.6)
 							if NetController then
-								NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetUserId = closestPlayerUserId })
+								NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetUserId = closestPlayerUserId, isClose = isClose })
 							end
 							
-							-- [수정] 공격 딜레이(Prep) 처리
-							local attackDelay = creature.data.attackDelay or 0.3 -- 기본 0.3초
+							-- [수정] 근접 시 돌진 시간 생략하여 딜레이 단축
+							local baseDelay = creature.data.attackDelay or 0.3
+							local isTrike = (creature.data.id == "TRICERATOPS" or creature.data.id == "BABY_TRICERATOPS")
+							local attackDelay = (isClose and isTrike) and math.min(baseDelay, 0.6) or baseDelay
 							task.delay(attackDelay, function()
 								-- 1. 활성 상태 및 거리 재확인 (피했을 경우 판정 무효)
 								local currentCreature = activeCreatures[id]
@@ -1679,13 +1715,13 @@ function CreatureService._updateAILoop()
 								-- 판정 관용도: 원래 사거리의 1.3배까지 인정 (돌진 중일 수 있음)
 								if currentDist <= attackRange * 1.3 then
 									local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
-									CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position)
+									CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position, id)
 								end
 							end)
 						end
 					end
 				else
-					if not creature.lastAttackTime or (now - creature.lastAttackTime >= CREATURE_ATTACK_COOLDOWN) then
+					if not creature.lastAttackTime or (now - creature.lastAttackTime >= (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN)) then
 						if getProtectedZoneInfo(hrp.Position) then
 							continue
 						end

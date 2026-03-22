@@ -79,6 +79,10 @@ if success then
 	local HitFeedbackController = require(Controllers.HitFeedbackController)
 	HitFeedbackController.Init()
 	
+	-- [추가] DamageUIController 초기화 (부동 데미지 텍스트)
+	local DamageUIController = require(Controllers.DamageUIController)
+	DamageUIController.Init()
+	
 	-- [추가] PromptUI 초기화 (커스텀 ProximityPrompt)
 	local PromptUI = require(Client:WaitForChild("UI"):WaitForChild("PromptUI"))
 	PromptUI.Init()

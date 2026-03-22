@@ -1,67 +1,71 @@
 -- UITheme.lua
--- UI 컬러 및 폰트 테마 정의 (Durango Style)
+-- UI 컬러 및 폰트 테마 정의 (Dark Glass + Gold Metallic)
 
 local UITheme = {
 	Colors = {
-		-- Overlays & Panels (Minimalist Glass)
-		BG_OVERLAY    = Color3.fromRGB(0, 0, 0),
-		BG_PANEL      = Color3.fromRGB(5, 7, 10), 
-		BG_PANEL_L    = Color3.fromRGB(25, 27, 30), 
-		BG_DARK       = Color3.fromRGB(0, 0, 0),    
-		
-		BG_SLOT       = Color3.fromRGB(15, 17, 20), 
-		BG_SLOT_SEL   = Color3.fromRGB(40, 45, 55), 
-		GOLD_SEL      = Color3.fromRGB(255, 230, 100), 
-		
-		-- Borders & Strokes (Subtle)
-		BORDER        = Color3.fromRGB(60, 65, 75), -- 어둡고 은은한 외곽선 (하얀색 제거)
-		BORDER_DIM    = Color3.fromRGB(40, 42, 48),
-		BORDER_SEL    = Color3.fromRGB(245, 215, 80),
+		-- Overlays & Panels (Cool Dark Glass)
+		BG_OVERLAY    = Color3.fromRGB(10, 10, 15),
+		BG_PANEL      = Color3.fromRGB(20, 20, 28),
+		BG_PANEL_L    = Color3.fromRGB(32, 32, 42),
+		BG_DARK       = Color3.fromRGB(12, 12, 18),
 
-		-- Bars (Modern & Flat)
-		HP            = Color3.fromRGB(255, 60, 60),  
-		HP_BG         = Color3.fromRGB(30, 10, 10),
-		STA           = Color3.fromRGB(255, 225, 50), 
-		STA_BG        = Color3.fromRGB(40, 35, 5),
-		HUNGER        = Color3.fromRGB(100, 255, 120), 
-		XP            = Color3.fromRGB(100, 255, 50), -- 연두색 (Vivid Light Green)
-		XP_BG         = Color3.fromRGB(15, 30, 15),
+		BG_SLOT       = Color3.fromRGB(28, 28, 38),
+		BG_SLOT_SEL   = Color3.fromRGB(50, 48, 40),
+		GOLD_SEL      = Color3.fromRGB(255, 225, 90),
 
-		-- Text (Modern Clean)
-		WHITE         = Color3.fromRGB(255, 255, 255),
-		INK           = Color3.fromRGB(220, 220, 220),
-		GRAY          = Color3.fromRGB(150, 155, 165),
-		DIM           = Color3.fromRGB(90, 95, 105),
-		GOLD          = Color3.fromRGB(255, 230, 100),
-		GREEN         = Color3.fromRGB(100, 255, 120),
-		RED           = Color3.fromRGB(255, 70, 70),
-		ORANGE        = Color3.fromRGB(255, 160, 50),
+		-- Borders & Strokes (Gold Metallic)
+		BORDER        = Color3.fromRGB(170, 140, 60),
+		BORDER_DIM    = Color3.fromRGB(65, 58, 35),
+		BORDER_SEL    = Color3.fromRGB(255, 210, 60),
 
-		-- Buttons
-		BTN           = Color3.fromRGB(20, 22, 28),
-		BTN_H         = Color3.fromRGB(45, 50, 60),
-		BTN_DIS       = Color3.fromRGB(15, 17, 20),
-		
+		-- Bars
+		HP            = Color3.fromRGB(200, 50, 40),
+		HP_BG         = Color3.fromRGB(40, 15, 15),
+		STA           = Color3.fromRGB(230, 185, 50),
+		STA_BG        = Color3.fromRGB(42, 38, 15),
+		HUNGER        = Color3.fromRGB(80, 200, 90),
+		XP            = Color3.fromRGB(120, 220, 60),
+		XP_BG         = Color3.fromRGB(20, 30, 15),
+
+		-- Text (Clean Modern)
+		WHITE         = Color3.fromRGB(240, 238, 230),
+		INK           = Color3.fromRGB(200, 198, 190),
+		GRAY          = Color3.fromRGB(145, 142, 135),
+		DIM           = Color3.fromRGB(95, 92, 85),
+		GOLD          = Color3.fromRGB(255, 210, 60),
+		GREEN         = Color3.fromRGB(90, 210, 90),
+		RED           = Color3.fromRGB(220, 60, 50),
+		ORANGE        = Color3.fromRGB(235, 155, 45),
+
+		-- Buttons (Dark Glass)
+		BTN           = Color3.fromRGB(35, 35, 42),
+		BTN_H         = Color3.fromRGB(55, 52, 45),
+		BTN_DIS       = Color3.fromRGB(22, 22, 28),
+
 		-- Rarities
-		COMMON        = Color3.fromRGB(160, 165, 175),
-		UNCOMMON      = Color3.fromRGB(80, 230, 80),
-		RARE          = Color3.fromRGB(60, 140, 255),
-		EPIC          = Color3.fromRGB(170, 70, 255),
-		LEGENDARY     = Color3.fromRGB(255, 160, 30),
+		COMMON        = Color3.fromRGB(175, 172, 160),
+		UNCOMMON      = Color3.fromRGB(80, 200, 80),
+		RARE          = Color3.fromRGB(70, 150, 245),
+		EPIC          = Color3.fromRGB(180, 80, 240),
+		LEGENDARY     = Color3.fromRGB(255, 200, 40),
+
+		-- Accent
+		PARCHMENT     = Color3.fromRGB(180, 170, 150),
+		WOOD_DARK     = Color3.fromRGB(35, 32, 28),
+		WOOD_LIGHT    = Color3.fromRGB(90, 80, 60),
 	},
-	
+
 	Fonts = {
-		-- Roblox built-in font preset tuned for a rougher survival-style tone.
-		TITLE  = Enum.Font.Cartoon,
+		TITLE  = Enum.Font.GothamMedium,
 		NORMAL = Enum.Font.Gotham,
-		NUM    = Enum.Font.Highway,
+		NUM    = Enum.Font.RobotoMono,
 		CLASSIC = Enum.Font.Gotham,
 	},
 
 	Transp = {
-		PANEL = 0.95, -- 거의 투명하게
-		SLOT  = 0.6,
-		BG    = 0.95,
+		PANEL = 0.30,
+		SLOT  = 0.40,
+		BG    = 0.25,
 	}
 }
 

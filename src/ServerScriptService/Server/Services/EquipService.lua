@@ -260,11 +260,19 @@ function EquipService.equipItem(player: Player, itemId: string?)
 		tool:SetAttribute("ToolType", itemData.optimalTool or itemId:upper())
 		
 		-- [추가] 타입별 Grip 설정 (쥐는 각도 및 위치 조정)
-		if itemData.optimalTool == "PICKAXE" then
+		-- 개별 아이템 그립 오버라이드
+		local gripOverrides = {
+			CRUDE_STONE_AXE = CFrame.new(0, -0.8, 0) * CFrame.Angles(math.rad(180), 0, math.rad(180)),
+			TORCH = CFrame.new(0, -0.5, 0) * CFrame.Angles(0, 0, 0),
+		}
+		
+		if gripOverrides[itemId] then
+			tool.Grip = gripOverrides[itemId]
+		elseif itemData.optimalTool == "PICKAXE" then
 			tool.Grip = CFrame.new(0, 0, 1.2) * CFrame.Angles(math.rad(-90), 0, 0)
 		elseif itemData.optimalTool == "AXE" then
-			-- 도끼: 손잡이를 수직으로 쥐도록 각도 초기화 및 오프셋 조정
-			tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, 0, 0)
+			-- 도끼: 날카로운 부분이 캐릭터 정면을 향하도록 Y축 90° 회전
+			tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, math.rad(90), 0)
 		elseif itemData.optimalTool == "SPEAR" then
 			-- 창: Z축(가로) 오프셋을 0으로 만들어 손에 딱 붙이고, Y축(세로)를 -1.5로 내려 아래쪽을 쥐게 함
 			tool.Grip = CFrame.new(0, -1.5, 0) * CFrame.Angles(0, 0, 0)

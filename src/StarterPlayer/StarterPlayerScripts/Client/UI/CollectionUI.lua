@@ -18,13 +18,16 @@ CollectionUI.Refs = {}
 local isUIInitialized = false
 local UIManager = nil
 
-local CATEGORY_TABS = {
+-- 상단 가로 탭 (인벤토리/간이제작 스타일)
+local TOP_MODE = "CODEX"  -- "CODEX" or "PET"
+
+-- 좌측 세로 탭: 지역 구분 (도감 모드 전용)
+local REGION_TABS = {
 	{ label = "전체", key = "ALL" },
 	{ label = "초원", key = "GRASSLAND" },
 	{ label = "열대", key = "TROPICAL" },
 	{ label = "사막", key = "DESERT" },
 	{ label = "툰드라", key = "TUNDRA" },
-	{ label = "펫", key = "PET" }
 }
 
 -- 현재 운영 기준: 초원섬 도감은 3종 중심으로 노출
@@ -123,12 +126,40 @@ end
 -- Render Loop
 --========================================
 
-local function _renderTabs()
+local function _updateTopTabs()
+	local tabCodex = CollectionUI.Refs.TabCodex
+	local tabPet = CollectionUI.Refs.TabPet
+	if tabCodex then
+		tabCodex.TextColor3 = (TOP_MODE == "CODEX") and C.GOLD_SEL or C.GRAY
+	end
+	if tabPet then
+		tabPet.TextColor3 = (TOP_MODE == "PET") and C.GOLD_SEL or C.GRAY
+	end
+
+	-- 도감 모드: 좌측 지역 탭 + 중앙 스크롤 표시
+	-- 펫 모드: 좌측 탭 숨기고 스크롤 영역 확장
+	local tabList = CollectionUI.Refs.TabList
+	local scroll = CollectionUI.Refs.Scroll
+	if tabList then
+		tabList.Visible = (TOP_MODE == "CODEX")
+	end
+	if scroll then
+		if TOP_MODE == "CODEX" then
+			scroll.Size = UDim2.new(0, 490, 1, -70)
+			scroll.Position = UDim2.new(0, 140, 0, 60)
+		else
+			scroll.Size = UDim2.new(0, 610, 1, -70)
+			scroll.Position = UDim2.new(0, 10, 0, 60)
+		end
+	end
+end
+
+local function _renderRegionTabs()
 	for _, c in ipairs(CollectionUI.Refs.TabList:GetChildren()) do
 		if c:IsA("GuiObject") then c:Destroy() end
 	end
 	
-	for i, tab in ipairs(CATEGORY_TABS) do
+	for i, tab in ipairs(REGION_TABS) do
 		local btn = Instance.new("TextButton")
 		btn.Name = "Tab_" .. tab.key
 		btn.Size = UDim2.new(1, 0, 0, 50)
@@ -150,7 +181,7 @@ local function _renderTabs()
 		
 		btn.MouseButton1Click:Connect(function()
 			activeTabKey = tab.key
-			_renderTabs()
+			_renderRegionTabs()
 			CollectionUI.refreshData()
 		end)
 		
@@ -245,7 +276,7 @@ local function _renderDetails()
 	if dnaTxt then
 		if isComplete then
 			dnaTxt.Text = UILocalizer.Localize(string.format("DNA: %d/%d ✓ 완성!", dnaCount, dnaRequired))
-			dnaTxt.TextColor3 = Color3.fromRGB(100, 255, 100)
+			dnaTxt.TextColor3 = Color3.fromRGB(120, 200, 80)
 		else
 			dnaTxt.Text = UILocalizer.Localize(string.format("DNA: %d/%d", dnaCount, dnaRequired))
 			dnaTxt.TextColor3 = C.GOLD
@@ -261,7 +292,7 @@ local function _renderDetails()
 		local passiveText = getPassiveEffectText(selectedCreatureId)
 		if isComplete and passiveText then
 			effVal.Text = UILocalizer.Localize("✓ " .. passiveText .. "\n펫 활성화 가능!")
-			effVal.TextColor3 = Color3.fromRGB(100, 255, 100)
+			effVal.TextColor3 = Color3.fromRGB(120, 200, 80)
 		elseif passiveText then
 			effVal.Text = UILocalizer.Localize(passiveText .. "\n(도감 완성 시 활성화)")
 			effVal.TextColor3 = C.DIM
@@ -444,12 +475,12 @@ local function _renderPetTab()
 		local creatureId = slots[i] or slots[tostring(i)]
 		local xPos = 10 + (i - 1) * (SLOT_W + 12)
 		
-		local slotBg = Utils.CreateFrame("Slot_" .. i, UDim2.new(0, SLOT_W, 0, SLOT_H), UDim2.new(0, xPos, 0, y), isUnlocked and C.BG_SLOT or Color3.fromRGB(40, 40, 40))
+		local slotBg = Utils.CreateFrame("Slot_" .. i, UDim2.new(0, SLOT_W, 0, SLOT_H), UDim2.new(0, xPos, 0, y), isUnlocked and C.BG_SLOT or C.BG_DARK)
 		Instance.new("UICorner", slotBg).CornerRadius = UDim.new(0, 10)
 		
 		local stroke = Instance.new("UIStroke")
 		stroke.Thickness = 2
-		stroke.Color = (selectedPetSlot == i) and C.GOLD or Color3.fromRGB(60, 60, 60)
+		stroke.Color = (selectedPetSlot == i) and C.GOLD or C.BORDER_DIM
 		stroke.Parent = slotBg
 		
 		if not isUnlocked then
@@ -525,7 +556,7 @@ local function _renderPetTab()
 			
 			local stroke = Instance.new("UIStroke")
 			stroke.Thickness = 2
-			stroke.Color = (selectedPetCreatureId == cid) and C.GOLD_SEL or Color3.fromRGB(60, 60, 60)
+			stroke.Color = (selectedPetCreatureId == cid) and C.GOLD_SEL or C.BORDER_DIM
 			stroke.Parent = card
 			
 			local icon = Utils.CreateImage("Icon", UDim2.new(0, 60, 0, 60), UDim2.new(0.5, -30, 0, 15), getCreatureIcon(cid))
@@ -541,7 +572,7 @@ local function _renderPetTab()
 			for _, sid in pairs(slots) do if sid == cid then equipped = true; break end end
 			if equipped then
 				local eqTag = Utils.CreateTextLabel("Eq", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 105), UILocalizer.Localize("장착중"))
-				eqTag.TextColor3 = Color3.fromRGB(100, 255, 100); eqTag.TextSize = 12; eqTag.Parent = card
+				eqTag.TextColor3 = Color3.fromRGB(120, 200, 80); eqTag.TextSize = 12; eqTag.Parent = card
 			end
 			
 			local btn = Instance.new("TextButton")
@@ -580,8 +611,10 @@ end
 function CollectionUI.refreshData()
 	if not isUIInitialized then return end
 	
-	-- 펫 탭이면 별도 렌더링
-	if activeTabKey == "PET" then
+	_updateTopTabs()
+	
+	-- 펫 모드이면 별도 렌더링
+	if TOP_MODE == "PET" then
 		_renderPetTab()
 		return
 	end
@@ -617,7 +650,7 @@ function CollectionUI.refreshData()
 			-- 선택 하이라이트
 			local stroke = Instance.new("UIStroke")
 			stroke.Thickness = 2
-			stroke.Color = (cid == selectedCreatureId) and C.GOLD_SEL or Color3.fromRGB(60,60,60)
+			stroke.Color = (cid == selectedCreatureId) and C.GOLD_SEL or C.BORDER_DIM
 			stroke.Parent = card
 			
 			-- 아이콘
@@ -632,7 +665,7 @@ function CollectionUI.refreshData()
 			nameL.Parent = card
 			
 			-- DNA 바
-			local barBg = Utils.CreateFrame("BarBg", UDim2.new(0.8, 0, 0, 10), UDim2.new(0.1, 0, 0, 105), Color3.fromRGB(0,0,0))
+			local barBg = Utils.CreateFrame("BarBg", UDim2.new(0.8, 0, 0, 10), UDim2.new(0.1, 0, 0, 105), C.BG_DARK)
 			Instance.new("UICorner", barBg).CornerRadius = UDim.new(0, 5)
 			
 			local fillRatio = math.clamp(dCount / dRequired, 0, 1)
@@ -695,9 +728,37 @@ function CollectionUI.Init(mainGui, uiManager)
 	Frame.Visible = false
 	CollectionUI.Refs.Frame = Frame
 	
-	-- Header
+	-- Header (인벤토리 스타일: 가로 탭 + 닫기)
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=Frame})
-	Utils.mkLabel({text=UILocalizer.Localize("도감 [P]"), pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+
+	local leftHeader = Utils.mkFrame({size=UDim2.new(0.6, -20, 1, 0), pos=UDim2.new(0, 15, 0, 0), bgT=1, parent=header})
+	local titleList = Instance.new("UIListLayout")
+	titleList.FillDirection = Enum.FillDirection.Horizontal
+	titleList.VerticalAlignment = Enum.VerticalAlignment.Center
+	titleList.Padding = UDim.new(0, 20)
+	titleList.Parent = leftHeader
+
+	CollectionUI.Refs.TabCodex = Utils.mkBtn({text=UILocalizer.Localize("도감 [P]"), size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GOLD_SEL, parent=leftHeader})
+	CollectionUI.Refs.TabPet = Utils.mkBtn({text=UILocalizer.Localize("펫"), size=UDim2.new(0, 100, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
+
+	CollectionUI.Refs.TabCodex.MouseButton1Click:Connect(function()
+		TOP_MODE = "CODEX"
+		activeTabKey = "ALL"
+		selectedCreatureId = nil
+		selectedPetCreatureId = nil
+		selectedPetSlot = nil
+		_renderRegionTabs()
+		CollectionUI.refreshData()
+	end)
+
+	CollectionUI.Refs.TabPet.MouseButton1Click:Connect(function()
+		TOP_MODE = "PET"
+		selectedCreatureId = nil
+		selectedPetCreatureId = nil
+		selectedPetSlot = nil
+		CollectionUI.refreshData()
+	end)
+
 	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
 	
 	-- 좌측 탭 영역
@@ -757,7 +818,9 @@ function CollectionUI.Show()
 	if not CollectionUI.Refs.Frame then return end
 	CollectionUI.Refs.Frame.Visible = true
 	
-	_renderTabs()
+	TOP_MODE = "CODEX"
+	activeTabKey = "ALL"
+	_renderRegionTabs()
 	CollectionUI.refreshData()
 	
 	-- Data Event Hook (DNA 획득 시 UI에 열려있으면 즉시 반영)

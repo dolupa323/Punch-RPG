@@ -62,7 +62,7 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		size = UDim2.new(0, 42, 0, 42),
 		pos = UDim2.new(1, -12, 0, 12),
 		anchor = Vector2.new(1, 0),
-		bg = Color3.fromRGB(60, 60, 70),
+		bg = C.BG_SLOT,
 		ts = 20,
 		fn = function()
 			UIManager.closeTotem()
@@ -114,10 +114,10 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		name = "RaidWarning",
 		size = UDim2.new(1, -32, 0, 46),
 		pos = UDim2.new(0, 16, 0, 184),
-		bg = Color3.fromRGB(135, 28, 28),
+		bg = Color3.fromRGB(100, 25, 28),
 		bgT = 0.2,
 		stroke = 1,
-		strokeC = Color3.fromRGB(255, 175, 175),
+		strokeC = Color3.fromRGB(210, 145, 140),
 		vis = false,
 		parent = window,
 	})
@@ -129,7 +129,7 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(0, 8, 0, 0),
 		font = F.TITLE,
 		ts = 24,
-		color = Color3.fromRGB(255, 220, 130),
+		color = C.GOLD,
 		ax = Enum.TextXAlignment.Center,
 		parent = warningFrame,
 	})
@@ -139,7 +139,7 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		size = UDim2.new(1, -44, 1, 0),
 		pos = UDim2.new(0, 38, 0, 0),
 		ts = 15,
-		color = Color3.fromRGB(255, 230, 230),
+		color = Color3.fromRGB(220, 215, 210),
 		ax = Enum.TextXAlignment.Left,
 		parent = warningFrame,
 	})
@@ -148,7 +148,7 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		text = "영역 확인",
 		size = UDim2.new(0.5, -20, 0, 40),
 		pos = UDim2.new(0, 16, 0, 236),
-		bg = Color3.fromRGB(60, 120, 200),
+		bg = Color3.fromRGB(50, 90, 155),
 		font = F.TITLE,
 		ts = 16,
 		fn = function()
@@ -163,7 +163,7 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		text = "새로고침",
 		size = UDim2.new(0.5, -20, 0, 40),
 		pos = UDim2.new(0.5, 4, 0, 236),
-		bg = Color3.fromRGB(90, 90, 110),
+		bg = C.BG_SLOT,
 		font = F.TITLE,
 		ts = 16,
 		fn = function()
@@ -178,8 +178,8 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		text = "1일 유지 ~ 100 Gold",
 		size = UDim2.new(1, -32, 0, 44),
 		pos = UDim2.new(0, 16, 0, 290),
-		bg = Color3.fromRGB(205, 168, 86),
-		color = Color3.fromRGB(30, 30, 30),
+		bg = C.GOLD,
+		color = C.BG_DARK,
 		font = F.TITLE,
 		ts = 17,
 		fn = function()
@@ -194,8 +194,8 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		text = "3일 유지 ~ 280 Gold",
 		size = UDim2.new(1, -32, 0, 44),
 		pos = UDim2.new(0, 16, 0, 340),
-		bg = Color3.fromRGB(185, 152, 76),
-		color = Color3.fromRGB(30, 30, 30),
+		bg = C.GOLD,
+		color = C.BG_DARK,
 		font = F.TITLE,
 		ts = 17,
 		fn = function()
@@ -210,8 +210,8 @@ function TotemUI.Init(parent, UIManager, isMobile)
 		text = "7일 유지 ~ 630 Gold",
 		size = UDim2.new(1, -32, 0, 44),
 		pos = UDim2.new(0, 16, 0, 390),
-		bg = Color3.fromRGB(165, 138, 66),
-		color = Color3.fromRGB(30, 30, 30),
+		bg = C.GOLD,
+		color = C.BG_DARK,
 		font = F.TITLE,
 		ts = 17,
 		fn = function()
@@ -241,7 +241,7 @@ function TotemUI.Refresh(info)
 	local gold = tonumber(info.gold) or 0
 
 	TotemUI.Refs.Status.Text = active and "보호 상태: 활성" or "보호 상태: 비활성"
-	TotemUI.Refs.Status.TextColor3 = active and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(255, 130, 130)
+	TotemUI.Refs.Status.TextColor3 = active and Color3.fromRGB(120, 200, 80) or Color3.fromRGB(200, 95, 85)
 	TotemUI.Refs.Remaining.Text = "효과 유지 기간: " .. remaining
 	TotemUI.Refs.Radius.Text = string.format("보호 반경: %.0fm", radius)
 	TotemUI.Refs.Gold.Text = string.format("보유 골드: %d", gold)

@@ -195,6 +195,38 @@ local function updateExpiresAt(ownerId, newExpiresAt)
 	end
 end
 
+local function buildInfoPayload(requesterId, structure)
+	local ownerId = structure and structure.ownerId
+	if not ownerId then
+		return nil
+	end
+
+	local base = BaseClaimService and BaseClaimService.getBase and BaseClaimService.getBase(ownerId)
+	local expiresAt = getExpiresAt(ownerId)
+	local now = os.time()
+	local remaining = math.max(0, expiresAt - now)
+	local active = remaining > 0
+
+	return {
+		structureId = structure.id,
+		ownerId = ownerId,
+		canManage = requesterId == ownerId,
+		radius = (base and base.radius) or (Balance.BASE_DEFAULT_RADIUS or 30),
+		centerPosition = base and base.centerPosition or structure.position,
+		upkeep = {
+			active = active,
+			expiresAt = expiresAt,
+			remainingSeconds = remaining,
+			options = {
+				{ days = 1, cost = ALLOWED_DURATIONS[1] },
+				{ days = 3, cost = ALLOWED_DURATIONS[3] },
+				{ days = 7, cost = ALLOWED_DURATIONS[7] },
+			},
+		},
+		gold = NPCShopService and NPCShopService.getGold and NPCShopService.getGold(requesterId) or 0,
+	}
+end
+
 local function notifyUpkeepExpired(ownerId, expiresAt)
 	if not NetController then
 		return
@@ -251,38 +283,6 @@ local function runUpkeepWatcher()
 			task.wait(UPKEEP_WATCH_INTERVAL)
 		end
 	end)
-end
-
-local function buildInfoPayload(requesterId, structure)
-	local ownerId = structure and structure.ownerId
-	if not ownerId then
-		return nil
-	end
-
-	local base = BaseClaimService and BaseClaimService.getBase and BaseClaimService.getBase(ownerId)
-	local expiresAt = getExpiresAt(ownerId)
-	local now = os.time()
-	local remaining = math.max(0, expiresAt - now)
-	local active = remaining > 0
-
-	return {
-		structureId = structure.id,
-		ownerId = ownerId,
-		canManage = requesterId == ownerId,
-		radius = (base and base.radius) or (Balance.BASE_DEFAULT_RADIUS or 30),
-		centerPosition = base and base.centerPosition or structure.position,
-		upkeep = {
-			active = active,
-			expiresAt = expiresAt,
-			remainingSeconds = remaining,
-			options = {
-				{ days = 1, cost = ALLOWED_DURATIONS[1] },
-				{ days = 3, cost = ALLOWED_DURATIONS[3] },
-				{ days = 7, cost = ALLOWED_DURATIONS[7] },
-			},
-		},
-		gold = NPCShopService and NPCShopService.getGold and NPCShopService.getGold(requesterId) or 0,
-	}
 end
 
 function TotemService.isProtectionActiveForOwner(ownerId)

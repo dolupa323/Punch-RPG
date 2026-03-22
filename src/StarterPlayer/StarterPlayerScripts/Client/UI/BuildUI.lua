@@ -31,8 +31,8 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	BuildUI.Refs.Frame = Utils.mkFrame({
 		name = "BuildMenu",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0,0,0),
-		bgT = 0.7,
+		bg = C.BG_OVERLAY,
+		bgT = 0.5,
 		vis = false,
 		parent = parent
 	})
@@ -132,7 +132,7 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	
 	local buildBtn = Utils.mkBtn({
 		text=UILocalizer.Localize("건설 하기"), size=UDim2.new(1,-30,0,50), pos=UDim2.new(0.5,0,1,-15), anchor=Vector2.new(0.5,1),
-		bg=C.GOLD, r=5, ts=20, font=F.TITLE, color=Color3.fromRGB(20,20,20), vis=false, parent=detail
+		bg=C.GOLD, r=5, ts=20, font=F.TITLE, color=C.BG_DARK, vis=false, parent=detail
 	})
 	BuildUI.Refs.Detail.Btn = buildBtn
 	buildBtn.MouseButton1Click:Connect(function() UIManager._doStartBuild() end)
@@ -190,7 +190,7 @@ function BuildUI.Refresh(facilityList, unlockedTech, catId, getIcon, UIManager)
 		slot.icon.Visible = true
 		
 		if not isUnlocked then
-			slot.icon.ImageColor3 = Color3.fromRGB(100, 100, 100)
+			slot.icon.ImageColor3 = Color3.fromRGB(65, 62, 55)
 			slot.frame.BackgroundColor3 = C.BG_SLOT
 			
 			local lock = Instance.new("ImageLabel")
@@ -218,7 +218,7 @@ function BuildUI.UpdateDetail(data, canAfford, getIcon, isUnlocked, playerItemCo
 	d.Name.Text = resolvedName
 	d.Icon.Image = getIcon(data.id)
 	d.Icon.Visible = true
-	d.Icon.ImageColor3 = isUnlocked and Color3.new(1,1,1) or Color3.fromRGB(100,100,100)
+	d.Icon.ImageColor3 = isUnlocked and Color3.new(1,1,1) or Color3.fromRGB(65,62,55)
 	if type(data.id) == "string" then
 		d.Desc.Text = UILocalizer.LocalizeDataText("FacilityData", data.id, "description", data.description or "")
 	else
@@ -254,11 +254,11 @@ function BuildUI.UpdateDetail(data, canAfford, getIcon, isUnlocked, playerItemCo
 	d.Btn.Visible = true
 	if canAfford then
 		d.Btn.BackgroundColor3 = C.GOLD
-		d.Btn.TextColor3 = Color3.fromRGB(20,20,20)
+		d.Btn.TextColor3 = C.BG_DARK
 		d.Btn.AutoButtonColor = true
 	else
-		d.Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-		d.Btn.TextColor3 = Color3.fromRGB(120, 120, 120)
+		d.Btn.BackgroundColor3 = C.BG_SLOT
+		d.Btn.TextColor3 = Color3.fromRGB(95, 90, 80)
 		d.Btn.AutoButtonColor = false
 	end
 end

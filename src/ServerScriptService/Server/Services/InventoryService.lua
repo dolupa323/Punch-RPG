@@ -36,6 +36,7 @@ local PlayerStatService = nil
 local EquipService = nil
 -- 튜토리얼/퀘스트용 아이템 획득 콜백
 local questItemCallback = nil
+local questFoodEatenCallback = nil
 
 local DEBUG_ITEM_GRANT_ADMIN_IDS = {
 	[10311679477] = true,
@@ -1565,6 +1566,11 @@ local function handleUse(player: Player, payload: any)
 		
 		-- 아이템 1개 소모
 		InventoryService.removeItemFromSlot(userId, slot, 1)
+
+		-- 퀘스트 콜백 (음식 섭취)
+		if questFoodEatenCallback then
+			task.spawn(questFoodEatenCallback, userId, slotData.itemId)
+		end
 		
 		return { success = true, data = { action = "EAT", itemId = slotData.itemId, foodValue = itemData.foodValue } }
 	end
@@ -1721,6 +1727,10 @@ end
 
 function InventoryService.SetQuestItemCallback(callback)
 	questItemCallback = callback
+end
+
+function InventoryService.SetQuestFoodEatenCallback(callback)
+	questFoodEatenCallback = callback
 end
 
 return InventoryService

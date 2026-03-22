@@ -29,11 +29,184 @@ local DEFAULT_BAREHAND_DAMAGE = 5
 local MIN_ATTACK_COOLDOWN = 0.35 -- 서버 측 최소 공격 쿨다운 보안 검증 (클라이언트 0.4~0.5초 대비 타이트하게)
 local PVP_ENABLED = false       -- PvP 비활성화
 
+-- Combat Engagement Constants
+local COMBAT_DISENGAGE_TIMEOUT = 8   -- 교전 없이 8초 경과 → 전투 해제
+local COMBAT_DISENGAGE_DISTANCE = 50 -- 50스터드 이상 벗어나면 즉시 전투 해제
+local CONTACT_KNOCKBACK_FORCE = 18   -- 전투 중 접촉 시 밀어내기 힘
+local CONTACT_STAGGER_DURATION = 0.3 -- 접촉 경직 시간 (초)
+local CONTACT_STAGGER_COOLDOWN = 2.0 -- 접촉 경직 쿨다운 (경직 해제 후 재발동까지)
+local CONTACT_CHECK_DIST = 5         -- 접촉 판정 거리 (스터드)
+
 -- State
 local playerAttackCooldowns = {} -- [userId] = lastAttackTime
 
+-- Combat Engagement State
+local playerCombatTarget = {}     -- [userId] = instanceId (플레이어가 전투 중인 크리처)
+local playerCombatLastHit = {}    -- [userId] = tick() (마지막 교전 시각)
+local creatureCombatants = {}     -- [instanceId] = { [userId] = true } (크리처와 전투 중인 플레이어 목록)
+
 -- Quest callback (Phase 8)
 local questCallback = nil
+
+--========================================
+-- Combat Engagement System
+--========================================
+
+--- 크리처 모델의 충돌 그룹을 CombatCreatures/Creatures로 전환
+local function setCreatureCollisionGroup(instanceId, group)
+	if not CreatureService or not CreatureService.getCreatureRuntime then return end
+	local creature = CreatureService.getCreatureRuntime(instanceId)
+	if not creature or not creature.model then return end
+	for _, part in ipairs(creature.model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CollisionGroup = group
+		end
+	end
+end
+
+--- 접촉 시 플레이어를 밀어내고 경직 부여
+local staggeredPlayers = {} -- [userId] = true (중복 경직 방지)
+
+local function applyContactKnockback(userId, creaturePos)
+	if staggeredPlayers[userId] then return end
+	local player = Players:GetPlayerByUserId(userId)
+	if not player or not player.Character then return end
+	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+	local hum = player.Character:FindFirstChild("Humanoid")
+	if not hrp or not hum or hum.Health <= 0 then return end
+
+	-- 밀어내기 방향 (크리처 → 플레이어)
+	local pushDir = (hrp.Position - creaturePos)
+	pushDir = Vector3.new(pushDir.X, 0, pushDir.Z)
+	if pushDir.Magnitude < 0.1 then
+		pushDir = hrp.CFrame.LookVector * -1
+	else
+		pushDir = pushDir.Unit
+	end
+
+	-- 밀어내기
+	hrp.AssemblyLinearVelocity = pushDir * CONTACT_KNOCKBACK_FORCE + Vector3.new(0, 4, 0)
+
+	-- 짧은 경직 (WalkSpeed 감소)
+	staggeredPlayers[userId] = true
+	local origSpeed = hum.WalkSpeed
+	hum.WalkSpeed = origSpeed * 0.15
+	
+	-- 클라이언트에 접촉 경직 알림 (화면 효과용)
+	if NetController then
+		local plr = Players:GetPlayerByUserId(userId)
+		if plr then
+			NetController.FireClient(plr, "Combat.Contact.Stagger", {
+				sourcePos = {creaturePos.X, creaturePos.Y, creaturePos.Z},
+			})
+		end
+	end
+
+	task.delay(CONTACT_STAGGER_DURATION, function()
+		if hum and hum.Parent then
+			hum.WalkSpeed = origSpeed
+		end
+		-- 쿨다운: 경직 해제 후에도 일정 시간 재발동 방지
+		task.delay(CONTACT_STAGGER_COOLDOWN, function()
+			staggeredPlayers[userId] = nil
+		end)
+	end)
+end
+
+--- 전투 상태 진입 (플레이어 → 크리처)
+local function engageCombat(userId, instanceId)
+	local now = tick()
+	local prevTarget = playerCombatTarget[userId]
+
+	-- 이미 같은 대상과 전투 중이면 시각만 갱신
+	if prevTarget == instanceId then
+		playerCombatLastHit[userId] = now
+		return
+	end
+
+	-- 기존 전투 대상에서 제거
+	if prevTarget and creatureCombatants[prevTarget] then
+		creatureCombatants[prevTarget][userId] = nil
+		if not next(creatureCombatants[prevTarget]) then
+			creatureCombatants[prevTarget] = nil
+			-- 기존 크리처 충돌 그룹 복구 (더 이상 전투 중인 플레이어 없음)
+			setCreatureCollisionGroup(prevTarget, "Creatures")
+			-- 전투 해제 알림 (기존 크리처)
+			if NetController then
+				NetController.FireAllClients("Combat.Engagement.Changed", {
+					instanceId = prevTarget,
+					inCombat = false,
+				})
+			end
+		end
+	end
+
+	-- 새 전투 등록
+	playerCombatTarget[userId] = instanceId
+	playerCombatLastHit[userId] = now
+
+	if not creatureCombatants[instanceId] then
+		creatureCombatants[instanceId] = {}
+	end
+	local wasEmpty = not next(creatureCombatants[instanceId])
+	creatureCombatants[instanceId][userId] = true
+
+	-- 전투 진입 알림 (새 크리처)
+	if wasEmpty and NetController then
+		NetController.FireAllClients("Combat.Engagement.Changed", {
+			instanceId = instanceId,
+			inCombat = true,
+		})
+		-- 전투 중 크리처 → 플레이어와 충돌 활성화
+		setCreatureCollisionGroup(instanceId, "CombatCreatures")
+	end
+end
+
+--- 전투 상태 해제 (플레이어)
+local function disengageCombat(userId)
+	local instanceId = playerCombatTarget[userId]
+	if not instanceId then return end
+
+	playerCombatTarget[userId] = nil
+	playerCombatLastHit[userId] = nil
+
+	if creatureCombatants[instanceId] then
+		creatureCombatants[instanceId][userId] = nil
+		if not next(creatureCombatants[instanceId]) then
+			creatureCombatants[instanceId] = nil
+			-- 전투 해제 → 충돌 그룹 복구
+			setCreatureCollisionGroup(instanceId, "Creatures")
+			if NetController then
+				NetController.FireAllClients("Combat.Engagement.Changed", {
+					instanceId = instanceId,
+					inCombat = false,
+				})
+			end
+		end
+	end
+end
+
+--- 크리처 사망/디스폰 시 전투 상태 전체 해제
+local function disengageCreature(instanceId)
+	local combatants = creatureCombatants[instanceId]
+	if not combatants then return end
+
+	for uid, _ in pairs(combatants) do
+		playerCombatTarget[uid] = nil
+		playerCombatLastHit[uid] = nil
+	end
+	creatureCombatants[instanceId] = nil
+
+	-- 충돌 그룹 복구 (사망/디스폰 전 모델이 아직 있을 수 있음)
+	setCreatureCollisionGroup(instanceId, "Creatures")
+
+	if NetController then
+		NetController.FireAllClients("Combat.Engagement.Changed", {
+			instanceId = instanceId,
+			inCombat = false,
+		})
+	end
+end
 
 local function isBowWeapon(itemData): boolean
 	if not itemData then return false end
@@ -122,7 +295,66 @@ function CombatService.Init(_NetController, _DataService, _CreatureService, _Inv
 	
 	-- 플레이어 퇴장 시 데이터 정리
 	Players.PlayerRemoving:Connect(function(player)
-		playerAttackCooldowns[player.UserId] = nil
+		local uid = player.UserId
+		playerAttackCooldowns[uid] = nil
+		disengageCombat(uid)
+	end)
+	
+	-- 전투 교전 타임아웃 / 거리 이탈 체크 루프
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local now = tick()
+			local toDisengage = {}
+			for uid, instanceId in pairs(playerCombatTarget) do
+				local shouldDisengage = false
+				-- 시간 초과 체크
+				local lastHit = playerCombatLastHit[uid]
+				if lastHit and (now - lastHit) >= COMBAT_DISENGAGE_TIMEOUT then
+					shouldDisengage = true
+				end
+				-- 거리 이탈 체크
+				if not shouldDisengage then
+					local plr = Players:GetPlayerByUserId(uid)
+					local playerHrp = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+					if playerHrp and CreatureService and CreatureService.getCreaturePosition then
+						local creaturePos = CreatureService.getCreaturePosition(instanceId)
+						if creaturePos then
+							local dist = (playerHrp.Position - creaturePos).Magnitude
+							if dist >= COMBAT_DISENGAGE_DISTANCE then
+								shouldDisengage = true
+							end
+						end
+					end
+				end
+				if shouldDisengage then
+					table.insert(toDisengage, uid)
+				end
+			end
+			for _, uid in ipairs(toDisengage) do
+				disengageCombat(uid)
+			end
+		end
+	end)
+	
+	-- 전투 중 접촉 밀어내기 체크 루프 (0.2초 간격)
+	task.spawn(function()
+		while true do
+			task.wait(0.2)
+			for uid, instanceId in pairs(playerCombatTarget) do
+				local plr = Players:GetPlayerByUserId(uid)
+				local playerHrp = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+				if playerHrp and CreatureService and CreatureService.getCreaturePosition then
+					local creaturePos = CreatureService.getCreaturePosition(instanceId)
+					if creaturePos then
+						local dist = (playerHrp.Position - creaturePos).Magnitude
+						if dist <= CONTACT_CHECK_DIST then
+							applyContactKnockback(uid, creaturePos)
+						end
+					end
+				end
+			end
+		end
 	end)
 	
 	print("[CombatService] Initialized")
@@ -318,6 +550,11 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		totalDamage = totalDamage * chargeMult
 	end
 
+	-- ★ 데미지 등락폭 적용 (±VARIANCE)
+	local variance = Balance.DAMAGE_VARIANCE or 0.15
+	local varianceMult = 1 + (math.random() * 2 - 1) * variance
+	totalDamage = math.max(1, totalDamage * varianceMult)
+
 	-- 4. 데미지 및 기절 수치 적용
 	local hpDamage = totalDamage
 	local torporDamage = 0
@@ -331,7 +568,46 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	local dropPos = nil
 	
 	if targetType == "CREATURE" then
+		-- 이미 다른 크리처와 전투 중이면 공격 불가
+		local currentTarget = playerCombatTarget[userId]
+		if currentTarget and currentTarget ~= targetId then
+			return false, Enums.ErrorCode.ALREADY_IN_COMBAT
+		end
+		-- 전투 상태 진입 (플레이어 선공)
+		engageCombat(userId, targetId)
 		killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
+		if killed then
+			disengageCreature(targetId)
+		end
+		
+		-- ★ 크리처 넉백 + 피격 연출 (모든 클라이언트에 전달)
+		if creature and creature.rootPart then
+			local creaturePos = creature.rootPart.Position
+			local attackerPos = char and char.PrimaryPart and char.PrimaryPart.Position or creaturePos
+			
+			-- 넉백 (생존 시만)
+			if not killed then
+				local knockDir = (creaturePos - attackerPos)
+				knockDir = Vector3.new(knockDir.X, 0, knockDir.Z)
+				if knockDir.Magnitude > 0.01 then
+					knockDir = knockDir.Unit
+				else
+					knockDir = Vector3.new(0, 0, 1)
+				end
+				local knockForce = Balance.CREATURE_KNOCKBACK_FORCE or 12
+				creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, 4, 0)
+			end
+			
+			-- 모든 클라이언트에 피격 연출 이벤트 (파티클 + 히트스톱)
+			if NetController then
+				NetController.FireAllClients("Combat.Creature.Hit", {
+					instanceId = targetId,
+					hitPosition = { x = creaturePos.X, y = creaturePos.Y, z = creaturePos.Z },
+					damage = hpDamage,
+					killed = killed,
+				})
+			end
+		end
 	elseif targetType == "STRUCTURE" then
 		-- 건축물 데미지 적용
 		local destroyed, _ = BuildService.takeDamage(targetId, hpDamage, player)
@@ -414,7 +690,8 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 end
 
 --- 플레이어에게 데미지 적용 (방어력 반영 + 넉백 적용)
-function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos: Vector3?)
+--- sourceCreatureId: 공격한 크리처 instanceId (선택) — 전투 교전 등록에 사용
+function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos: Vector3?, sourceCreatureId: string?)
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)
 	if not player or not player.Character then return end
 	
@@ -427,6 +704,11 @@ function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos
 		return
 	end
 	
+	-- 1.5 크리처 선공 → 전투 교전 등록
+	if sourceCreatureId then
+		engageCombat(userId, sourceCreatureId)
+	end
+	
 	-- 2. 방어력 계산
 	local defense = 0
 	if InventoryService and InventoryService.getTotalDefense then
@@ -435,7 +717,10 @@ function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos
 	
 	-- 데미지 감쇄 공식: final = raw * (100 / (100 + defense))
 	local reductionMult = 100 / (100 + defense)
-	local finalDamage = math.max(1, rawDamage * reductionMult)
+	-- ★ 크리처 공격 데미지 등락폭 (±VARIANCE)
+	local variance = Balance.DAMAGE_VARIANCE or 0.15
+	local varianceMult = 1 + (math.random() * 2 - 1) * variance
+	local finalDamage = math.max(1, rawDamage * reductionMult * varianceMult)
 	
 	-- 3. 방어구 내구도 감소
 	if InventoryService and InventoryService.decreaseEquipmentDurability then
@@ -515,6 +800,16 @@ end
 --- 퀘스트 콜백 설정 (Phase 8)
 function CombatService.SetQuestCallback(callback)
 	questCallback = callback
+end
+
+--- 크리처 디스폰/사망 시 외부 호출용 전투 상태 해제
+function CombatService.disengageCreature(instanceId: string)
+	disengageCreature(instanceId)
+end
+
+--- 플레이어의 현재 전투 대상 반환
+function CombatService.getPlayerCombatTarget(userId: number): string?
+	return playerCombatTarget[userId]
 end
 
 return CombatService

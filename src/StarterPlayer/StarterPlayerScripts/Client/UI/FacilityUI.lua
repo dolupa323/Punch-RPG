@@ -51,8 +51,8 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	FacilityUI.Refs.Frame = Utils.mkFrame({
 		name = "FacilityMenu",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0,0,0),
-		bgT = 0.6,
+		bg = C.BG_OVERLAY,
+		bgT = 0.5,
 		vis = false,
 		parent = parent
 	})
@@ -82,7 +82,7 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	-- [Durability Bar]
 	local hpFrame = Utils.mkFrame({
 		name="Durability", size=UDim2.new(0, 150, 0, 16), pos=UDim2.new(0.5, 0, 0.5, 0), anchor=Vector2.new(0.5, 0.5),
-		bg=Color3.fromRGB(40, 40, 40), r=3, parent=header
+		bg=C.BG_SLOT, r=3, parent=header
 	})
 	local hpFill = Utils.mkFrame({
 		name="Fill", size=UDim2.new(1, 0, 1, 0), bg=C.GREEN, r=3, parent=hpFrame
@@ -120,7 +120,13 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	scroll.Parent = leftPanel
 	
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.new(0, 80, 0, 80); grid.CellPadding = UDim2.new(0, 10, 0, 10); grid.Parent = scroll
+	grid.CellSize = UDim2.new(0, 80, 0, 80); grid.CellPadding = UDim2.new(0, 8, 0, 8); grid.Parent = scroll
+
+	local rPad = Instance.new("UIPadding")
+	rPad.PaddingTop = UDim.new(0, 4); rPad.PaddingLeft = UDim.new(0, 4)
+	rPad.PaddingRight = UDim.new(0, 4); rPad.PaddingBottom = UDim.new(0, 4)
+	rPad.Parent = scroll
+
 	FacilityUI.Refs.RecipeGrid = scroll
 	
 	-- 3.5 Left Side Bottom: Queue/Output List
@@ -149,39 +155,34 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	})
 	FacilityUI.Refs.DetailFrame = rightPanel
 
-	-- Result Icon (Hexagon or Rounded Square)
+	-- Result Icon (responsive: top area, centered)
 	local iconFrame = Utils.mkFrame({
-		name="IconFrame", size=UDim2.new(0, 100, 0, 100), pos=UDim2.new(0.5, 0, 0, 50), anchor=Vector2.new(0.5, 0.5),
-		bg=C.GOLD, r=50, parent=rightPanel
+		name="IconFrame", size=UDim2.new(0, 90, 0, 90), pos=UDim2.new(0.5, 0, 0, 15), anchor=Vector2.new(0.5, 0),
+		bg=C.GOLD, r=45, parent=rightPanel
 	})
 	FacilityUI.Refs.Detail.Icon = Instance.new("ImageLabel")
-	FacilityUI.Refs.Detail.Icon.Size = UDim2.new(0, 80, 0, 80); FacilityUI.Refs.Detail.Icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+	FacilityUI.Refs.Detail.Icon.Size = UDim2.new(0, 70, 0, 70); FacilityUI.Refs.Detail.Icon.Position = UDim2.new(0.5, 0, 0.5, 0)
 	FacilityUI.Refs.Detail.Icon.AnchorPoint = Vector2.new(0.5, 0.5); FacilityUI.Refs.Detail.Icon.BackgroundTransparency = 1; FacilityUI.Refs.Detail.Icon.Parent = iconFrame
 
-	-- Bag Count (How many you have)
-	local bagFrame = Utils.mkFrame({
-		name="Bag", size=UDim2.new(0, 45, 0, 25), pos=UDim2.new(0, 0, 0, 0), bgT=1, parent=rightPanel
-	})
-	local bagIcon = Instance.new("ImageLabel")
-	bagIcon.Size = UDim2.new(0, 20, 0, 20); bagIcon.Position = UDim2.new(0, 5, 0, 2)
-	bagIcon.Image = "rbxassetid://13515082103"; bagIcon.BackgroundTransparency = 1; bagIcon.Parent = bagFrame
-	FacilityUI.Refs.Detail.BagCount = Utils.mkLabel({
-		text="0", pos=UDim2.new(0, 28, 0.5, 0), anchor=Vector2.new(0, 0.5), size=UDim2.new(0, 20, 0, 20),
-		color=C.WHITE, ts=14, font=F.BODY, parent=bagFrame
+	FacilityUI.Refs.Detail.Name = Utils.mkLabel({
+		text=UILocalizer.Localize("아이템 이름"), size=UDim2.new(1, -20, 0, 28), pos=UDim2.new(0.5, 0, 0, 115),
+		anchor=Vector2.new(0.5, 0), color=C.GOLD, ts=22, font=F.TITLE, ax=Enum.TextXAlignment.Center, parent=rightPanel
 	})
 
-	FacilityUI.Refs.Detail.Name = Utils.mkLabel({
-		text=UILocalizer.Localize("아이템 이름"), size=UDim2.new(1, -20, 0, 30), pos=UDim2.new(0, 10, 0, 100),
-		color=C.GOLD, ts=22, font=F.TITLE, ax=Enum.TextXAlignment.Center, parent=rightPanel
+	-- Bag Count (inline below name: "보유: N")
+	FacilityUI.Refs.Detail.BagCount = Utils.mkLabel({
+		text="", pos=UDim2.new(0.5, 0, 0, 145), anchor=Vector2.new(0.5, 0), size=UDim2.new(1, -20, 0, 18),
+		color=C.GRAY, ts=13, font=F.BODY, ax=Enum.TextXAlignment.Center, parent=rightPanel
 	})
 
 	FacilityUI.Refs.Detail.Time = Utils.mkLabel({
-		text=UILocalizer.Localize("맡김 제작 : 0초"), size=UDim2.new(1, -20, 0, 20), pos=UDim2.new(0, 10, 0, 130),
-		color=C.GRAY, ts=14, ax=Enum.TextXAlignment.Center, parent=rightPanel
+		text=UILocalizer.Localize("맡김 제작 : 0초"), size=UDim2.new(1, -20, 0, 20), pos=UDim2.new(0.5, 0, 0, 165),
+		anchor=Vector2.new(0.5, 0), color=C.GRAY, ts=14, ax=Enum.TextXAlignment.Center, parent=rightPanel
 	})
 
+	-- Qty controls (anchored to bottom, responsive)
 	local qtyWrap = Utils.mkFrame({
-		name="QtyWrap", size=UDim2.new(0, 240, 0, 36), pos=UDim2.new(0.5, 0, 0, 330), anchor=Vector2.new(0.5, 0),
+		name="QtyWrap", size=UDim2.new(0, 240, 0, 36), pos=UDim2.new(0.5, 0, 1, -80), anchor=Vector2.new(0.5, 1),
 		bgT=1, parent=rightPanel
 	})
 	FacilityUI.Refs.Detail.QtyWrap = qtyWrap
@@ -242,16 +243,20 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		syncQtyUI()
 	end)
 
-	-- Materials
-	local matArea = Utils.mkFrame({
-		name="Mats", size=UDim2.new(1, -40, 0, 150), pos=UDim2.new(0, 20, 0, 160), bgT=1, parent=rightPanel
-	})
-	FacilityUI.Refs.Detail.Mats = matArea -- We will populate this dynamically
+	-- Materials (flexible-height scroll area between top content and bottom controls)
+	local matScroll = Instance.new("ScrollingFrame")
+	matScroll.Name = "Mats"
+	matScroll.Size = UDim2.new(1, -40, 1, -320)
+	matScroll.Position = UDim2.new(0, 20, 0, 192)
+	matScroll.BackgroundTransparency = 1; matScroll.BorderSizePixel = 0; matScroll.ScrollBarThickness = 3
+	matScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	matScroll.Parent = rightPanel
+	FacilityUI.Refs.Detail.Mats = matScroll
 
-	-- Start Button
+	-- Start Button (anchored to bottom)
 	local startBtn = Utils.mkBtn({
-		text=UILocalizer.Localize("제작 시작"), size=UDim2.new(1, -40, 0, 50), pos=UDim2.new(0.5, 0, 1, -15), anchor=Vector2.new(0.5, 1),
-		bg=C.GOLD, color=Color3.fromRGB(20, 20, 20), ts=20, font=F.TITLE, r=4,
+		text=UILocalizer.Localize("제작 시작"), size=UDim2.new(1, -40, 0, 50), pos=UDim2.new(0.5, 0, 1, -20), anchor=Vector2.new(0.5, 1),
+		bg=C.GOLD, color=C.BG_DARK, ts=20, font=F.TITLE, r=4,
 		parent=rightPanel
 	})
 	FacilityUI.Refs.Detail.Btn = startBtn
@@ -269,18 +274,69 @@ function FacilityUI.Refresh(recipeList, getIcon, UIManager)
 	local grid = FacilityUI.Refs.RecipeGrid
 	if not grid then return end
 	
-	-- Clear
-	for _, ch in ipairs(grid:GetChildren()) do if ch:IsA("GuiObject") then ch:Destroy() end end
+	-- Clear (UIGridLayout과 UIPadding 보존)
+	for _, ch in ipairs(grid:GetChildren()) do
+		if ch:IsA("GuiObject") and not ch:IsA("UIGridLayout") then ch:Destroy() end
+	end
 	
 	for _, recipe in ipairs(recipeList) do
-		local slot = Utils.mkSlot({name=recipe.id, size=UDim2.new(0,80,0,80), parent=grid})
+		-- 배경색 보더 기법: ScrollingFrame 클리핑 회피
+		local borderFrame = Instance.new("Frame")
+		borderFrame.Name = recipe.id
+		borderFrame.BackgroundColor3 = C.BORDER
+		borderFrame.BackgroundTransparency = 0
+		borderFrame.BorderSizePixel = 0
+		borderFrame.Parent = grid
+		local bCorner = Instance.new("UICorner")
+		bCorner.CornerRadius = UDim.new(0, 8)
+		bCorner.Parent = borderFrame
+
+		local inner = Instance.new("Frame")
+		inner.Name = "Inner"
+		inner.Size = UDim2.new(1, -4, 1, -4)
+		inner.Position = UDim2.new(0.5, 0, 0.5, 0)
+		inner.AnchorPoint = Vector2.new(0.5, 0.5)
+		inner.BackgroundColor3 = C.BG_SLOT
+		inner.BackgroundTransparency = 0.1
+		inner.BorderSizePixel = 0
+		inner.Parent = borderFrame
+		local iCorner = Instance.new("UICorner")
+		iCorner.CornerRadius = UDim.new(0, 6)
+		iCorner.Parent = inner
+
+		local icon = Instance.new("ImageLabel")
+		icon.Name = "Icon"
+		icon.Size = UDim2.new(0.7, 0, 0.7, 0)
+		icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.BackgroundTransparency = 1
+		icon.ScaleType = Enum.ScaleType.Fit
+		icon.ZIndex = 2
+		icon.Parent = inner
+
 		local output = recipe.outputs[1]
 		if output then
-			slot.icon.Image = getIcon(output.itemId)
-			slot.icon.Visible = true
+			icon.Image = getIcon(output.itemId)
+			icon.Visible = true
 		end
-		
-		slot.click.MouseButton1Click:Connect(function()
+
+		local click = Instance.new("TextButton")
+		click.Name = "Click"
+		click.Size = UDim2.new(1, 0, 1, 0)
+		click.BackgroundTransparency = 1
+		click.Text = ""
+		click.ZIndex = 5
+		click.Parent = borderFrame
+
+		-- Hover
+		click.MouseEnter:Connect(function()
+			borderFrame.BackgroundColor3 = C.GOLD
+		end)
+		click.MouseLeave:Connect(function()
+			borderFrame.BackgroundColor3 = C.BORDER
+		end)
+
+		click.MouseButton1Click:Connect(function()
 			UIManager._onFacilityRecipeClick(recipe)
 		end)
 	end
@@ -303,7 +359,7 @@ function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon,
 
 	d.Name.Text = UILocalizer.Localize(recipe.name or output.itemId)
 	d.Icon.Image = getIcon(output.itemId)
-	d.BagCount.Text = tostring(playerItemCounts[output.itemId] or 0)
+	d.BagCount.Text = UILocalizer.Localize(string.format("보유: %d", playerItemCounts[output.itemId] or 0))
 
 	maxCraftCount = 99
 	for _, req in ipairs(recipe.inputs) do
@@ -371,7 +427,7 @@ function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon,
 		d.Btn.AutoButtonColor = true
 	else
 		d.Btn.Text = UILocalizer.Localize("재료 부족")
-		d.Btn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+		d.Btn.BackgroundColor3 = C.BG_SLOT
 		d.Btn.AutoButtonColor = false
 	end
 end
@@ -388,7 +444,7 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 		-- 해당 시설의 제작 건만 표시
 		if entry.structureId == structureId then
 			count = count + 1
-			local item = Utils.mkFrame({size=UDim2.new(1, -10, 0, 50), bg=Color3.fromRGB(45, 45, 50), bgT=0.5, r=4, parent=grid})
+			local item = Utils.mkFrame({size=UDim2.new(1, -10, 0, 50), bg=C.BG_SLOT, bgT=0.5, r=4, parent=grid})
 			
 			local RecipeData = require(game.ReplicatedStorage.Data.RecipeData)
 			local recipe = nil
@@ -420,7 +476,7 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 			if readyCount > 0 then
 				local collectBtn = Utils.mkBtn({
 					text = UILocalizer.Localize(string.format("수령 x%d", readyCount)), size = UDim2.new(0, 92, 0, 34), pos = UDim2.new(1, -5, 0.5, 0), anchor = Vector2.new(1, 0.5),
-					bg = C.GOLD, ts = 14, color = Color3.fromRGB(20, 20, 20), r = 4,
+					bg = C.GOLD, ts = 14, color = C.BG_DARK, r = 4,
 					fn = function() UIManager._onCollectFacilityCraft(entry.craftId, readyCount) end,
 					parent = item
 				})
@@ -430,10 +486,10 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 					size = UDim2.new(0, 120, 0, 10), 
 					pos = UDim2.new(1, -10, 0.6, 0), 
 					anchor = Vector2.new(1, 0.5), 
-					bg = Color3.fromRGB(20, 20, 20), 
+					bg = C.BG_DARK, 
 					r = 4,
 					stroke = 1,
-					strokeC = Color3.fromRGB(120, 120, 120),
+					strokeC = C.BORDER_DIM,
 					parent = item
 				})
 				
@@ -448,7 +504,7 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 					end
 					local fill = Utils.mkFrame({
 						size = UDim2.new(ratio, 0, 1, 0),
-						bg = Color3.fromRGB(210, 190, 90),
+						bg = C.GOLD,
 						r = 4,
 						parent = bar
 					})

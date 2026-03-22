@@ -216,28 +216,32 @@ function CreatureAnimationController.Init()
 						info.lastAnim = "" 
 					end
 					
-					-- [핵심] 시퀀스 재생 루틴 (Prep -> Charge)
+					-- [핵심] 시퀀스 재생 루틴 (Prep -> Charge, 근접 시 돌진 생략)
 					task.spawn(function()
 						info.isAttacking = true
+						local isTrike = (creatureId == "TRICERATOPS" or creatureId == "BABY_TRICERATOPS")
+						local isClose = data.isClose
 						
 						-- 1. 공격 준비 (ATTACK 애니메이션)
 						local prepTrack = AnimationManager.play(humanoid, attackAnimName, 0.1)
 						if prepTrack then
 							prepTrack.Priority = Enum.AnimationPriority.Action
-							-- 애니메이션 종료 대기 (트리케라톱스 계열은 특수 시퀀스 대기)
-							local isTrike = (creatureId == "TRICERATOPS" or creatureId == "BABY_TRICERATOPS")
-							task.wait(isTrike and 0.6 or (prepTrack.Length > 0 and prepTrack.Length or 0.5))
+							-- 근접 시 트리케라톱스도 일반 애니메이션 길이만큼만 대기
+							if isTrike and not isClose then
+								task.wait(0.6)
+							else
+								task.wait(prepTrack.Length > 0 and prepTrack.Length or 0.5)
+							end
 						end
 						
-						-- 2. 후속 돌격 (트리케라톱스 계열 특화: WALK를 빠르게 재생하여 돌진 연출)
-						local isTrike = (creatureId == "TRICERATOPS" or creatureId == "BABY_TRICERATOPS")
-						if isTrike and model.Parent then
+						-- 2. 후속 돌격 (트리케라톱스 계열 특화 — 근접 시 생략)
+						if isTrike and not isClose and model.Parent then
 							local runAnim = animSet.RUN
 							if runAnim then
 								local chargeTrack = AnimationManager.play(humanoid, runAnim, 0.1, nil, 2.0) -- 2배속 돌진
 								if chargeTrack then
 									chargeTrack.Priority = Enum.AnimationPriority.Action
-									task.wait(0.6) -- 0.6초간 돌진 시각화 (서버 딜레이 0.8초의 타격 직전까지)
+									task.wait(0.6)
 									AnimationManager.stop(humanoid, runAnim, 0.2)
 								end
 							end

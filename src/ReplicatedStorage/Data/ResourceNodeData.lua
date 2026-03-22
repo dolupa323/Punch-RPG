@@ -60,6 +60,7 @@ local ResourceNodeData = {
 		optimalTool = nil,
 		resources = {
 			{ itemId = "BERRY", min = 2, max = 3, weight = 1.0 },
+			{ itemId = "FIBER", min = 1, max = 2, weight = 0.5 },
 		},
 		maxHealth = 30,
 		respawnTime = 180,

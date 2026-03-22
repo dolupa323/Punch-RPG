@@ -80,7 +80,7 @@ local TUTORIAL_STEP_EN = {
 		stepTip = "Use Z to collect nearby resources and secure the required quantity near the starting area.",
 		stepVoiceIntro = "You won't survive a day barehanded. Search the ground and grab a small stone and a branch first.",
 		stepVoiceHint = "Still not enough. Search around the wreckage a little more.",
-		stepVoiceReady = "Good. That's enough. Let's craft a tool first.",
+		stepVoiceReady = "Good, that's enough. Let's craft a tool first.",
 	},
 	CRAFT_AXE = {
 		currentStepText = "Craft a Crude Stone Axe",
@@ -93,7 +93,7 @@ local TUTORIAL_STEP_EN = {
 		currentStepText = "Secure wood resources",
 		stepTip = "Don't get greedy with huge trees. Start with an easy one.",
 		stepVoiceIntro = "Axe ready? Then chop nearby trees first. Firewood comes first if you want to survive tonight.",
-		stepVoiceHint = "Bring back one piece of wood or one log. Fast.",
+		stepVoiceHint = "Bring back one piece of wood or one log, fast.",
 		stepVoiceReady = "Good, wood secured. Next, food.",
 	},
 	KILL_DODO = {
@@ -108,14 +108,21 @@ local TUTORIAL_STEP_EN = {
 		stepTip = "Place 1 campfire with C build mode, then craft CRAFT_TORCH once from the B inventory quick-craft tab.",
 		stepVoiceIntro = "Don't tell me you'll eat raw meat. Use the wood and place a campfire. Fire is essential against cold and predators.",
 		stepVoiceHint = "Set the campfire and craft a torch too. Night cold will hit hard.",
-		stepVoiceReady = "Good. Fire is up. Now cook.",
+		stepVoiceReady = "Good, fire is up. Time to cook.",
 	},
 	COOK_MEAT = {
 		currentStepText = "Cook 1 meat",
 		stepTip = "Keep the fire fed with wood and eat before your condition drops.",
 		stepVoiceIntro = "Is the fire burning? Put meat on it and cook. If your health drops, you can't even run.",
 		stepVoiceHint = "Just one cooked meat. Quick and easy.",
-		stepVoiceReady = "Okay, stomach filled. Time to mark your base.",
+		stepVoiceReady = "Good, meat is cooked. Now eat it to restore your stamina.",
+	},
+	EAT_MEAT = {
+		currentStepText = "Eat cooked meat",
+		stepTip = "Select cooked meat in your inventory and press Use to eat it.",
+		stepVoiceIntro = "Don't just stare at it, eat the cooked meat. You need the energy to keep going.",
+		stepVoiceHint = "Open your inventory and use the cooked meat.",
+		stepVoiceReady = "Good, belly is full. Time to mark your base.",
 	},
 	PLACE_TOTEM = {
 		currentStepText = "Secure a base center point",
@@ -129,14 +136,14 @@ local TUTORIAL_STEP_EN = {
 		stepTip = "Keep it close enough to the campfire warmth, but don't block movement paths.",
 		stepVoiceIntro = "Almost done. Build a lean-to before the night cold hits. Sleep there and lock your position so you can recover if you go down.",
 		stepVoiceHint = "One shelter and you're done. Just a little more.",
-		stepVoiceReady = "Good. Now build a basic workbench to unlock stronger crafting.",
+		stepVoiceReady = "Good, now build a basic workbench to unlock stronger crafting.",
 	},
 	BUILD_WORKBENCH = {
 		currentStepText = "Build a Basic Workbench",
 		stepTip = "Once built, you can craft stronger tools, weapons, and armor.",
 		stepVoiceIntro = "Your next survival tier starts now. Build a basic workbench and unlock advanced crafting.",
 		stepVoiceHint = "You only need one workbench. Place it on flat ground.",
-		stepVoiceReady = "Good. You're ready to craft stronger gear. Real survival begins now.",
+		stepVoiceReady = "Good, you're ready to craft stronger gear. Real survival begins now.",
 	},
 }
 
@@ -587,9 +594,9 @@ local function updateDialogueLayout()
 	end
 
 	if lineLabel then
-		lineLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.42))
-		lineLabel.Position = UDim2.new(0, 16, 0, math.floor(panelHeight * 0.33))
-		lineLabel.TextSize = math.clamp(math.floor(panelHeight * 0.20), 24, 36)
+		lineLabel.Size = UDim2.new(1, -32, 0, math.floor(panelHeight * 0.52))
+		lineLabel.Position = UDim2.new(0, 16, 0, math.floor(panelHeight * 0.28))
+		lineLabel.TextSize = math.clamp(math.floor(panelHeight * 0.18), 20, 32)
 	end
 
 	if hintLabel then
@@ -728,6 +735,23 @@ local function startSequence(modeName: string, lines: {any})
 		return
 	end
 
+	-- .!? 기준 분리: 한 문장 = 한 다이얼로그 박스
+	local expanded = {}
+	for _, entry in ipairs(lines) do
+		local krParts = splitSpokenLines(entry.line or "")
+		local enParts = splitSpokenLines(entry.lineEn or "")
+		local maxCount = math.max(#krParts, #enParts, 1)
+		for i = 1, maxCount do
+			table.insert(expanded, {
+				speaker = entry.speaker,
+				speakerEn = entry.speakerEn,
+				line = krParts[i] or krParts[#krParts] or entry.line,
+				lineEn = enParts[i] or enParts[#enParts] or entry.lineEn,
+				hint = entry.hint,
+			})
+		end
+	end
+
 	ensureDialogueUI()
 	ensureBlur()
 	if blurEffect then
@@ -739,7 +763,7 @@ local function startSequence(modeName: string, lines: {any})
 	dialogueMode = modeName
 	dialogueActive = true
 	dialogueIndex = 1
-	sequence = lines
+	sequence = expanded
 	dialogueFrame.Visible = true
 	if not dialogueLayoutConn then
 		dialogueLayoutConn = RunService.RenderStepped:Connect(function()
@@ -815,18 +839,28 @@ function RadioStoryController.syncTutorialStatus(status)
 		return
 	end
 
+	-- 재접속 시 이미 완료된 튜토리얼은 INTRO/FINALE 재생 없이 즉시 종료 처리
 	if status.completed then
-		if not completionPlayed then
-			ringingRequested = true
-		else
-			tutorialCompleted = true
-			ringingRequested = false
-		end
+		introCompleted = true
+		completionPlayed = true
+		tutorialCompleted = true
+		ringingRequested = false
 		pendingBriefingStepKey = nil
 		stepInteractCounts = {}
 		ensureRingingSound()
 		updateRadioMarkerVisibility()
+		if questGateChangedHandler then
+			questGateChangedHandler()
+		end
 		return
+	end
+
+	-- 재접속 시 stepIndex > 1이면 INTRO는 이미 본 것이므로 스킵
+	if not introCompleted and type(status.stepIndex) == "number" and status.stepIndex > 1 then
+		introCompleted = true
+		if questGateChangedHandler then
+			questGateChangedHandler()
+		end
 	end
 
 	if not introCompleted then

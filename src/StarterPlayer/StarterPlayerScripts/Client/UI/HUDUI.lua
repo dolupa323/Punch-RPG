@@ -227,12 +227,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	statusList.SortOrder = Enum.SortOrder.LayoutOrder
 	statusList.Parent = topLeftFrame
 
-	-- HP Bar (High-Contrast Red)
+	-- HP Bar (Warm Red)
 	HUDUI.Refs.healthBar = Utils.mkBar({
 		name = "HP",
-		size = UDim2.new(1, 0, 0, 20),
+		size = UDim2.new(1, 0, 0, 22),
 		fillC = C.HP,
-		r = 3,
+		bg = C.HP_BG,
+		r = 6,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.healthBar.container.LayoutOrder = 1
@@ -243,12 +244,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.healthBar.label.Font = F.NUM
 	HUDUI.Refs.healthBar.label.TextSize = 13
 
-	-- Stamina Bar (Vibrant Yellow - User Request)
+	-- Stamina Bar (Warm Gold)
 	HUDUI.Refs.staminaBar = Utils.mkBar({
 		name = "STA",
-		size = UDim2.new(1, 0, 0, 18), 
-		fillC = C.STA, 
-		r = 3,
+		size = UDim2.new(1, 0, 0, 20), 
+		fillC = C.STA,
+		bg = C.STA_BG,
+		r = 6,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.staminaBar.container.LayoutOrder = 2
@@ -259,12 +261,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.staminaBar.label.Font = F.NUM
 	HUDUI.Refs.staminaBar.label.TextSize = 12
 
-	-- Hunger Bar (Vibrant Orange)
+	-- Hunger Bar (Warm Green)
 	HUDUI.Refs.hungerBar = Utils.mkBar({
 		name = "HUNGER",
-		size = UDim2.new(1, -20, 0, 6), -- 더 얇고 깔끔하게
+		size = UDim2.new(1, -20, 0, 8),
 		fillC = C.HUNGER, 
-		r = 2,
+		r = 4,
 		parent = topLeftFrame
 	})
 	HUDUI.Refs.hungerBar.container.LayoutOrder = 3
@@ -293,9 +295,10 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		pos = UDim2.new(1, -20, 0, isSmall and 182 or 174),
 		anchor = Vector2.new(1, 0),
 		bg = C.BG_PANEL,
-		bgT = 0.96,
-		r = 8,
-		stroke = false,
+		bgT = 0.35,
+		r = 10,
+		stroke = 1.5,
+		strokeC = C.BORDER,
 		vis = false,
 		parent = parent,
 	})
@@ -303,9 +306,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local tutorialGradient = Instance.new("UIGradient")
 	tutorialGradient.Rotation = 90
 	tutorialGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.28),
-		NumberSequenceKeypoint.new(0.35, 0.42),
-		NumberSequenceKeypoint.new(1, 0.62),
+		NumberSequenceKeypoint.new(0, 0.25),
+		NumberSequenceKeypoint.new(0.35, 0.40),
+		NumberSequenceKeypoint.new(1, 0.65),
 	})
 	tutorialGradient.Parent = tutorialFrame
 	HUDUI.Refs.tutorialFrame = tutorialFrame
@@ -570,14 +573,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	-- [X] Redundant interact prompt removed (Using InteractUI instead)
 
-	-- [Bottom Edge] - Experience Bar & Menu (Modern Minimalist)
+	-- [Bottom Edge] - Experience Bar & Menu
 	local bottomEdge = Utils.mkFrame({
 		name = "BottomEdge",
 		size = UDim2.new(1, 0, 0, isSmall and 50 or 40),
 		pos = UDim2.new(0, 0, 1, 0),
 		anchor = Vector2.new(0, 1),
-		bg = Color3.new(0,0,0),
-		bgT = 0.6,
+		bg = C.BG_DARK,
+		bgT = 0.45,
 		parent = parent
 	})
 	
@@ -621,7 +624,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			name = "Slot"..i,
 			size = UDim2.new(0, isSmall and 55 or 48, 0, isSmall and 55 or 48),
 			bg = C.BG_SLOT,
-			bgT = 0.5, -- 가독성을 위해 투명도 낮춤
+			bgT = 0.4,
+			r = 6,
 			stroke = 1.5,
 			strokeC = C.BORDER,
 			parent = hotbarFrame
@@ -643,13 +647,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs.hotbarSlots[i] = slot
 	end
 
-	-- Top Right: Minimap Placeholder (Not fully implemented, just visual)
+	-- Top Right: Minimap
 	local minimap = Utils.mkFrame({
 		name = "Minimap",
 		size = UDim2.new(0, 120, 0, 120),
 		pos = UDim2.new(1, -20, 0, 20),
 		anchor = Vector2.new(1, 0),
-		bgT = 0.5,
+		bgT = 0.4,
+		bg = C.BG_DARK,
 		r = "full",
 		stroke = 2,
 		strokeC = C.BORDER,
@@ -686,11 +691,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		size = UDim2.new(0, 96, 0, 96),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(18, 24, 34),
+		bg = C.BG_DARK,
 		bgT = 0.25,
 		r = "full",
 		stroke = 2,
-		strokeC = Color3.fromRGB(245, 195, 100),
+		strokeC = C.GOLD,
 		parent = minimap,
 	})
 
@@ -699,11 +704,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		size = UDim2.new(0, 12, 0, 12),
 		pos = UDim2.new(0.5, 0, 0.1, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(255, 233, 130),
+		bg = C.GOLD,
 		bgT = 0,
 		r = "full",
 		stroke = 1,
-		strokeC = Color3.fromRGB(30, 25, 20),
+		strokeC = C.WOOD_DARK,
 		parent = minimap,
 	})
 
@@ -712,11 +717,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		size = UDim2.new(0, 10, 0, 10),
 		pos = UDim2.new(0.5, 0, 0.9, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(170, 206, 255),
+		bg = Color3.fromRGB(160, 175, 200),
 		bgT = 0,
 		r = "full",
 		stroke = 1,
-		strokeC = Color3.fromRGB(20, 35, 60),
+		strokeC = C.WOOD_DARK,
 		parent = minimap,
 	})
 
@@ -728,7 +733,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		anchor = Vector2.new(0.5, 0.5),
 		ts = 11,
 		bold = true,
-		color = Color3.fromRGB(255, 223, 143),
+		color = C.GOLD,
 		parent = minimap,
 	})
 
@@ -910,7 +915,7 @@ local function _buildRewardText(reward)
 	if type(reward) ~= "table" then
 		return ""
 	end
-	local greenHex = "#63FF8E"
+	local greenHex = "#78D050"
 	local function styleLabelAmount(labelText: string, amountText: string, greenLabel: boolean): string
 		local localizedLabel = UILocalizer.Localize(labelText)
 		if greenLabel then
@@ -1259,11 +1264,11 @@ function HUDUI.UpdateStatusEffects(debuffList)
 		local slot = Utils.mkFrame({
 			name = debuff.id,
 			size = UDim2.new(0, 26, 0, 26),
-			bg = isBuff and Color3.fromRGB(0, 40, 0) or Color3.fromRGB(40, 0, 0), 
+			bg = isBuff and Color3.fromRGB(20, 40, 25) or Color3.fromRGB(42, 18, 20), 
 			bgT = 0.4,
-			r = 4,
-			stroke = 1,
-			strokeC = isBuff and Color3.fromRGB(100, 255, 100) or C.RED,
+			r = 6,
+			stroke = 1.5,
+			strokeC = isBuff and Color3.fromRGB(120, 200, 80) or C.RED,
 			parent = container
 		})
 		

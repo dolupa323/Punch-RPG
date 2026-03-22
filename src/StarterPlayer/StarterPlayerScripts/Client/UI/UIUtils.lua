@@ -39,20 +39,20 @@ function UIUtils.mkFrame(p)
 	end
 	f.Parent = p.parent
 	
-	-- Minimalist Corners
+	-- Warm Rounded Corners
 	if p.r ~= false then
 		local c = Instance.new("UICorner")
-		local radius = p.r or 4 -- 고정값 또는 유동적 값 (4가 모던함)
+		local radius = p.r or 8
 		c.CornerRadius = (radius == "full") and UDim.new(1, 0) or UDim.new(0, radius)
 		c.Parent = f
 	end
 	
-	-- Subtle Strokes: Default is now false unless explicitly asked
+	-- Gold Metallic Border Strokes
 	if p.stroke == true or p.strokeC then
 		local s = Instance.new("UIStroke")
-		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1
+		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1.5
 		s.Color = p.strokeC or C.BORDER
-		s.Transparency = p.strokeT or 0.7 -- 매우 희미하게
+		s.Transparency = p.strokeT or 0.3
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		s.Parent = f
 	end
@@ -100,7 +100,7 @@ function UIUtils.mkBtn(p)
 	b.Position = p.pos or UDim2.new(0, 0, 0, 0)
 	b.AnchorPoint = p.anchor or Vector2.zero
 	b.BackgroundColor3 = p.bg or C.BTN
-	b.BackgroundTransparency = p.bgT or 0.3
+	b.BackgroundTransparency = p.bgT or 0.25
 	b.BorderSizePixel = 0
 	b.Text = UILocalizer.Localize(p.text or "")
 	b.TextColor3 = p.color or C.WHITE
@@ -112,21 +112,21 @@ function UIUtils.mkBtn(p)
 	
 	if p.r ~= false then
 		local c = Instance.new("UICorner")
-		local radius = p.r or 4
+		local radius = p.r or 8
 		c.CornerRadius = (radius == "full") and UDim.new(1, 0) or UDim.new(0, radius)
 		c.Parent = b
 	end
 	
 	if p.stroke == true or p.strokeC then
 		local s = Instance.new("UIStroke")
-		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1
+		s.Thickness = (type(p.stroke) == "number") and p.stroke or 1.5
 		s.Color = p.strokeC or C.BORDER
-		s.Transparency = 0.7
+		s.Transparency = 0.3
 		s.Parent = b
 	end
 	
 	local nc, hc = b.BackgroundColor3, p.hbg or C.BTN_H
-	local nt = p.bgT or 0.3
+	local nt = p.bgT or 0.35
 	b.MouseEnter:Connect(function() 
 		TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = hc, BackgroundTransparency = 0.1}):Play() 
 	end)
@@ -176,11 +176,11 @@ end
 function UIUtils.mkSlot(p)
 	local slot = UIUtils.mkFrame({
 		name = p.name or "Slot",
-		size = p.size or UDim2.new(1, 0, 1, 0), -- Grid Layout에서 제어됨
+		size = p.size or UDim2.new(1, 0, 1, 0),
 		bg = p.bg or C.BG_SLOT,
 		bgT = p.bgT or T.SLOT,
-		r = p.r or 0, -- 듀랑고는 각진 사각형
-		stroke = p.stroke or 1,
+		r = p.r or 6,
+		stroke = p.stroke or 2,
 		strokeC = p.strokeC or C.BORDER_DIM,
 		z = p.z or 1,
 		parent = p.parent
@@ -221,7 +221,7 @@ function UIUtils.mkSlot(p)
 		size = UDim2.new(0.8, 0, 0, 4),
 		pos = UDim2.new(0.5, 0, 1, -4),
 		anchor = Vector2.new(0.5, 1),
-		bg = Color3.fromRGB(50, 50, 50),
+		bg = C.BG_DARK,
 		bgT = 0,
 		vis = false,
 		z = slot.ZIndex + 3,
@@ -232,7 +232,7 @@ function UIUtils.mkSlot(p)
 		name = "Fill",
 		size = UDim2.new(1, 0, 1, 0),
 		pos = UDim2.new(0, 0, 0, 0),
-		bg = Color3.fromRGB(150, 255, 150),
+		bg = Color3.fromRGB(120, 200, 80),
 		bgT = 0,
 		z = slot.ZIndex + 4,
 		parent = durBg
@@ -261,8 +261,8 @@ function UIUtils.mkBar(p)
 		name = p.name or "Bar",
 		size = p.size,
 		pos = p.pos,
-		bg = p.bg or Color3.fromRGB(40, 40, 40),
-		bgT = p.bgT or 0.4,
+		bg = p.bg or C.BG_DARK,
+		bgT = p.bgT or 0.5,
 		r = p.r or 0,
 		parent = p.parent
 	})
@@ -366,7 +366,7 @@ function UIUtils.CreateCloseButton(UIManager, winId)
 		name = "CloseBtn",
 		size = UDim2.new(0, 30, 0, 30),
 		text = "X",
-		bg = Color3.fromRGB(200, 50, 50),
+		bg = C.RED,
 		r = "full"
 	})
 	btn.MouseButton1Click:Connect(function()

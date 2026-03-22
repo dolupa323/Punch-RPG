@@ -351,6 +351,12 @@ end
 --- 모델을 시설물로 설정 (위치/회전/히트박스)
 local function setupFacilityModel(model: Model, facilityId: string, facilityData: any, position: Vector3, rotation: Vector3): Model
 	cleanModelForBuild(model)
+
+	-- facilityData에 modelScale이 지정되어 있으면 크기 조정
+	local scale = type(facilityData) == "table" and facilityData.modelScale
+	if type(scale) == "number" and scale ~= 1 and model:IsA("Model") then
+		model:ScaleTo(scale)
+	end
 	
 	-- PrimaryPart 설정
 	local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
@@ -358,22 +364,16 @@ local function setupFacilityModel(model: Model, facilityId: string, facilityData
 		model.PrimaryPart = primaryPart
 		local tiltOffset = resolveServerPlacementTiltOffset(facilityId, facilityData, model)
 		
-		-- 지면 정렬 (하단 기준 위치 설정)
-		local minY = math.huge
-		for _, p in ipairs(model:GetDescendants()) do
-			if p:IsA("BasePart") then
-				local pMinY = p.Position.Y - (p.Size.Y / 2)
-				if pMinY < minY then minY = pMinY end
-			end
-		end
-		
+		-- GetBoundingBox로 회전된 파트도 정확한 월드 바운딩 계산
+		local bbCF, bbSize = model:GetBoundingBox()
+		local bbBottomY = bbCF.Position.Y - (bbSize.Y * 0.5)
 		local currentPivot = model:GetPivot()
-		local pivotOffset = currentPivot.Position.Y - minY
+		local pivotOffset = math.max(0, currentPivot.Position.Y - bbBottomY)
 		
-		-- 위치 및 회전 적용
-		local targetCF = CFrame.new(position) 
-			* CFrame.Angles(math.rad(rotation.X + tiltOffset.X), math.rad(rotation.Y + tiltOffset.Y), math.rad(rotation.Z + tiltOffset.Z))
+		-- 지면 오프셋을 월드 Y로 먼저 적용한 뒤 회전 (높은 지형에서 땅속 박힘 방지)
+		local targetCF = CFrame.new(position)
 			* CFrame.new(0, pivotOffset, 0)
+			* CFrame.Angles(math.rad(rotation.X + tiltOffset.X), math.rad(rotation.Y + tiltOffset.Y), math.rad(rotation.Z + tiltOffset.Z))
 		model:PivotTo(targetCF)
 	end
 	
@@ -628,6 +628,24 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	-- 10. Workspace에 모델 생성
 	local model = spawnFacilityModel(facilityId, position, actualRotation, structureId, userId)
 	
+	-- 10a. 모닥불 조명 추가
+	if isCampfire and model then
+		local lightPart = nil
+		if model:IsA("Model") then
+			lightPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+		elseif model:IsA("BasePart") then
+			lightPart = model
+		end
+		if lightPart then
+			local pl = Instance.new("PointLight")
+			pl.Color = Color3.fromRGB(255, 170, 60)
+			pl.Brightness = 1.5
+			pl.Range = 28
+			pl.Shadows = true
+			pl.Parent = lightPart
+		end
+	end
+
 	-- 11. 이벤트 발행
 	emitPlaced(structure)
 	

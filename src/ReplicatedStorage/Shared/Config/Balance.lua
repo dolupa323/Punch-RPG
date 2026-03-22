@@ -235,7 +235,9 @@ Balance.GOLD_EARN_MULTIPLIER = 1.0     -- 골드 획득 배율 (이벤트용)
 
 -- 테이블 동결 (런타임 수정 방지)
 Balance.ARMOR_DURABILITY_LOSS_RATIO = 0.1 -- 피격 시 방어구 내구도 감소 비율
-Balance.KNOCKBACK_FORCE = 25               -- 피격 시 기본 넉백 강도
+Balance.KNOCKBACK_FORCE = 25               -- 피격 시 기본 넉백 강도 (플레이어)
+Balance.CREATURE_KNOCKBACK_FORCE = 12      -- 크리처 피격 넉백 강도
+Balance.DAMAGE_VARIANCE = 0.15             -- 데미지 등락폭 (±15%)
 Balance.PACK_AGGRO_RADIUS = 50             -- 피격 시 주변 동족 연쇄 어그로 반경
 Balance.DROP_BILLBOARD_MAX_DIST = 25       -- 드롭 아이템 라벨 표시 최대 거리
 Balance.DROP_PROMPT_RANGE = 5              -- [하향] 너무 멀리서 보이지 않도록 거리 추가 축소 (8 -> 5)

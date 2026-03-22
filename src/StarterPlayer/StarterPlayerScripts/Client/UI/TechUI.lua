@@ -59,7 +59,7 @@ local function updateSelectionHighlight()
 			if glow then glow.Visible = true end
 		else
 			if st then
-				st.Color = isUnlocked and Color3.fromRGB(180, 150, 50) or Color3.fromRGB(60, 60, 60)
+				st.Color = isUnlocked and C.GOLD or C.BORDER_DIM
 				st.Thickness = isUnlocked and 1.5 or 1
 			end
 			if glow then glow.Visible = false end
@@ -171,19 +171,19 @@ local function renderTree(techList, unlocked, playerLevel, getItemIcon, UIManage
 		cell.Position = UDim2.new(0, pos.X, 0, pos.Y)
 		
 		if isUnlocked then
-			cell.BackgroundColor3 = Color3.fromRGB(30, 80, 40)
-			cell.BackgroundTransparency = 0.2
+			cell.BackgroundColor3 = Color3.fromRGB(25, 50, 28)
+			cell.BackgroundTransparency = 0.25
 		elseif not preMet or not lvlMet then
-			cell.BackgroundColor3 = Color3.fromRGB(40, 25, 25)
+			cell.BackgroundColor3 = Color3.fromRGB(40, 20, 25)
 			cell.BackgroundTransparency = 0.4
 		else
-			cell.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+			cell.BackgroundColor3 = C.BG_SLOT
 			cell.BackgroundTransparency = 0.2
 		end
 		
 		local cor = Instance.new("UICorner"); cor.CornerRadius = UDim.new(0, 10); cor.Parent = cell
 		local stk = Instance.new("UIStroke")
-		stk.Color = isUnlocked and Color3.fromRGB(180, 150, 50) or Color3.fromRGB(60, 60, 60)
+		stk.Color = isUnlocked and C.GOLD or C.BORDER_DIM
 		stk.Thickness = isUnlocked and 1.5 or 1
 		stk.Parent = cell
 		
@@ -205,7 +205,7 @@ local function renderTree(techList, unlocked, playerLevel, getItemIcon, UIManage
 		if isUnlocked then
 			local d = Instance.new("TextLabel")
 			d.Size=UDim2.new(0,20,0,20); d.Position=UDim2.new(0,2,0,2)
-			d.BackgroundColor3=Color3.fromRGB(20,50,20); d.Text="✓"; d.TextColor3=Color3.fromRGB(100,255,100)
+			d.BackgroundColor3=Color3.fromRGB(20,38,22); d.Text="✓"; d.TextColor3=Color3.fromRGB(120,200,80)
 			d.TextSize=14; d.Font=F.TITLE; d.ZIndex=202; d.Parent=cell
 			local dc=Instance.new("UICorner"); dc.CornerRadius=UDim.new(0,4); dc.Parent=d
 		end
@@ -217,7 +217,7 @@ local function renderTree(techList, unlocked, playerLevel, getItemIcon, UIManage
 		nameL.BackgroundTransparency = 1
 		nameL.Text = node.name or node.id
 		nameL.Font = F.TITLE; nameL.TextSize = 12
-		nameL.TextColor3 = isUnlocked and C.GOLD or (preMet and lvlMet and C.WHITE or Color3.fromRGB(150,150,150))
+		nameL.TextColor3 = isUnlocked and C.GOLD or (preMet and lvlMet and C.WHITE or Color3.fromRGB(110,105,95))
 		nameL.ZIndex = 201; nameL.Parent = cell
 		
 		-- (SP 뱃지 제거)
@@ -268,7 +268,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 
 	TechUI.Refs.Frame = Utils.mkFrame({
 		name = "TechMenu", size = UDim2.new(1,0,1,0),
-		bg = Color3.new(0,0,0), bgT = 0.85, vis = false, parent = parent,
+		bg = C.BG_OVERLAY, bgT = 0.5, vis = false, parent = parent,
 	})
 
 	local main = Utils.mkWindow({
@@ -416,12 +416,12 @@ function TechUI.Init(parent, UIManager, isMobile)
 	TechUI.Refs.D_WarnBox = Instance.new("Frame")
 	TechUI.Refs.D_WarnBox.Size=UDim2.new(1,-24,0,0); TechUI.Refs.D_WarnBox.Position=UDim2.new(0,12,0,210)
 	TechUI.Refs.D_WarnBox.AutomaticSize=Enum.AutomaticSize.Y
-	TechUI.Refs.D_WarnBox.BackgroundColor3=Color3.fromRGB(50,20,20); TechUI.Refs.D_WarnBox.BorderSizePixel=0
+	TechUI.Refs.D_WarnBox.BackgroundColor3=Color3.fromRGB(42,20,22); TechUI.Refs.D_WarnBox.BorderSizePixel=0
 	local wc=Instance.new("UICorner"); wc.CornerRadius=UDim.new(0,4); wc.Parent=TechUI.Refs.D_WarnBox
 	local wp=Instance.new("UIPadding"); wp.PaddingTop=UDim.new(0,12); wp.PaddingBottom=UDim.new(0,12)
 	wp.PaddingLeft=UDim.new(0,15); wp.PaddingRight=UDim.new(0,15); wp.Parent=TechUI.Refs.D_WarnBox
 	TechUI.Refs.D_WarnTxt = Utils.mkLabel({
-		text="", size=UDim2.new(1,0,0,0), ts=16, color=Color3.fromRGB(255,140,140), font=F.TITLE,
+		text="", size=UDim2.new(1,0,0,0), ts=16, color=Color3.fromRGB(220,120,100), font=F.TITLE,
 		ax=Enum.TextXAlignment.Left, wrap=true, parent=TechUI.Refs.D_WarnBox
 	})
 	TechUI.Refs.D_WarnTxt.AutomaticSize = Enum.AutomaticSize.Y
@@ -521,32 +521,32 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 		if #lines > 0 then
 			txt.Text = table.concat(lines, "\n")
 			if costStr ~= "" then txt.Text = txt.Text .. "\n\n" .. costStr end
-			txt.TextColor3 = Color3.fromRGB(240, 100, 100)
-			box.BackgroundColor3 = Color3.fromRGB(50, 15, 15)
+			txt.TextColor3 = Color3.fromRGB(220, 100, 80)
+			box.BackgroundColor3 = Color3.fromRGB(42, 18, 20)
 			box.Visible = true
 			
 			btn.Visible = true
 			btn.Text = UILocalizer.Localize("조건 미충족")
-			btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-			btn.TextColor3 = Color3.fromRGB(150,150,150)
+			btn.BackgroundColor3 = C.BG_SLOT
+			btn.TextColor3 = Color3.fromRGB(110,105,95)
 			btn.AutoButtonColor = false
 		else
 			if not canAfford then
 				txt.Text = UILocalizer.Localize("💰 자원 부족") .. "\n" .. costStr
-				txt.TextColor3 = Color3.fromRGB(230, 230, 230)
-				box.BackgroundColor3 = Color3.fromRGB(40, 30, 10)
+				txt.TextColor3 = Color3.fromRGB(200, 198, 190)
+				box.BackgroundColor3 = Color3.fromRGB(38, 35, 18)
 				box.Visible = true
 				
 				btn.Visible = true
 				btn.Text = UILocalizer.Localize("자원 부족")
-				btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-				btn.TextColor3 = Color3.fromRGB(150,150,150)
+				btn.BackgroundColor3 = C.BG_SLOT
+				btn.TextColor3 = Color3.fromRGB(110,105,95)
 				btn.AutoButtonColor = false
 			else
 				if costStr ~= "" then
 					txt.Text = UILocalizer.Localize("✅ 필요 자원") .. "\n" .. costStr
-					txt.TextColor3 = Color3.fromRGB(230, 230, 230)
-					box.BackgroundColor3 = Color3.fromRGB(20, 30, 20)
+					txt.TextColor3 = Color3.fromRGB(200, 198, 190)
+					box.BackgroundColor3 = Color3.fromRGB(20, 35, 22)
 					box.Visible = true
 				else
 					box.Visible = false
@@ -555,7 +555,7 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 				btn.Visible = true
 				btn.Text = UILocalizer.Localize("연구 시작")
 				btn.BackgroundColor3 = C.GOLD
-				btn.TextColor3 = Color3.fromRGB(20,20,20)
+				btn.TextColor3 = C.BG_DARK
 				btn.AutoButtonColor = true
 			end
 		end
@@ -569,7 +569,7 @@ function TechUI.ShowUnlockSuccessPopup(node, getItemIcon, parent)
 		pos=UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5),
 		bg=C.BG_PANEL, bgT=T.PANEL, stroke=false, r=6, z=1000, parent=parent,
 	})
-	Utils.mkLabel({text="연구 완료!", size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,10), ts=15, font=F.TITLE, color=Color3.fromRGB(150,255,150), parent=popup})
+	Utils.mkLabel({text="연구 완료!", size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,10), ts=15, font=F.TITLE, color=Color3.fromRGB(120,200,80), parent=popup})
 	Utils.mkLabel({text=node.name or node.id, size=UDim2.new(1,0,0,30), pos=UDim2.new(0,0,0,40), ts=18, color=C.WHITE, parent=popup})
 	
 	popup.GroupTransparency = 1

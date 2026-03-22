@@ -23,6 +23,7 @@ local DataService
 local PlayerStatService
 local SaveService
 local CreatureService
+local CombatService
 
 --========================================
 -- Internal State
@@ -471,30 +472,30 @@ local function _petAITick()
 				continue
 			end
 
-			-- 적 탐색
+			-- 플레이어 전투 대상만 추적 (선공 금지 — 플레이어가 먼저 공격해야 펫이 따라감)
 			local nearestEnemy = nil
-			local nearestDist = Balance.PET_DETECT_RANGE
+			local nearestDist = math.huge
 			local nearestInstanceId = nil
 
-			local creaturesFolder = workspace:FindFirstChild("Creatures")
-			if creaturesFolder then
-				for _, creatureModel in ipairs(creaturesFolder:GetChildren()) do
-					if creatureModel:IsA("Model") then
-						local iid = creatureModel:GetAttribute("InstanceId")
-						if iid then
-							local cHum = creatureModel:FindFirstChildOfClass("Humanoid")
-							if cHum and cHum.Health > 0 then
-								local cRoot = creatureModel.PrimaryPart
-									or creatureModel:FindFirstChild("HumanoidRootPart")
-									or creatureModel:FindFirstChildWhichIsA("BasePart", true)
-								if cRoot then
-									local dist = (petPos - cRoot.Position).Magnitude
-									if dist < nearestDist then
-										nearestDist = dist
+			if CombatService then
+				local targetId = CombatService.getPlayerCombatTarget(userId)
+				if targetId then
+					local creaturesFolder = workspace:FindFirstChild("Creatures")
+					if creaturesFolder then
+						for _, creatureModel in ipairs(creaturesFolder:GetChildren()) do
+							if creatureModel:IsA("Model") and creatureModel:GetAttribute("InstanceId") == targetId then
+								local cHum = creatureModel:FindFirstChildOfClass("Humanoid")
+								if cHum and cHum.Health > 0 then
+									local cRoot = creatureModel.PrimaryPart
+										or creatureModel:FindFirstChild("HumanoidRootPart")
+										or creatureModel:FindFirstChildWhichIsA("BasePart", true)
+									if cRoot then
+										nearestDist = (petPos - cRoot.Position).Magnitude
 										nearestEnemy = creatureModel
-										nearestInstanceId = iid
+										nearestInstanceId = targetId
 									end
 								end
+								break
 							end
 						end
 					end
@@ -503,16 +504,19 @@ local function _petAITick()
 
 			local now = os.clock()
 
-			-- 플레이어 이동 감지 (속도 체크)
+			-- 플레이어 이동 감지 (속도 체크, 감속 흔들림 방지용 높은 임계값)
 			local playerVelocity = rootPart.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
-			local playerMoving = playerVelocity.Magnitude > 1.5
+			local playerMoving = playerVelocity.Magnitude > 3
 
 			-- 정지 반경: 이 거리 이내면 멈춤 (비비기 방지)
-			local STOP_RADIUS = 8
-			-- 따라가기 시작 거리: 이 거리 이상 벌어지면 다시 따라감
-			local FOLLOW_RADIUS = 12
+			local STOP_RADIUS = 6
+			-- 따라가기 시작 거리: 이 거리 이상 벌어지면 다시 따라감 (STOP과 충분한 갭 확보)
+			local FOLLOW_RADIUS = 14
 
-			-- 전투: 공격 범위 내 적
+			-- 슬롯별 오프셋 각도 (펫끼리 겹침 방지)
+			local slotAngle = math.rad(120 * (slotIndex - 1))
+
+			-- 전투: 플레이어의 전투 대상이 있고 공격 범위 내에 있을 때만 공격
 			if nearestEnemy and nearestDist <= Balance.PET_ATTACK_RANGE then
 				petInfo.model:SetAttribute("State", "CHASE")
 				petHum.WalkSpeed = Balance.PET_FOLLOW_SPEED * 1.2
@@ -531,8 +535,8 @@ local function _petAITick()
 					petHum:MoveTo(eRoot.Position)
 				end
 
-			-- 추적: 감지 범위 내 적
-			elseif nearestEnemy and nearestDist <= Balance.PET_DETECT_RANGE then
+			-- 추적: 플레이어의 전투 대상이 있지만 아직 공격 범위 밖 → 접근
+			elseif nearestEnemy then
 				petInfo.model:SetAttribute("State", "CHASE")
 				petHum.WalkSpeed = Balance.PET_FOLLOW_SPEED * 1.2
 
@@ -543,41 +547,24 @@ local function _petAITick()
 					petHum:MoveTo(eRoot.Position)
 				end
 
-			-- 멀리 떨어졌으면 → 플레이어 근처로 이동 (정확한 좌표가 아니라 옆쪽 오프셋)
+			-- 멀리 떨어졌으면 → 플레이어 근처로 이동
 			elseif distToPlayer > FOLLOW_RADIUS then
 				petInfo.model:SetAttribute("State", "WANDER")
 				petHum.WalkSpeed = Balance.PET_FOLLOW_SPEED
-				-- 플레이어 정확한 위치가 아니라 STOP_RADIUS 거리의 옆쪽 지점으로 이동
-				local dirToPet = (petPos - playerPos) * Vector3.new(1, 0, 1)
-				local stopTarget
-				if dirToPet.Magnitude > 0.1 then
-					stopTarget = playerPos + dirToPet.Unit * STOP_RADIUS
-				else
-					local angle = math.rad(120 * (slotIndex - 1))
-					stopTarget = playerPos + Vector3.new(math.cos(angle) * STOP_RADIUS, 0, math.sin(angle) * STOP_RADIUS)
-				end
+				local stopTarget = playerPos + Vector3.new(math.cos(slotAngle) * STOP_RADIUS, 0, math.sin(slotAngle) * STOP_RADIUS)
 				petHum:MoveTo(stopTarget)
 
-			-- 정지 반경 밖 + 플레이어 움직이는 중 → 따라가기
+			-- 플레이어 움직이는 중 + 정지 반경 밖 → 따라가기
 			elseif playerMoving and distToPlayer > STOP_RADIUS then
 				petInfo.model:SetAttribute("State", "WANDER")
 				petHum.WalkSpeed = Balance.PET_FOLLOW_SPEED
-				local dirToPet = (petPos - playerPos) * Vector3.new(1, 0, 1)
-				local stopTarget
-				if dirToPet.Magnitude > 0.1 then
-					stopTarget = playerPos + dirToPet.Unit * STOP_RADIUS
-				else
-					local angle = math.rad(120 * (slotIndex - 1))
-					stopTarget = playerPos + Vector3.new(math.cos(angle) * STOP_RADIUS, 0, math.sin(angle) * STOP_RADIUS)
-				end
+				local stopTarget = playerPos + Vector3.new(math.cos(slotAngle) * STOP_RADIUS, 0, math.sin(slotAngle) * STOP_RADIUS)
 				petHum:MoveTo(stopTarget)
 
-			-- 정지 반경 이내 → 완전 정지
+			-- 정지 반경 이내 또는 플레이어 정지 → 완전 정지 (매 tick 중지 명령 발행)
 			else
-				if petInfo.model:GetAttribute("State") ~= "IDLE" then
-					petInfo.model:SetAttribute("State", "IDLE")
-					petHum:MoveTo(petRoot.Position)
-				end
+				petInfo.model:SetAttribute("State", "IDLE")
+				petHum:MoveTo(petRoot.Position)
 			end
 		end
 	end
@@ -627,7 +614,7 @@ end
 -- Init
 --========================================
 
-function PetService.Init(netController, dataService, playerStatService, saveService, creatureService)
+function PetService.Init(netController, dataService, playerStatService, saveService, creatureService, combatService)
 	if initialized then return end
 	initialized = true
 
@@ -636,25 +623,46 @@ function PetService.Init(netController, dataService, playerStatService, saveServ
 	PlayerStatService = playerStatService
 	SaveService = saveService
 	CreatureService = creatureService
+	CombatService = combatService
 
 	indexPetModels()
 
-	-- 플레이어 접속 시 펫 슬롯 로드 및 소환
-	Players.PlayerAdded:Connect(function(player)
-		_initPetSlots(player.UserId)
-		player.CharacterAdded:Connect(function()
-			task.wait(2) -- 캐릭터 완전 로드 대기
-			local slots = petSlots[player.UserId]
-			if slots then
-				for slotIdx, creatureId in pairs(slots) do
-					if creatureId then
-						_spawnPet(player.UserId, slotIdx, creatureId)
-					end
+	-- 캐릭터 생성(첫 접속/리스폰) 시 저장된 펫 자동 소환
+	local function _onCharacterAdded(player)
+		task.wait(2) -- 캐릭터 완전 로드 대기
+		_initPetSlots(player.UserId) -- 세이브 데이터 로드 보장 (idempotent)
+		-- 기존 활성 펫 제거 후 재소환
+		if activePets[player.UserId] then
+			for slotIdx in pairs(activePets[player.UserId]) do
+				_despawnPet(player.UserId, slotIdx)
+			end
+		end
+		local slots = petSlots[player.UserId]
+		if slots then
+			for slotIdx, creatureId in pairs(slots) do
+				if creatureId then
+					_spawnPet(player.UserId, slotIdx, creatureId)
 				end
 			end
-			_syncPetSlots(player.UserId)
+		end
+		_syncPetSlots(player.UserId)
+	end
+
+	local function _setupPlayer(player)
+		-- CharacterAdded를 yield 전에 먼저 연결 (레이스 컨디션 방지)
+		player.CharacterAdded:Connect(function()
+			_onCharacterAdded(player)
 		end)
-	end)
+		-- 이미 캐릭터가 있으면 즉시 처리 (첫 스폰 놓침 방지)
+		if player.Character then
+			task.spawn(function()
+				_onCharacterAdded(player)
+			end)
+		end
+	end
+
+	-- 플레이어 접속 시 펫 슬롯 로드 및 소환
+	Players.PlayerAdded:Connect(_setupPlayer)
 
 	-- 플레이어 퇴장 시 정리
 	Players.PlayerRemoving:Connect(function(player)
@@ -671,7 +679,7 @@ function PetService.Init(netController, dataService, playerStatService, saveServ
 
 	-- 이미 접속한 플레이어 처리
 	for _, player in ipairs(Players:GetPlayers()) do
-		_initPetSlots(player.UserId)
+		_setupPlayer(player)
 	end
 
 	-- AI 루프

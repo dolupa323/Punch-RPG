@@ -21,6 +21,10 @@ local COLORS = {
 	HEAL = Color3.fromRGB(100, 255, 100),   -- 초록색: 회복
 }
 
+local BASE_TEXT_SIZE = 22
+local MAX_TEXT_SIZE = 40
+local DAMAGE_SCALE_REF = 50 -- 이 수치 이상이면 최대 크기
+
 local initialized = false
 
 --========================================
@@ -69,11 +73,16 @@ local function findTargetModel(targetId: string): Instance?
 	return targetModel
 end
 
---- 데미지 텍스트 생성 및 애니메이션
-local function spawnDamageText(position: Vector3, text: string, color: Color3)
+--- 데미지 텍스트 생성 및 애니메이션 (damageValue → 텍스트 크기 스케일링)
+local function spawnDamageText(position: Vector3, text: string, color: Color3, damageValue: number?)
+	local dmg = damageValue or 0
+	-- 데미지 크기에 따른 텍스트 크기 (높을수록 큼)
+	local sizeRatio = math.clamp(dmg / DAMAGE_SCALE_REF, 0, 1)
+	local textSize = math.floor(BASE_TEXT_SIZE + (MAX_TEXT_SIZE - BASE_TEXT_SIZE) * sizeRatio)
+	
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "DamageIndicator"
-	billboard.Size = UDim2.new(0, 100, 0, 50)
+	billboard.Size = UDim2.new(0, 120, 0, 60)
 	billboard.Adornee = nil -- World Position 사용
 	billboard.AlwaysOnTop = true
 	-- 위치 오프셋 (머리 위쪽으로 살짝 띄움)
@@ -95,10 +104,19 @@ local function spawnDamageText(position: Vector3, text: string, color: Color3)
 	label.BackgroundTransparency = 1
 	label.Text = text
 	label.TextColor3 = color
-	label.TextStrokeTransparency = 0.5
-	label.Font = Enum.Font.LuckiestGuy -- 강조 느낌의 폰트
-	label.TextSize = 24
+	label.TextStrokeTransparency = 0.3
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = textSize
+	label.TextScaled = false
 	label.Parent = billboard
+	
+	-- 팝 스케일 (처음에 크게 → 원래 크기로 돌아옴)
+	label.TextSize = math.floor(textSize * 1.5)
+	local popTween = TweenService:Create(label, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		TextSize = textSize,
+	})
+	popTween:Play()
 	
 	-- 애니메이션: 위로 튀어오르며 페이드아웃
 	local targetPos = position + Vector3.new(math.random(-2, 2), 4, math.random(-2, 2))
@@ -106,7 +124,7 @@ local function spawnDamageText(position: Vector3, text: string, color: Color3)
 		Position = targetPos
 	})
 	
-	local fadeTween = TweenService:Create(label, TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0.3), {
+	local fadeTween = TweenService:Create(label, TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0.4), {
 		TextTransparency = 1,
 		TextStrokeTransparency = 1
 	})
@@ -114,7 +132,7 @@ local function spawnDamageText(position: Vector3, text: string, color: Color3)
 	moveTween:Play()
 	fadeTween:Play()
 	
-	task.delay(1, function()
+	task.delay(1.2, function()
 		attachment:Destroy()
 	end)
 end
@@ -137,13 +155,13 @@ function DamageUIController.Init()
 		
 		-- 일반 데미지 표시
 		if data.damage and data.damage > 0 then
-			spawnDamageText(spawnPos, string.format("%.0f", data.damage), COLORS.NORMAL)
+			spawnDamageText(spawnPos, string.format("%.0f", data.damage), COLORS.NORMAL, data.damage)
 		end
 		
 		-- 기절 수치 표시 (보라색)
 		if data.torporDamage and data.torporDamage > 0 then
 			task.wait(0.1) -- 겹치지 않게 살짝 딜레이
-			spawnDamageText(spawnPos, string.format("%.0f", data.torporDamage), COLORS.TORPOR)
+			spawnDamageText(spawnPos + Vector3.new(1, 0.5, 0), string.format("%.0f", data.torporDamage), COLORS.TORPOR, data.torporDamage)
 		end
 	end)
 	
@@ -156,7 +174,17 @@ function DamageUIController.Init()
 		if not targetModel then return end
 		
 		local spawnPos = targetModel:GetPivot().Position
-		spawnDamageText(spawnPos, string.format("%.0f", data.damage), COLORS.NORMAL)
+		spawnDamageText(spawnPos, string.format("%.0f", data.damage), COLORS.NORMAL, data.damage)
+	end)
+	
+	-- 3. 플레이어 피격 데미지 표시 (빨간색)
+	local localPlayer = Players.LocalPlayer
+	NetClient.On("Combat.Player.Hit", function(data)
+		if not data.damage or data.damage <= 0 then return end
+		local char = localPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+		spawnDamageText(hrp.Position + Vector3.new(0, 2, 0), string.format("-%.0f", data.damage), Color3.fromRGB(255, 50, 50), data.damage)
 	end)
 	
 	initialized = true

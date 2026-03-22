@@ -49,23 +49,17 @@ local titleFrame = create("Frame", {
 	Visible = true
 })
 
--- 타이틀 배경 오버레이 (배경 이미지 대신 3D 월드가 보이도록 설정)
+-- 타이틀 배경 오버레이 (불투명 — 게임 환경만 표시)
 local titleBackground = create("Frame", {
 	Name = "Background",
 	Parent = titleFrame,
 	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundTransparency = 0, -- 처음엔 검은 암전 상태로 시작
+	BackgroundTransparency = 0,
 	BackgroundColor3 = Color3.fromRGB(0, 0, 0),
 	ZIndex = 2
 })
 
--- 암전 해제 애니메이션 (월드 보여주기)
-task.spawn(function()
-	task.wait(1.5)
-	TweenService:Create(titleBackground, TweenInfo.new(2, Enum.EasingStyle.Sine), {
-		BackgroundTransparency = 1
-	}):Play()
-end)
+-- 배경은 타이틀 화면 동안 불투명 유지 (게임 월드 숨김)
 
 local originLogo = create("ImageLabel", {
 	Name = "TitleLogo",
@@ -74,7 +68,7 @@ local originLogo = create("ImageLabel", {
 	Position = UDim2.new(0.5, 0, 0.4, 0),
 	Size = UDim2.new(0.6, 0, 0.6, 0),
 	BackgroundTransparency = 1,
-	Image = "rbxassetid://107658670379957",
+	Image = "rbxassetid://136692790872530",
 	ScaleType = Enum.ScaleType.Fit,
 	ImageTransparency = 0,               
 	ZIndex = 3,
@@ -213,7 +207,7 @@ local creditsContent = create("TextLabel", {
 	Position = UDim2.new(0.05, 0, 0.2, 0),
 	Size = UDim2.new(0.9, 0, 0.65, 0),
 	BackgroundTransparency = 1,
-	Text = "WildForge Development Team\n\n[Assets & Tools]\nTree by Poly by Google [CC-BY] via Poly Pizza\nTree-2 by Marc Solà [CC-BY] (https://poly.pizza/m/cRipmFHCEVU)\nBush with Berries by Quaternius (https://poly.pizza/m/TSbIxkDtxF)\nROBLOX Studio / ROJO\n\n(추후 출처 내용이 업데이트될 예정입니다.)",
+	Text = "WildForge Development Team\n\n[Assets & Tools]\nTree by Poly by Google [CC-BY] via Poly Pizza\nTree-2 by Marc Solà [CC-BY] (https://poly.pizza/m/cRipmFHCEVU)\nBush with Berries by Quaternius (https://poly.pizza/m/TSbIxkDtxF)\nDeer by jeremy [CC-BY] via Poly Pizza\nROBLOX Studio / ROJO\n\n(추후 출처 내용이 업데이트될 예정입니다.)",
 	TextColor3 = Color3.fromRGB(200, 200, 200),
 	TextSize = 14, -- 늘어나는 텍스트를 고려해 16에서 14로 약간 조정
 	Font = Enum.Font.Gotham,
@@ -315,10 +309,7 @@ task.spawn(function()
 	end
 end)
 
--- [수정] 통합 로딩 시퀀스
-TweenService:Create(titleBackground, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-	BackgroundTransparency = 0.4 -- 맵이 보이게 살짝 투명화 (로딩 시작 직전)
-}):Play()
+-- 배경 불투명 유지 (게임 월드 숨김 — 타이틀 화면이 닫힐 때까지)
 
 -- 실제 로딩 대기
 if not game:IsLoaded() then

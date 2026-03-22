@@ -62,7 +62,7 @@ local function createPromptUI(prompt, inputType, gui)
 		pos = UDim2.new(0, 0, 0.3, 0),
 		anchor = Vector2.new(0, 0.5),
 		ax = Enum.TextXAlignment.Left,
-		color = Color3.fromRGB(200, 200, 200),
+		color = C.INK,
 		parent = content
 	})
 	

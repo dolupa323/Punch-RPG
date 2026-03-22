@@ -39,6 +39,7 @@ local FacilityData = {
 		description = "비바람을 피하고 부활 지점을 설정할 수 있는 거처입니다.",
 		modelName = "LeanTo",
 		placementYawOffset = 180,
+		modelScale = 1.3,
 		modelAliases = { "LEAN_TO", "Lean_To", "Leanto" },
 		iconName = "LEAN_TO",
 		iconAliases = { "LeanTo", "LEAN_TO", "Lean_To" },

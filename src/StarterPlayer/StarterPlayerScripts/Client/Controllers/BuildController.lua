@@ -268,6 +268,12 @@ local function createGhost(facilityId)
 		ghost.PrimaryPart = part
 	end
 
+	-- facilityData에 modelScale이 지정되어 있으면 크기 조정
+	local scale = facilityData.modelScale
+	if type(scale) == "number" and scale ~= 1 and ghost:IsA("Model") then
+		ghost:ScaleTo(scale)
+	end
+
 	-- Ghost 효과 (반투명 녹색)
 	for _, p in ipairs(ghost:GetDescendants()) do
 		if p:IsA("BasePart") then
@@ -292,23 +298,11 @@ local function computeGhostGroundOffset(ghost: Model): number
 		return 0
 	end
 
-	local minY = math.huge
-	for _, part in ipairs(ghost:GetDescendants()) do
-		if part:IsA("BasePart") then
-			local pMinY = part.Position.Y - (part.Size.Y * 0.5)
-			if pMinY < minY then
-				minY = pMinY
-			end
-		end
-	end
-
-	if minY == math.huge then
-		local _, fallbackBounds = ghost:GetBoundingBox()
-		return math.max(0, fallbackBounds.Y * 0.5)
-	end
-
+	-- GetBoundingBox로 회전된 파트도 정확한 월드 바운딩 계산
+	local bbCF, bbSize = ghost:GetBoundingBox()
+	local bbBottomY = bbCF.Position.Y - (bbSize.Y * 0.5)
 	local pivotY = ghost:GetPivot().Position.Y
-	return math.max(0, pivotY - minY)
+	return math.max(0, pivotY - bbBottomY)
 end
 
 local function computeGhostBoundsSize(ghost: Model): Vector3
@@ -333,6 +327,12 @@ local function resolvePlacementTiltOffset(facilityId: string, facilityData: any,
 			local z = tonumber(configured.Z or configured.z) or 0
 			return Vector3.new(x, 0, z)
 		end
+	end
+
+	-- 모델 피벗의 기울기를 보정 (서버와 동일 로직)
+	if facilityId == "LEAN_TO" and ghost then
+		local rx, _, rz = ghost:GetPivot():ToOrientation()
+		return Vector3.new(math.deg(rx), 0, math.deg(rz))
 	end
 
 	return Vector3.new(0, 0, 0)
@@ -680,12 +680,12 @@ function BuildController.startPlacement(facilityId: string)
 			local yaw = currentRotation + currentPlacementYawOffset
 			local pitch = currentPlacementTiltOffset.X
 			local roll = currentPlacementTiltOffset.Z
-			finalCF = CFrame.new(hitPos + Vector3.new(0, currentGhostGroundOffset, 0))
+			-- 지면 오프셋을 월드 Y로 먼저 적용한 뒤 회전 (높은 지형에서 땅속 박힘 방지)
+			finalCF = CFrame.new(hitPos)
+				* CFrame.new(0, currentGhostGroundOffset, 0)
 				* CFrame.Angles(math.rad(pitch), math.rad(yaw), math.rad(roll))
 			
-			if currentGhost.PrimaryPart then
-				currentGhost:SetPrimaryPartCFrame(finalCF)
-			end
+			currentGhost:PivotTo(finalCF)
 			
 			-- 건설 가능 조건 체크
 			local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")

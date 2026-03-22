@@ -19,15 +19,19 @@ local Balance = require(Shared.Config.Balance)
 --========================================
 local function initCollisionGroups()
 	-- 그룹 생성
-	local groups = {"Players", "Creatures", "Structures", "Resources"}
+	local groups = {"Players", "Creatures", "CombatCreatures", "Structures", "Resources"}
 	for _, group in ipairs(groups) do
 		pcall(function() PhysicsService:RegisterCollisionGroup(group) end)
 	end
 	
 	-- 크리처끼리는 충돌하지 않도록 설정 (Physics 부하 절감)
 	PhysicsService:CollisionGroupSetCollidable("Creatures", "Creatures", false)
+	-- 전투 중 크리처는 플레이어와 충돌 (뚫고 지나가기 방지)
+	PhysicsService:CollisionGroupSetCollidable("CombatCreatures", "Players", true)
+	PhysicsService:CollisionGroupSetCollidable("CombatCreatures", "Creatures", false)
+	PhysicsService:CollisionGroupSetCollidable("CombatCreatures", "CombatCreatures", false)
 	
-	print("[ServerInit] Collision groups initialized (Creatures vs Creatures = false)")
+	print("[ServerInit] Collision groups initialized")
 end
 
 initCollisionGroups()
@@ -331,6 +335,10 @@ CombatService.SetQuestCallback(function(userId, creatureId)
 	TutorialQuestService.onKilled(userId, creatureId)
 end)
 
+InventoryService.SetQuestFoodEatenCallback(function(userId, itemId)
+	TutorialQuestService.onFoodEaten(userId, itemId)
+end)
+
 -- NPCShopService 초기화 (Phase 9)
 local NPCShopService = require(Services.NPCShopService)
 NPCShopService.Init(NetController, DataService, InventoryService, TimeService)
@@ -366,7 +374,7 @@ CombatService.SetStaminaService(StaminaService)
 
 -- PetService 초기화 (도감 펫 시스템)
 local PetService = require(Services.PetService)
-PetService.Init(NetController, DataService, PlayerStatService, SaveService, CreatureService)
+PetService.Init(NetController, DataService, PlayerStatService, SaveService, CreatureService, CombatService)
 
 -- PetService 핸들러 등록
 for command, handler in pairs(PetService.GetHandlers()) do

@@ -73,6 +73,307 @@ local bowNoAmmoNotifyAt = 0
 local bowIncompleteNotifyAt = 0
 
 --========================================
+-- Weapon Trail Effect System
+--========================================
+local TRAIL_COLORS = {
+	AXE      = ColorSequence.new(Color3.fromRGB(255, 180, 80), Color3.fromRGB(255, 100, 20)),
+	PICKAXE  = ColorSequence.new(Color3.fromRGB(200, 200, 220), Color3.fromRGB(150, 150, 180)),
+	SPEAR    = ColorSequence.new(Color3.fromRGB(140, 200, 255), Color3.fromRGB(60, 120, 255)),
+	CLUB     = ColorSequence.new(Color3.fromRGB(200, 160, 100), Color3.fromRGB(140, 100, 50)),
+	TORCH    = ColorSequence.new(Color3.fromRGB(255, 200, 50), Color3.fromRGB(255, 80, 0)),
+	BOW      = ColorSequence.new(Color3.fromRGB(180, 220, 140), Color3.fromRGB(100, 160, 60)),
+	CROSSBOW = ColorSequence.new(Color3.fromRGB(180, 180, 200), Color3.fromRGB(120, 120, 160)),
+	ARROW    = ColorSequence.new(Color3.fromRGB(255, 240, 180), Color3.fromRGB(255, 180, 60)),
+	FIST     = ColorSequence.new(Color3.fromRGB(220, 220, 255), Color3.fromRGB(180, 180, 220)),
+	DEFAULT  = ColorSequence.new(Color3.fromRGB(220, 220, 255), Color3.fromRGB(160, 160, 220)),
+}
+local DEFAULT_TRAIL_STYLE = {
+	startWidth = 1.0,
+	endWidth = 0,
+	lifetime = 0.15,
+	minLength = 0.05,
+	lightEmission = 0.4,
+	lightInfluence = 0.6,
+	transparencyStart = 0.3,
+	transparencyMid = 0.6,
+	pulseHit = 0.22,
+	pulseMiss = 0.14,
+	preDelayHit = 0.03,
+	preDelayMiss = 0.06,
+}
+
+local TRAIL_STYLE = {
+	AXE = {
+		startWidth = 1.25,
+		endWidth = 0,
+		lifetime = 0.13,
+		lightEmission = 0.48,
+		lightInfluence = 0.5,
+		transparencyStart = 0.24,
+		transparencyMid = 0.52,
+		pulseHit = 0.2,
+		pulseMiss = 0.12,
+		preDelayHit = 0.02,
+		preDelayMiss = 0.05,
+	},
+	PICKAXE = {
+		startWidth = 1.1,
+		endWidth = 0,
+		lifetime = 0.14,
+		lightEmission = 0.42,
+		lightInfluence = 0.55,
+		transparencyStart = 0.28,
+		transparencyMid = 0.58,
+	},
+	SPEAR = {
+		startWidth = 0.72,
+		endWidth = 0,
+		lifetime = 0.2,
+		lightEmission = 0.38,
+		lightInfluence = 0.62,
+		transparencyStart = 0.2,
+		transparencyMid = 0.5,
+		pulseHit = 0.24,
+		pulseMiss = 0.16,
+		preDelayHit = 0.01,
+		preDelayMiss = 0.04,
+	},
+	CLUB = {
+		startWidth = 1.05,
+		endWidth = 0,
+		lifetime = 0.15,
+		lightEmission = 0.33,
+		lightInfluence = 0.67,
+		transparencyStart = 0.35,
+		transparencyMid = 0.65,
+	},
+	TORCH = {
+		startWidth = 1.3,
+		endWidth = 0,
+		lifetime = 0.19,
+		lightEmission = 0.72,
+		lightInfluence = 0.2,
+		transparencyStart = 0.16,
+		transparencyMid = 0.46,
+		pulseHit = 0.26,
+		pulseMiss = 0.18,
+		preDelayHit = 0.015,
+		preDelayMiss = 0.03,
+	},
+	BOW = {
+		startWidth = 0.72,
+		endWidth = 0,
+		lifetime = 0.16,
+		lightEmission = 0.35,
+		lightInfluence = 0.65,
+		transparencyStart = 0.3,
+		transparencyMid = 0.62,
+	},
+	CROSSBOW = {
+		startWidth = 0.6,
+		endWidth = 0,
+		lifetime = 0.14,
+		lightEmission = 0.35,
+		lightInfluence = 0.65,
+		transparencyStart = 0.32,
+		transparencyMid = 0.64,
+	},
+	FIST = {
+		startWidth = 0.8,
+		endWidth = 0,
+		lifetime = 0.11,
+		lightEmission = 0.3,
+		lightInfluence = 0.7,
+		transparencyStart = 0.36,
+		transparencyMid = 0.68,
+		pulseHit = 0.16,
+		pulseMiss = 0.11,
+		preDelayHit = 0.02,
+		preDelayMiss = 0.04,
+	},
+}
+
+local activeTrailData = nil -- { trail, a0, a1, tool, lifetime }
+local trailPulseSerial = 0
+
+local function getTrailStyle(toolType: string?)
+	local src = (toolType and TRAIL_STYLE[toolType]) or nil
+	if not src then
+		return DEFAULT_TRAIL_STYLE
+	end
+	return setmetatable(src, { __index = DEFAULT_TRAIL_STYLE })
+end
+
+local function makeTransparencySequence(style)
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, style.transparencyStart),
+		NumberSequenceKeypoint.new(0.5, style.transparencyMid),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+end
+
+local function makeWidthSequence(style)
+	return NumberSequence.new({
+		NumberSequenceKeypoint.new(0, style.startWidth),
+		NumberSequenceKeypoint.new(1, style.endWidth),
+	})
+end
+
+local function setActiveTrailEnabled(enabled: boolean)
+	if activeTrailData and activeTrailData.trail and activeTrailData.trail.Parent then
+		activeTrailData.trail.Enabled = enabled
+	end
+end
+
+local function pulseActiveTrail(duration: number, preDelay: number?)
+	trailPulseSerial += 1
+	local serial = trailPulseSerial
+	task.spawn(function()
+		if preDelay and preDelay > 0 then
+			task.wait(preDelay)
+		end
+		if serial ~= trailPulseSerial then return end
+		setActiveTrailEnabled(true)
+		task.wait(duration)
+		if serial ~= trailPulseSerial then return end
+		setActiveTrailEnabled(false)
+	end)
+end
+
+local function getDominantAxis(size: Vector3): Vector3
+	if size.X >= size.Y and size.X >= size.Z then
+		return Vector3.new(1, 0, 0)
+	elseif size.Y >= size.X and size.Y >= size.Z then
+		return Vector3.new(0, 1, 0)
+	end
+	return Vector3.new(0, 0, 1)
+end
+
+local function pickTrailPart(tool: Tool, handle: BasePart): BasePart
+	local bestPart = nil
+	local bestScore = 0
+	for _, p in ipairs(tool:GetDescendants()) do
+		if p:IsA("BasePart") and p ~= handle and p.Transparency < 0.85 then
+			local dim = math.max(p.Size.X, p.Size.Y, p.Size.Z)
+			local score = dim * (p.Size.X * p.Size.Y * p.Size.Z)
+			if score > bestScore then
+				bestScore = score
+				bestPart = p
+			end
+		end
+	end
+	return bestPart or handle
+end
+
+local function enableWeaponTrail()
+	-- 기존 trail 정리
+	if activeTrailData then
+		if activeTrailData.trail then activeTrailData.trail:Destroy() end
+		if activeTrailData.a0 then activeTrailData.a0:Destroy() end
+		if activeTrailData.a1 then activeTrailData.a1:Destroy() end
+		activeTrailData = nil
+	end
+
+	local character = player.Character
+	if not character then return end
+	local tool = character:FindFirstChildOfClass("Tool")
+	if not tool then return end
+
+	local handle = tool:FindFirstChild("Handle")
+	if not handle then return end
+
+	local trailPart = pickTrailPart(tool, handle)
+
+	-- 무기 주 축(가장 긴 축) 방향으로 Attachment 배치
+	local dominantAxis = getDominantAxis(trailPart.Size)
+	local halfLen = math.max(trailPart.Size.X, trailPart.Size.Y, trailPart.Size.Z) * 0.5
+
+	local a0 = Instance.new("Attachment")
+	a0.Name = "TrailA0"
+	a0.Position = dominantAxis * halfLen
+	a0.Parent = trailPart
+
+	local a1 = Instance.new("Attachment")
+	a1.Name = "TrailA1"
+	a1.Position = -dominantAxis * halfLen
+	a1.Parent = trailPart
+
+	-- Trail 생성
+	local toolType = tool:GetAttribute("ToolType") or tool.Name:upper() or "DEFAULT"
+	local style = getTrailStyle(toolType)
+	local trail = Instance.new("Trail")
+	trail.Name = "WeaponTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = TRAIL_COLORS[toolType] or TRAIL_COLORS.DEFAULT
+	trail.Transparency = makeTransparencySequence(style)
+	trail.Lifetime = style.lifetime
+	trail.MinLength = style.minLength
+	trail.WidthScale = makeWidthSequence(style)
+	trail.FaceCamera = true
+	trail.LightEmission = style.lightEmission
+	trail.LightInfluence = style.lightInfluence
+	trail.Enabled = false
+	trail.Parent = trailPart
+
+	activeTrailData = { trail = trail, a0 = a0, a1 = a1, tool = tool, lifetime = style.lifetime }
+end
+
+local function disableWeaponTrail()
+	if not activeTrailData then return end
+	trailPulseSerial += 1
+	-- trail을 먼저 비활성화하고 잔상이 사라진 뒤 정리
+	if activeTrailData.trail then
+		activeTrailData.trail.Enabled = false
+	end
+	local data = activeTrailData
+	activeTrailData = nil
+	task.delay((data.lifetime or DEFAULT_TRAIL_STYLE.lifetime) + 0.1, function()
+		if data.trail and data.trail.Parent then data.trail:Destroy() end
+		if data.a0 and data.a0.Parent then data.a0:Destroy() end
+		if data.a1 and data.a1.Parent then data.a1:Destroy() end
+	end)
+end
+
+local function enableFistTrail()
+	-- 기존 trail 정리
+	disableWeaponTrail()
+
+	local character = player.Character
+	if not character then return end
+	local rightHand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+	if not rightHand then return end
+
+	local a0 = Instance.new("Attachment")
+	a0.Name = "TrailA0"
+	a0.Position = Vector3.new(0, -0.5, 0)
+	a0.Parent = rightHand
+
+	local a1 = Instance.new("Attachment")
+	a1.Name = "TrailA1"
+	a1.Position = Vector3.new(0, 0.5, 0)
+	a1.Parent = rightHand
+
+	local style = getTrailStyle("FIST")
+	local trail = Instance.new("Trail")
+	trail.Name = "FistTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = TRAIL_COLORS.FIST
+	trail.Transparency = makeTransparencySequence(style)
+	trail.Lifetime = style.lifetime
+	trail.MinLength = style.minLength
+	trail.WidthScale = makeWidthSequence(style)
+	trail.FaceCamera = true
+	trail.LightEmission = style.lightEmission
+	trail.LightInfluence = style.lightInfluence
+	trail.Enabled = false
+	trail.Parent = rightHand
+
+	activeTrailData = { trail = trail, a0 = a0, a1 = a1, tool = nil, lifetime = style.lifetime }
+end
+
+--========================================
 -- Internal Functions
 --========================================
 
@@ -475,6 +776,9 @@ local function beginBowDraw(pressedHitPos: Vector3?)
 		currentBowDrawConn:Disconnect()
 		currentBowDrawConn = nil
 	end
+	-- 활 당기는 동안 은은한 잔상 유지
+	enableWeaponTrail()
+	setActiveTrailEnabled(true)
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChild("Humanoid")
@@ -556,6 +860,8 @@ local function endBowDraw(releaseHitPos: Vector3?)
 		currentBowDrawTrack:Stop(0.04)
 	end
 	currentBowDrawTrack = nil
+	setActiveTrailEnabled(false)
+	disableWeaponTrail()
 	if not canFire then
 		notifyBowIncomplete()
 		bowDrawStartedAt = 0
@@ -631,6 +937,8 @@ local function endBowDraw(releaseHitPos: Vector3?)
 	if not ok then
 		if errorOrData == Enums.ErrorCode.MISSING_REQUIREMENTS then
 			notifyBowNoAmmo()
+		elseif errorOrData == Enums.ErrorCode.ALREADY_IN_COMBAT then
+			UIManager.notify("이미 다른 대상과 전투 중입니다!", Color3.fromRGB(255, 150, 50))
 		elseif errorOrData == Enums.ErrorCode.INVALID_STATE then
 			UIManager.notify("조건이 맞지 않아 발사되지 않았습니다.", Color3.fromRGB(255, 140, 100))
 		end
@@ -707,6 +1015,52 @@ spawnArrowTracer = function(targetPos: Vector3?, startPos: Vector3?, directionOv
 		visual = part
 	end
 
+	-- 화살에 Trail 효과 부착
+	local arrowTrailPart = nil
+	if visual then
+		if visual:IsA("Model") then
+			arrowTrailPart = visual:FindFirstChildWhichIsA("BasePart")
+		elseif visual:IsA("BasePart") then
+			arrowTrailPart = visual
+		end
+	end
+	if arrowTrailPart then
+		local dominantAxis = getDominantAxis(arrowTrailPart.Size)
+		local halfLen = math.max(arrowTrailPart.Size.X, arrowTrailPart.Size.Y, arrowTrailPart.Size.Z) * 0.5
+		local arrowTrailLife = math.clamp(travel * 0.18, 0.12, 0.24)
+		local at0 = Instance.new("Attachment")
+		at0.Name = "ArrowTrailA0"
+		at0.Position = dominantAxis * halfLen
+		at0.Parent = arrowTrailPart
+
+		local at1 = Instance.new("Attachment")
+		at1.Name = "ArrowTrailA1"
+		at1.Position = -dominantAxis * halfLen
+		at1.Parent = arrowTrailPart
+
+		local arrowTrail = Instance.new("Trail")
+		arrowTrail.Name = "ArrowTrail"
+		arrowTrail.Attachment0 = at0
+		arrowTrail.Attachment1 = at1
+		arrowTrail.Color = TRAIL_COLORS.ARROW
+		arrowTrail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.1),
+			NumberSequenceKeypoint.new(0.45, 0.45),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		arrowTrail.Lifetime = arrowTrailLife
+		arrowTrail.MinLength = 0.02
+		arrowTrail.WidthScale = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		arrowTrail.FaceCamera = false
+		arrowTrail.LightEmission = 0.5
+		arrowTrail.LightInfluence = 0.5
+		arrowTrail.Enabled = true
+		arrowTrail.Parent = arrowTrailPart
+	end
+
 	task.spawn(function()
 		local t0 = tick()
 		while true do
@@ -765,6 +1119,18 @@ playAttackAnimation = function(isHit: boolean)
 	-- 콤보 인덱스에 따른 애니메이션 선택
 	local animName = animNames[currentComboIndex] or animNames[1]
 	
+	-- 무기 Trail 효과 초기화 (실제 잔상 표시는 히트 타이밍에 Pulse)
+	local hasWeapon = (toolType and toolType ~= "BOLA")
+	local isBarehand = (not toolType)
+	local style = getTrailStyle(isBarehand and "FIST" or toolType)
+	if hasWeapon or isBarehand then
+		if isBarehand then
+			enableFistTrail()
+		else
+			enableWeaponTrail()
+		end
+	end
+	
 	-- 애니메이션 재생 (AnimationManager 사용)
 	local track = AnimationManager.play(humanoid, animName, 0.05)
 	if track then
@@ -779,6 +1145,32 @@ playAttackAnimation = function(isHit: boolean)
 		end
 		
 		currentAttackTrack = track
+
+		if hasWeapon or isBarehand then
+			local hitMarked = false
+			local markerConn = track:GetMarkerReachedSignal("Hit"):Connect(function()
+				hitMarked = true
+				pulseActiveTrail(isHit and style.pulseHit or style.pulseMiss, isHit and style.preDelayHit or style.preDelayMiss)
+			end)
+
+			-- 마커가 없는 애니메이션을 위한 fallback
+			task.delay(isHit and style.preDelayHit or style.preDelayMiss, function()
+				if not hitMarked then
+					pulseActiveTrail(isHit and style.pulseHit or style.pulseMiss, 0)
+				end
+			end)
+
+			task.spawn(function()
+				track.Stopped:Wait()
+				if markerConn then markerConn:Disconnect() end
+				disableWeaponTrail()
+			end)
+		end
+	else
+		-- 트랙 생성 실패 시 바로 정리
+		if hasWeapon or isBarehand then
+			disableWeaponTrail()
+		end
 	end
 	
 	-- 콤보 증가 (다음 공격시 다른 모션)
@@ -808,9 +1200,10 @@ local function playHitShake(intensity)
 				(math.random() - 0.5) * intensity,
 				(math.random() - 0.5) * intensity
 			)
-			cam.CFrame = cam.CFrame * CFrame.new(offset)
+			cam.CFrame = originalCF * CFrame.new(offset)
 			task.wait(0.02)
 		end
+		cam.CFrame = originalCF
 	end)
 end
 
@@ -1155,6 +1548,8 @@ function CombatController.attack(attackMeta)
 				if not ok then
 					if errorOrData == Enums.ErrorCode.INVALID_STATE then
 						UIManager.notify("무기가 파손되어 공격할 수 없습니다!", Color3.fromRGB(255, 50, 50))
+					elseif errorOrData == Enums.ErrorCode.ALREADY_IN_COMBAT then
+						UIManager.notify("이미 다른 대상과 전투 중입니다!", Color3.fromRGB(255, 150, 50))
 					end
 				end
 			end
@@ -1168,6 +1563,54 @@ end
 --========================================
 -- Initialization
 --========================================
+
+-- Combat Engagement Indicator (전투 교전 표시 아이콘)
+local engagementIndicators = {} -- [instanceId] = BillboardGui
+
+local function findCreatureModel(instanceId: string): Model?
+	local folder = workspace:FindFirstChild("Creatures")
+	if not folder then return nil end
+	for _, model in ipairs(folder:GetChildren()) do
+		if model:GetAttribute("InstanceId") == instanceId then
+			return model
+		end
+	end
+	return nil
+end
+
+local function createEngagementIndicator(instanceId: string)
+	if engagementIndicators[instanceId] then return end
+	local model = findCreatureModel(instanceId)
+	if not model then return end
+	local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+	if not root then return end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "CombatIndicator"
+	billboard.Size = UDim2.new(0, 32, 0, 32)
+	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Adornee = root
+	billboard.MaxDistance = 80
+
+	local icon = Instance.new("ImageLabel")
+	icon.Size = UDim2.new(1, 0, 1, 0)
+	icon.BackgroundTransparency = 1
+	icon.Image = "rbxassetid://129366828374431" -- TODO: 실제 칼 아이콘 에셋 ID 교체 필요
+	icon.ImageColor3 = Color3.fromRGB(255, 60, 60)
+	icon.Parent = billboard
+
+	billboard.Parent = root
+	engagementIndicators[instanceId] = billboard
+end
+
+local function removeEngagementIndicator(instanceId: string)
+	local gui = engagementIndicators[instanceId]
+	if gui then
+		gui:Destroy()
+		engagementIndicators[instanceId] = nil
+	end
+end
 
 function CombatController.Init()
 	if initialized then
@@ -1214,6 +1657,15 @@ function CombatController.Init()
 		bowDrawStartedAt = 0
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil
+	end)
+
+	-- 전투 교전 표시 아이콘 수신
+	NetClient.On("Combat.Engagement.Changed", function(data)
+		if data.inCombat then
+			createEngagementIndicator(data.instanceId)
+		else
+			removeEngagementIndicator(data.instanceId)
+		end
 	end)
 	
 	initialized = true

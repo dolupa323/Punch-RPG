@@ -43,8 +43,8 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	StorageUI.Refs.Frame = Utils.mkFrame({
 		name = "StorageMenu",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0,0,0),
-		bgT = 0.6,
+		bg = C.BG_OVERLAY,
+		bgT = 0.5,
 		vis = false,
 		parent = parent
 	})

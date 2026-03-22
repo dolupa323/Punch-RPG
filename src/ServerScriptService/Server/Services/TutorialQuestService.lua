@@ -116,15 +116,29 @@ local STEPS = {
 		tip = "모닥불이 활성 상태인지 확인한 뒤 조리 1회를 완료하십시오.",
 		voiceIntro = "불은 잘 타오르고 있나? 고기를 올려서 구워라. 체력이 떨어지면 도망도 못 친다.",
 		voiceHint = "익힌 고기 하나만 만들면 된다. 금방 끝난다.",
-		voiceReady = "오케이, 배는 채웠군. 이제 거점을 표시할 차례다.",
+		voiceReady = "좋아, 고기가 구워졌다. 이제 먹어서 기력을 채워라.",
 		kind = "RECIPE",
 		target = "CRAFT_COOKED_MEAT",
 		reward = {
 			xp = 15,
 			gold = 20,
-			items = {
-				{ itemId = "COOKED_MEAT", count = 1 },
-			},
+			items = {},
+		},
+	},
+	{
+		key = "EAT_MEAT",
+		text = "구운 고기 섭취",
+		command = "구운 고기를 인벤토리에서 사용",
+		tip = "인벤토리(B)에서 구운 고기를 선택한 뒤 사용 버튼을 눌러 섭취하십시오.",
+		voiceIntro = "멍하니 쳐다보고 있지 말고 구운 고기를 먹어. 기력이 있어야 움직이지.",
+		voiceHint = "인벤토리를 열어서 구운 고기를 사용해.",
+		voiceReady = "오케이, 배는 채웠군. 이제 거점을 표시할 차례다.",
+		kind = "USE_ITEM",
+		target = "COOKED_MEAT",
+		reward = {
+			xp = 10,
+			gold = 10,
+			items = {},
 		},
 	},
 	{
@@ -244,65 +258,64 @@ local function getOrCreateProgress(userId)
 		return nil
 	end
 
-	if isAdminUser(userId) then
-		if type(state.tutorialQuest) ~= "table" then
-			state.tutorialQuest = makeFreshProgress()
-		else
-			state.tutorialQuest.version = VERSION
-			state.tutorialQuest.active = true
-			if state.tutorialQuest.stepIndex == nil or state.tutorialQuest.stepIndex < 1 or state.tutorialQuest.stepIndex > (#STEPS + 1) then
-				state.tutorialQuest.stepIndex = 1
-			end
-			if state.tutorialQuest.stepIndex <= #STEPS then
-				state.tutorialQuest.completed = false
-			else
-				state.tutorialQuest.completed = true
-			end
-			state.tutorialQuest.stepData = type(state.tutorialQuest.stepData) == "table" and state.tutorialQuest.stepData or {}
-			state.tutorialQuest.stepReady = state.tutorialQuest.stepReady == true
-			state.tutorialQuest.assigned = state.tutorialQuest.assigned == true
-			state.tutorialQuest.assignedAt = tonumber(state.tutorialQuest.assignedAt) or 0
-			state.tutorialQuest.rewardClaimed = state.tutorialQuest.rewardClaimed == true
-		end
+	local isAdmin = isAdminUser(userId)
+
+	if type(state.tutorialQuest) ~= "table" then
+		warn(string.format("[TutorialQuestService] Creating FRESH progress for userId=%d (admin=%s) — tutorialQuest was %s",
+			userId, tostring(isAdmin), tostring(type(state.tutorialQuest))))
+		state.tutorialQuest = makeFreshProgress()
 		return state.tutorialQuest
 	end
 
-	if type(state.tutorialQuest) ~= "table" then
-		state.tutorialQuest = makeFreshProgress()
-	else
-		state.tutorialQuest.version = VERSION
-		state.tutorialQuest.stepData = type(state.tutorialQuest.stepData) == "table" and state.tutorialQuest.stepData or {}
-		state.tutorialQuest.stepReady = state.tutorialQuest.stepReady == true
-		state.tutorialQuest.assigned = state.tutorialQuest.assigned == true
-		state.tutorialQuest.assignedAt = tonumber(state.tutorialQuest.assignedAt) or 0
-		state.tutorialQuest.rewardClaimed = state.tutorialQuest.rewardClaimed == true
+	-- 기존 데이터 보존 (공통 정규화)
+	local tq = state.tutorialQuest
+	local prevStep = tq.stepIndex
+	tq.version = VERSION
+	tq.stepData = type(tq.stepData) == "table" and tq.stepData or {}
+	tq.stepReady = tq.stepReady == true
+	tq.assigned = tq.assigned == true
+	tq.assignedAt = tonumber(tq.assignedAt) or 0
+	tq.rewardClaimed = tq.rewardClaimed == true
 
-		if state.tutorialQuest.completed == true or state.tutorialQuest.stepIndex == nil then
-			state.tutorialQuest.stepIndex = 1
-			state.tutorialQuest.stepData = {}
-			state.tutorialQuest.stepReady = false
-			state.tutorialQuest.assigned = false
-			state.tutorialQuest.assignedAt = 0
-			state.tutorialQuest.rewardClaimed = false
-		end
-
-		if state.tutorialQuest.stepIndex < 1 then
-			state.tutorialQuest.stepIndex = 1
-		end
-		if state.tutorialQuest.stepIndex > #STEPS then
-			state.tutorialQuest.stepIndex = 1
-			state.tutorialQuest.stepData = {}
-			state.tutorialQuest.stepReady = false
-			state.tutorialQuest.assigned = false
-			state.tutorialQuest.assignedAt = 0
-			state.tutorialQuest.rewardClaimed = false
-		end
-
-		state.tutorialQuest.active = true
-		state.tutorialQuest.completed = false
+	-- 완료 상태 보존 (관리자/일반 공통)
+	if tq.completed == true then
+		tq.active = false
+		return tq
 	end
 
-	return state.tutorialQuest
+	-- stepIndex 유효성 검증
+	if tq.stepIndex == nil then
+		warn(string.format("[TutorialQuestService] stepIndex was NIL for userId=%d (admin=%s) — resetting to 1", userId, tostring(isAdmin)))
+		tq.stepIndex = 1
+		tq.stepData = {}
+		tq.stepReady = false
+		tq.assigned = false
+		tq.assignedAt = 0
+		tq.rewardClaimed = false
+	end
+
+	if tq.stepIndex < 1 then
+		warn(string.format("[TutorialQuestService] stepIndex was %d (< 1) for userId=%d — clamping to 1", tq.stepIndex, userId))
+		tq.stepIndex = 1
+	end
+
+	if tq.stepIndex > #STEPS then
+		-- 스텝이 범위 초과 = 완료된 상태로 간주
+		tq.completed = true
+		tq.active = false
+		return tq
+	end
+
+	tq.active = true
+	tq.completed = false
+
+	-- 진단: stepIndex가 변경된 경우 경고
+	if prevStep ~= nil and prevStep ~= tq.stepIndex then
+		warn(string.format("[TutorialQuestService] stepIndex CHANGED from %s to %d for userId=%d (admin=%s)",
+			tostring(prevStep), tq.stepIndex, userId, tostring(isAdmin)))
+	end
+
+	return tq
 end
 
 local function waitForProgress(userId, timeoutSec)
@@ -407,9 +420,13 @@ local function completeStep(userId)
 	local step = getCurrentStep(progress)
 	local grantedReward = grantReward(userId, step and step.reward, "TutorialStepComplete")
 
+	local prevIndex = progress.stepIndex
 	progress.stepIndex = progress.stepIndex + 1
 	progress.stepData = {}
 	progress.stepReady = false
+
+	print(string.format("[TutorialQuestService] completeStep userId=%d: step %d (%s) → %d",
+		userId, prevIndex, step and step.key or "?", progress.stepIndex))
 
 	if progress.stepIndex > #STEPS then
 		progress.completed = true
@@ -539,6 +556,11 @@ local function updateByEvent(userId, eventKind, target, count)
 		markReady(userId, progress)
 		return
 	end
+
+	if step.kind == "USE_ITEM" and eventKind == "USE_ITEM" and step.target == target then
+		markReady(userId, progress)
+		return
+	end
 end
 
 function TutorialQuestService.onItemAdded(userId, itemId, count)
@@ -555,6 +577,10 @@ end
 
 function TutorialQuestService.onKilled(userId, creatureId)
 	updateByEvent(userId, "KILL", creatureId, 1)
+end
+
+function TutorialQuestService.onFoodEaten(userId, itemId)
+	updateByEvent(userId, "USE_ITEM", itemId, 1)
 end
 
 function TutorialQuestService.onHarvest(_userId, _nodeType)
@@ -714,21 +740,24 @@ function TutorialQuestService.Init(_NetController, _SaveService, _PlayerStatServ
 		local userId = player.UserId
 		task.spawn(function()
 			local progress = waitForProgress(userId, PROGRESS_WAIT_TIMEOUT)
-			if isAdminUser(userId) then
-				local state = SaveService and SaveService.getPlayerState(userId)
-				if type(state) == "table" then
-					state.tutorialQuest = makeFreshProgress()
-					state.tutorialQuest.assigned = true
-					state.tutorialQuest.assignedAt = os.time()
-					progress = state.tutorialQuest
-				end
+
+			if progress then
+				print(string.format(
+					"[TutorialQuestService] InitialPush userId=%d → stepIndex=%s, completed=%s, active=%s, assigned=%s",
+					userId,
+					tostring(progress.stepIndex),
+					tostring(progress.completed),
+					tostring(progress.active),
+					tostring(progress.assigned)
+				))
+			else
+				warn(string.format("[TutorialQuestService] InitialPush userId=%d → progress is NIL (SaveService not ready?)", userId))
 			end
 
+			-- 미할당 상태(신규 유저)만 할당 처리, 기존 진행도는 절대 초기화하지 않음
 			if progress and progress.assigned ~= true then
 				progress.assigned = true
 				progress.assignedAt = os.time()
-				progress.stepData = {}
-				progress.stepReady = false
 			end
 
 			if player.Parent and progress and progress.active and not progress.completed then

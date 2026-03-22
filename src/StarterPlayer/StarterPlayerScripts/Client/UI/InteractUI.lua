@@ -12,7 +12,8 @@ local InteractUI = {}
 
 InteractUI.Refs = {
 	PromptFrame = nil,
-	PromptLabel = nil,
+	PromptNameLabel = nil,
+	PromptKeyLabel = nil,
 	PromptDurabilityFrame = nil,
 	PromptDurabilityFill = nil,
 	PromptDurabilityLabel = nil,
@@ -31,10 +32,12 @@ function InteractUI.SetBuildVisible(visible)
 	end
 end
 
-function InteractUI.UpdatePrompt(text)
-	if InteractUI.Refs.PromptLabel then
-		InteractUI.Refs.PromptLabel.Text = text
-		InteractUI.Refs.PromptLabel.RichText = true
+function InteractUI.UpdatePrompt(nameText, keyText)
+	if InteractUI.Refs.PromptNameLabel then
+		InteractUI.Refs.PromptNameLabel.Text = nameText or ""
+	end
+	if InteractUI.Refs.PromptKeyLabel then
+		InteractUI.Refs.PromptKeyLabel.Text = keyText or ""
 	end
 end
 
@@ -56,60 +59,103 @@ function InteractUI.UpdateDurability(current, max)
 	label.Text = UILocalizer.Localize(string.format("내구도 %d%%", math.floor(ratio * 100)))
 
 	if ratio < 0.25 then
-		fill.BackgroundColor3 = Color3.fromRGB(210, 80, 80)
+		fill.BackgroundColor3 = Color3.fromRGB(200, 70, 50)
 	elseif ratio < 0.5 then
-		fill.BackgroundColor3 = Color3.fromRGB(220, 150, 70)
+		fill.BackgroundColor3 = Color3.fromRGB(230, 180, 60)
 	else
-		fill.BackgroundColor3 = Color3.fromRGB(90, 190, 110)
+		fill.BackgroundColor3 = Color3.fromRGB(90, 175, 75)
 	end
 end
 
 function InteractUI.Init(parent, isMobile)
 	local isSmall = isMobile
 	
-	-- Interaction Prompt (Center Bottom)
+	-- Interaction Prompt — 투명 미니말 (알림창/경고창 컨벤션)
 	local prompt = Utils.mkFrame({
 		name = "InteractPrompt",
-		size = UDim2.new(0, 260, 0, 84),
+		size = UDim2.new(0, 0, 0, 0),
 		pos = UDim2.new(0.5, 0, 0.75, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
-		bgT = T.PANEL,
-		r = 30,
+		bgT = 0.85,
+		r = 4,
 		stroke = false,
 		vis = false,
 		parent = parent
 	})
+	prompt.AutomaticSize = Enum.AutomaticSize.XY
+
+	local sizeC = Instance.new("UISizeConstraint")
+	sizeC.MinSize = Vector2.new(120, 40)
+	sizeC.MaxSize = Vector2.new(400, 180)
+	sizeC.Parent = prompt
+
+	local promptLayout = Instance.new("UIListLayout")
+	promptLayout.Padding = UDim.new(0, 2)
+	promptLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	promptLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	promptLayout.Parent = prompt
+
+	local promptPad = Instance.new("UIPadding")
+	promptPad.PaddingTop = UDim.new(0, 10)
+	promptPad.PaddingBottom = UDim.new(0, 10)
+	promptPad.PaddingLeft = UDim.new(0, 24)
+	promptPad.PaddingRight = UDim.new(0, 24)
+	promptPad.Parent = prompt
+
 	InteractUI.Refs.PromptFrame = prompt
-	
-	local pLabel = Utils.mkLabel({
-		text = UILocalizer.Localize("[Z] 상호작용"),
-		size = UDim2.new(1, -20, 0, 42),
-		pos = UDim2.new(0.5, 0, 0, 8),
-		anchor = Vector2.new(0.5, 0),
-		ts = 17,
+
+	-- 1) 건물 이름 (큰 글씨)
+	local nameLabel = Utils.mkLabel({
+		text = "",
+		size = UDim2.new(0, 0, 0, 0),
+		ts = 20,
 		font = F.TITLE,
-		color = C.WHITE,
-		rich = true,
+		color = C.GOLD,
 		parent = prompt
 	})
-	InteractUI.Refs.PromptLabel = pLabel
+	nameLabel.AutomaticSize = Enum.AutomaticSize.XY
+	nameLabel.LayoutOrder = 1
+	nameLabel.TextWrapped = false
+	InteractUI.Refs.PromptNameLabel = nameLabel
 
+	-- 2) 빈 공간 (한탭 띄우기)
+	local spacer = Instance.new("Frame")
+	spacer.Name = "Spacer"
+	spacer.Size = UDim2.new(0, 1, 0, 4)
+	spacer.BackgroundTransparency = 1
+	spacer.LayoutOrder = 2
+	spacer.Parent = prompt
+
+	-- 3) 키 안내 (작은 글씨)
+	local keyLabel = Utils.mkLabel({
+		text = "",
+		size = UDim2.new(0, 0, 0, 0),
+		ts = 14,
+		font = F.NORMAL,
+		color = C.INK,
+		parent = prompt
+	})
+	keyLabel.AutomaticSize = Enum.AutomaticSize.XY
+	keyLabel.LayoutOrder = 3
+	keyLabel.TextWrapped = false
+	InteractUI.Refs.PromptKeyLabel = keyLabel
+
+	-- 4) 내구도 바
 	local hpWrap = Utils.mkFrame({
 		name = "PromptDurability",
-		size = UDim2.new(1, -20, 0, 16),
-		pos = UDim2.new(0.5, 0, 1, -10),
-		anchor = Vector2.new(0.5, 1),
-		bg = Color3.fromRGB(45, 45, 50),
-		r = 5,
+		size = UDim2.new(1, 0, 0, 10),
+		bg = C.BG_SLOT,
+		r = 3,
 		vis = false,
 		parent = prompt
 	})
+	hpWrap.LayoutOrder = 4
 
 	local hpFill = Utils.mkFrame({
 		name = "Fill",
 		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.fromRGB(90, 190, 110),
+		bg = Color3.fromRGB(90, 175, 75),
 		r = 5,
 		parent = hpWrap
 	})
@@ -151,7 +197,7 @@ function InteractUI.Init(parent, isMobile)
 	Utils.mkLabel({text = UILocalizer.Localize("🛠️ 건축 컨트롤"), ts = 16, font=F.TITLE, color = C.GOLD_SEL, ax = Enum.TextXAlignment.Left, parent = build})
 	Utils.mkLabel({text = UILocalizer.Localize("LMB : 배치 확정"), ts = 14, color = C.WHITE, ax = Enum.TextXAlignment.Left, parent = build})
 	Utils.mkLabel({text = UILocalizer.Localize("R : 시설 회전"), ts = 14, color = C.WHITE, ax = Enum.TextXAlignment.Left, parent = build})
-	Utils.mkLabel({text = UILocalizer.Localize("X : 건축 취소"), ts = 14, color = Color3.fromRGB(255, 100, 100), ax = Enum.TextXAlignment.Left, parent = build})
+	Utils.mkLabel({text = UILocalizer.Localize("X : 건축 취소"), ts = 14, color = Color3.fromRGB(200, 90, 70), ax = Enum.TextXAlignment.Left, parent = build})
 end
 
 return InteractUI

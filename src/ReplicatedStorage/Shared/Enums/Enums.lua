@@ -67,6 +67,7 @@ Enums.ErrorCode = {
 	PAL_ALREADY_ASSIGNED = "PAL_ALREADY_ASSIGNED", -- 이미 배치됨
 	PAL_IN_PARTY = "PAL_IN_PARTY",         -- 파티 편성 중
 	NO_CAPTURE_ITEM = "NO_CAPTURE_ITEM",   -- 포획 아이템 없음
+	ALREADY_IN_COMBAT = "ALREADY_IN_COMBAT", -- 이미 다른 대상과 전투 중
 	
 	-- 기술/레벨 관련 (Phase 6)
 	TECH_ALREADY_UNLOCKED = "TECH_ALREADY_UNLOCKED", -- 이미 해금됨
