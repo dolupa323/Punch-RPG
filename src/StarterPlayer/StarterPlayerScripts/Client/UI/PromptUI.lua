@@ -106,7 +106,7 @@ local function createPromptUI(prompt, inputType, gui)
 		
 		local progressFill = Instance.new("Frame")
 		progressFill.Size = UDim2.new(0, 0, 1, 0)
-		progressFill.BackgroundColor3 = C.YELLOW
+		progressFill.BackgroundColor3 = C.GOLD or Color3.fromRGB(255, 210, 60)
 		progressFill.BorderSizePixel = 0
 		progressFill.Parent = progressBG
 		

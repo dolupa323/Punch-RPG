@@ -109,6 +109,9 @@ local function _getDefaultPlayerSave()
 		},
 		-- 장착 중인 아이템 (Head, Body, Feet, Hand)
 		equipment = _getDefaultEquipment(),
+		-- 고대 포탈 진행도 (개인 저장)
+		portalRepaired = false,
+		portalProgress = {},
 		-- 마지막 로그아웃/수면 위치 (Phase 4-3)
 		lastPosition = nil,
 		-- 세션 제어 (Session Locking)
@@ -239,6 +242,10 @@ local function _normalizePlayerState(state: any): any
 
 	state.inventory = type(state.inventory) == "table" and state.inventory or {}
 	state.equipment = _normalizeEquipment(state.equipment)
+	state.portalRepaired = state.portalRepaired == true
+	state.portalProgress = type(state.portalProgress) == "table" and state.portalProgress or {}
+	state.portalProgress.LOG = math.max(0, math.floor(tonumber(state.portalProgress.LOG) or 0))
+	state.portalProgress.STONE = math.max(0, math.floor(tonumber(state.portalProgress.STONE) or 0))
 	state.stats = type(state.stats) == "table" and state.stats or {}
 	state.stats.lastLogin = state.stats.lastLogin or 0
 	state.snapshots = type(state.snapshots) == "table" and state.snapshots or {}

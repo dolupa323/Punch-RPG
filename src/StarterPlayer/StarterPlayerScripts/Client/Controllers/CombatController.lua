@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
@@ -45,8 +46,8 @@ local bowDrawStartedAt = 0
 local bowDrawPressedHitPos: Vector3? = nil
 local bowDrawPressedTargetCenter: Vector3? = nil
 local bowPreviousAutoRotate: boolean? = nil
-local bowPreviewLinePart: BasePart? = nil
-local bowPreviewTipPart: BasePart? = nil
+local bowPreviewLinePart: Part? = nil
+local bowPreviewTipPart: Part? = nil
 local bowPredictedOrigin: Vector3? = nil
 local bowPredictedDirection: Vector3? = nil
 local bowPredictedHitPos: Vector3? = nil
@@ -71,6 +72,37 @@ local BOW_NOTIFY_COOLDOWN = 0.45
 local BOW_AIM_VERTICAL_COMPENSATION = 0
 local bowNoAmmoNotifyAt = 0
 local bowIncompleteNotifyAt = 0
+local ACTION_EFFECTS_ENABLED = false
+
+-- 활 조준 카메라 줌
+local AIM_ZOOM_FOV = 45
+local AIM_ZOOM_TWEEN_IN = 0.18
+local AIM_ZOOM_TWEEN_OUT = 0.18
+local originalFOV: number? = nil
+local isAimZoomed = false
+local currentZoomTween: Tween? = nil
+
+local function enterAimZoom()
+	local cam = workspace.CurrentCamera
+	if not cam or isAimZoomed then return end
+	isAimZoomed = true
+	originalFOV = cam.FieldOfView
+	if currentZoomTween then currentZoomTween:Cancel() end
+	currentZoomTween = TweenService:Create(cam, TweenInfo.new(AIM_ZOOM_TWEEN_IN, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { FieldOfView = AIM_ZOOM_FOV })
+	currentZoomTween:Play()
+end
+
+local function exitAimZoom()
+	if not isAimZoomed then return end
+	isAimZoomed = false
+	local cam = workspace.CurrentCamera
+	if not cam then originalFOV = nil return end
+	local restoreFOV = originalFOV or 70
+	originalFOV = nil
+	if currentZoomTween then currentZoomTween:Cancel() end
+	currentZoomTween = TweenService:Create(cam, TweenInfo.new(AIM_ZOOM_TWEEN_OUT, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { FieldOfView = restoreFOV })
+	currentZoomTween:Play()
+end
 
 --========================================
 -- Weapon Trail Effect System
@@ -220,12 +252,18 @@ local function makeWidthSequence(style)
 end
 
 local function setActiveTrailEnabled(enabled: boolean)
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	if activeTrailData and activeTrailData.trail and activeTrailData.trail.Parent then
 		activeTrailData.trail.Enabled = enabled
 	end
 end
 
 local function pulseActiveTrail(duration: number, preDelay: number?)
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	trailPulseSerial += 1
 	local serial = trailPulseSerial
 	task.spawn(function()
@@ -266,6 +304,9 @@ local function pickTrailPart(tool: Tool, handle: BasePart): BasePart
 end
 
 local function enableWeaponTrail()
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	-- 기존 trail 정리
 	if activeTrailData then
 		if activeTrailData.trail then activeTrailData.trail:Destroy() end
@@ -320,6 +361,9 @@ local function enableWeaponTrail()
 end
 
 local function disableWeaponTrail()
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	if not activeTrailData then return end
 	trailPulseSerial += 1
 	-- trail을 먼저 비활성화하고 잔상이 사라진 뒤 정리
@@ -336,6 +380,9 @@ local function disableWeaponTrail()
 end
 
 local function enableFistTrail()
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	-- 기존 trail 정리
 	disableWeaponTrail()
 
@@ -553,28 +600,48 @@ local function resolveNearbyAimSnap(basePos: Vector3, origin: Vector3): Vector3?
 end
 
 local function getMouseAimTarget(origin: Vector3): Vector3?
-	local _, pos = InputManager.raycastFromMouse(nil, BOW_AIM_RAYCAST_DISTANCE)
-	if pos then
-		local snap = resolveNearbyAimSnap(pos, origin)
-		if snap then
-			return Vector3.new(snap.X, pos.Y, snap.Z)
-		end
-		return pos
-	end
-
 	local camera = workspace.CurrentCamera
-	if camera then
-		local mouse = player:GetMouse()
-		local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
-		local fallback = ray.Origin + (ray.Direction * 300)
-		local snap = resolveNearbyAimSnap(fallback, origin)
-		if snap then
-			return Vector3.new(snap.X, fallback.Y, snap.Z)
+	if not camera then return nil end
+
+	-- 마우스 레이로 월드 좌표를 구한다
+	local _, camHitPos = InputManager.raycastFromMouse(nil, BOW_AIM_RAYCAST_DISTANCE)
+	if not camHitPos then
+		-- 레이가 월드에 안 맞으면 수평 전방으로 발사
+		local character = player.Character
+		if character then
+			local hrp = character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local fwd = hrp.CFrame.LookVector
+				camHitPos = origin + Vector3.new(fwd.X, 0, fwd.Z).Unit * 80
+			else
+				camHitPos = origin + Vector3.new(0, 0, -80)
+			end
+		else
+			camHitPos = origin + Vector3.new(0, 0, -80)
 		end
-		return fallback
 	end
 
-	return nil
+	-- 활 origin → 카메라 히트 포인트 방향으로 재투영 (3인칭 시차 보정)
+	local aimDir = (camHitPos - origin)
+	if aimDir.Magnitude < 0.001 then return camHitPos end
+	aimDir = aimDir.Unit
+
+	-- 상향 각도 제한: Y 성분 제한으로 위로 튐는 것 방지
+	if aimDir.Y > 0.15 then
+		aimDir = Vector3.new(aimDir.X, 0.15, aimDir.Z).Unit
+	end
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = { player.Character }
+	local result = workspace:Raycast(origin, aimDir * BOW_AIM_RAYCAST_DISTANCE, rayParams)
+	local finalPos = result and result.Position or (origin + aimDir * BOW_AIM_RAYCAST_DISTANCE)
+
+	local snap = resolveNearbyAimSnap(finalPos, origin)
+	if snap then
+		return Vector3.new(snap.X, finalPos.Y, snap.Z)
+	end
+	return finalPos
 end
 
 local function getAmmoForWeapon(itemId: string?): string?
@@ -628,14 +695,14 @@ local function orientCharacterToAim(direction: Vector3)
 end
 
 local function clearBowPreview()
-	if bowPreviewLinePart and bowPreviewLinePart.Parent then
+	if bowPreviewLinePart then
 		bowPreviewLinePart:Destroy()
+		bowPreviewLinePart = nil
 	end
-	if bowPreviewTipPart and bowPreviewTipPart.Parent then
+	if bowPreviewTipPart then
 		bowPreviewTipPart:Destroy()
+		bowPreviewTipPart = nil
 	end
-	bowPreviewLinePart = nil
-	bowPreviewTipPart = nil
 	bowPredictedOrigin = nil
 	bowPredictedDirection = nil
 	bowPredictedHitPos = nil
@@ -644,14 +711,8 @@ local function clearBowPreview()
 end
 
 local function hideBowPreviewVisuals()
-	if bowPreviewLinePart and bowPreviewLinePart.Parent then
-		bowPreviewLinePart:Destroy()
-	end
-	if bowPreviewTipPart and bowPreviewTipPart.Parent then
-		bowPreviewTipPart:Destroy()
-	end
-	bowPreviewLinePart = nil
-	bowPreviewTipPart = nil
+	if bowPreviewLinePart then bowPreviewLinePart.Transparency = 1 end
+	if bowPreviewTipPart then bowPreviewTipPart.Transparency = 1 end
 end
 
 local function ensureBowPreviewParts()
@@ -662,27 +723,25 @@ local function ensureBowPreviewParts()
 		line.CanCollide = false
 		line.CanQuery = false
 		line.CanTouch = false
-		line.Material = Enum.Material.Neon
-		line.Color = BOW_GHOST_LINE_COLOR
-		line.Transparency = 0.82
-		line.Size = Vector3.new(BOW_PREVIEW_WIDTH, BOW_PREVIEW_WIDTH, 1)
-		line.Parent = workspace
+		line.Material = Enum.Material.Glass
+		line.Color = Color3.fromRGB(120, 200, 100)
+		line.Transparency = 0.65
+		line.Size = Vector3.new(0.04, 0.04, 1)
+		line.Parent = workspace.CurrentCamera
 		bowPreviewLinePart = line
 	end
-
 	if not bowPreviewTipPart then
 		local tip = Instance.new("Part")
-		tip.Name = "BowGhostTip"
+		tip.Name = "BowAimSpike"
 		tip.Anchored = true
 		tip.CanCollide = false
 		tip.CanQuery = false
 		tip.CanTouch = false
-		tip.Material = Enum.Material.Neon
-		tip.Color = BOW_GHOST_TIP_COLOR
-		tip.Transparency = 0.7
-		tip.Size = Vector3.new(0.22, 0.22, 0.22)
-		tip.Shape = Enum.PartType.Ball
-		tip.Parent = workspace
+		tip.Material = Enum.Material.Glass
+		tip.Color = Color3.fromRGB(130, 210, 110)
+		tip.Transparency = 0.55
+		tip.Size = Vector3.new(0.06, 0.06, 0.5)
+		tip.Parent = workspace.CurrentCamera
 		bowPreviewTipPart = tip
 	end
 end
@@ -739,14 +798,20 @@ local function updateBowPreview(itm)
 	end
 
 	ensureBowPreviewParts()
+
+	-- 3D 조준선 위치 갱신
+	local dist = (hitPos - origin).Magnitude
+	local midPoint = origin + direction * (dist / 2)
 	if bowPreviewLinePart then
-		local distance = math.max(BOW_PREVIEW_MIN_DISTANCE, (hitPos - origin).Magnitude)
-		bowPreviewLinePart.Size = Vector3.new(BOW_PREVIEW_WIDTH, BOW_PREVIEW_WIDTH, distance)
-		local mid = origin:Lerp(hitPos, 0.5)
-		bowPreviewLinePart.CFrame = CFrame.lookAt(mid, hitPos)
+		bowPreviewLinePart.Size = Vector3.new(0.04, 0.04, dist)
+		bowPreviewLinePart.CFrame = CFrame.lookAt(midPoint, hitPos)
+		bowPreviewLinePart.Transparency = 0.65
 	end
 	if bowPreviewTipPart then
-		bowPreviewTipPart.Position = hitPos
+		-- 뾰족한 못 형태: 도착지점에서 조준 방향으로 절반 묻힘
+		bowPreviewTipPart.Size = Vector3.new(0.06, 0.06, 0.5)
+		bowPreviewTipPart.CFrame = CFrame.lookAt(hitPos, hitPos + direction)
+		bowPreviewTipPart.Transparency = 0.55
 	end
 end
 
@@ -761,6 +826,7 @@ local function beginBowDraw(pressedHitPos: Vector3?)
 	end
 	bowDrawActive = true
 	bowDrawStartedAt = tick()
+	enterAimZoom()
 	bowDrawPressedHitPos = pressedHitPos
 	bowDrawPressedTargetCenter = resolveMouseTargetCenter(pressedHitPos)
 	bowDrawPassedHalf = false
@@ -864,6 +930,7 @@ local function endBowDraw(releaseHitPos: Vector3?)
 	disableWeaponTrail()
 	if not canFire then
 		notifyBowIncomplete()
+		exitAimZoom()
 		bowDrawStartedAt = 0
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil
@@ -872,6 +939,7 @@ local function endBowDraw(releaseHitPos: Vector3?)
 
 	local itm = getEquippedItemData()
 	if not isBowWeapon(itm, getEquippedToolType()) then
+		exitAimZoom()
 		bowDrawStartedAt = 0
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil
@@ -884,6 +952,7 @@ local function endBowDraw(releaseHitPos: Vector3?)
 	local minAimTime = math.max(0.05, tonumber(itm and itm.minAimTime) or DEFAULT_MIN_AIM_TIME)
 	local maxChargeTime = math.max(minAimTime + 0.1, tonumber(itm and itm.maxChargeTime) or DEFAULT_MAX_CHARGE_TIME)
 	if heldSec < minAimTime then
+		exitAimZoom()
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil
 		return
@@ -896,6 +965,7 @@ local function endBowDraw(releaseHitPos: Vector3?)
 
 	local origin = getBowMuzzleOrigin()
 	if not origin then
+		exitAimZoom()
 		bowDrawPressedHitPos = nil
 		return
 	end
@@ -935,6 +1005,7 @@ local function endBowDraw(releaseHitPos: Vector3?)
 	})
 
 	if not ok then
+		exitAimZoom()
 		if errorOrData == Enums.ErrorCode.MISSING_REQUIREMENTS then
 			notifyBowNoAmmo()
 		elseif errorOrData == Enums.ErrorCode.ALREADY_IN_COMBAT then
@@ -945,10 +1016,14 @@ local function endBowDraw(releaseHitPos: Vector3?)
 		return
 	end
 
-	spawnArrowTracer(aimHitPos, origin, direction)
+	spawnArrowTracer(aimHitPos, origin, direction, exitAimZoom)
 end
 
-spawnArrowTracer = function(targetPos: Vector3?, startPos: Vector3?, directionOverride: Vector3?)
+spawnArrowTracer = function(targetPos: Vector3?, startPos: Vector3?, directionOverride: Vector3?, onArrived: (() -> ())?)
+	if not ACTION_EFFECTS_ENABLED then
+		if onArrived then onArrived() end
+		return
+	end
 	if not targetPos then return end
 	if not startPos then
 		local camera = workspace.CurrentCamera
@@ -1077,6 +1152,7 @@ spawnArrowTracer = function(targetPos: Vector3?, startPos: Vector3?, directionOv
 			if alpha >= 1 then break end
 			task.wait()
 		end
+		if onArrived then onArrived() end
 		if visual and visual.Parent then
 			visual:Destroy()
 		end
@@ -1189,6 +1265,9 @@ end
 
 --- 카메라 쉐이크 (타격감)
 local function playHitShake(intensity)
+	if not ACTION_EFFECTS_ENABLED then
+		return
+	end
 	local cam = workspace.CurrentCamera
 	if not cam then return end
 	
@@ -1492,7 +1571,7 @@ function CombatController.attack(attackMeta)
 			-- [FX] 타격 피드백 (카메라 쉐이크 & 대상 흔들림)
 			playHitShake(0.5) -- 더욱 강한 쉐이크 (기존 0.3)
 			local char = player.Character
-			if targetType ~= "structure" and targetModel and char and char.PrimaryPart then
+			if ACTION_EFFECTS_ENABLED and targetType ~= "structure" and targetModel and char and char.PrimaryPart then
 				local targetPos = targetModel:GetPivot().Position
 				local charPos = char.PrimaryPart.Position
 				local origCFrame = targetModel:GetPivot()
@@ -1644,6 +1723,7 @@ function CombatController.Init()
 		bowDrawActive = false
 		bowDrawReadyToFire = false
 		clearBowPreview()
+		exitAimZoom()
 		bowDrawStartedAt = 0
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil
@@ -1654,6 +1734,15 @@ function CombatController.Init()
 		bowDrawActive = false
 		bowDrawReadyToFire = false
 		clearBowPreview()
+		-- 리스폰 시 FOV 즉시 복귀
+		if isAimZoomed then
+			isAimZoomed = false
+			if currentZoomTween then currentZoomTween:Cancel() end
+			currentZoomTween = nil
+			local cam = workspace.CurrentCamera
+			if cam then cam.FieldOfView = originalFOV or 70 end
+			originalFOV = nil
+		end
 		bowDrawStartedAt = 0
 		bowDrawPressedHitPos = nil
 		bowDrawPressedTargetCenter = nil

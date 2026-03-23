@@ -24,6 +24,7 @@ local VIGNETTE_FADE_TIME = 0.35     -- 피격 레드 비네트 페이드아웃 �
 local player = Players.LocalPlayer
 local initialized = false
 local isStaggered = false            -- 경직 중복 방지
+local ACTION_EFFECTS_ENABLED = false
 
 --========================================
 -- Internal Functions
@@ -290,6 +291,9 @@ function HitFeedbackController.Init()
 	
 	-- 크리처 피격 연출 이벤트 수신 (모든 클라이언트)
 	NetClient.On("Combat.Creature.Hit", function(data)
+		if not ACTION_EFFECTS_ENABLED then
+			return
+		end
 		-- data: { instanceId, hitPosition {x,y,z}, damage, killed }
 		if not data then return end
 		

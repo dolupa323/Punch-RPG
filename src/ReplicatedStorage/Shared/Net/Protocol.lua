@@ -154,6 +154,8 @@ Protocol.Commands = {
 
 	-- Portal 명령어 (고대 포탈 시스템)
 	["Portal.GetStatus.Request"] = true,
+	["Portal.Deposit.Request"] = true,
+	["Portal.Teleport.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

@@ -11,6 +11,9 @@ local Balance = require(Shared.Config.Balance)
 
 local BaseClaimService = {}
 
+local PORTAL_NAME = "Portal_Tropical"
+local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 28
+
 --========================================
 -- Dependencies (Init에서 주입)
 --========================================
@@ -172,6 +175,44 @@ local function hasWildernessStructureConflict(centerPosition: Vector3, radius: n
 	return false
 end
 
+local function distanceToOrientedBoxSurface(position: Vector3, boxCFrame: CFrame, boxSize: Vector3): number
+	local localPos = boxCFrame:PointToObjectSpace(position)
+	local half = boxSize * 0.5
+	local dx = math.max(math.abs(localPos.X) - half.X, 0)
+	local dy = math.max(math.abs(localPos.Y) - half.Y, 0)
+	local dz = math.max(math.abs(localPos.Z) - half.Z, 0)
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+local function overlapsPortalRestrictionZone(centerPosition: Vector3, radius: number): boolean
+	if typeof(centerPosition) ~= "Vector3" then
+		return false
+	end
+
+	local portalObject = Workspace:FindFirstChild(PORTAL_NAME)
+	if not portalObject then
+		return false
+	end
+
+	local boxCFrame, boxSize
+	if portalObject:IsA("Model") then
+		boxCFrame, boxSize = portalObject:GetBoundingBox()
+	elseif portalObject:IsA("BasePart") then
+		boxCFrame, boxSize = portalObject.CFrame, portalObject.Size
+	else
+		return false
+	end
+
+	local expandedSize = Vector3.new(
+		boxSize.X + PORTAL_RESTRICTION_MARGIN * 2,
+		math.max(boxSize.Y, 256),
+		boxSize.Z + PORTAL_RESTRICTION_MARGIN * 2
+	)
+
+	local edgeDistance = distanceToOrientedBoxSurface(centerPosition, boxCFrame, expandedSize)
+	return edgeDistance <= math.max(0, radius)
+end
+
 --- 고유 베이스 ID 생성
 local function generateBaseId(userId: number): string
 	return string.format("base_%d_%d", userId, os.time())
@@ -258,6 +299,9 @@ function BaseClaimService.create(userId: number, position: Vector3): (boolean, s
 	
 	-- 중첩 검사 (Overlap Protection: (NewRadius + OtherRadius) < Distance)
 	local newRadius = Balance.BASE_DEFAULT_RADIUS or 30
+	if overlapsPortalRestrictionZone(position, newRadius) then
+		return false, Enums.ErrorCode.NO_PERMISSION, nil
+	end
 	local hasCollision = forEachNearbyBase(position, newRadius, function(otherOwnerId, otherBase)
 		if otherOwnerId == userId then
 			return false
@@ -421,6 +465,10 @@ function BaseClaimService.moveBaseCenter(userId: number, newPosition: Vector3): 
 	local baseClaim = bases[userId]
 	if not baseClaim then
 		return false, Enums.ErrorCode.NOT_FOUND
+	end
+
+	if overlapsPortalRestrictionZone(newPosition, baseClaim.radius or (Balance.BASE_DEFAULT_RADIUS or 30)) then
+		return false, Enums.ErrorCode.NO_PERMISSION
 	end
 
 	local hasCollision = forEachNearbyBase(newPosition, baseClaim.radius or (Balance.BASE_DEFAULT_RADIUS or 30), function(otherUserId, otherBase)

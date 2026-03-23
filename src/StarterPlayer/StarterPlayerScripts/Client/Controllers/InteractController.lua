@@ -44,6 +44,7 @@ local RADIO_INTERACT_DISTANCE = 14
 local REMOVE_CONFIRM_WINDOW = 2.5
 local pendingRemoveStructureId = nil
 local pendingRemoveExpireAt = 0
+local playSleepTransitionAndRequest
 
 -- UIManager 참조 (Init 후 설정)
 local UIManager = nil
@@ -168,7 +169,7 @@ local function showSleepConfirm(structureId: string)
 	end)
 end
 
-local function playSleepTransitionAndRequest(structureId: string)
+playSleepTransitionAndRequest = function(structureId: string)
 	if sleepTransitionBusy then
 		return
 	end

@@ -62,6 +62,7 @@ local FacilityUI = require(UI.FacilityUI)
 local CollectionUI = require(UI.CollectionUI)
 local PromptUI = require(UI.PromptUI)
 local TotemUI = require(UI.TotemUI)
+local PortalUI = require(UI.PortalUI)
 
 local CollectionController = require(Controllers.CollectionController)
 
@@ -1441,6 +1442,67 @@ function UIManager.highlightTotemZone()
 end
 
 ----------------------------------------------------------------
+-- Portal UI (WindowManager 연동)
+----------------------------------------------------------------
+
+function UIManager.openPortal(statusData)
+	WindowManager.open("PORTAL", statusData)
+end
+
+function UIManager._onOpenPortal(statusData)
+	PortalUI.SetData(statusData)
+	PortalUI.SetVisible(true)
+	updateUIMode()
+	PortalUI.Refresh()
+end
+
+function UIManager.closePortal()
+	WindowManager.close("PORTAL")
+end
+
+function UIManager._onClosePortal()
+	PortalUI.SetVisible(false)
+end
+
+function UIManager.refreshPortal(newData)
+	PortalUI.Refresh(newData)
+end
+
+function UIManager.requestPortalDeposit(itemId, remaining)
+	local reqAmount = math.max(1, tonumber(remaining) or 1)
+	local ok, dataOrErr = NetClient.Request("Portal.Deposit.Request", {
+		itemId = itemId,
+		amount = reqAmount,
+	})
+	if not ok then
+		if dataOrErr == "NO_ITEM" then
+			UIManager.sideNotify("❌ 재료가 부족합니다: " .. tostring(itemId), C.RED)
+		elseif dataOrErr == "OUT_OF_RANGE" then
+			UIManager.sideNotify("❌ 포탈에 더 가까이 접근해야 합니다.", C.RED)
+		else
+			UIManager.sideNotify("❌ 투입 실패: " .. tostring(dataOrErr), C.RED)
+		end
+		return
+	end
+
+	if type(dataOrErr) == "table" and dataOrErr.repaired then
+		UIManager.notify("🌀 고대 포탈이 수리되었습니다!", Color3.fromRGB(255, 200, 0))
+	end
+	UIManager.refreshPortal(dataOrErr)
+end
+
+function UIManager.requestPortalTeleport()
+	local ok, err = NetClient.Request("Portal.Teleport.Request", {})
+	if not ok then
+		if err == "OUT_OF_RANGE" then
+			UIManager.sideNotify("❌ 포탈에 더 가까이 접근해야 합니다.", C.RED)
+		else
+			UIManager.sideNotify("❌ 포탈 이용 실패: " .. tostring(err), C.RED)
+		end
+	end
+end
+
+----------------------------------------------------------------
 -- Collection UI
 ----------------------------------------------------------------
 
@@ -2127,6 +2189,10 @@ local function setupEventListeners()
 
 	-- Portal Events (고대 포탈 시스템)
 	if NetClient.On then
+		NetClient.On("Portal.UI.Open", function(data)
+			UIManager.openPortal(data)
+		end)
+
 		NetClient.On("Portal.MissingMaterials", function(data)
 			if data and data.cost then
 				UIManager.notify("⚡ 포탈 수리 재료가 부족합니다", Color3.fromRGB(255, 200, 80))
@@ -2140,11 +2206,13 @@ local function setupEventListeners()
 
 		NetClient.On("Portal.Repaired", function(_data)
 			UIManager.notify("🌀 고대 포탈이 수리되었습니다!", Color3.fromRGB(255, 200, 0))
-			UIManager.sideNotify("다시 상호작용하면 열대섬으로 이동합니다", Color3.fromRGB(100, 200, 255))
+			UIManager.sideNotify("포탈 UI의 [포탈 이용] 탭에서 이동할 수 있습니다", Color3.fromRGB(100, 200, 255))
+			UIManager.refreshPortal({ repaired = true })
 		end)
 
 		NetClient.On("Portal.Teleporting", function(_data)
 			UIManager.sideNotify("🌀 저장 중... 열대섬으로 이동합니다", Color3.fromRGB(100, 200, 255))
+			UIManager.closePortal()
 		end)
 
 		NetClient.On("Portal.Error", function(data)
@@ -2272,6 +2340,7 @@ function UIManager.Init()
 	FacilityUI.Init(mainGui, UIManager, isMobile)
 	CollectionUI.Init(mainGui, UIManager)
 	TotemUI.Init(mainGui, UIManager, isMobile)
+	PortalUI.Init(mainGui, UIManager, isMobile)
 	PromptUI.Init()
 	UILocalizer.StartAuto(mainGui)
 
@@ -2311,6 +2380,7 @@ function UIManager.Init()
 	WindowManager.register("FACILITY", UIManager._onOpenFacility, UIManager._onCloseFacility)
 	WindowManager.register("COLLECTION", UIManager._onOpenCollection, UIManager._onCloseCollection)
 	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
+	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 
 	-- [Refactor] DragDropController 초기화
 	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)

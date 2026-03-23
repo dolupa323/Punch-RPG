@@ -2,6 +2,7 @@
 -- 거점 토템 유지비/보호효과 서비스
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -25,6 +26,46 @@ local ALLOWED_DURATIONS = {
 	[3] = Balance.TOTEM_UPKEEP_COST_3D or 280,
 	[7] = Balance.TOTEM_UPKEEP_COST_7D or 630,
 }
+
+local PORTAL_NAME = "Portal_Tropical"
+local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 28
+
+local function distanceToOrientedBoxSurface(position: Vector3, boxCFrame: CFrame, boxSize: Vector3): number
+	local localPos = boxCFrame:PointToObjectSpace(position)
+	local half = boxSize * 0.5
+	local dx = math.max(math.abs(localPos.X) - half.X, 0)
+	local dy = math.max(math.abs(localPos.Y) - half.Y, 0)
+	local dz = math.max(math.abs(localPos.Z) - half.Z, 0)
+	return math.sqrt(dx * dx + dy * dy + dz * dz)
+end
+
+local function isInPortalRestrictionZone(position: Vector3): boolean
+	if typeof(position) ~= "Vector3" then
+		return false
+	end
+
+	local portalObject = Workspace:FindFirstChild(PORTAL_NAME)
+	if not portalObject then
+		return false
+	end
+
+	local boxCFrame, boxSize
+	if portalObject:IsA("Model") then
+		boxCFrame, boxSize = portalObject:GetBoundingBox()
+	elseif portalObject:IsA("BasePart") then
+		boxCFrame, boxSize = portalObject.CFrame, portalObject.Size
+	else
+		return false
+	end
+
+	local expandedSize = Vector3.new(
+		boxSize.X + PORTAL_RESTRICTION_MARGIN * 2,
+		math.max(boxSize.Y, 80),
+		boxSize.Z + PORTAL_RESTRICTION_MARGIN * 2
+	)
+
+	return distanceToOrientedBoxSurface(position, boxCFrame, expandedSize) <= 0.001
+end
 
 local function getStarterZoneCenter(): Vector3?
 	local spawnPart = workspace:FindFirstChild("SpawnLocation", true)
@@ -389,6 +430,10 @@ end
 function TotemService.isBuildAllowed(userId, facilityId, position)
 	if position and isInStarterProtectionZone(position) then
 		return false, Enums.ErrorCode.STARTER_ZONE_PROTECTED
+	end
+
+	if position and isInPortalRestrictionZone(position) then
+		return false, Enums.ErrorCode.NO_PERMISSION
 	end
 
 	if facilityId == "CAMPFIRE" or facilityId == "CAMP_TOTEM" then
