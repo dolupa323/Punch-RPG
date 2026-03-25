@@ -134,6 +134,18 @@ function InventoryController.requestDrop(slot: number, count: number)
 	end)
 end
 
+function InventoryController.requestDropByItemId(itemId: string, count: number)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Inventory.DropByItemId.Request", {
+			itemId = itemId,
+			count = count
+		})
+		if not ok then
+			warn("[InventoryController] DropByItemId failed:", data)
+		end
+	end)
+end
+
 function InventoryController.requestUse(slot: number)
 	task.spawn(function()
 		local ok, data = NetClient.Request("Inventory.Use.Request", {

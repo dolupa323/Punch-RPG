@@ -399,32 +399,36 @@ function StorageService.addItemInternal(storageId: string, itemId: string, count
 	end
 	
 	local storage = _getOrCreateStorage(storageId)
-	local maxStack = Balance.MAX_STACK or 99
+	-- 아이템별 스택 가능 여부 및 최대 스택 조회
+	local stackable = InventoryService and InventoryService.isStackable(itemId)
+	local maxStack = InventoryService and InventoryService.getMaxStackForItem(itemId) or 1
 	local maxSlots = Balance.STORAGE_SLOTS or 20
 	local remaining = count
 	local changes = {}
 	
-	-- 1단계: 기존 스택에 먼저 추가
-	for slot = 1, maxSlots do
-		if remaining <= 0 then break end
-		
-		local slotData = storage.slots[slot]
-		if slotData and slotData.itemId == itemId and slotData.count < maxStack then
-			local space = maxStack - slotData.count
-			local toAdd = math.min(remaining, space)
-			slotData.count = slotData.count + toAdd
-			remaining = remaining - toAdd
-			table.insert(changes, _makeChange(storage, slot))
+	-- 1단계: 기존 스택에 병합 (스택 가능 아이템만)
+	if stackable then
+		for slot = 1, maxSlots do
+			if remaining <= 0 then break end
+			
+			local slotData = storage.slots[slot]
+			if slotData and slotData.itemId == itemId and slotData.count < maxStack then
+				local space = maxStack - slotData.count
+				local toAdd = math.min(remaining, space)
+				slotData.count = slotData.count + toAdd
+				remaining = remaining - toAdd
+				table.insert(changes, _makeChange(storage, slot))
+			end
 		end
 	end
 	
-	-- 2단계: 빈 슬롯에 추가
+	-- 2단계: 빈 슬롯에 추가 (비스택: 1개씩, 스택 가능: maxStack씩)
 	for slot = 1, maxSlots do
 		if remaining <= 0 then break end
 		
 		local slotData = storage.slots[slot]
 		if slotData == nil then
-			local toAdd = math.min(remaining, maxStack)
+			local toAdd = stackable and math.min(remaining, maxStack) or 1
 			storage.slots[slot] = { itemId = itemId, count = toAdd }
 			remaining = remaining - toAdd
 			table.insert(changes, _makeChange(storage, slot))

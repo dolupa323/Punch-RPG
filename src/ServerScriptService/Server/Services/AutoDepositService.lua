@@ -22,6 +22,7 @@ local BuildService = nil
 local DataService = nil
 local PalboxService = nil -- Phase 5-5
 local PalAIService = nil -- Phase 7-5: 팰 AI 및 비주얼
+local InventoryService = nil -- 스택 규칙 조회용 (지연 로딩)
 
 --========================================
 -- Internal State
@@ -37,6 +38,14 @@ local TICK_INTERVAL = Balance.AUTO_DEPOSIT_INTERVAL or 5
 --- 시설에서 가장 가까운 Storage 찾기
 local function findNearestStorage(facilityPosition: Vector3, ownerId: number, itemId: string): (string?, any?)
 	if not BuildService or not StorageService then return nil, nil end
+	
+	-- InventoryService 지연 로딩 (스택 규칙 조회용)
+	if not InventoryService then
+		local ok, svc = pcall(function()
+			return require(game:GetService("ServerScriptService").Server.Services.InventoryService)
+		end)
+		if ok then InventoryService = svc end
+	end
 	
 	local searchRange = Balance.AUTO_DEPOSIT_RANGE or 30
 	local ownerStructures = BuildService.getStructuresByOwner(ownerId) or {}
@@ -58,12 +67,13 @@ local function findNearestStorage(facilityPosition: Vector3, ownerId: number, it
 				
 				local hasItem = false
 				local hasSpace = false
-				local maxStack = Balance.MAX_STACK or 99
+				local stackable = InventoryService and InventoryService.isStackable(itemId)
+				local maxStack = InventoryService and InventoryService.getMaxStackForItem(itemId) or 1
 				
 				for slot = 1, (Balance.STORAGE_SLOTS or 20) do
 					local slotData = storage.slots[slot]
 					if slotData then
-						if slotData.itemId == itemId and slotData.count < maxStack then
+						if stackable and slotData.itemId == itemId and slotData.count < maxStack then
 							hasItem = true
 							hasSpace = true
 							break

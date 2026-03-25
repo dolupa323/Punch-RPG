@@ -31,6 +31,7 @@ Protocol.Commands = {
 	["Inventory.Move.Request"] = true,
 	["Inventory.Split.Request"] = true,
 	["Inventory.Drop.Request"] = true,
+	["Inventory.DropByItemId.Request"] = true,  -- 동일 아이템 다중 슬롯 벌크 드랍
 	["Inventory.Get.Request"] = true,      -- 전체 인벤 조회
 	["Inventory.ActiveSlot.Request"] = true, -- 활성 슬롯 변경
 	["Inventory.Use.Request"] = true,        -- 아이템 사용/장착

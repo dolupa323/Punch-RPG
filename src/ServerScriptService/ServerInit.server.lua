@@ -132,6 +132,41 @@ local function handleInventoryDropWithWorldDrop(player, payload)
 end
 NetController.RegisterHandler("Inventory.Drop.Request", handleInventoryDropWithWorldDrop)
 
+-- Inventory.DropByItemId.Request 핸들러 (동일 아이템 다중 슬롯 벌크 드랍)
+local function handleInventoryDropByItemId(player, payload)
+	local itemId = payload.itemId
+	local count = payload.count
+	
+	if type(itemId) ~= "string" or itemId == "" then
+		return { success = false, errorCode = "INVALID_ITEM" }
+	end
+	if type(count) ~= "number" or count < 1 then
+		return { success = false, errorCode = "INVALID_COUNT" }
+	end
+	count = math.floor(count)
+	
+	-- removeItem으로 다중 슬롯에서 제거
+	local removed = InventoryService.removeItem(player.UserId, itemId, count)
+	
+	if removed <= 0 then
+		return { success = false, errorCode = "SLOT_EMPTY" }
+	end
+	
+	-- 월드 드롭 생성
+	local character = player.Character
+	if character then
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
+			WorldDropService.spawnDrop(dropPos, itemId, removed)
+			print(string.format("[ServerInit] DropByItemId -> WorldDrop: %s x%d", itemId, removed))
+		end
+	end
+	
+	return { success = true, data = { itemId = itemId, dropped = removed } }
+end
+NetController.RegisterHandler("Inventory.DropByItemId.Request", handleInventoryDropByItemId)
+
 -- StaminaService 초기화 (Phase 10: 스프린트/구르기) - PlayerStatService 연동을 위해 일찍 초기화
 local StaminaService = require(Services.StaminaService)
 StaminaService.Init(NetController)

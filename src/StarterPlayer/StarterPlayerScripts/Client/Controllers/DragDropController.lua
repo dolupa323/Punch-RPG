@@ -341,6 +341,15 @@ function DragDropController.handleDragEnd()
 
 	if foundSlot then
 		InventoryController.moveItem(draggingSlotIdx, foundSlot, foundType)
+	else
+		-- 인벤토리가 열려있을 때만 바깥 드래그 → 월드 드랍
+		if draggingSlotIdx and UIManager.isWindowOpen("INV") then
+			local items = InventoryController.getItems()
+			local item = items[draggingSlotIdx]
+			if item and item.itemId then
+				InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
+			end
+		end
 	end
 	
 	draggingSlotIdx = nil

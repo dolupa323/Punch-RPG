@@ -73,6 +73,25 @@ local function _isArmorItemId(itemId: string): boolean
 	return itemData and itemData.type == "ARMOR" or false
 end
 
+--- 아이템 스택 가능 여부 (화살/탄약만 스택 가능)
+local function _isStackable(itemId: string): boolean
+	if not (DataService and DataService.getItem and itemId) then
+		return false
+	end
+	local itemData = DataService.getItem(itemId)
+	return itemData and itemData.type == "AMMO"
+end
+
+--- 아이템별 최대 스택 수량 (AMMO: 개별 maxStack, 그 외: 1)
+local function _getMaxStack(itemId: string): number
+	if not _isStackable(itemId) then return 1 end
+	if DataService then
+		local itemData = DataService.getItem(itemId)
+		if itemData and itemData.maxStack then return itemData.maxStack end
+	end
+	return Balance.MAX_STACK
+end
+
 local function _normalizeEquipmentSlots(equipment: any): any
 	local normalized = _getDefaultEquipment()
 	if type(equipment) ~= "table" then
@@ -561,7 +580,48 @@ function InventoryService.getOrCreateInventory(userId: number): any
 		loadedState.inventory = normalizedSlots
 	end
 
-	-- ???�벤?�리 객체 ?�성
+	-- [Migration] 비스택 아이템 확장: count > 1인 비AMMO 아이템을 개별 슬롯으로 분리
+	if DataService then
+		local expandQueue = {}
+		for slot = 1, Balance.MAX_INV_SLOTS do
+			local node = normalizedSlots[slot]
+			if node and node.itemId then
+				local itemData = DataService.getItem(node.itemId)
+				local isAmmo = itemData and itemData.type == "AMMO"
+				if not isAmmo and node.count and node.count > 1 then
+					table.insert(expandQueue, {
+						slot = slot,
+						itemId = node.itemId,
+						extra = node.count - 1,
+						durability = node.durability,
+					})
+					node.count = 1
+				end
+			end
+		end
+		for _, expand in ipairs(expandQueue) do
+			for i = 1, expand.extra do
+				local placed = false
+				for s = 1, Balance.MAX_INV_SLOTS do
+					if normalizedSlots[s] == nil then
+						normalizedSlots[s] = {
+							itemId = expand.itemId,
+							count = 1,
+							durability = expand.durability,
+						}
+						placed = true
+						break
+					end
+				end
+				if not placed then
+					warn(string.format("[InventoryService] Migration overflow: %s dropped for user %d", expand.itemId, userId))
+					break
+				end
+			end
+		end
+	end
+
+	-- 새 인벤토리 객체 생성
 	local inv = {
 		slots = normalizedSlots,
 		equipment = _normalizeEquipmentSlots(savedEquip)
@@ -669,18 +729,30 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		table.insert(changes, _makeChange(inv, toSlot))
 		
 	elseif toData.itemId == fromData.itemId then
-		-- 같�? ?�이?�이�? ?�치�?(MAX_STACK 초과 ??부�??�동 처리)
-		local canAdd = math.max(0, Balance.MAX_STACK - toData.count)
-		local actualMove = math.min(moveCount, canAdd)
-		
-		if actualMove > 0 then
-			_increaseSlot(inv, toSlot, fromData.itemId, actualMove, fromData.durability)
-			_decreaseSlot(inv, fromSlot, actualMove)
+		if _isStackable(fromData.itemId) then
+			-- 스택 가능 아이템(화살류): 스택 병합
+			local itemMaxStack = _getMaxStack(fromData.itemId)
+			local canAdd = math.max(0, itemMaxStack - toData.count)
+			local actualMove = math.min(moveCount, canAdd)
 			
+			if actualMove > 0 then
+				_increaseSlot(inv, toSlot, fromData.itemId, actualMove, fromData.durability)
+				_decreaseSlot(inv, fromSlot, actualMove)
+				
+				table.insert(changes, _makeChange(inv, fromSlot))
+				table.insert(changes, _makeChange(inv, toSlot))
+			else
+				return false, Enums.ErrorCode.STACK_OVERFLOW, nil
+			end
+		else
+			-- 비스택 아이템: 같은 아이템이어도 스왑
+			if count ~= nil then
+				return false, Enums.ErrorCode.ITEM_MISMATCH, nil
+			end
+			inv.slots[fromSlot] = toData
+			inv.slots[toSlot] = fromData
 			table.insert(changes, _makeChange(inv, fromSlot))
 			table.insert(changes, _makeChange(inv, toSlot))
-		else
-			return false, Enums.ErrorCode.STACK_OVERFLOW, nil
 		end
 		
 	else
@@ -874,17 +946,20 @@ function InventoryService.MoveInternal(
 	
 	local sourceData = sourceContainer.slots[sourceSlot]
 
-	-- ?��??�롯 ?�동 ?�택 (targetSlot == 0)
+	-- 자동 슬롯 이동 선택 (targetSlot == 0)
 	if targetSlot == 0 then
-		-- 1. 같�? ?�이???�택 가???�롯 찾기
-		for i = 1, targetMaxSlots do
-			local ts = targetContainer.slots[i]
-			if ts and ts.itemId == sourceData.itemId and ts.count < Balance.MAX_STACK then
-				targetSlot = i
-				break
+		-- 1. 스택 가능 아이템만: 같은 아이템 스택 가능 슬롯 찾기
+		if _isStackable(sourceData.itemId) then
+			local itemMaxStack = _getMaxStack(sourceData.itemId)
+			for i = 1, targetMaxSlots do
+				local ts = targetContainer.slots[i]
+				if ts and ts.itemId == sourceData.itemId and ts.count < itemMaxStack then
+					targetSlot = i
+					break
+				end
 			end
 		end
-		-- 2. �??�롯 찾기
+		-- 2. 빈 슬롯 찾기
 		if targetSlot == 0 then
 			for i = 1, targetMaxSlots do
 				if targetContainer.slots[i] == nil then
@@ -893,7 +968,7 @@ function InventoryService.MoveInternal(
 				end
 			end
 		end
-		-- ?�전??0?�면 공간 ?�음
+		-- 여전히 0이면 공간 없음
 		if targetSlot == 0 then
 			return false, Enums.ErrorCode.INV_FULL, nil
 		end
@@ -929,18 +1004,33 @@ function InventoryService.MoveInternal(
 		table.insert(targetChanges, _makeChange(targetContainer, targetSlot))
 		
 	elseif targetData.itemId == sourceData.itemId then
-		-- 같�? ?�이?�이�? ?�치�?(MAX_STACK 초과 ??부�??�동 처리)
-		local canAdd = math.max(0, Balance.MAX_STACK - targetData.count)
-		local actualMove = math.min(moveCount, canAdd)
-		
-		if actualMove > 0 then
-			_increaseSlot(targetContainer, targetSlot, sourceData.itemId, actualMove, sourceData.durability)
-			_decreaseSlot(sourceContainer, sourceSlot, actualMove)
+		if _isStackable(sourceData.itemId) then
+			-- 스택 가능 아이템(화살류): 스택 병합
+			local itemMaxStack = _getMaxStack(sourceData.itemId)
+			local canAdd = math.max(0, itemMaxStack - targetData.count)
+			local actualMove = math.min(moveCount, canAdd)
 			
-			table.insert(sourceChanges, _makeChange(sourceContainer, sourceSlot))
-			table.insert(targetChanges, _makeChange(targetContainer, targetSlot))
+			if actualMove > 0 then
+				_increaseSlot(targetContainer, targetSlot, sourceData.itemId, actualMove, sourceData.durability)
+				_decreaseSlot(sourceContainer, sourceSlot, actualMove)
+				
+				table.insert(sourceChanges, _makeChange(sourceContainer, sourceSlot))
+				table.insert(targetChanges, _makeChange(targetContainer, targetSlot))
+			else
+				return false, Enums.ErrorCode.STACK_OVERFLOW, nil
+			end
 		else
-			return false, Enums.ErrorCode.STACK_OVERFLOW, nil
+			-- 비스택 아이템: 같은 아이템이어도 스왑
+			if count ~= nil then
+				return false, Enums.ErrorCode.ITEM_MISMATCH, nil
+			end
+			if sourceContainer ~= targetContainer then
+				return false, Enums.ErrorCode.ITEM_MISMATCH, nil
+			end
+			sourceContainer.slots[sourceSlot] = targetData
+			sourceContainer.slots[targetSlot] = sourceData
+			table.insert(sourceChanges, _makeChange(sourceContainer, sourceSlot))
+			table.insert(targetChanges, _makeChange(sourceContainer, targetSlot))
 		end
 		
 	else
@@ -997,29 +1087,35 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 		if itemData then maxDurability = itemData.durability end
 	end
 	
-	-- 1. 같�? ?�이?�이 ?�는 ?�롯??먼�? 채우�?(?�구?��? ?�요?�는 ?�반 ?�택 ?�이???�정)
-	for slot = 1, maxSlots do
-		if remaining <= 0 then break end
-		if maxDurability then break end -- ?�구?��? 가�??�구/무기류는 ?��?�??�른 ?�택�?뭉치지 ?�고 바로 �?칸으�??��?
-		
-		local slotData = inv.slots[slot]
-		if slotData and slotData.itemId == itemId and slotData.count < Balance.MAX_STACK and not slotData.durability then
-			local canAddByStack = Balance.MAX_STACK - slotData.count
+	-- 스택 가능 여부 / 아이템별 최대 스택
+	local stackable = _isStackable(itemId)
+	local itemMaxStack = _getMaxStack(itemId)
+	
+	-- 1. 기존 스택에 병합 (스택 가능 아이템(화살류)만, 내구도 없는 경우)
+	if stackable and not maxDurability then
+		for slot = 1, maxSlots do
+			if remaining <= 0 then break end
 			
-			local canAdd = math.min(remaining, canAddByStack)
-			if canAdd <= 0 then break end
+			local slotData = inv.slots[slot]
+			if slotData and slotData.itemId == itemId and slotData.count < itemMaxStack and not slotData.durability then
+				local canAddByStack = itemMaxStack - slotData.count
+				
+				local canAdd = math.min(remaining, canAddByStack)
+				if canAdd <= 0 then break end
 
-			slotData.count = slotData.count + canAdd
-			remaining = remaining - canAdd
-			added = added + canAdd
-			changedSlots[slot] = true
+				slotData.count = slotData.count + canAdd
+				remaining = remaining - canAdd
+				added = added + canAdd
+				changedSlots[slot] = true
+			end
 		end
 	end
 	
-	-- 2. �??�롯?????�택 ?�성
-	-- 방어구는 ?�바(1~8) ?�동 ?�록???�하�??�해 9�??�후 ?�롯???�선 ?�용
+	-- 2. 빈 슬롯에 새 아이템 배치
+	-- 방어구는 핫바(1~8) 자동 이동을 방지하기 위해 9번 이후 슬롯을 우선 사용
 	local slotOrder = {}
-	local isArmor = itemData and itemData.type == "ARMOR"
+	local curItemData = DataService and DataService.getItem(itemId)
+	local isArmor = curItemData and curItemData.type == "ARMOR"
 	if isArmor then
 		for slot = HOTBAR_SLOT_MAX + 1, maxSlots do
 			table.insert(slotOrder, slot)
@@ -1037,7 +1133,8 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 		if remaining <= 0 then break end
 		
 		if inv.slots[slot] == nil then
-			local canAdd = math.min(remaining, Balance.MAX_STACK)
+			-- 스택 가능: 최대 itemMaxStack, 비스택: 항상 1
+			local canAdd = stackable and math.min(remaining, itemMaxStack) or 1
 			if canAdd <= 0 then break end
 
 			inv.slots[slot] = {
@@ -1084,28 +1181,39 @@ function InventoryService.sort(userId: number)
 		end
 	end
 	
-	-- ?�이???�축 (같�? ?�이???�치�? ?�구??보존)
+	-- 아이템 압축 (스택 가능 아이템만 병합, 비스택은 개별 유지)
 	local compressed = {}
 	for _, item in ipairs(items) do
-		-- [?�정] 무기/?�구처럼 count가 명시?��? ?��? 경우 1�?처리?�여 nil ?�러 방�?
 		local remaining = item.count or 1
+		local isItemStackable = _isStackable(item.itemId)
+		local itemMaxStack = _getMaxStack(item.itemId)
 		
-		for _, comp in ipairs(compressed) do
-			if remaining <= 0 then break end
-			-- ?�구?��? ?�는 같�? ?�택???�원 ?�이?�일 경우�??�치�?
-			if comp.itemId == item.itemId and comp.count < Balance.MAX_STACK and not comp.durability and not item.durability then
-				local space = Balance.MAX_STACK - comp.count
-				local amount = math.min(remaining, space)
-				comp.count = comp.count + amount
-				remaining = remaining - amount
+		if isItemStackable then
+			for _, comp in ipairs(compressed) do
+				if remaining <= 0 then break end
+				if comp.itemId == item.itemId and comp.count < itemMaxStack and not comp.durability and not item.durability then
+					local space = itemMaxStack - comp.count
+					local amount = math.min(remaining, space)
+					comp.count = comp.count + amount
+					remaining = remaining - amount
+				end
 			end
 		end
 		
-		if remaining > 0 then
+		-- 비스택 아이템은 1개씩 개별 슬롯으로 배치
+		if not isItemStackable then
+			for i = 1, remaining do
+				table.insert(compressed, {
+					itemId = item.itemId,
+					count = 1,
+					durability = item.durability,
+				})
+			end
+		elseif remaining > 0 then
 			table.insert(compressed, {
 				itemId = item.itemId,
 				count = remaining,
-				durability = item.durability
+				durability = item.durability,
 			})
 		end
 	end
@@ -1161,23 +1269,27 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 	if not inv then return false end
 	
 	local remaining = count
+	local stackable = _isStackable(itemId)
+	local itemMaxStack = _getMaxStack(itemId)
 	
-	-- 1. 같�? ?�이???�택 ?�유�?계산
-	for slot = 1, Balance.MAX_INV_SLOTS do
-		if remaining <= 0 then break end
-		
-		local slotData = inv.slots[slot]
-		if slotData and slotData.itemId == itemId and slotData.count < Balance.MAX_STACK then
-			remaining = remaining - (Balance.MAX_STACK - slotData.count)
+	-- 1. 스택 가능 아이템만: 기존 스택 여유분 계산
+	if stackable then
+		for slot = 1, Balance.MAX_INV_SLOTS do
+			if remaining <= 0 then break end
+			
+			local slotData = inv.slots[slot]
+			if slotData and slotData.itemId == itemId and slotData.count < itemMaxStack then
+				remaining = remaining - (itemMaxStack - slotData.count)
+			end
 		end
 	end
 	
-	-- 2. �??�롯 개수 계산
+	-- 2. 빈 슬롯 개수 계산 (스택 가능: itemMaxStack씩, 비스택: 1씩)
 	for slot = 1, Balance.MAX_INV_SLOTS do
 		if remaining <= 0 then break end
 		
 		if inv.slots[slot] == nil then
-			remaining = remaining - Balance.MAX_STACK
+			remaining = remaining - itemMaxStack
 		end
 	end
 	
@@ -1379,11 +1491,21 @@ function InventoryService.getEquippedItem(userId: number): any?
 	return InventoryService.getSlot(userId, active)
 end
 
---- ?�정 ?�롯 ?�이??조회
+--- 특정 슬롯 아이템 조회
 function InventoryService.getSlot(userId: number, slot: number): any?
 	local inv = playerInventories[userId]
 	if not inv then return nil end
 	return inv.slots[slot]
+end
+
+--- 아이템 스택 가능 여부 조회 (외부 서비스용)
+function InventoryService.isStackable(itemId: string): boolean
+	return _isStackable(itemId)
+end
+
+--- 아이템별 최대 스택 수량 조회 (외부 서비스용)
+function InventoryService.getMaxStackForItem(itemId: string): number
+	return _getMaxStack(itemId)
 end
 
 --========================================

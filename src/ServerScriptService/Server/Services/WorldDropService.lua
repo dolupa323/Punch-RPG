@@ -317,9 +317,9 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 		return false, Enums.ErrorCode.INVALID_COUNT, nil
 	end
 	
-	-- 병합 대상 찾기 (내구도가 있는 아이템은 병합 제외)
+	-- 병합 대상 찾기 (내구도가 있거나 비스택 아이템은 병합 제외 - AMMO만 병합)
 	local mergeTarget = nil
-	if not durability then
+	if not durability and itemData.type == "AMMO" then
 		mergeTarget = findMergeTarget(pos, itemId)
 	end
 	

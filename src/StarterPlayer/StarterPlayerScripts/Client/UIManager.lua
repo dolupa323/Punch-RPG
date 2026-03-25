@@ -660,10 +660,20 @@ function UIManager.openDropModal()
 	
 	modalActionType = "DROP"
 	
+	-- 동일 itemId를 가진 모든 슬롯의 총 개수 계산
+	local totalCount = 0
+	local items = InventoryController.getItems()
+	for _, slotData in pairs(items) do
+		if slotData and slotData.itemId == item.itemId then
+			totalCount = totalCount + (slotData.count or 1)
+		end
+	end
+	if totalCount < 1 then totalCount = 1 end
+	
 	local m = InventoryUI.Refs.DropModal
 	m.Frame.Visible = true
-	m.Input.Text = tostring(item.count or 1)
-	m.MaxLabel.Text = "(최대: " .. (item.count or 1) .. ")"
+	m.Input.Text = tostring(totalCount)
+	m.MaxLabel.Text = "(최대: " .. totalCount .. ")"
 end
 
 function UIManager.openSplitModal()
@@ -689,9 +699,18 @@ function UIManager.confirmModalAction(count)
 	if not item then return end
 	
 	if modalActionType == "DROP" then
-		local maxCount = item.count or 1
-		local validCount = math.max(1, math.min(count, maxCount))
-		InventoryController.requestDrop(selectedInvSlot, validCount)
+		-- 동일 itemId 총 개수 기준으로 벌크 드랍
+		local totalCount = 0
+		local items = InventoryController.getItems()
+		for _, slotData in pairs(items) do
+			if slotData and slotData.itemId == item.itemId then
+				totalCount = totalCount + (slotData.count or 1)
+			end
+		end
+		if totalCount < 1 then totalCount = 1 end
+		
+		local validCount = math.max(1, math.min(count, totalCount))
+		InventoryController.requestDropByItemId(item.itemId, validCount)
 	elseif modalActionType == "SPLIT" then
 		local maxCount = (item.count or 1) - 1
 		if maxCount >= 1 then
