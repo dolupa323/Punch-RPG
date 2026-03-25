@@ -1,7 +1,7 @@
 -- InventoryService.lua
--- 인벤토리 서비스 (서버 권위, SSOT)
--- 슬롯 수: Balance.INV_SLOTS (40)
--- 최대 스택: Balance.MAX_STACK (99)
+-- ?�벤?�리 ?�비??(?�버 권위, SSOT)
+-- ?�롯 ?? 기본 60�? ?�텟 ?�자�?최�? 120�?
+-- 최�? ?�택: Balance.MAX_STACK (99)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -26,15 +26,15 @@ local playerActiveSlots = {} -- [userId] = hotbarIndex (1-8)
 
 -- NetController 참조
 local NetController = nil
--- DataService 참조 (아이템 검증용)
+-- DataService 참조 (?�이??검증용)
 local DataService = nil
--- SaveService 참조 (영속용)
+-- SaveService 참조 (?�속??
 local SaveService = nil
--- PlayerStatService 참조 (스탯용)
+-- PlayerStatService 참조 (?�탯??
 local PlayerStatService = nil
--- EquipService 참조 (시각화용)
+-- EquipService 참조 (?�각?�용)
 local EquipService = nil
--- 튜토리얼/퀘스트용 아이템 획득 콜백
+-- ?�토리얼/?�스?�용 ?�이???�득 콜백
 local questItemCallback = nil
 local questFoodEatenCallback = nil
 
@@ -90,18 +90,18 @@ end
 -- Internal: Validation Functions
 --========================================
 
---- 슬롯 범위 검증 (1 ~ INV_SLOTS)
+--- ?�롯 범위 검�?(1 ~ MAX_INV_SLOTS)
 local function _validateSlotRange(slot: number): (boolean, string?)
 	if type(slot) ~= "number" then
 		return false, Enums.ErrorCode.INVALID_SLOT
 	end
-	if slot < 1 or slot > Balance.INV_SLOTS or slot ~= math.floor(slot) then
+	if slot < 1 or slot > Balance.MAX_INV_SLOTS or slot ~= math.floor(slot) then
 		return false, Enums.ErrorCode.INVALID_SLOT
 	end
 	return true, nil
 end
 
---- 슬롯에 아이템이 있는지 검증
+--- ?�롯???�이?�이 ?�는지 검�?
 local function _validateHasItem(inv: any, slot: number): (boolean, string?)
 	local slotData = inv.slots[slot]
 	if slotData == nil then
@@ -110,7 +110,7 @@ local function _validateHasItem(inv: any, slot: number): (boolean, string?)
 	return true, nil
 end
 
---- 슬롯이 비어있는지 검증
+--- ?�롯??비어?�는지 검�?
 local function _validateSlotEmpty(inv: any, slot: number): (boolean, string?)
 	local slotData = inv.slots[slot]
 	if slotData ~= nil then
@@ -119,10 +119,10 @@ local function _validateSlotEmpty(inv: any, slot: number): (boolean, string?)
 	return true, nil
 end
 
---- 수량이 유효한지 검증
+--- ?�량???�효?��? 검�?
 local function _validateCount(count: number?): (boolean, string?)
 	if count == nil then
-		return true, nil  -- nil은 "전체"를 의미
+		return true, nil  -- nil?� "?�체"�??��?
 	end
 	if type(count) ~= "number" then
 		return false, Enums.ErrorCode.INVALID_COUNT
@@ -133,7 +133,7 @@ local function _validateCount(count: number?): (boolean, string?)
 	return true, nil
 end
 
---- 사용 가능한 수량 검증
+--- ?�용 가?�한 ?�량 검�?
 local function _validateCountAvailable(inv: any, slot: number, count: number): (boolean, string?)
 	local slotData = inv.slots[slot]
 	if slotData == nil then
@@ -145,16 +145,16 @@ local function _validateCountAvailable(inv: any, slot: number, count: number): (
 	return true, nil
 end
 
---- 스택 규칙 검증 (합치기 가능 여부)
+--- ?�택 규칙 검�?(?�치�?가???��?)
 local function _validateStackRules(inv: any, toSlot: number, movingItemId: string, movingCount: number): (boolean, string?)
 	local targetSlot = inv.slots[toSlot]
 	
 	if targetSlot == nil then
-		-- 빈 슬롯이면 무조건 OK
+		-- �??�롯?�면 무조�?OK
 		return true, nil
 	end
 	
-	-- 다른 아이템이면 합치기 불가
+	-- ?�른 ?�이?�이�??�치�?불�?
 	if targetSlot.itemId ~= movingItemId then
 		return false, Enums.ErrorCode.ITEM_MISMATCH
 	end
@@ -163,41 +163,34 @@ local function _validateStackRules(inv: any, toSlot: number, movingItemId: strin
 end
 
 --========================================
--- Internal: Weight Calculations
+-- Internal: Slot Calculations
 --========================================
 
---- 아이템 무게 조회
-local function _getItemWeight(itemId: string): number
-	if not DataService then return 0.1 end
-	local item = DataService.getItem(itemId)
-	return (item and item.weight) or 0.1
-end
-
---- 인벤토리 현재 총 무게 계산
-local function _getTotalWeight(inv: any): number
-	local total = 0
+--- ?�벤?�리 ?�용 중인 �???계산
+local function _getUsedSlots(inv: any): number
+	local count = 0
 	for _, slotData in pairs(inv.slots) do
 		if slotData then
-			total = total + (_getItemWeight(slotData.itemId) * slotData.count)
+			count = count + 1
 		end
 	end
-	return total
+	return count
 end
 
---- 플레이어 최대 소지 무게 조회
-local function _getMaxWeight(userId: number): number
+--- ?�레?�어 최�? ?�벤?�리 �???조회
+local function _getMaxSlots(userId: number): number
 	if PlayerStatService then
 		local stats = PlayerStatService.GetCalculatedStats(userId)
-		return stats.maxWeight or Balance.BASE_WEIGHT_CAPACITY
+		return stats.maxSlots or Balance.BASE_INV_SLOTS
 	end
-	return Balance.BASE_WEIGHT_CAPACITY
+	return Balance.BASE_INV_SLOTS
 end
 
 --========================================
 -- Internal: Apply Functions (Atomic)
 --========================================
 
---- 슬롯 설정 (내부용)
+--- ?�롯 ?�정 (?��???
 local function _setSlot(inv: any, slot: number, itemId: string?, count: number?, durability: number?)
 	if itemId == nil or count == nil or count <= 0 then
 		inv.slots[slot] = nil
@@ -210,7 +203,7 @@ local function _setSlot(inv: any, slot: number, itemId: string?, count: number?,
 	end
 end
 
---- 슬롯에서 수량 감소
+--- ?�롯?�서 ?�량 감소
 local function _decreaseSlot(inv: any, slot: number, count: number)
 	local slotData = inv.slots[slot]
 	if slotData then
@@ -223,7 +216,7 @@ local function _decreaseSlot(inv: any, slot: number, count: number)
 	end
 end
 
---- 슬롯에 수량 증가 (또는 새로 생성)
+--- ?�롯???�량 증�? (?�는 ?�로 ?�성)
 local function _increaseSlot(inv: any, slot: number, itemId: string, count: number, durability: number?)
 	local slotData = inv.slots[slot]
 	if slotData then
@@ -241,12 +234,12 @@ end
 -- Internal: Emit Events
 --========================================
 
---- 변경된 슬롯 델타 이벤트 발생 및 SaveService 동기화
+--- 변경된 ?�롯 ?��? ?�벤??발생 �?SaveService ?�기??
 local function _emitChanged(player: Player, changes: {{slot: number, itemId: string?, count: number?, empty: boolean?}}, fullSyncData: any?)
 	local userId = player.UserId
 	local inv = playerInventories[userId]
 	
-	-- SaveService 동기화
+	-- SaveService ?�기??
 	if SaveService and inv then
 		SaveService.updatePlayerState(userId, function(state)
 			state.inventory = inv.slots
@@ -255,7 +248,7 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 		end)
 	end
 
-	-- 현재 활성 슬롯(1~8)의 아이템이 변경되었다면 장착 모델 업데이트
+	-- ?�재 ?�성 ?�롯(1~8)???�이?�이 변경되?�다�??�착 모델 ?�데?�트
 	local active = playerActiveSlots[userId] or 1 -- [FIX] Default to 1 if nil
 	local activeSlotChanged = false
 	for _, ch in ipairs(changes) do
@@ -270,13 +263,13 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 	end
 
 	if NetController then
-		local totalWeight = _getTotalWeight(inv)
-		local maxWeight = _getMaxWeight(userId)
+		local usedSlots = _getUsedSlots(inv)
+		local maxSlots = _getMaxSlots(userId)
 
 		local payload = {
 			userId = userId,
-			totalWeight = totalWeight,
-			maxWeight = maxWeight,
+			usedSlots = usedSlots,
+			maxSlots = maxSlots,
 		}
 		
 		if fullSyncData then
@@ -289,7 +282,7 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 	end
 end
 
---- 슬롯 데이터를 변경 델타로 변환
+--- ?�롯 ?�이?��? 변�??��?�?변??
 local function _makeChange(inv: any, slot: number): {slot: number, itemId: string?, count: number?, empty: boolean?, durability: number?}
 	local slotData = inv.slots[slot]
 	if slotData then
@@ -316,7 +309,7 @@ function InventoryService.getTotalDefense(userId: number): number
 		end
 	end
 	
-	-- 세트 효과 추가 방어력
+	-- ?�트 ?�과 추�? 방어??
 	local setBonuses = InventoryService.getArmorSetBonuses(userId)
 	if setBonuses and setBonuses.defense then
 		defense = defense + setBonuses.defense
@@ -344,8 +337,8 @@ function InventoryService.getArmorSetBonuses(userId: number)
 	for setId, count in pairs(counts) do
 		local setData = ArmorSetData[setId]
 		if setData and count >= #setData.items then
-			-- 세트 완성! (가장 최근에 확인된 세트 하나만 적용하거나 중첩 가능하게 할 수 있음)
-			-- 현재는 간단히 합산하거나 우선순위 높은 것 하나만 반환
+			-- ?�트 ?�성! (가??최근???�인???�트 ?�나�??�용?�거??중첩 가?�하�??????�음)
+			-- ?�재??간단???�산?�거???�선?�위 ?��? �??�나�?반환
 			bestSet = setId
 			bestBonus = setData.bonuses
 		end
@@ -366,7 +359,7 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return false, Enums.ErrorCode.INVALID_ITEM end
 	
-	-- 슬롯 타입 체크
+	-- ?�롯 ?�??체크
 	local targetSlot = equipmentSlotName:upper()
 	if targetSlot ~= "HEAD" and targetSlot ~= "SUIT" and targetSlot ~= "HAND" then
 		return false, Enums.ErrorCode.BAD_REQUEST
@@ -376,42 +369,42 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 		return false, Enums.ErrorCode.BAD_REQUEST
 	end
 
-	-- 기존 장비와 교체
+	-- 기존 ?�비?� 교체
 	local oldEquip = inv.equipment[targetSlot]
 	inv.equipment[targetSlot] = {
 		itemId = slotData.itemId,
 		durability = slotData.durability
 	}
 	
-	-- 인벤토리에서 제거 (1개만)
+	-- ?�벤?�리?�서 ?�거 (1개만)
 	if slotData.count > 1 then
 		slotData.count -= 1
 	else
 		inv.slots[inventorySlot] = nil
 	end
 	
-	-- 기존 장비가 있었다면 인벤토리로 복구
+	-- 기존 ?�비가 ?�었?�면 ?�벤?�리�?복구
 	if oldEquip then
 		InventoryService.addItem(userId, oldEquip.itemId, 1, oldEquip.durability)
 	end
 	
-	-- 상태 저장 요청
+	-- ?�태 ?�???�청
 	_emitChanged(player, { _makeChange(inv, inventorySlot) })
 	
-	-- 클라이언트에 장비 변경 통보
+	-- ?�라?�언?�에 ?�비 변�??�보
 	NetController.FireClient(player, "Inventory.Equipment.Changed", {
 		equipment = inv.equipment
 	})
 	
-	-- 장비 변경 통보 (EquipService 연동 - 도구/무기거나 방어구 시각화 필요 시)
+	-- ?�비 변�??�보 (EquipService ?�동 - ?�구/무기거나 방어�??�각???�요 ??
 	if EquipService then
-		EquipService.updateAppearance(player) -- 전체 외형 갱신 (상의/하의/슈트 포함)
+		EquipService.updateAppearance(player) -- ?�체 ?�형 갱신 (?�의/?�의/?�트 ?�함)
 		if targetSlot == "HAND" then
 			EquipService.equipItem(player, inv.equipment[targetSlot].itemId)
 		end
 	end
 	
-	-- 스탯 재계산 (방어구 등)
+	-- ?�탯 ?�계??(방어�???
 	if PlayerStatService then
 		PlayerStatService.applyStats(userId)
 	end
@@ -427,7 +420,7 @@ function InventoryService.unequipItem(player: Player, equipmentSlotName: string)
 	local oldEquip = inv.equipment[equipmentSlotName]
 	if not oldEquip then return false, Enums.ErrorCode.SLOT_EMPTY end
 	
-	-- 인벤토리에 공간 있는지 체크
+	-- ?�벤?�리??공간 ?�는지 체크
 	local added, remaining = InventoryService.addItem(userId, oldEquip.itemId, 1, oldEquip.durability)
 	if added == 0 then
 		return false, Enums.ErrorCode.INV_FULL
@@ -435,15 +428,15 @@ function InventoryService.unequipItem(player: Player, equipmentSlotName: string)
 	
 	inv.equipment[equipmentSlotName] = nil
 	
-	-- 상태 저장 요청
-	_emitChanged(player, {}) -- 무게 환산 등을 위해 빈 change로 호출 가능
+	-- ?�태 ?�???�청
+	_emitChanged(player, {}) -- 무게 ?�산 ?�을 ?�해 �?change�??�출 가??
 	
-	-- 클라이언트에 장비 변경 통보
+	-- ?�라?�언?�에 ?�비 변�??�보
 	NetController.FireClient(player, "Inventory.Equipment.Changed", {
 		equipment = inv.equipment
 	})
 	
-	-- 장비 해제 통보
+	-- ?�비 ?�제 ?�보
 	if EquipService then
 		EquipService.updateAppearance(player)
 		if equipmentSlotName == "HAND" then
@@ -462,18 +455,18 @@ end
 -- Public API: Inventory Management
 --========================================
 
---- 플레이어 인벤토리 가져오기 또는 생성
+--- ?�레?�어 ?�벤?�리 가?�오�??�는 ?�성
 function InventoryService.getOrCreateInventory(userId: number): any
 	if playerInventories[userId] then
 		return playerInventories[userId]
 	end
 	
-	-- SaveService에서 로드 시도
+	-- SaveService?�서 로드 ?�도
 	local savedInv = nil
 	local savedEquip = nil
 	local loadedState = nil
 	
-	-- [Race Condition FIX] 클라이언트의 Get Request가 ServerInit 주입(Init)보다 먼저 도달한 경우 동적 할당
+	-- [Race Condition FIX] ?�라?�언?�의 Get Request가 ServerInit 주입(Init)보다 먼�? ?�달??경우 ?�적 ?�당
 	if not SaveService then
 		local ServerService = game:GetService("ServerScriptService"):WaitForChild("Server"):WaitForChild("Services")
 		SaveService = require(ServerService:WaitForChild("SaveService"))
@@ -486,7 +479,7 @@ function InventoryService.getOrCreateInventory(userId: number): any
 	if SaveService then
 		local state = SaveService.getPlayerState(userId)
 		if not state then
-			-- SaveService가 이미 PlayerAdded 루프에서 로드를 수행하므로, 여기서는 중복 요청 없이 상태 반영만 대기한다.
+			-- SaveService가 ?��? PlayerAdded 루프?�서 로드�??�행?��?�? ?�기?�는 중복 ?�청 ?�이 ?�태 반영�??�기한??
 			local deadline = os.clock() + 45
 			while not state and os.clock() < deadline do
 				task.wait(0.15)
@@ -500,22 +493,22 @@ function InventoryService.getOrCreateInventory(userId: number): any
 			if state.inventory then savedInv = state.inventory end
 			if state.equipment then savedEquip = state.equipment end
 		else
-			-- [FATAL FIX] 30초가 지나도 데이터가 없다면 빈 인벤토리를 부여하는 것이 "아니라" 플레이어를 킥하여 덮어쓰기 사고 방지
+			-- [FATAL FIX] 30초�? 지?�도 ?�이?��? ?�다�?�??�벤?�리�?부?�하??것이 "?�니?? ?�레?�어�??�하????��?�기 ?�고 방�?
 			warn(string.format("[InventoryService] Timed out waiting for player state %d! Kicking to prevent wipe.", userId))
 			local plr = game.Players:GetPlayerByUserId(userId)
 			if plr then
-				plr:Kick("데이터 로드 시간이 초과되었습니다. 재접속해 주세요.")
+				plr:Kick("?�이??로드 ?�간??초과?�었?�니?? ?�접?�해 주세??")
 			end
 			return nil -- 중단
 		end
 	end
 
-	-- [중요] Yield(대기)하는 동안 다른 스레드(예: Get.Request)에서 인벤토리를 생성했을 수 있으므로 다시 체크
+	-- [중요] Yield(?��??�는 ?�안 ?�른 ?�레???? Get.Request)?�서 ?�벤?�리�??�성?�을 ???�으므�??�시 체크
 	if playerInventories[userId] then
 		return playerInventories[userId]
 	end
 
-	-- 데이터 정규화 및 마이그레이션 (내구도 누락 등 대응 및 숫자 인덱스 강제)
+	-- ?�이???�규??�?마이그레?�션 (?�구???�락 ???�??�??�자 ?�덱??강제)
 	local normalizedSlots = {}
 	if savedInv then
 		for k, node in pairs(savedInv) do
@@ -523,10 +516,10 @@ function InventoryService.getOrCreateInventory(userId: number): any
 			if numKey and type(node) == "table" and node.itemId then
 				local item = DataService.getItem(node.itemId)
 				if item and item.durability and not node.durability then
-					node.durability = item.durability -- 누락된 내구도 초기화
+					node.durability = item.durability -- ?�락???�구??초기??
 				end
 				
-				-- 명시적으로 새로운 숫자키 기반 딕셔너리로 구축 (JSON 문자열 키 오류 원천 차단)
+				-- 명시?�으�??�로???�자??기반 ?�셔?�리�?구축 (JSON 문자?????�류 ?�천 차단)
 				normalizedSlots[numKey] = {
 					itemId = node.itemId,
 					count = node.count or 1,
@@ -547,8 +540,8 @@ function InventoryService.getOrCreateInventory(userId: number): any
 		end
 	end
 
-	-- [Defensive Fix] 튜토리얼 초반(1단계)인데 BRANCH가 비정상 최대스택으로 로드되면 1개로 보정
-	-- 정상 진행 중 대량 보유 유저를 건드리지 않기 위해 "초반 + 미완료" 상태에서만 적용
+	-- [Defensive Fix] ?�토리얼 초반(1?�계)?�데 BRANCH가 비정??최�??�택?�로 로드?�면 1개로 보정
+	-- ?�상 진행 �??�??보유 ?��?�?건드리�? ?�기 ?�해 "초반 + 미완�? ?�태?�서�??�용
 	local sanitizedBranch = false
 	if loadedState and type(loadedState.tutorialQuest) == "table" then
 		local tq = loadedState.tutorialQuest
@@ -568,7 +561,7 @@ function InventoryService.getOrCreateInventory(userId: number): any
 		loadedState.inventory = normalizedSlots
 	end
 
-	-- 새 인벤토리 객체 생성
+	-- ???�벤?�리 객체 ?�성
 	local inv = {
 		slots = normalizedSlots,
 		equipment = _normalizeEquipmentSlots(savedEquip)
@@ -578,26 +571,26 @@ function InventoryService.getOrCreateInventory(userId: number): any
 	return inv
 end
 
---- 플레이어 인벤토리 가져오기
+--- ?�레?�어 ?�벤?�리 가?�오�?
 function InventoryService.getInventory(userId: number): any?
 	return playerInventories[userId]
 end
 
---- 플레이어 인벤토리 삭제 (PlayerRemoving 시)
+--- ?�레?�어 ?�벤?�리 ??�� (PlayerRemoving ??
 function InventoryService.removeInventory(userId: number)
 	playerInventories[userId] = nil
 	playerActiveSlots[userId] = nil
 end
 
---- 활성 슬롯 설정
+--- ?�성 ?�롯 ?�정
 function InventoryService.setActiveSlot(userId: number, slot: number)
-	if slot < 1 or slot > 8 then return end -- 핫바 범위만
-	if playerActiveSlots[userId] == slot then return end -- 이미 활성 슬롯이면 무시
+	if slot < 1 or slot > 8 then return end -- ?�바 범위�?
+	if playerActiveSlots[userId] == slot then return end -- ?��? ?�성 ?�롯?�면 무시
 	
 	playerActiveSlots[userId] = slot
 	print(string.format("[InventoryService] Player %d active slot set to %d", userId, slot))
 	
-	-- 시각적 장착 업데이트
+	-- ?�각???�착 ?�데?�트
 	if EquipService then
 		local player = Players:GetPlayerByUserId(userId)
 		if player then
@@ -606,14 +599,14 @@ function InventoryService.setActiveSlot(userId: number, slot: number)
 		end
 	end
 	
-	-- 클라이언트에 알림
+	-- ?�라?�언?�에 ?�림
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = slot })
 	end
 end
 
---- 활성 슬롯 조회
+--- ?�성 ?�롯 조회
 function InventoryService.getActiveSlot(userId: number): number
 	return playerActiveSlots[userId] or 1
 end
@@ -622,8 +615,8 @@ end
 -- Public API: Move
 --========================================
 
---- 아이템 이동 (fromSlot -> toSlot)
---- count가 nil이면 전체 이동
+--- ?�이???�동 (fromSlot -> toSlot)
+--- count가 nil?�면 ?�체 ?�동
 function InventoryService.move(player: Player, fromSlot: number, toSlot: number, count: number?): (boolean, string?, any?)
 	local userId = player.UserId
 	local inv = playerInventories[userId]
@@ -632,35 +625,35 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- 슬롯 범위 검증 (먼저!)
+	-- ?�롯 범위 검�?(먼�?!)
 	local ok, err = _validateSlotRange(fromSlot)
 	if not ok then return false, err, nil end
 	
 	ok, err = _validateSlotRange(toSlot)
 	if not ok then return false, err, nil end
 	
-	-- 같은 슬롯이면 무시
+	-- 같�? ?�롯?�면 무시
 	if fromSlot == toSlot then
 		return true, nil, nil
 	end
 	
-	-- 출발 슬롯에 아이템이 있는지
+	-- 출발 ?�롯???�이?�이 ?�는지
 	ok, err = _validateHasItem(inv, fromSlot)
 	if not ok then return false, err, nil end
 	
-	-- 수량 검증
+	-- ?�량 검�?
 	ok, err = _validateCount(count)
 	if not ok then return false, err, nil end
 	
 	local fromData = inv.slots[fromSlot]
-	local moveCount = count or fromData.count  -- nil이면 전체
+	local moveCount = count or fromData.count  -- nil?�면 ?�체
 
-	-- 방어구는 핫바(1~8) 슬롯으로 이동 금지
+	-- 방어구는 ?�바(1~8) ?�롯?�로 ?�동 금�?
 	if _isArmorItemId(fromData.itemId) and toSlot <= HOTBAR_SLOT_MAX then
 		return false, Enums.ErrorCode.BAD_REQUEST, nil
 	end
 	
-	-- 이동 수량 검증
+	-- ?�동 ?�량 검�?
 	ok, err = _validateCountAvailable(inv, fromSlot, moveCount)
 	if not ok then return false, err, nil end
 	
@@ -668,7 +661,7 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 	local changes = {}
 	
 	if toData == nil then
-		-- 대상 슬롯이 비어있으면: 단순 이동
+		-- ?�???�롯??비어?�으�? ?�순 ?�동
 		_increaseSlot(inv, toSlot, fromData.itemId, moveCount, fromData.durability)
 		_decreaseSlot(inv, fromSlot, moveCount)
 		
@@ -676,7 +669,7 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		table.insert(changes, _makeChange(inv, toSlot))
 		
 	elseif toData.itemId == fromData.itemId then
-		-- 같은 아이템이면: 합치기 (MAX_STACK 초과 시 부분 이동 처리)
+		-- 같�? ?�이?�이�? ?�치�?(MAX_STACK 초과 ??부�??�동 처리)
 		local canAdd = math.max(0, Balance.MAX_STACK - toData.count)
 		local actualMove = math.min(moveCount, canAdd)
 		
@@ -691,13 +684,13 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		end
 		
 	else
-		-- 다른 아이템이면: 스왑 (전체 이동일 때만)
+		-- ?�른 ?�이?�이�? ?�왑 (?�체 ?�동???�만)
 		if count ~= nil then
-			-- 부분 이동은 다른 아이템과 불가
+			-- 부�??�동?� ?�른 ?�이?�과 불�?
 			return false, Enums.ErrorCode.ITEM_MISMATCH, nil
 		end
 		
-		-- 스왑
+		-- ?�왑
 		inv.slots[fromSlot] = toData
 		inv.slots[toSlot] = fromData
 		
@@ -705,7 +698,7 @@ function InventoryService.move(player: Player, fromSlot: number, toSlot: number,
 		table.insert(changes, _makeChange(inv, toSlot))
 	end
 	
-	-- 이벤트 발생
+	-- ?�벤??발생
 	_emitChanged(player, changes)
 	
 	return true, nil, { changes = changes }
@@ -715,8 +708,8 @@ end
 -- Public API: Split
 --========================================
 
---- 스택 분할 (fromSlot에서 count만큼 떼서 toSlot에 새 스택)
---- toSlot은 반드시 비어있어야 함
+--- ?�택 분할 (fromSlot?�서 count만큼 ?�서 toSlot?????�택)
+--- toSlot?� 반드??비어?�어????
 function InventoryService.split(player: Player, fromSlot: number, toSlot: number, count: number): (boolean, string?, any?)
 	local userId = player.UserId
 	local inv = playerInventories[userId]
@@ -725,27 +718,27 @@ function InventoryService.split(player: Player, fromSlot: number, toSlot: number
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- 슬롯 범위 검증 (먼저!)
+	-- ?�롯 범위 검�?(먼�?!)
 	local ok, err = _validateSlotRange(fromSlot)
 	if not ok then return false, err, nil end
 	
 	ok, err = _validateSlotRange(toSlot)
 	if not ok then return false, err, nil end
 	
-	-- 같은 슬롯이면 불가
+	-- 같�? ?�롯?�면 불�?
 	if fromSlot == toSlot then
 		return false, Enums.ErrorCode.BAD_REQUEST, nil
 	end
 	
-	-- 출발 슬롯에 아이템이 있는지
+	-- 출발 ?�롯???�이?�이 ?�는지
 	ok, err = _validateHasItem(inv, fromSlot)
 	if not ok then return false, err, nil end
 	
-	-- 대상 슬롯이 비어있는지
+	-- ?�???�롯??비어?�는지
 	ok, err = _validateSlotEmpty(inv, toSlot)
 	if not ok then return false, err, nil end
 	
-	-- 수량 검증 (split은 count 필수)
+	-- ?�량 검�?(split?� count ?�수)
 	if count == nil then
 		return false, Enums.ErrorCode.INVALID_COUNT, nil
 	end
@@ -753,13 +746,13 @@ function InventoryService.split(player: Player, fromSlot: number, toSlot: number
 	ok, err = _validateCount(count)
 	if not ok then return false, err, nil end
 	
-	-- 이동 수량 검증
+	-- ?�동 ?�량 검�?
 	ok, err = _validateCountAvailable(inv, fromSlot, count)
 	if not ok then return false, err, nil end
 	
 	local fromData = inv.slots[fromSlot]
 	
-	-- 분할 적용
+	-- 분할 ?�용
 	_setSlot(inv, toSlot, fromData.itemId, count, fromData.durability)
 	_decreaseSlot(inv, fromSlot, count)
 	
@@ -768,7 +761,7 @@ function InventoryService.split(player: Player, fromSlot: number, toSlot: number
 		_makeChange(inv, toSlot),
 	}
 	
-	-- 이벤트 발생
+	-- ?�벤??발생
 	_emitChanged(player, changes)
 	
 	return true, nil, { changes = changes }
@@ -778,8 +771,8 @@ end
 -- Public API: Drop
 --========================================
 
---- 아이템 드롭 (인벤에서 감소만, 월드 드롭은 나중에)
---- count가 nil이면 전체 드롭
+--- ?�이???�롭 (?�벤?�서 감소�? ?�드 ?�롭?� ?�중??
+--- count가 nil?�면 ?�체 ?�롭
 function InventoryService.drop(player: Player, slot: number, count: number?): (boolean, string?, any?)
 	local userId = player.UserId
 	local inv = playerInventories[userId]
@@ -788,39 +781,39 @@ function InventoryService.drop(player: Player, slot: number, count: number?): (b
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- 슬롯 범위 검증
+	-- ?�롯 범위 검�?
 	local ok, err = _validateSlotRange(slot)
 	if not ok then return false, err, nil end
 	
-	-- 슬롯에 아이템이 있는지
+	-- ?�롯???�이?�이 ?�는지
 	ok, err = _validateHasItem(inv, slot)
 	if not ok then return false, err, nil end
 	
-	-- 수량 검증
+	-- ?�량 검�?
 	ok, err = _validateCount(count)
 	if not ok then return false, err, nil end
 	
 	local slotData = inv.slots[slot]
-	local dropCount = count or slotData.count  -- nil이면 전체
+	local dropCount = count or slotData.count  -- nil?�면 ?�체
 	
-	-- 드롭 수량 검증
+	-- ?�롭 ?�량 검�?
 	ok, err = _validateCountAvailable(inv, slot, dropCount)
 	if not ok then return false, err, nil end
 	
 	local droppedItem = {
 		itemId = slotData.itemId,
 		count = dropCount,
-		durability = slotData.durability, -- 내구도 보존
+		durability = slotData.durability, -- ?�구??보존
 	}
 	
-	-- 인벤에서 감소
+	-- ?�벤?�서 감소
 	_decreaseSlot(inv, slot, dropCount)
 	
 	local changes = {
 		_makeChange(inv, slot),
 	}
 	
-	-- 이벤트 발생
+	-- ?�벤??발생
 	_emitChanged(player, changes)
 	
 	return true, nil, {
@@ -830,11 +823,11 @@ function InventoryService.drop(player: Player, slot: number, count: number?): (b
 end
 
 --========================================
--- Public API: MoveInternal (범용 컨테이너 간 이동)
--- StorageService 등에서 재사용
+-- Public API: MoveInternal (범용 컨테?�너 �??�동)
+-- StorageService ?�에???�사??
 --========================================
 
---- 슬롯 범위 검증 (커스텀 maxSlots)
+--- ?�롯 범위 검�?(커스?� maxSlots)
 local function _validateSlotRangeCustom(slot: number, maxSlots: number, allowZero: boolean?): (boolean, string?)
 	if type(slot) ~= "number" then
 		return false, Enums.ErrorCode.INVALID_SLOT
@@ -846,10 +839,10 @@ local function _validateSlotRangeCustom(slot: number, maxSlots: number, allowZer
 	return true, nil
 end
 
---- 범용 컨테이너 간 아이템 이동
+--- 범용 컨테?�너 �??�이???�동
 --- sourceContainer, targetContainer: { slots = { [slot] = {itemId, count} } }
---- maxSlots: 슬롯 최대 수
---- 이벤트 발행은 호출자 책임
+--- maxSlots: ?�롯 최�? ??
+--- ?�벤??발행?� ?�출??책임
 function InventoryService.MoveInternal(
 	sourceContainer: any,
 	sourceSlot: number,
@@ -860,7 +853,7 @@ function InventoryService.MoveInternal(
 	count: number?
 ): (boolean, string?, any?)
 	
-	-- 소스/타겟 검증
+	-- ?�스/?��?검�?
 	if not sourceContainer or not sourceContainer.slots then
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
@@ -868,22 +861,22 @@ function InventoryService.MoveInternal(
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
 	
-	-- 슬롯 범위 검증
+	-- ?�롯 범위 검�?
 	local ok, err = _validateSlotRangeCustom(sourceSlot, sourceMaxSlots)
 	if not ok then return false, err, nil end
 	
 	ok, err = _validateSlotRangeCustom(targetSlot, targetMaxSlots, true)
 	if not ok then return false, err, nil end
 	
-	-- 소물 아이템 정보 확인
+	-- ?�물 ?�이???�보 ?�인
 	ok, err = _validateHasItem(sourceContainer, sourceSlot)
 	if not ok then return false, err, nil end
 	
 	local sourceData = sourceContainer.slots[sourceSlot]
 
-	-- 타겟 슬롯 자동 선택 (targetSlot == 0)
+	-- ?��??�롯 ?�동 ?�택 (targetSlot == 0)
 	if targetSlot == 0 then
-		-- 1. 같은 아이템 스택 가능 슬롯 찾기
+		-- 1. 같�? ?�이???�택 가???�롯 찾기
 		for i = 1, targetMaxSlots do
 			local ts = targetContainer.slots[i]
 			if ts and ts.itemId == sourceData.itemId and ts.count < Balance.MAX_STACK then
@@ -891,7 +884,7 @@ function InventoryService.MoveInternal(
 				break
 			end
 		end
-		-- 2. 빈 슬롯 찾기
+		-- 2. �??�롯 찾기
 		if targetSlot == 0 then
 			for i = 1, targetMaxSlots do
 				if targetContainer.slots[i] == nil then
@@ -900,25 +893,25 @@ function InventoryService.MoveInternal(
 				end
 			end
 		end
-		-- 여전히 0이면 공간 없음
+		-- ?�전??0?�면 공간 ?�음
 		if targetSlot == 0 then
 			return false, Enums.ErrorCode.INV_FULL, nil
 		end
 	end
 
-	-- 같은 컨테이너 + 같은 슬롯이면 무시
+	-- 같�? 컨테?�너 + 같�? ?�롯?�면 무시
 	if sourceContainer == targetContainer and sourceSlot == targetSlot then
 		return true, nil, nil
 	end
 	
-	-- 수량 검증
+	-- ?�량 검�?
 	ok, err = _validateCount(count)
 	if not ok then return false, err, nil end
 	
 	local sourceData = sourceContainer.slots[sourceSlot]
-	local moveCount = count or sourceData.count  -- nil이면 전체
+	local moveCount = count or sourceData.count  -- nil?�면 ?�체
 	
-	-- 이동 수량 검증
+	-- ?�동 ?�량 검�?
 	ok, err = _validateCountAvailable(sourceContainer, sourceSlot, moveCount)
 	if not ok then return false, err, nil end
 	
@@ -928,7 +921,7 @@ function InventoryService.MoveInternal(
 	local targetChanges = {}
 	
 	if targetData == nil then
-		-- 타겟 슬롯이 비어있으면: 단순 이동
+		-- ?��??�롯??비어?�으�? ?�순 ?�동
 		_increaseSlot(targetContainer, targetSlot, sourceData.itemId, moveCount, sourceData.durability)
 		_decreaseSlot(sourceContainer, sourceSlot, moveCount)
 		
@@ -936,7 +929,7 @@ function InventoryService.MoveInternal(
 		table.insert(targetChanges, _makeChange(targetContainer, targetSlot))
 		
 	elseif targetData.itemId == sourceData.itemId then
-		-- 같은 아이템이면: 합치기 (MAX_STACK 초과 시 부분 이동 처리)
+		-- 같�? ?�이?�이�? ?�치�?(MAX_STACK 초과 ??부�??�동 처리)
 		local canAdd = math.max(0, Balance.MAX_STACK - targetData.count)
 		local actualMove = math.min(moveCount, canAdd)
 		
@@ -951,17 +944,17 @@ function InventoryService.MoveInternal(
 		end
 		
 	else
-		-- 다른 아이템이면: 스왑 (전체 이동일 때만, 같은 컨테이너 내에서만)
+		-- ?�른 ?�이?�이�? ?�왑 (?�체 ?�동???�만, 같�? 컨테?�너 ?�에?�만)
 		if count ~= nil then
 			return false, Enums.ErrorCode.ITEM_MISMATCH, nil
 		end
 		
 		if sourceContainer ~= targetContainer then
-			-- 다른 컨테이너 간 스왑은 복잡하므로 금지
+			-- ?�른 컨테?�너 �??�왑?� 복잡?��?�?금�?
 			return false, Enums.ErrorCode.ITEM_MISMATCH, nil
 		end
 		
-		-- 스왑
+		-- ?�왑
 		sourceContainer.slots[sourceSlot] = targetData
 		sourceContainer.slots[targetSlot] = sourceData
 		
@@ -980,8 +973,8 @@ end
 -- Public API: Utility
 --========================================
 
---- 아이템 추가 (빈 슬롯 또는 기존 스택에)
---- 반환: 추가된 수량, 남은 수량
+--- ?�이??추�? (�??�롯 ?�는 기존 ?�택??
+--- 반환: 추�????�량, ?��? ?�량
 function InventoryService.addItem(userId: number, itemId: string, count: number, durability: number?): (number, number)
 	local inv = playerInventories[userId]
 	if not inv then
@@ -994,55 +987,48 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 	local added = 0
 	local changedSlots = {}
 	
-	-- 무게 체크
-	local currentWeight = _getTotalWeight(inv)
-	local maxWeight = _getMaxWeight(userId)
-	local itemWeight = _getItemWeight(itemId)
+	-- ?�롯 ??체크
+	local maxSlots = _getMaxSlots(userId)
 
-	-- 내구도 정보 조회 (새 스택 생성 시 사용)
-	local maxDurability = durability -- 전달받은 내구도 우선
+	-- ?�구???�보 조회 (???�택 ?�성 ???�용)
+	local maxDurability = durability -- ?�달받�? ?�구???�선
 	if not maxDurability and DataService then
 		local itemData = DataService.getItem(itemId)
 		if itemData then maxDurability = itemData.durability end
 	end
 	
-	-- 1. 같은 아이템이 있는 슬롯에 먼저 채우기 (내구도가 필요없는 일반 스택 아이템 한정)
-	for slot = 1, Balance.INV_SLOTS do
+	-- 1. 같�? ?�이?�이 ?�는 ?�롯??먼�? 채우�?(?�구?��? ?�요?�는 ?�반 ?�택 ?�이???�정)
+	for slot = 1, maxSlots do
 		if remaining <= 0 then break end
-		if maxDurability then break end -- 내구도를 가진 도구/무기류는 함부로 다른 스택과 뭉치지 않고 바로 빈 칸으로 넘김
+		if maxDurability then break end -- ?�구?��? 가�??�구/무기류는 ?��?�??�른 ?�택�?뭉치지 ?�고 바로 �?칸으�??��?
 		
 		local slotData = inv.slots[slot]
 		if slotData and slotData.itemId == itemId and slotData.count < Balance.MAX_STACK and not slotData.durability then
 			local canAddByStack = Balance.MAX_STACK - slotData.count
-			local canAddByWeight = math.floor((maxWeight - currentWeight) / itemWeight)
 			
-			local canAdd = math.min(remaining, canAddByStack, math.max(0, canAddByWeight))
-			if canAdd <= 0 then 
-				warn(string.format("[InventoryService] Cannot add item %s: weight limit reached (%d/%d)", itemId, currentWeight, maxWeight))
-				break 
-			end -- 무게 초과
+			local canAdd = math.min(remaining, canAddByStack)
+			if canAdd <= 0 then break end
 
 			slotData.count = slotData.count + canAdd
 			remaining = remaining - canAdd
 			added = added + canAdd
-			currentWeight = currentWeight + (canAdd * itemWeight)
 			changedSlots[slot] = true
 		end
 	end
 	
-	-- 2. 빈 슬롯에 새 스택 생성
-	-- 방어구는 핫바(1~8) 자동 등록을 피하기 위해 9번 이후 슬롯을 우선 사용
+	-- 2. �??�롯?????�택 ?�성
+	-- 방어구는 ?�바(1~8) ?�동 ?�록???�하�??�해 9�??�후 ?�롯???�선 ?�용
 	local slotOrder = {}
 	local isArmor = itemData and itemData.type == "ARMOR"
 	if isArmor then
-		for slot = HOTBAR_SLOT_MAX + 1, Balance.INV_SLOTS do
+		for slot = HOTBAR_SLOT_MAX + 1, maxSlots do
 			table.insert(slotOrder, slot)
 		end
 		for slot = 1, HOTBAR_SLOT_MAX do
 			table.insert(slotOrder, slot)
 		end
 	else
-		for slot = 1, Balance.INV_SLOTS do
+		for slot = 1, maxSlots do
 			table.insert(slotOrder, slot)
 		end
 	end
@@ -1051,14 +1037,8 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 		if remaining <= 0 then break end
 		
 		if inv.slots[slot] == nil then
-			local canAddByStack = Balance.MAX_STACK
-			local canAddByWeight = math.floor((maxWeight - currentWeight) / itemWeight)
-			
-			local canAdd = math.min(remaining, canAddByStack, math.max(0, canAddByWeight))
-			if canAdd <= 0 then 
-				warn(string.format("[InventoryService] Cannot add item %s: weight limit reached in new slot (%d/%d)", itemId, currentWeight, maxWeight))
-				break 
-			end -- 무게 초과
+			local canAdd = math.min(remaining, Balance.MAX_STACK)
+			if canAdd <= 0 then break end
 
 			inv.slots[slot] = {
 				itemId = itemId,
@@ -1067,7 +1047,6 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 			}
 			remaining = remaining - canAdd
 			added = added + canAdd
-			currentWeight = currentWeight + (canAdd * itemWeight)
 			changedSlots[slot] = true
 		end
 	end
@@ -1092,28 +1071,28 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 	return added, remaining
 end
 
---- 인벤토리 정렬 (빈 슬롯 채우기)
+--- ?�벤?�리 ?�렬 (�??�롯 채우�?
 function InventoryService.sort(userId: number)
 	local inv = playerInventories[userId]
 	if not inv then return end
 	
 	local items = {}
-	for slot = 1, Balance.INV_SLOTS do
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		if inv.slots[slot] then
 			table.insert(items, inv.slots[slot])
 			inv.slots[slot] = nil
 		end
 	end
 	
-	-- 아이템 압축 (같은 아이템 합치기, 내구도 보존)
+	-- ?�이???�축 (같�? ?�이???�치�? ?�구??보존)
 	local compressed = {}
 	for _, item in ipairs(items) do
-		-- [수정] 무기/도구처럼 count가 명시되지 않은 경우 1로 처리하여 nil 에러 방지
+		-- [?�정] 무기/?�구처럼 count가 명시?��? ?��? 경우 1�?처리?�여 nil ?�러 방�?
 		local remaining = item.count or 1
 		
 		for _, comp in ipairs(compressed) do
 			if remaining <= 0 then break end
-			-- 내구도가 없는 같은 스택형 자원 아이템일 경우만 합치기
+			-- ?�구?��? ?�는 같�? ?�택???�원 ?�이?�일 경우�??�치�?
 			if comp.itemId == item.itemId and comp.count < Balance.MAX_STACK and not comp.durability and not item.durability then
 				local space = Balance.MAX_STACK - comp.count
 				local amount = math.min(remaining, space)
@@ -1133,7 +1112,7 @@ function InventoryService.sort(userId: number)
 
 	inv.slots = {}
 	for index, item in ipairs(compressed) do
-		if index > Balance.INV_SLOTS then
+		if index > Balance.MAX_INV_SLOTS then
 			break
 		end
 		inv.slots[index] = {
@@ -1146,28 +1125,28 @@ function InventoryService.sort(userId: number)
 	local player = Players:GetPlayerByUserId(userId)
 	
 	if player then
-		-- [최적화] 모든 슬롯 델타 대신 FullStack 전송 (인덱스 유실 방지를 위해 getFullInventory 배열 사용)
+		-- [최적?? 모든 ?�롯 ?��? ?�??FullStack ?�송 (?�덱???�실 방�?�??�해 getFullInventory 배열 ?�용)
 		_emitChanged(player, {}, InventoryService.getFullInventory(userId))
 		
-		-- [추가 FIX] 정렬 후 현재 활성 슬롯(1~8)에 대한 시각적 장착 갱신 강제 수행
+		-- [추�? FIX] ?�렬 ???�재 ?�성 ?�롯(1~8)???�???�각???�착 갱신 강제 ?�행
 		local active = playerActiveSlots[userId] or 1
 		local item = inv.slots[active]
 		if EquipService then
 			EquipService.equipItem(player, item and item.itemId)
 		end
 		
-		-- 클라이언트에 핫바 동기화 알림
+		-- ?�라?�언?�에 ?�바 ?�기???�림
 		NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = active })
 	end
 end
 
---- 빈 슬롯 개수
+--- �??�롯 개수
 function InventoryService.getEmptySlotCount(userId: number): number
 	local inv = playerInventories[userId]
 	if not inv then return 0 end
 	
 	local count = 0
-	for slot = 1, Balance.INV_SLOTS do
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		if inv.slots[slot] == nil then
 			count = count + 1
 		end
@@ -1175,16 +1154,16 @@ function InventoryService.getEmptySlotCount(userId: number): number
 	return count
 end
 
---- 전량 수용 가능 여부 검증 (순수 함수, 상태 변경 없음)
---- Loot 원자성 확보용
+--- ?�량 ?�용 가???��? 검�?(?�수 ?�수, ?�태 변�??�음)
+--- Loot ?�자???�보??
 function InventoryService.canAdd(userId: number, itemId: string, count: number): boolean
 	local inv = playerInventories[userId]
 	if not inv then return false end
 	
 	local remaining = count
 	
-	-- 1. 같은 아이템 스택 여유분 계산
-	for slot = 1, Balance.INV_SLOTS do
+	-- 1. 같�? ?�이???�택 ?�유�?계산
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		if remaining <= 0 then break end
 		
 		local slotData = inv.slots[slot]
@@ -1193,8 +1172,8 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 		end
 	end
 	
-	-- 2. 빈 슬롯 개수 계산
-	for slot = 1, Balance.INV_SLOTS do
+	-- 2. �??�롯 개수 계산
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		if remaining <= 0 then break end
 		
 		if inv.slots[slot] == nil then
@@ -1205,13 +1184,13 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 	return remaining <= 0
 end
 
---- 아이템 보유 여부 확인 (순수 함수)
+--- ?�이??보유 ?��? ?�인 (?�수 ?�수)
 function InventoryService.hasItem(userId: number, itemId: string, count: number): boolean
 	local inv = playerInventories[userId]
 	if not inv then return false end
 	
 	local total = 0
-	for slot = 1, Balance.INV_SLOTS do
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		local slotData = inv.slots[slot]
 		if slotData and slotData.itemId == itemId then
 			total = total + slotData.count
@@ -1223,8 +1202,8 @@ function InventoryService.hasItem(userId: number, itemId: string, count: number)
 	return total >= count
 end
 
---- 아이템 제거 (여러 슬롯에서 분산 제거)
---- 반환: 제거된 수량
+--- ?�이???�거 (?�러 ?�롯?�서 분산 ?�거)
+--- 반환: ?�거???�량
 function InventoryService.removeItem(userId: number, itemId: string, count: number): number
 	local inv = playerInventories[userId]
 	if not inv then return 0 end
@@ -1233,8 +1212,8 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 	local removed = 0
 	local changedSlots = {}
 	
-	-- 슬롯 순회하며 제거
-	for slot = 1, Balance.INV_SLOTS do
+	-- ?�롯 ?�회?�며 ?�거
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		if remaining <= 0 then break end
 		
 		local slotData = inv.slots[slot]
@@ -1247,7 +1226,7 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 		end
 	end
 	
-	-- 이벤트 발생
+	-- ?�벤??발생
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		local changes = {}
@@ -1260,7 +1239,7 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 	return removed
 end
 
---- 특정 슬롯에서 아이템 제거
+--- ?�정 ?�롯?�서 ?�이???�거
 function InventoryService.removeItemFromSlot(userId: number, slot: number, count: number): number
 	local inv = playerInventories[userId]
 	if not inv then return 0 end
@@ -1274,7 +1253,7 @@ function InventoryService.removeItemFromSlot(userId: number, slot: number, count
 	local toRemove = math.min(count, slotData.count)
 	_decreaseSlot(inv, slot, toRemove)
 	
-	-- 이벤트 발생
+	-- ?�벤??발생
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		_emitChanged(player, { _makeChange(inv, slot) })
@@ -1283,13 +1262,13 @@ function InventoryService.removeItemFromSlot(userId: number, slot: number, count
 	return toRemove
 end
 
---- 전체 인벤토리 데이터 반환 (클라이언트 동기화용)
+--- ?�체 ?�벤?�리 ?�이??반환 (?�라?�언???�기?�용)
 function InventoryService.getFullInventory(userId: number): {{slot: number, itemId: string?, count: number?}}
 	local inv = playerInventories[userId]
 	if not inv then return {} end
 	
 	local result = {}
-	for slot = 1, Balance.INV_SLOTS do
+	for slot = 1, Balance.MAX_INV_SLOTS do
 		local slotData = inv.slots[slot]
 		if slotData then
 			table.insert(result, {
@@ -1303,7 +1282,7 @@ function InventoryService.getFullInventory(userId: number): {{slot: number, item
 	return result
 end
 
---- 내구도 감소 (0 이하 파괴)
+--- ?�구??감소 (0 ?�하 ?�괴)
 --- 반환: success, errorCode, currentDurability(or 0)
 function InventoryService.decreaseDurability(userId: number, slot: number, amount: number)
 	local inv = playerInventories[userId]
@@ -1311,7 +1290,7 @@ function InventoryService.decreaseDurability(userId: number, slot: number, amoun
 	
 	local slotData = inv.slots[slot]
 	
-	-- 아이템이 없거나 내구도가 없는 아이템이면 무시 (또는 에러)
+	-- ?�이?�이 ?�거???�구?��? ?�는 ?�이?�이�?무시 (?�는 ?�러)
 	if not slotData then return false, Enums.ErrorCode.SLOT_EMPTY end
 	if not slotData.durability then return false, Enums.ErrorCode.INVALID_ITEM end
 	
@@ -1319,11 +1298,11 @@ function InventoryService.decreaseDurability(userId: number, slot: number, amoun
 	local current = slotData.durability
 	
 	if current <= 0 then
-		-- 파괴
+		-- ?�괴
 		inv.slots[slot] = nil
 	end
 	
-	-- 이벤트
+	-- ?�벤??
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		_emitChanged(player, {_makeChange(inv, slot)})
@@ -1332,7 +1311,7 @@ function InventoryService.decreaseDurability(userId: number, slot: number, amoun
 	return true, nil, math.max(0, current)
 end
 
---- 장비 슬롯 내구도 감소
+--- ?�비 ?�롯 ?�구??감소
 function InventoryService.decreaseEquipmentDurability(userId: number, equipmentSlotName: string, amount: number)
 	local inv = playerInventories[userId]
 	if not inv or not inv.equipment then return false, Enums.ErrorCode.NOT_FOUND end
@@ -1345,24 +1324,24 @@ function InventoryService.decreaseEquipmentDurability(userId: number, equipmentS
 	local current = slotData.durability
 	
 	if current <= 0 then
-		-- 장비 파괴 (장착 해제)
+		-- ?�비 ?�괴 (?�착 ?�제)
 		print(string.format("[InventoryService] Equipment %s destroyed for user %d", equipmentSlotName, userId))
 		inv.equipment[equipmentSlotName] = nil
 	end
 	
-	-- 이벤트
+	-- ?�벤??
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)
 	if player then
 		NetController.FireClient(player, "Inventory.Equipment.Changed", { equipment = inv.equipment })
 		
-		-- 핸드 슬롯 파괴 시 시각화 업데이트
+		-- ?�드 ?�롯 ?�괴 ???�각???�데?�트
 		if equipmentSlotName == "HAND" and current <= 0 then
 			if EquipService then
 				EquipService.equipItem(player, nil)
 			end
 		end
 		
-		-- 스탯 재계산 (방어력/공격력 등 변경 대응)
+		-- ?�탯 ?�계??(방어??공격????변�??�??
 		if PlayerStatService then
 			PlayerStatService.recalculateStats(userId)
 		end
@@ -1371,7 +1350,7 @@ function InventoryService.decreaseEquipmentDurability(userId: number, equipmentS
 	return true, nil, current
 end
 
---- 내구도 설정 (수리 등에 사용)
+--- ?�구???�정 (?�리 ?�에 ?�용)
 function InventoryService.setDurability(userId: number, slot: number, amount: number)
 	local inv = playerInventories[userId]
 	if not inv then return false, Enums.ErrorCode.NOT_FOUND end
@@ -1381,7 +1360,7 @@ function InventoryService.setDurability(userId: number, slot: number, amount: nu
 	
 	slotData.durability = amount
 	
-	-- 이벤트
+	-- ?�벤??
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		_emitChanged(player, {_makeChange(inv, slot)})
@@ -1390,17 +1369,17 @@ function InventoryService.setDurability(userId: number, slot: number, amount: nu
 	return true
 end
 
---- 현재 장착 중인(선택된 핫바) 아이템 조회
+--- ?�재 ?�착 중인(?�택???�바) ?�이??조회
 function InventoryService.getEquippedItem(userId: number): any?
 	local inv = playerInventories[userId]
 	if not inv then return nil end
 	
-	-- 서버 권위(Active Slot) 기반으로 현재 장착 아이템 조회
+	-- ?�버 권위(Active Slot) 기반?�로 ?�재 ?�착 ?�이??조회
 	local active = InventoryService.getActiveSlot(userId)
 	return InventoryService.getSlot(userId, active)
 end
 
---- 특정 슬롯 아이템 조회
+--- ?�정 ?�롯 ?�이??조회
 function InventoryService.getSlot(userId: number, slot: number): any?
 	local inv = playerInventories[userId]
 	if not inv then return nil end
@@ -1446,7 +1425,7 @@ local function handleDrop(player: Player, payload: any)
 	if not success then
 		return { success = false, errorCode = errorCode }
 	end
-	return { success = true, data = data }  -- data.dropped 포함
+	return { success = true, data = data }  -- data.dropped ?�함
 end
 
 local function handleActiveSlot(player: Player, payload: any)
@@ -1472,31 +1451,31 @@ local function handleUse(player: Player, payload: any)
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM } end
 	
-	-- 1. 장착 가능 아이템 (무기, 도구 등)
+	-- 1. ?�착 가???�이??(무기, ?�구 ??
 	if itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL or itemData.type == Enums.ItemType.ARMOR then
-		-- 이미 핫바(1-8)에 있는 경우 -> 활성 슬롯으로 설정
+		-- ?��? ?�바(1-8)???�는 경우 -> ?�성 ?�롯?�로 ?�정
 		if slot >= 1 and slot <= 8 then
 			InventoryService.setActiveSlot(userId, slot)
 			NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = slot })
 			return { success = true, data = { action = "SELECT", slot = slot } }
 		else
-			-- 가방에 있는 경우
+			-- 가방에 ?�는 경우
 			
-			-- [추가] 방어구 타입이고 전용 슬롯(BODY 등) 정보가 있는 경우 바로 장착
+			-- [추�?] 방어�??�?�이�??�용 ?�롯(BODY ?? ?�보가 ?�는 경우 바로 ?�착
 			if itemData.type == Enums.ItemType.ARMOR and itemData.slot then
 				local success, err = InventoryService.equipItem(player, slot, itemData.slot:upper())
 				if success then
 					return { success = true, data = { action = "EQUIP_ARMOR", slot = itemData.slot } }
 				end
-				-- 실패 시(슬롯 꽉참 등) 일반 Swap 로직으로 팔오버하거나 에러 반환
+				-- ?�패 ???�롯 꽉참 ?? ?�반 Swap 로직?�로 ?�오버하거나 ?�러 반환
 				if err then return { success = false, errorCode = err } end
 			end
 
-			-- 무기/도구 혹은 슬롯 정보 없는 방어구 -> 현재 활성 핫바 슬롯과 교체(Swap)
+			-- 무기/?�구 ?��? ?�롯 ?�보 ?�는 방어�?-> ?�재 ?�성 ?�바 ?�롯�?교체(Swap)
 			local activeSlot = InventoryService.getActiveSlot(userId)
 			local success, err = InventoryService.move(player, slot, activeSlot, nil)
 			if success then
-				-- 이동 성공 시 활성 슬롯에 대한 장착 업데이트
+				-- ?�동 ?�공 ???�성 ?�롯???�???�착 ?�데?�트
 				local newItem = InventoryService.getSlot(userId, activeSlot)
 				if EquipService then
 					EquipService.equipItem(player, newItem and newItem.itemId)
@@ -1508,22 +1487,22 @@ local function handleUse(player: Player, payload: any)
 		end
 	end
 	
-	-- 2. DNA 아이템 (사용 → 도감 등록)
+	-- 2. DNA ?�이??(?�용 ???�감 ?�록)
 	if itemData.type == "DNA" then
 		local creatureId = itemData.creatureId
 		if not creatureId then
 			return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
 		end
 		
-		-- 도감에 DNA 등록
+		-- ?�감??DNA ?�록
 		if PlayerStatService and PlayerStatService.addCollectionDna then
 			PlayerStatService.addCollectionDna(userId, creatureId, 1)
 		end
 		
-		-- 인벤토리에서 1개 소모 (슬롯 기반 제거)
+		-- ?�벤?�리?�서 1�??�모 (?�롯 기반 ?�거)
 		InventoryService.removeItemFromSlot(userId, slot, 1)
 		
-		-- 클라이언트에 도감 등록 성공 알림
+		-- ?�라?�언?�에 ?�감 ?�록 ?�공 ?�림
 		if NetController then
 			NetController.FireClient(player, "DNA.Registered", {
 				creatureId = creatureId,
@@ -1534,28 +1513,28 @@ local function handleUse(player: Player, payload: any)
 		return { success = true, data = { action = "DNA_REGISTER", creatureId = creatureId, itemId = slotData.itemId } }
 	end
 	
-	-- 3. 소모성 아이템
+	-- 3. ?�모???�이??
 	if itemData.type == Enums.ItemType.CONSUMABLE then
-		-- 임시: 사용 알림만
+		-- ?�시: ?�용 ?�림�?
 		print(string.format("[InventoryService] User %d used %s", userId, slotData.itemId))
 		return { success = true, data = { action = "USE", itemId = slotData.itemId } }
 	end
 	
-	-- 3. 음식 (Phase 11 연동)
+	-- 3. ?�식 (Phase 11 ?�동)
 	if itemData.type == Enums.ItemType.FOOD or itemData.foodValue then
 		local HungerService = require(game:GetService("ServerScriptService").Server.Services.HungerService)
 		local current, max = HungerService.getHunger(userId)
 		if current >= max and not itemData.healingValue then
-			-- 배가 가득 차있고 치유 효과도 없는 음식이면 안 먹어짐
+			-- 배�? 가??차있�?치유 ?�과???�는 ?�식?�면 ??먹어�?
 			return { success = false, errorCode = "HUNGER_FULL" }
 		end
 		
-		-- 배고픔 회복
+		-- 배고???�복
 		if itemData.foodValue then
 			HungerService.eatFood(userId, itemData.foodValue)
 		end
 		
-		-- 체력 회복
+		-- 체력 ?�복
 		if itemData.healingValue then
 			local character = player.Character
 			local humanoid = character and character:FindFirstChild("Humanoid")
@@ -1564,10 +1543,10 @@ local function handleUse(player: Player, payload: any)
 			end
 		end
 		
-		-- 아이템 1개 소모
+		-- ?�이??1�??�모
 		InventoryService.removeItemFromSlot(userId, slot, 1)
 
-		-- 퀘스트 콜백 (음식 섭취)
+		-- ?�스??콜백 (?�식 ??��)
 		if questFoodEatenCallback then
 			task.spawn(questFoodEatenCallback, userId, slotData.itemId)
 		end
@@ -1580,7 +1559,7 @@ end
 
 local function handleGetInventory(player: Player, payload: any)
 	local userId = player.UserId
-	-- [중요] 클라이언트가 데이터를 요청할 때 서버 로드가 끝나지 않았을 수 있으므로 대기 (Race Condition 해결)
+	-- [중요] ?�라?�언?��? ?�이?��? ?�청?????�버 로드가 ?�나지 ?�았?????�으므�??��?(Race Condition ?�결)
 	local inv = InventoryService.getOrCreateInventory(userId)
 	local slots = InventoryService.getFullInventory(userId)
 	
@@ -1589,15 +1568,14 @@ local function handleGetInventory(player: Player, payload: any)
 		data = {
 			inventory = slots, -- Client expects 'inventory'
 			equipment = inv and inv.equipment or {},
-			totalWeight = inv and _getTotalWeight(inv) or 0,
-			maxWeight = _getMaxWeight(userId),
-			maxSlots = Balance.INV_SLOTS,
+			usedSlots = inv and _getUsedSlots(inv) or 0,
+			maxSlots = _getMaxSlots(userId),
 			maxStack = Balance.MAX_STACK,
 		}
 	}
 end
 
---- 디버그: 아이템 지급
+--- ?�버�? ?�이??지�?
 local function handleGiveItem(player: Player, payload: any)
 	if not _canUseDebugGrant(player) then
 		return {
@@ -1640,19 +1618,19 @@ end
 local function onPlayerAdded(player: Player)
 	local userId = player.UserId
 	InventoryService.getOrCreateInventory(userId)
-	InventoryService.setActiveSlot(userId, 1) -- 초기 활성 슬롯 1번
+	InventoryService.setActiveSlot(userId, 1) -- 초기 ?�성 ?�롯 1�?
 	
-	-- [FIX] 리스폰 시 장비 외형 및 도구 자동 복구
+	-- [FIX] 리스?????�비 ?�형 �??�구 ?�동 복구
 	player.CharacterAdded:Connect(function(character)
 		local humanoid = character:WaitForChild("Humanoid", 10)
 		if not humanoid then return end
 		
-		-- 캐릭터 셋업(피부색 등)이 완료될 때까지 약간의 지연 (Race Condition 방지)
+		-- 캐릭???�업(?��????????�료???�까지 ?�간??지??(Race Condition 방�?)
 		task.delay(0.1, function()
 			if EquipService then
 				EquipService.updateAppearance(player)
 				
-				-- 손에 들고 있던 아이템 장착 (활성 슬롯 기준)
+				-- ?�에 ?�고 ?�던 ?�이???�착 (?�성 ?�롯 기�?)
 				local activeSlot = InventoryService.getActiveSlot(userId)
 				local inv = playerInventories[userId]
 				if inv and inv.slots[activeSlot] then
@@ -1682,18 +1660,77 @@ function InventoryService.Init(netController, dataService, saveService, playerSt
 	PlayerStatService = playerStatService
 	EquipService = equipService
 	
-	-- 플레이어 이벤트 연결
+	-- ?�레?�어 ?�벤???�결
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	-- Players.PlayerRemoving:Connect(onPlayerRemoving) -- Moved to SaveService
 	
-	-- 이미 접속한 플레이어 처리
+	-- ?��? ?�속???�레?�어 처리
 	for _, player in ipairs(Players:GetPlayers()) do
 		task.spawn(onPlayerAdded, player)
 	end
 	
 	initialized = true
 	print(string.format("[InventoryService] Initialized - Slots: %d, MaxStack: %d", 
-		Balance.INV_SLOTS, Balance.MAX_STACK))
+		Balance.MAX_INV_SLOTS, Balance.MAX_STACK))
+end
+
+--========================================
+-- Public API: Drop Excess Items (스탯 초기화 시)
+--========================================
+
+--- newMaxSlots를 초과하는 슬롯의 아이템을 월드에 드랍하고 인벤에서 제거
+--- @return table 드랍된 아이템 목록 {{itemId, count, durability}}
+function InventoryService.dropExcessItems(player: Player, newMaxSlots: number): {{itemId: string, count: number, durability: number?}}
+	local userId = player.UserId
+	local inv = playerInventories[userId]
+	if not inv then return {} end
+	
+	local droppedItems = {}
+	local changedSlots = {}
+	
+	-- newMaxSlots+1 ~ MAX_INV_SLOTS 범위의 아이템 수집 및 제거
+	for slot = newMaxSlots + 1, Balance.MAX_INV_SLOTS do
+		local slotData = inv.slots[slot]
+		if slotData then
+			table.insert(droppedItems, {
+				itemId = slotData.itemId,
+				count = slotData.count,
+				durability = slotData.durability,
+			})
+			inv.slots[slot] = nil
+			changedSlots[slot] = true
+		end
+	end
+	
+	if #droppedItems <= 0 then return droppedItems end
+	
+	-- WorldDropService 지연 로딩으로 월드에 드랍
+	local wdOk, WorldDropService = pcall(function()
+		return require(game:GetService("ServerScriptService").Server.Services.WorldDropService)
+	end)
+	
+	if wdOk and WorldDropService and WorldDropService.spawnDrop then
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local basePos = hrp.Position + Vector3.new(0, -1, 0)
+			for i, item in ipairs(droppedItems) do
+				-- 아이템별로 약간 다른 위치에 드랍 (원형 배치)
+				local angle = (i - 1) * (2 * math.pi / math.max(#droppedItems, 1))
+				local offset = Vector3.new(math.cos(angle) * 3, 0, math.sin(angle) * 3)
+				WorldDropService.spawnDrop(basePos + offset, item.itemId, item.count, item.durability)
+			end
+		end
+	end
+	
+	-- 클라이언트에 변경 알림
+	local changes = {}
+	for slot, _ in pairs(changedSlots) do
+		table.insert(changes, _makeChange(inv, slot))
+	end
+	_emitChanged(player, changes)
+	
+	return droppedItems
 end
 
 function InventoryService.GetHandlers()

@@ -817,9 +817,8 @@ end
 
 function RadioStoryController.Init()
 	if initialized then return end
-	ringingRequested = true -- 첫 진입 시 무전기 호출음
-	ensureRingingSound()
-	updateRadioMarkerVisibility()
+	-- ringing은 syncTutorialStatus에서 완료 여부 확인 후 결정
+	ringingRequested = false
 	initialized = true
 	print("[RadioStoryController] Initialized")
 end

@@ -108,7 +108,7 @@ local function _initPlayerStats(userId: number)
 		statInvested = savedStats and savedStats.statInvested or {
 			[Enums.StatId.MAX_HEALTH] = 0,
 			[Enums.StatId.MAX_STAMINA] = 0,
-			[Enums.StatId.WEIGHT] = 0,
+			[Enums.StatId.INV_SLOTS] = 0,
 			[Enums.StatId.WORK_SPEED] = 0,
 			[Enums.StatId.ATTACK] = 0,
 		},
@@ -120,6 +120,13 @@ local function _initPlayerStats(userId: number)
 		},
 		dnaCompy = savedStats and savedStats.dnaCompy or 0, -- 하위 호환 유지
 	}
+	
+	-- 레거시 마이그레이션: 기존 WEIGHT 스탯을 INV_SLOTS로 변환
+	local si = playerStats[userId].statInvested
+	if si["WEIGHT"] and si["WEIGHT"] > 0 then
+		si[Enums.StatId.INV_SLOTS] = (si[Enums.StatId.INV_SLOTS] or 0) + si["WEIGHT"]
+		si["WEIGHT"] = nil
+	end
 end
 
 --- 플레이어 스탯 저장
@@ -242,6 +249,15 @@ function PlayerStatService.upgradeStat(userId: number, statId: string): (boolean
 		return false, Enums.ErrorCode.INSUFFICIENT_STAT_POINTS
 	end
 	
+	-- 인벤토리 칸 스탯: 120칸 상한 검사
+	if statId == Enums.StatId.INV_SLOTS then
+		local currentInvested = stats.statInvested[Enums.StatId.INV_SLOTS] or 0
+		local currentSlots = Balance.BASE_INV_SLOTS + (currentInvested * Balance.SLOTS_PER_POINT)
+		if currentSlots >= Balance.MAX_INV_SLOTS then
+			return false, "MAX_SLOTS_REACHED"
+		end
+	end
+	
 	stats.statInvested[statId] = (stats.statInvested[statId] or 0) + 1
 	_savePlayerStats(userId)
 	
@@ -327,7 +343,10 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 	return {
 		maxHealth = finalHp,
 		maxStamina = finalSta,
-		maxWeight = 300 + ((stats[Enums.StatId.WEIGHT] or 0) * Balance.WEIGHT_PER_POINT),
+		maxSlots = math.min(
+			Balance.MAX_INV_SLOTS,
+			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT)
+		),
 		workSpeed = finalWork,
 		attackMult = finalAtk,
 		defense = defense + dnaBonuses.defense,
@@ -363,9 +382,9 @@ function PlayerStatService.applyStats(userId: number)
 		StaminaService.setMaxStamina(userId, calc.maxStamina)
 	end
 	
-	-- 3. 기타 속성 적용 (무게, 공격력 등은 관련 서비스에서 GetCalculatedStats 호출하여 참조)
+	-- 3. 기타 속성 적용 (인벤토리 칸, 공격력 등은 관련 서비스에서 GetCalculatedStats 호출하여 참조)
 	if character then
-		character:SetAttribute("MaxWeight", calc.maxWeight)
+		character:SetAttribute("MaxSlots", calc.maxSlots)
 		character:SetAttribute("AttackMult", calc.attackMult)
 		character:SetAttribute("WorkSpeed", calc.workSpeed)
 		character:SetAttribute("Defense", calc.defense)
@@ -473,6 +492,30 @@ function PlayerStatService.addCollectionDna(userId: number, creatureId: string, 
 end
 
 --========================================
+-- Public API: Reset All Stats
+--========================================
+
+--- 모든 투자 스탯을 초기화하고 포인트 환급
+function PlayerStatService.resetAllStats(userId: number): (boolean, number)
+	_initPlayerStats(userId)
+	local stats = playerStats[userId]
+	if not stats then return false, 0 end
+	
+	local totalRefunded = 0
+	for statId, invested in pairs(stats.statInvested) do
+		totalRefunded = totalRefunded + (invested or 0)
+		stats.statInvested[statId] = 0
+	end
+	
+	if totalRefunded <= 0 then return false, 0 end
+	
+	_savePlayerStats(userId)
+	PlayerStatService.applyStats(userId)
+	
+	return true, totalRefunded
+end
+
+--========================================
 -- Handlers
 --========================================
 
@@ -506,10 +549,42 @@ local function handleUpgradeStat(player: Player, payload: any)
 	return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
 end
 
+local function handleResetStats(player: Player, payload: any)
+	local userId = player.UserId
+	
+	-- 1. 초기화 전 현재 maxSlots 기억
+	local oldCalc = PlayerStatService.GetCalculatedStats(userId)
+	local oldMaxSlots = oldCalc.maxSlots or Balance.BASE_INV_SLOTS
+	
+	-- 2. 스탯 초기화
+	local ok, refunded = PlayerStatService.resetAllStats(userId)
+	if not ok then
+		return { success = false, errorCode = "NOTHING_TO_RESET" }
+	end
+	
+	-- 3. 초기화 후 새 maxSlots (= BASE_INV_SLOTS, 모든 스탯 0이므로)
+	local newMaxSlots = Balance.BASE_INV_SLOTS
+	
+	-- 4. 인벤토리 초과 아이템 월드 드랍 처리
+	local droppedItems = {}
+	if newMaxSlots < oldMaxSlots then
+		-- InventoryService 지연 로딩 (순환 참조 방지)
+		local invOk, InventoryService = pcall(function()
+			return require(game:GetService("ServerScriptService").Server.Services.InventoryService)
+		end)
+		if invOk and InventoryService and InventoryService.dropExcessItems then
+			droppedItems = InventoryService.dropExcessItems(player, newMaxSlots)
+		end
+	end
+	
+	return { success = true, data = { refunded = refunded, droppedCount = #droppedItems } }
+end
+
 function PlayerStatService.GetHandlers()
 	return {
 		["Player.Stats.Request"] = handleGetStats,
 		["Player.Stats.Upgrade.Request"] = handleUpgradeStat,
+		["Player.Stats.Reset.Request"] = handleResetStats,
 	}
 end
 

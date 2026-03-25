@@ -176,6 +176,17 @@ function UIManager.addPendingStat(statId)
 	local currentTotalPending = 0
 	for _, v in pairs(pendingStats) do currentTotalPending = currentTotalPending + (v or 0) end
 	
+	-- 인벤토리 칸 스탯: 120칸 상한 검사
+	if statId == Enums.StatId.INV_SLOTS then
+		local calc = cachedStats and cachedStats.calculated or {}
+		local currentMaxSlots = calc.maxSlots or Balance.BASE_INV_SLOTS
+		local pendingSlots = (pendingStats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT
+		if currentMaxSlots + pendingSlots >= Balance.MAX_INV_SLOTS then
+			UIManager.notify("인벤토리 최대 칸수(" .. Balance.MAX_INV_SLOTS .. "칸)에 도달했습니다.", C.RED)
+			return
+		end
+	end
+	
 	if currentTotalPending < available then
 		pendingStats[statId] = (pendingStats[statId] or 0) + 1
 		UIManager.refreshStats()
@@ -202,6 +213,40 @@ function UIManager.confirmPendingStats()
 			-- cachedStats는 Player.Stats.Changed 이벤트로 업데이트됨
 		else
 			UIManager.notify("강화 실패: " .. tostring(data), C.RED)
+		end
+	end)
+end
+
+function UIManager.resetAllStats()
+	-- 투자된 스탯이 하나라도 있는지 확인
+	local invested = cachedStats and cachedStats.statInvested
+	if not invested then
+		UIManager.notify("초기화할 스탯이 없습니다.", C.RED)
+		return
+	end
+	local totalInvested = 0
+	for _, v in pairs(invested) do totalInvested = totalInvested + (v or 0) end
+	if totalInvested <= 0 then
+		UIManager.notify("초기화할 스탯이 없습니다.", C.RED)
+		return
+	end
+	
+	-- 보류 중인 강화 취소
+	pendingStats = {}
+	
+	task.spawn(function()
+		local ok, data = NetClient.Request("Player.Stats.Reset.Request", {})
+		if ok then
+			local refunded = data and data.refunded or 0
+			local dropped = data and data.droppedCount or 0
+			UIManager.notify(string.format("스탯 초기화 완료! %d 포인트 환급", refunded), C.GREEN)
+			if dropped > 0 then
+				UIManager.notify(string.format("초과 아이템 %d종이 발 밑에 드랍되었습니다.", dropped), C.GOLD)
+			end
+			UIManager.refreshStats()
+			UIManager.refreshInventory()
+		else
+			UIManager.notify("스탯 초기화 실패: " .. tostring(data), C.RED)
 		end
 	end)
 end
@@ -530,7 +575,8 @@ end
 
 function UIManager.refreshInventory()
 	local items = InventoryController.getItems()
-	InventoryUI.RefreshSlots(items, getItemIcon, C, DataHelper)
+	local _, currentMaxSlots = InventoryController.getSlotInfo()
+	InventoryUI.RefreshSlots(items, getItemIcon, C, DataHelper, currentMaxSlots)
 	
 	-- 상세창 정보 업데이트 (선택된 슬롯이 있는 경우 실시간 반영, 없으면 숨김)
 	if selectedInvSlot and items[selectedInvSlot] then
@@ -550,8 +596,8 @@ function UIManager.refreshInventory()
 		InventoryUI.UpdateDetail(nil) 
 	end
 	
-	local totalWeight, maxWeight = InventoryController.getWeightInfo()
-	InventoryUI.UpdateWeight(totalWeight, maxWeight, C)
+	local usedSlots, maxSlots = InventoryController.getSlotInfo()
+	InventoryUI.UpdateSlotInfo(usedSlots, maxSlots, C)
 	
 	UIManager.refreshHotbar()
 end
@@ -653,7 +699,7 @@ function UIManager.confirmModalAction(count)
 			-- Find empty slot
 			local emptySlot = nil
 			local items = InventoryController.getItems()
-			for i=1, Balance.INV_SLOTS do
+			for i=1, Balance.MAX_INV_SLOTS do
 				if not items[i] then emptySlot = i; break end
 			end
 			if emptySlot then
@@ -2112,6 +2158,11 @@ local function setupEventListeners()
 				end
 				if d.statPointsAvailable ~= nil then UIManager.updateStatPoints(d.statPointsAvailable) end
 				if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
+				-- 스탯 변경 시 인벤토리 슬롯 수 즉시 동기화
+				if d.calculated and d.calculated.maxSlots then
+					InventoryController.setMaxSlots(d.calculated.maxSlots)
+				end
+				UIManager.refreshInventory()
 			end
 		end)
 	end

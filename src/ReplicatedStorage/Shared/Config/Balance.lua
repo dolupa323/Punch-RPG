@@ -14,7 +14,7 @@ Balance.NIGHT_DURATION = 320       -- 밤 지속 시간 (단축)
 --========================================
 -- 인벤토리
 --========================================
-Balance.INV_SLOTS = 40             -- 인벤토리 슬롯 수 (UI와 통일)
+Balance.INV_SLOTS = 60             -- 기본 인벤토리 슬롯 수
 Balance.MAX_STACK = 99             -- 최대 스택 수량
 
 --========================================
@@ -123,9 +123,9 @@ Balance.XP_BUILD = 30                  -- 구조물 배치 보상 XP
 --========================================
 Balance.HP_PER_POINT = 10              -- 포인트당 체력 증가
 Balance.STAMINA_PER_POINT = 10         -- 포인트당 스태미너 증가
-Balance.WEIGHT_PER_POINT = 50          -- 포인트당 무게 증가
-Balance.BASE_WEIGHT_CAPACITY = 300     -- 기본 소지 무게 (kg)
-Balance.OVERWEIGHT_SPEED_MULT = 0.3    -- 무게 초과 시 이동 속도 배율
+Balance.SLOTS_PER_POINT = 5            -- 포인트당 인벤토리 칸 증가
+Balance.BASE_INV_SLOTS = 60            -- 기본 인벤토리 칸 수
+Balance.MAX_INV_SLOTS = 120            -- 최대 인벤토리 칸 수 (120 이상 불가)
 Balance.WORKSPEED_PER_POINT = 10       -- 포인트당 작업 속도 증가
 Balance.ATTACK_PER_POINT = 0.05        -- 포인트당 공격력 증가 (5%)
 

@@ -19,8 +19,8 @@ local equipmentCache = {
 	SUIT = nil,
 	HAND = nil,
 }
-local totalWeight = 0
-local maxWeight = 300
+local usedSlots = 0
+local maxSlots = 60
 
 -- 변경 콜백 리스너
 local changeListeners = {}
@@ -41,8 +41,12 @@ function InventoryController.getSlot(slot: number)
 	return inventoryCache[slot]
 end
 
-function InventoryController.getWeightInfo()
-	return totalWeight, maxWeight
+function InventoryController.getSlotInfo()
+	return usedSlots, maxSlots
+end
+
+function InventoryController.setMaxSlots(value: number)
+	maxSlots = value
 end
 
 function InventoryController.getEquipment()
@@ -212,8 +216,8 @@ local function onInventoryChanged(data)
 		end
 	end
 
-	if data.totalWeight then totalWeight = data.totalWeight end
-	if data.maxWeight then maxWeight = data.maxWeight end
+	if data.usedSlots then usedSlots = data.usedSlots end
+	if data.maxSlots then maxSlots = data.maxSlots end
 	if data.equipment then equipmentCache = data.equipment end
 	
 	-- Toast UI Notification check (Only run if actual item count increased)
@@ -300,8 +304,8 @@ function InventoryController.Init()
 				}
 			end
 			if fetchedData.equipment then equipmentCache = fetchedData.equipment end
-			totalWeight = fetchedData.totalWeight or 0
-			maxWeight = fetchedData.maxWeight or 300
+			usedSlots = fetchedData.usedSlots or 0
+			maxSlots = fetchedData.maxSlots or 60
 			fireChangeListeners()
 			
 			-- 초기 정렬 (Auto-stacking on first load)

@@ -120,7 +120,22 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	
 	-- [Right: Stats Distribution] (55%)
 	local statArea = Utils.mkFrame({name="StatArea", size=UDim2.new(0.55, 0, 1, 0), pos=UDim2.new(1, 0, 0, 0), anchor=Vector2.new(1,0), bg=C.BG_PANEL_L, parent=content})
-	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text=UILocalizer.Localize("보유 포인트: 0"), size=UDim2.new(1, -20, 0, 40), pos=UDim2.new(0,10,0,0), ts=18, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
+	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text=UILocalizer.Localize("보유 포인트: 0"), size=UDim2.new(1, -110, 0, 40), pos=UDim2.new(0,10,0,0), ts=18, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
+	
+	-- 전부 초기화 버튼 (StatPoints 라벨 오른쪽)
+	EquipmentUI.Refs.ResetAllBtn = Utils.mkBtn({
+		text=UILocalizer.Localize("초기화"),
+		size=UDim2.new(0, 90, 0, 30),
+		pos=UDim2.new(1, -10, 0, 5),
+		anchor=Vector2.new(1, 0),
+		bg=C.RED or Color3.fromRGB(200, 60, 60),
+		ts=13,
+		font=F.TITLE,
+		parent=statArea
+	})
+	EquipmentUI.Refs.ResetAllBtn.MouseButton1Click:Connect(function()
+		if UIManager.resetAllStats then UIManager.resetAllStats() end
+	end)
 	
 	local statsScroll = Instance.new("ScrollingFrame")
 	statsScroll.Size = UDim2.new(1,-20,1,-120); statsScroll.Position = UDim2.new(0,10,0,50); statsScroll.BackgroundTransparency = 1; statsScroll.BorderSizePixel = 0; statsScroll.ScrollBarThickness = 2; statsScroll.Parent = statArea
@@ -129,7 +144,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	local stats = {
 		{id=Enums.StatId.MAX_HEALTH, name="최대 체력", up=true}, 
 		{id=Enums.StatId.MAX_STAMINA, name="최대 스태미나", up=true}, 
-		{id=Enums.StatId.WEIGHT, name="최대 소지 무게", up=true}, 
+		{id=Enums.StatId.INV_SLOTS, name="인벤토리 칸", up=true}, 
 		{id=Enums.StatId.WORK_SPEED, name="작업 속도", up=true}, 
 		{id=Enums.StatId.ATTACK, name="공격력", up=true},
 		{id=Enums.StatId.DEFENSE, name="방어력", up=false}
@@ -304,7 +319,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 		local baseValue = 0
 		if statId == Enums.StatId.MAX_HEALTH then baseValue = calc.maxHealth or 100; valText = string.format("%d HP", baseValue)
 		elseif statId == Enums.StatId.MAX_STAMINA then baseValue = calc.maxStamina or 100; valText = string.format("%d STA", baseValue)
-		elseif statId == Enums.StatId.WEIGHT then baseValue = calc.maxWeight or 300; valText = string.format("%.1f kg", baseValue)
+		elseif statId == Enums.StatId.INV_SLOTS then baseValue = calc.maxSlots or 60; valText = string.format("%d 칸", baseValue)
 		elseif statId == Enums.StatId.WORK_SPEED then baseValue = calc.workSpeed or 100; valText = string.format("%d%%", baseValue)
 		elseif statId == Enums.StatId.ATTACK then baseValue = (calc.attackMult or 1.0) * 100; valText = string.format("%.0f%%", baseValue)
 		elseif statId == Enums.StatId.DEFENSE then baseValue = calc.defense or 0; valText = string.format("%d", baseValue) end

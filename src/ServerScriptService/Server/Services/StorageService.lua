@@ -286,7 +286,7 @@ function StorageService.move(
 	
 	if sourceType == "player" then
 		sourceContainer = playerInv
-		sourceMaxSlots = Balance.INV_SLOTS
+		sourceMaxSlots = Balance.MAX_INV_SLOTS
 	else
 		sourceContainer = storage
 		sourceMaxSlots = Balance.STORAGE_SLOTS
@@ -294,7 +294,7 @@ function StorageService.move(
 	
 	if targetType == "player" then
 		targetContainer = playerInv
-		targetMaxSlots = Balance.INV_SLOTS
+		targetMaxSlots = Balance.MAX_INV_SLOTS
 	else
 		targetContainer = storage
 		targetMaxSlots = Balance.STORAGE_SLOTS

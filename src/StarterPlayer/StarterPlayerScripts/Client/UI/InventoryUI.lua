@@ -76,7 +76,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.TabBag = Utils.mkBtn({text="INVENTORY [B]", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GOLD_SEL, parent=leftHeader})
 	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
 	
-	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 100 kg", size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, parent=leftHeader})
+	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 60", size=UDim2.new(0, 80, 1, 0), ts=14, color=C.GRAY, parent=leftHeader})
 	
 	local rightHeader = Utils.mkFrame({size=UDim2.new(0.3, 0, 1, 0), pos=UDim2.new(1, -140, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=header})
 	local hList = Instance.new("UIListLayout"); hList.FillDirection=Enum.FillDirection.Horizontal; hList.HorizontalAlignment=Enum.HorizontalAlignment.Right; hList.VerticalAlignment=Enum.VerticalAlignment.Center; hList.Padding=UDim.new(0, 15); hList.Parent=rightHeader
@@ -120,7 +120,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 12); pad.PaddingRight = UDim.new(0, 20)
 	pad.Parent = scroll
 
-	for i = 1, Balance.INV_SLOTS do
+	for i = 1, Balance.MAX_INV_SLOTS do
 		local slot = Utils.mkSlot({name="Slot"..i, bgT=0.3, parent=scroll})
 		slot.frame.LayoutOrder = i
 		
@@ -440,15 +440,7 @@ function InventoryUI.SetTab(tabId)
 end
 
 function InventoryUI.UpdateSlotSelectionHighlight(selectedIndex, items, DataHelper)
-	local RarityColors = {
-		COMMON = Color3.fromRGB(168, 165, 155),
-		UNCOMMON = Color3.fromRGB(80, 180, 60),
-		RARE = Color3.fromRGB(70, 140, 220),
-		EPIC = Color3.fromRGB(170, 70, 220),
-		LEGENDARY = Color3.fromRGB(255, 200, 60),
-	}
-	
-	for i = 1, Balance.INV_SLOTS do
+	for i = 1, Balance.MAX_INV_SLOTS do
 		local s = InventoryUI.Refs.Slots[i]
 		if not s then continue end
 		local st = s.frame:FindFirstChildOfClass("UIStroke")
@@ -457,29 +449,23 @@ function InventoryUI.UpdateSlotSelectionHighlight(selectedIndex, items, DataHelp
 				st.Color = C.GOLD_SEL
 				st.Thickness = 2.5
 			else
-				local item = items and items[i]
-				local itemData = item and DataHelper.GetData("ItemData", item.itemId)
-				local color = (itemData and itemData.rarity and RarityColors[itemData.rarity]) or C.BORDER_DIM
-				st.Color = color
-				st.Thickness = (itemData and itemData.rarity and itemData.rarity ~= "COMMON") and 2 or 1
+				st.Color = C.BORDER_DIM
+				st.Thickness = 1
 			end
 		end
 	end
 end
 
-function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper)
+function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper, maxSlots)
 	local slots = InventoryUI.Refs.Slots
-	local RarityColors = {
-		COMMON = Color3.fromRGB(168, 165, 155),
-		UNCOMMON = Color3.fromRGB(80, 180, 60),
-		RARE = Color3.fromRGB(70, 140, 220),
-		EPIC = Color3.fromRGB(170, 70, 220),
-		LEGENDARY = Color3.fromRGB(255, 200, 60),
-	}
+	local activeSlots = maxSlots or Balance.BASE_INV_SLOTS
 
-	for i = 1, Balance.INV_SLOTS do
+	for i = 1, Balance.MAX_INV_SLOTS do
 		local s = slots[i]
 		if not s then continue end
+		
+		-- 활성 칸 초과 슬롯은 숨김
+		s.frame.Visible = (i <= activeSlots)
 		
 		local item = items[i]
 		local st = s.frame:FindFirstChildOfClass("UIStroke")
@@ -491,9 +477,8 @@ function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper)
 			
 			local itemData = DataHelper.GetData("ItemData", item.itemId)
 			if st then
-				local color = (itemData and itemData.rarity and RarityColors[itemData.rarity]) or C.BORDER_DIM
-				st.Color = color
-				st.Thickness = (itemData and itemData.rarity and itemData.rarity ~= "COMMON") and 2 or 1
+				st.Color = C.BORDER_DIM
+				st.Thickness = 1
 			end
 			
 			if item.durability and itemData and itemData.durability then
@@ -524,7 +509,7 @@ function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper)
 	end
 end
 
-function InventoryUI.UpdateWeight(cur, max, __C)
+function InventoryUI.UpdateSlotInfo(cur, max, __C)
 	if InventoryUI.Refs.WeightText then
 		InventoryUI.Refs.WeightText.Text = string.format("%d / %d", math.floor(cur), math.floor(max))
 	end
@@ -558,9 +543,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		d.Icon.Image = getItemIcon(itemData and itemData.id or itemId)
 		d.Icon.Visible = true
 		
-		local weightValue = (itemData and itemData.weight or 0.1) * (data.count or 1)
-		local weightStr = string.format("무게: %.1f", weightValue)
-		d.Stats.Text = UILocalizer.Localize(weightStr .. " | 수량: " .. (data.count or 1))
+		local weightStr = string.format("수량: %d", (data.count or 1))
+		d.Stats.Text = UILocalizer.Localize(weightStr)
 		
 		if itemData and itemData.description then
 			d.Desc.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)

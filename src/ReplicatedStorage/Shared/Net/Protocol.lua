@@ -98,6 +98,7 @@ Protocol.Commands = {
 	-- Player Stats 명령어 (Phase 6)
 	["Player.Stats.Request"] = true,           -- 레벨/XP/포인트 조회
 	["Player.Stats.Upgrade.Request"] = true,   -- 스탯 업그레이드 요청
+	["Player.Stats.Reset.Request"] = true,     -- 스탯 전부 초기화 요청
 	
 	-- Tech 명령어 (Phase 6)
 	["Tech.Unlock.Request"] = true,            -- 기술 해금 요청
