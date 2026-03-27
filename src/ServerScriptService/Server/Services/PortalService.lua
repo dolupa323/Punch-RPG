@@ -1,9 +1,12 @@
 -- PortalService.lua
--- 고대 포탈 시스템 (Ancient Portal)
--- 수리 재료 투입 → 강제 저장 → 열대섬 텔레포트
+-- 고대 포탈 시스템 (Ancient Portal) — 허브-스포크 모델
+-- 초원섬(허브)에 섬별 고대포탈, 각 섬에 귀환 포탈
+-- 이동 경로: 초원섬 ↔ 개별 섬 (섬끼리 직접 이동 불가)
 
-local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+
+local SpawnConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local PortalService = {}
 local initialized = false
@@ -16,71 +19,128 @@ local InventoryService
 --========================================
 -- Configuration
 --========================================
-local PORTAL_NAME = "Portal_Tropical"
-local TARGET_PLACE_ID = 107341024431610
-local PROMPT_DISTANCE = 14
-local PORTAL_USE_DISTANCE = 26
+local HUB_ZONE = SpawnConfig.HUB_ZONE or "GRASSLAND"
 
--- 포탈 수리 비용 (grassland_ecosystem_design.md 섹션 9)
-local REPAIR_COST = {
-	{ itemId = "LOG", amount = 10, name = "통나무" },
-	{ itemId = "STONE", amount = 10, name = "돌" },
+-- 포탈 정의 (섬 추가 시 여기에 항목 추가)
+local PORTAL_DEFINITIONS = {
+	{
+		id = "TROPICAL",                            -- 고유 ID (저장 키)
+		displayName = "열대섬 고대 포탈",            -- UI 표시명
+		destinationName = "열대섬",                  -- 이동 목적지 이름
+		portalName = "Portal_Tropical",             -- 초원섬의 출발 포탈 (workspace 오브젝트명)
+		returnPortalName = "Portal_Return_Tropical",-- 열대섬의 귀환 포탈 (workspace 오브젝트명)
+		targetZone = "TROPICAL",                    -- 이동 대상 Zone
+		repairCost = {
+			{ itemId = "LOG", amount = 10, name = "통나무" },
+			{ itemId = "STONE", amount = 10, name = "돌" },
+		},
+	},
+	-- ★ 향후 섬 추가 예시:
+	-- {
+	--     id = "DESERT",
+	--     displayName = "사막섬 고대 포탈",
+	--     destinationName = "사막섬",
+	--     portalName = "Portal_Desert",
+	--     returnPortalName = "Portal_Return_Desert",
+	--     targetZone = "DESERT",
+	--     repairCost = {
+	--         { itemId = "LOG", amount = 20, name = "통나무" },
+	--         { itemId = "IRON_INGOT", amount = 5, name = "철 주괴" },
+	--     },
+	-- },
 }
 
+local PROMPT_DISTANCE = 14
+local PORTAL_USE_DISTANCE = 26
 local DEBOUNCE_COOLDOWN = 3
-local debounces = {} -- userId → tick()
-local promptParts = {}
 
---========================================
--- Internal: Player State
---========================================
+local debounces = {}             -- [userId] = tick()
+local portalLookup = {}          -- [portalId] = definition
+local activeInteractions = {}    -- [userId] = { portalId, isReturn }
 
---- 포탈 수리 여부 확인
-local function _isPortalRepaired(userId)
-	if not SaveService then return false end
-	local state = SaveService.getPlayerState(userId)
-	return state and state.portalRepaired == true
+-- 포탈 정의 룩업 테이블 구축
+for _, def in ipairs(PORTAL_DEFINITIONS) do
+	portalLookup[def.id] = def
 end
 
-local function _ensurePortalProgress(state)
-	state.portalProgress = type(state.portalProgress) == "table" and state.portalProgress or {}
-	for _, req in ipairs(REPAIR_COST) do
-		if type(state.portalProgress[req.itemId]) ~= "number" then
-			state.portalProgress[req.itemId] = 0
+--========================================
+-- Save State Helpers (per-portal)
+--========================================
+
+--- 레거시 저장 데이터 마이그레이션 (portalRepaired → portals.TROPICAL)
+local function _migrateOldPortalState(state)
+	if state.portalRepaired ~= nil and not state.portals then
+		state.portals = {
+			TROPICAL = {
+				repaired = state.portalRepaired == true,
+				progress = type(state.portalProgress) == "table" and state.portalProgress or {},
+			},
+		}
+		state.portalRepaired = nil
+		state.portalProgress = nil
+	end
+	if not state.portals then
+		state.portals = {}
+	end
+	return state.portals
+end
+
+local function _getPortalState(userId, portalId)
+	local state = SaveService and SaveService.getPlayerState(userId)
+	if not state then return { repaired = false, progress = {} } end
+	local portals = _migrateOldPortalState(state)
+	if not portals[portalId] then
+		portals[portalId] = { repaired = false, progress = {} }
+	end
+	return portals[portalId]
+end
+
+local function _isPortalRepaired(userId, portalId)
+	return _getPortalState(userId, portalId).repaired == true
+end
+
+local function _ensurePortalProgress(portalState, repairCost)
+	if type(portalState.progress) ~= "table" then
+		portalState.progress = {}
+	end
+	for _, req in ipairs(repairCost) do
+		if type(portalState.progress[req.itemId]) ~= "number" then
+			portalState.progress[req.itemId] = 0
 		end
 	end
-	return state.portalProgress
+	return portalState.progress
 end
 
---- 포탈 수리 완료 마킹
-local function _markPortalRepaired(userId)
+local function _markPortalRepaired(userId, portalId)
 	if not SaveService then return end
+	local def = portalLookup[portalId]
+	if not def then return end
 	SaveService.updatePlayerState(userId, function(state)
-		state.portalRepaired = true
-		local progress = _ensurePortalProgress(state)
-		for _, req in ipairs(REPAIR_COST) do
+		local portals = _migrateOldPortalState(state)
+		if not portals[portalId] then portals[portalId] = {} end
+		portals[portalId].repaired = true
+		local progress = _ensurePortalProgress(portals[portalId], def.repairCost)
+		for _, req in ipairs(def.repairCost) do
 			progress[req.itemId] = req.amount
 		end
 		return state
 	end)
 end
 
-local function _getPortalStatus(userId)
-	local repaired = _isPortalRepaired(userId)
-	local state = SaveService and SaveService.getPlayerState(userId)
-	local progress = {}
-	if state then
-		progress = _ensurePortalProgress(state)
-	end
+local function _getPortalStatus(userId, portalId)
+	local def = portalLookup[portalId]
+	if not def then return { repaired = false, cost = {} } end
+
+	local portalState = _getPortalState(userId, portalId)
+	local repaired = portalState.repaired == true
+	local progress = _ensurePortalProgress(portalState, def.repairCost)
 	local cost = {}
 	local allMet = true
 
-	for _, req in ipairs(REPAIR_COST) do
+	for _, req in ipairs(def.repairCost) do
 		local current = math.clamp(tonumber(progress[req.itemId]) or 0, 0, req.amount)
 		local met = current >= req.amount
-		if not met then
-			allMet = false
-		end
+		if not met then allMet = false end
 		table.insert(cost, {
 			itemId = req.itemId,
 			name = req.name,
@@ -92,74 +152,26 @@ local function _getPortalStatus(userId)
 	end
 
 	if allMet and not repaired then
-		_markPortalRepaired(userId)
+		_markPortalRepaired(userId, portalId)
 		repaired = true
 	end
 
 	return {
+		portalId = portalId,
+		displayName = def.displayName,
+		destinationName = def.destinationName,
 		repaired = repaired,
 		cost = cost,
+		isReturn = false,
 	}
 end
 
 --========================================
--- Internal: Material Check
+-- Portal Object Helpers
 --========================================
 
---- 재료 보유 상태 확인 (부족한 항목 반환)
-local function _checkMaterials(userId)
-	local status = _getPortalStatus(userId)
-	local allMet = true
-	for _, item in ipairs(status.cost) do
-		if not item.met then
-			allMet = false
-			break
-		end
-	end
-	return allMet, status.cost
-end
-
---- 수리 재료 소모
-local function _consumeMaterials(userId)
-	-- 사전 체크: 모든 재료 보유 확인
-	for _, req in ipairs(REPAIR_COST) do
-		if not InventoryService.hasItem(userId, req.itemId, req.amount) then
-			return false
-		end
-	end
-
-	-- 실제 소모
-	local consumed = {}
-	for _, req in ipairs(REPAIR_COST) do
-		local removed = InventoryService.removeItem(userId, req.itemId, req.amount)
-		table.insert(consumed, { itemId = req.itemId, count = removed })
-		if removed < req.amount then
-			-- 롤백
-			for _, c in ipairs(consumed) do
-				if c.count > 0 then
-					InventoryService.addItem(userId, c.itemId, c.count)
-				end
-			end
-			warn(string.format("[PortalService] Material consumption failed: %s (%d/%d)", req.itemId, removed, req.amount))
-			return false
-		end
-	end
-	return true
-end
-
-local function _getPortalObject()
-	return workspace:FindFirstChild(PORTAL_NAME)
-end
-
-local function _getPortalReferencePart(portalObject)
-	if not portalObject then return nil end
-	if portalObject:IsA("BasePart") then return portalObject end
-	if portalObject:IsA("Model") then
-		return portalObject:FindFirstChild("PromptPart")
-			or portalObject.PrimaryPart
-			or portalObject:FindFirstChildWhichIsA("BasePart")
-	end
-	return nil
+local function _getPortalObject(objectName)
+	return workspace:FindFirstChild(objectName)
 end
 
 local function _distanceToPortalSurface(player, portalObject)
@@ -205,20 +217,35 @@ local function _distanceToPortalSurface(player, portalObject)
 	return math.huge
 end
 
-local function _isPlayerNearPortal(player)
-	local portalObject = _getPortalObject()
+local function _isPlayerNearPortal(player, objectName)
+	local portalObject = _getPortalObject(objectName)
 	if not portalObject then return false end
 	return _distanceToPortalSurface(player, portalObject) <= PORTAL_USE_DISTANCE
 end
 
+--========================================
+-- Deposit Material (per-portal)
+--========================================
+
 local function _depositPortalMaterial(player, payload)
 	local userId = player.UserId
-	if not _isPlayerNearPortal(player) then
+	local interaction = activeInteractions[userId]
+	local portalId = (payload and payload.portalId) or (interaction and interaction.portalId)
+	if not portalId then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+
+	local def = portalLookup[portalId]
+	if not def then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+
+	if not _isPlayerNearPortal(player, def.portalName) then
 		return { success = false, errorCode = "OUT_OF_RANGE" }
 	end
 
-	if _isPortalRepaired(userId) then
-		return { success = true, data = _getPortalStatus(userId) }
+	if _isPortalRepaired(userId, portalId) then
+		return { success = true, data = _getPortalStatus(userId, portalId) }
 	end
 
 	local itemId = payload and payload.itemId
@@ -227,7 +254,7 @@ local function _depositPortalMaterial(player, payload)
 	end
 
 	local reqData = nil
-	for _, req in ipairs(REPAIR_COST) do
+	for _, req in ipairs(def.repairCost) do
 		if req.itemId == itemId then
 			reqData = req
 			break
@@ -242,19 +269,20 @@ local function _depositPortalMaterial(player, payload)
 		return { success = false, errorCode = "INVALID_STATE" }
 	end
 
-	local progress = _ensurePortalProgress(state)
+	local portals = _migrateOldPortalState(state)
+	if not portals[portalId] then portals[portalId] = { repaired = false, progress = {} } end
+	local progress = _ensurePortalProgress(portals[portalId], def.repairCost)
 	local current = math.clamp(tonumber(progress[itemId]) or 0, 0, reqData.amount)
 	local need = reqData.amount - current
 	if need <= 0 then
-		return { success = true, data = _getPortalStatus(userId) }
+		return { success = true, data = _getPortalStatus(userId, portalId) }
 	end
 
 	local requestedAmount = math.max(1, math.floor(tonumber(payload and payload.amount) or need))
 	local depositAmount = math.min(need, requestedAmount)
 
 	if not InventoryService.hasItem(userId, itemId, 1) then
-		local status = _getPortalStatus(userId)
-		return { success = false, errorCode = "NO_ITEM", data = status }
+		return { success = false, errorCode = "NO_ITEM", data = _getPortalStatus(userId, portalId) }
 	end
 
 	local removed = InventoryService.removeItem(userId, itemId, depositAmount)
@@ -263,7 +291,9 @@ local function _depositPortalMaterial(player, payload)
 	end
 
 	SaveService.updatePlayerState(userId, function(s)
-		local prog = _ensurePortalProgress(s)
+		local p = _migrateOldPortalState(s)
+		if not p[portalId] then p[portalId] = { repaired = false, progress = {} } end
+		local prog = _ensurePortalProgress(p[portalId], def.repairCost)
 		prog[itemId] = math.min(reqData.amount, (tonumber(prog[itemId]) or 0) + removed)
 		return s
 	end)
@@ -271,68 +301,186 @@ local function _depositPortalMaterial(player, payload)
 	if SaveService and SaveService.savePlayer then
 		local saveOk, saveErr = SaveService.savePlayer(userId)
 		if not saveOk then
-			warn(string.format("[PortalService] Immediate save failed after deposit (user=%d): %s", userId, tostring(saveErr)))
+			warn(string.format("[PortalService] Save failed after deposit (user=%d): %s", userId, tostring(saveErr)))
 		end
 	end
 
-	local status = _getPortalStatus(userId)
+	local status = _getPortalStatus(userId, portalId)
 	if status.repaired then
-		NetController.FireClient(player, "Portal.Repaired", {})
+		NetController.FireClient(player, "Portal.Repaired", { portalId = portalId })
 	end
 
 	return { success = true, data = status }
 end
 
-local function _requestPortalTeleport(player)
-	if not _isPlayerNearPortal(player) then
+--========================================
+-- Teleportation
+--========================================
+
+local function _requestPortalTeleport(player, payload)
+	local userId = player.UserId
+	local interaction = activeInteractions[userId]
+	local portalId = (payload and payload.portalId) or (interaction and interaction.portalId)
+	local isReturn = interaction and interaction.isReturn or false
+
+	if not portalId then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+
+	local def = portalLookup[portalId]
+	if not def then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+
+	-- 근접 체크 (출발/귀환 여부에 따라 다른 오브젝트)
+	local portalObjectName = isReturn and def.returnPortalName or def.portalName
+	if not _isPlayerNearPortal(player, portalObjectName) then
 		return { success = false, errorCode = "OUT_OF_RANGE" }
 	end
 
-	local userId = player.UserId
-	if not _isPortalRepaired(userId) then
+	-- 출발 포탈은 수리 필요, 귀환 포탈은 수리 불필요
+	if not isReturn and not _isPortalRepaired(userId, portalId) then
 		return { success = false, errorCode = "INVALID_STATE" }
 	end
 
-	if TARGET_PLACE_ID == 0 then
+	-- 목적지 Zone 결정: 출발=대상섬, 귀환=초원섬
+	local targetZoneName = isReturn and HUB_ZONE or def.targetZone
+	local zoneInfo = SpawnConfig.GetZoneInfo(targetZoneName)
+	if not zoneInfo or not zoneInfo.spawnPoint then
+		warn("[PortalService] Zone not found:", targetZoneName)
 		return { success = false, errorCode = "INVALID_STATE" }
 	end
 
-	NetController.FireClient(player, "Portal.Teleporting", {})
+	local destName = isReturn and "초원섬" or def.destinationName
+	NetController.FireClient(player, "Portal.Teleporting", {
+		portalId = portalId,
+		destination = destName,
+	})
+
 	local saveOk = SaveService.savePlayer(userId)
 	if not saveOk then
 		return { success = false, errorCode = "INTERNAL_ERROR" }
 	end
 
-	local success, err = pcall(function()
-		TeleportService:TeleportAsync(TARGET_PLACE_ID, {player})
-	end)
-	if not success then
-		warn("[PortalService] Teleport failed:", err)
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not character or not hrp then
 		return { success = false, errorCode = "INTERNAL_ERROR" }
 	end
 
-	return { success = true, data = { teleporting = true } }
+	local targetPos = zoneInfo.spawnPoint + Vector3.new(0, 5, 0)
+	character:PivotTo(CFrame.new(targetPos))
+
+	NetController.FireClient(player, "Portal.Arrived", { zone = targetZoneName, portalId = portalId })
+	print(string.format("[PortalService] %s warped to '%s' via portal '%s'%s",
+		player.Name, targetZoneName, portalId, isReturn and " (return)" or ""))
+
+	return { success = true, data = { teleporting = true, zone = targetZoneName } }
 end
 
 --========================================
--- Internal: Portal Interaction
+-- Portal Interaction (Triggered)
 --========================================
 
-local function _onPortalTriggered(player)
+local function _onPortalTriggered(player, portalId, isReturn)
 	local userId = player.UserId
 
-	-- 디바운스
 	if debounces[userId] and (tick() - debounces[userId]) < DEBOUNCE_COOLDOWN then
 		return
 	end
 	debounces[userId] = tick()
 
-	if not _isPlayerNearPortal(player) then
+	local def = portalLookup[portalId]
+	if not def then return end
+
+	local portalObjectName = isReturn and def.returnPortalName or def.portalName
+	if not _isPlayerNearPortal(player, portalObjectName) then
 		return
 	end
 
-	local status = _getPortalStatus(userId)
-	NetController.FireClient(player, "Portal.UI.Open", status)
+	-- 현재 상호작용 중인 포탈 기록
+	activeInteractions[userId] = { portalId = portalId, isReturn = isReturn }
+
+	if isReturn then
+		-- 귀환 포탈: 수리 불필요, 바로 이용 가능
+		NetController.FireClient(player, "Portal.UI.Open", {
+			portalId = portalId,
+			displayName = "초원섬 귀환 포탈",
+			destinationName = "초원섬",
+			repaired = true,
+			cost = {},
+			isReturn = true,
+		})
+	else
+		-- 출발 포탈: 수리 상태 반영
+		local status = _getPortalStatus(userId, portalId)
+		NetController.FireClient(player, "Portal.UI.Open", status)
+	end
+end
+
+--========================================
+-- Portal Prompt Setup
+--========================================
+
+local function _attachPrompt(part, objectText, actionText, callback)
+	if not part or not part:IsA("BasePart") then return end
+	local existing = part:FindFirstChild("PortalPrompt")
+	if existing then existing:Destroy() end
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PortalPrompt"
+	prompt.ObjectText = objectText
+	prompt.ActionText = actionText
+	prompt.KeyboardKeyCode = Enum.KeyCode.R
+	prompt.MaxActivationDistance = PROMPT_DISTANCE
+	prompt.HoldDuration = 0
+	prompt.Style = Enum.ProximityPromptStyle.Custom
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = part
+
+	prompt.Triggered:Connect(callback)
+end
+
+local function _setupPortalObject(objectName, objectText, actionText, callback)
+	task.spawn(function()
+		local portalObj = workspace:WaitForChild(objectName, 30)
+		if not portalObj then
+			warn("[PortalService] Portal object not found:", objectName)
+			return
+		end
+
+		if portalObj:IsA("Model") then
+			local found = 0
+			for _, d in ipairs(portalObj:GetDescendants()) do
+				if d:IsA("BasePart") then
+					_attachPrompt(d, objectText, actionText, callback)
+					found += 1
+				end
+			end
+			if found == 0 then
+				_attachPrompt(
+					portalObj.PrimaryPart or portalObj:FindFirstChildWhichIsA("BasePart"),
+					objectText, actionText, callback
+				)
+			end
+		elseif portalObj:IsA("BasePart") then
+			_attachPrompt(portalObj, objectText, actionText, callback)
+		end
+
+		print("[PortalService] Portal ready:", objectName)
+	end)
+end
+
+local function _setupPortalPair(def)
+	-- 출발 포탈 (초원섬 → 대상 섬)
+	_setupPortalObject(def.portalName, def.displayName, "상호작용", function(player)
+		_onPortalTriggered(player, def.id, false)
+	end)
+
+	-- 귀환 포탈 (대상 섬 → 초원섬)
+	_setupPortalObject(def.returnPortalName, "초원섬 귀환 포탈", "돌아가기", function(player)
+		_onPortalTriggered(player, def.id, true)
+	end)
 end
 
 --========================================
@@ -346,79 +494,36 @@ function PortalService.Init(_NetController, _SaveService, _InventoryService)
 	SaveService = _SaveService
 	InventoryService = _InventoryService
 
-	-- 포탈 오브젝트에 ProximityPrompt 설정
-	task.spawn(function()
-		local portalObject = workspace:WaitForChild(PORTAL_NAME, 30)
-		if not portalObject then
-			warn("[PortalService] Portal object not found:", PORTAL_NAME)
-			return
-		end
+	-- 모든 포탈 정의에 대해 프롬프트 설정
+	for _, def in ipairs(PORTAL_DEFINITIONS) do
+		_setupPortalPair(def)
+	end
 
-		local function attachPrompt(part)
-			if not part or not part:IsA("BasePart") then return end
-
-			local existing = part:FindFirstChild("PortalPrompt")
-			if existing and existing:IsA("ProximityPrompt") then
-				existing:Destroy()
-			end
-
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.Name = "PortalPrompt"
-			prompt.ObjectText = "고대 포탈"
-			prompt.ActionText = "상호작용"
-			prompt.KeyboardKeyCode = Enum.KeyCode.R
-			prompt.MaxActivationDistance = PROMPT_DISTANCE
-			prompt.HoldDuration = 0
-			prompt.Style = Enum.ProximityPromptStyle.Custom
-			prompt.RequiresLineOfSight = false
-			prompt.Parent = part
-
-			prompt.Triggered:Connect(function(player)
-				_onPortalTriggered(player)
-			end)
-
-			table.insert(promptParts, part)
-		end
-
-		if portalObject:IsA("Model") then
-			local found = 0
-			for _, d in ipairs(portalObject:GetDescendants()) do
-				if d:IsA("BasePart") then
-					attachPrompt(d)
-					found += 1
-				end
-			end
-			if found == 0 then
-				local fallback = _getPortalReferencePart(portalObject)
-				attachPrompt(fallback)
-			end
-		elseif portalObject:IsA("BasePart") then
-			attachPrompt(portalObject)
-		end
-
-		print("[PortalService] Portal prompts initialized:", PORTAL_NAME)
-	end)
-
-	-- 플레이어 퇴장 시 디바운스 정리
 	Players.PlayerRemoving:Connect(function(player)
 		debounces[player.UserId] = nil
+		activeInteractions[player.UserId] = nil
 	end)
 
 	initialized = true
-	print("[PortalService] Initialized")
+	print("[PortalService] Initialized with", #PORTAL_DEFINITIONS, "portal(s)")
 end
 
 --- 네트워크 핸들러
 function PortalService.GetHandlers()
 	return {
-		["Portal.GetStatus.Request"] = function(player, _payload)
-			return { success = true, data = _getPortalStatus(player.UserId) }
+		["Portal.GetStatus.Request"] = function(player, payload)
+			local interaction = activeInteractions[player.UserId]
+			local portalId = (payload and payload.portalId) or (interaction and interaction.portalId)
+			if not portalId then
+				return { success = false, errorCode = "BAD_REQUEST" }
+			end
+			return { success = true, data = _getPortalStatus(player.UserId, portalId) }
 		end,
 		["Portal.Deposit.Request"] = function(player, payload)
 			return _depositPortalMaterial(player, payload or {})
 		end,
-		["Portal.Teleport.Request"] = function(player, _payload)
-			return _requestPortalTeleport(player)
+		["Portal.Teleport.Request"] = function(player, payload)
+			return _requestPortalTeleport(player, payload or {})
 		end,
 	}
 end

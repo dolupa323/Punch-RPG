@@ -1557,6 +1557,10 @@ function UIManager.requestPortalDeposit(itemId, remaining)
 	UIManager.refreshPortal(dataOrErr)
 end
 
+function UIManager.sortInventory()
+	InventoryController.requestSort()
+end
+
 function UIManager.requestPortalTeleport()
 	local ok, err = NetClient.Request("Portal.Teleport.Request", {})
 	if not ok then
@@ -2286,8 +2290,9 @@ local function setupEventListeners()
 			UIManager.refreshPortal({ repaired = true })
 		end)
 
-		NetClient.On("Portal.Teleporting", function(_data)
-			UIManager.sideNotify("🌀 저장 중... 열대섬으로 이동합니다", Color3.fromRGB(100, 200, 255))
+		NetClient.On("Portal.Teleporting", function(data)
+			local dest = (data and data.destination) or "다음 섬"
+			UIManager.sideNotify("🌀 저장 중... " .. dest .. "(으)로 이동합니다", Color3.fromRGB(100, 200, 255))
 			UIManager.closePortal()
 		end)
 

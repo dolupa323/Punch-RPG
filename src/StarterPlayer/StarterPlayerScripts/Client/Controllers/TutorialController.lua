@@ -6,6 +6,7 @@ local UIManager = require(script.Parent.Parent.UIManager)
 local RadioStoryController = require(script.Parent.RadioStoryController)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SpawnConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local TutorialController = {}
 

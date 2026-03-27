@@ -86,7 +86,7 @@ local ResourceNodeData = {
 		resources = {
 			{ itemId = "LOG", min = 1, max = 2, weight = 1.0 },
 		},
-		maxHealth = 150,
+		maxHealth = 50,
 		respawnTime = 300,
 		xpPerHit = 3,
 		requiresTool = true, -- 도끼 필수
@@ -101,7 +101,7 @@ local ResourceNodeData = {
 		resources = {
 			{ itemId = "STONE", min = 1, max = 2, weight = 1.0 },
 		},
-		maxHealth = 150,
+		maxHealth = 50,
 		respawnTime = 300,
 		xpPerHit = 3,
 		requiresTool = true, -- 곡괭이 필수

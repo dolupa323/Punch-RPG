@@ -26,7 +26,7 @@ local NODE_CAP = Balance.RESOURCE_NODE_CAP or 400
 local MIN_SPAWN_DIST = 20
 local MAX_SPAWN_DIST = 60
 local DESPAWN_DIST = Balance.NODE_DESPAWN_DIST or 300
-local SEA_LEVEL = Balance.SEA_LEVEL or 10
+local SEA_LEVEL = Balance.SEA_LEVEL or 2
 local STARTER_NODE_TARGET_PER_TYPE = 2
 local STARTER_NODE_CHECK_RADIUS = 45
 local STARTER_NODE_MIN_DIST = 8
@@ -63,6 +63,12 @@ local GROUND_MATERIALS = {
 	Enum.Material.Mud,
 }
 
+-- 지형별 초기 스폰 노드 풀
+local GRASS_TERRAIN_NODES = { "TREE_THIN", "BUSH_BERRY", "GROUND_FIBER", "GROUND_BRANCH" }
+local ROCK_TERRAIN_NODES = { "ROCK_SOFT", "GROUND_STONE" }
+local SAND_TERRAIN_NODES = { "GROUND_STONE", "GROUND_BRANCH" }
+local GROUND_TERRAIN_NODES = { "GROUND_FIBER", "GROUND_BRANCH", "GROUND_STONE" }
+
 --========================================
 -- Dependencies (Init에서 주입)
 --========================================
@@ -93,6 +99,7 @@ local questCallback = nil
 local spawnedNodeCount = 0
 local spawnedNodesByType = {} -- { [nodeId] = count }
 local starterNodesSeededUsers = {} -- [userId] = true
+local templateCache = {} -- { [nodeId] = Model } 첫 성공 시 캐시
 --========================================
 -- Internal Functions
 --========================================
@@ -107,40 +114,76 @@ end
 -- 유연한 모델 로딩 시스템 (Toolbox 모델 지원)
 --========================================
 
---- 자원 모델 찾기 (유연한 이름 매칭)
+--- 자원 모델 찾기 (정확 매칭 우선, 부분 매칭은 후순위)
+--- ★ Pass 1: 정확한 modelName/nodeId 매칭만 시도
+--- ★ Pass 2: 부분 문자열 매칭 (fallback)
 local function findResourceModel(modelsFolder, modelName, nodeId)
 	if not modelsFolder then return nil end
 	
-	-- 1. 정확한 이름 매칭 (하위 폴더 포함 탐색)
-	local template = modelsFolder:FindFirstChild(modelName, true)
-	if template then return template end
-	
-	-- 2. nodeId로 매칭
-	template = modelsFolder:FindFirstChild(nodeId, true)
-	if template then return template end
-	
-	-- 3. 대소문자 무시 매칭
 	local lowerModelName = modelName:lower()
 	local lowerNodeId = nodeId:lower()
+	local lastPart = lowerNodeId:match("_([^_]+)$") or lowerNodeId
+	local nodeType = lowerNodeId:match("^([^_]+)")
 	
+	-- 정확 매칭 (modelName 또는 nodeId 완전 일치)
+	local function exactMatch(name)
+		local lower = name:lower()
+		return lower == lowerModelName or lower == lowerNodeId
+	end
+	
+	-- 부분 매칭 (lastPart 또는 nodeType 포함)
+	local function partialMatch(name)
+		local lower = name:lower()
+		if lower:find(lowerModelName, 1, true) or lowerModelName:find(lower, 1, true) then return true end
+		if lower:find(lastPart, 1, true) then return true end
+		if nodeType and lower:find(nodeType, 1, true) then return true end
+		return false
+	end
+	
+	-- Folder 내부에서 Model 추출 헬퍼
+	local function getModelFromFolder(folder)
+		for _, inner in ipairs(folder:GetChildren()) do
+			if inner:IsA("Model") or inner:IsA("BasePart") then
+				return inner
+			end
+		end
+		return nil
+	end
+	
+	-- ====== Pass 1: 정확 매칭만 시도 ======
+	-- 1-A: Folder 내부 (정확)
 	for _, child in ipairs(modelsFolder:GetChildren()) do
-		local childNameLower = child.Name:lower()
-		
-		-- modelName 또는 nodeId와 대소문자 무시 매칭
-		if childNameLower == lowerModelName or childNameLower == lowerNodeId then
+		if child:IsA("Folder") and exactMatch(child.Name) then
+			local found = getModelFromFolder(child)
+			if found then
+				print(string.format("[findResourceModel] EXACT match: '%s' in Folder '%s' for nodeId '%s'", found.Name, child.Name, nodeId))
+				return found
+			end
+		end
+	end
+	-- 1-B: 직접 Model/BasePart (정확)
+	for _, child in ipairs(modelsFolder:GetChildren()) do
+		if (child:IsA("Model") or child:IsA("BasePart")) and exactMatch(child.Name) then
+			print(string.format("[findResourceModel] EXACT match: direct child '%s' for nodeId '%s'", child.Name, nodeId))
 			return child
 		end
-		
-		-- 부분 문자열 매칭 (ex: "OakTreeModel"에서 "oak" 찾기)
-		-- nodeId에서 마지막 부분 추출 (TREE_OAK -> oak)
-		local lastPart = lowerNodeId:match("_([^_]+)$") or lowerNodeId
-		if childNameLower:find(lastPart) then
-			return child
+	end
+	
+	-- ====== Pass 2: 부분 매칭 (fallback) ======
+	-- 2-A: Folder 내부 (부분)
+	for _, child in ipairs(modelsFolder:GetChildren()) do
+		if child:IsA("Folder") and partialMatch(child.Name) then
+			local found = getModelFromFolder(child)
+			if found then
+				print(string.format("[findResourceModel] PARTIAL match: '%s' in Folder '%s' for nodeId '%s'", found.Name, child.Name, nodeId))
+				return found
+			end
 		end
-		
-		-- nodeType 매칭 (ex: "tree", "rock", "ore")
-		local nodeType = lowerNodeId:match("^([^_]+)")
-		if nodeType and childNameLower:find(nodeType) then
+	end
+	-- 2-B: 직접 Model/BasePart (부분)
+	for _, child in ipairs(modelsFolder:GetChildren()) do
+		if (child:IsA("Model") or child:IsA("BasePart")) and partialMatch(child.Name) then
+			print(string.format("[findResourceModel] PARTIAL match: direct child '%s' for nodeId '%s'", child.Name, nodeId))
 			return child
 		end
 	end
@@ -310,11 +353,19 @@ function HarvestService.spawnNodeModel(nodeId: string, position: Vector3, nodeUI
 	}
 	
 	local modelName = nodeData.modelName or nodeId
-	local template = nil
-	for _, folder in ipairs(searchFolders) do
-		if folder then
-			template = findResourceModel(folder, modelName, nodeId)
-			if template then break end
+	
+	-- 캐시된 템플릿 우선 사용
+	local template = templateCache[nodeId]
+	if not template then
+		-- 캐시 미스 시 Assets 등 외부 폴더에서만 검색
+		for _, folder in ipairs(searchFolders) do
+			if folder and folder ~= nodeFolder then
+				template = findResourceModel(folder, modelName, nodeId)
+				if template then
+					templateCache[nodeId] = template
+					break
+				end
+			end
 		end
 	end
 	
@@ -800,8 +851,14 @@ function HarvestService._spawnLoop()
 			if math.random() <= 0.5 then
 				local pos, material = HarvestService._findSpawnPosition(char.HumanoidRootPart)
 				if pos and material then
-					-- [수정] 잔돌, 나뭇가지 등 소형 바닥 자원 위주로 플레이어 주변 자동 스폰
-					local nodeId = SpawnConfig.GetRandomGroundHarvest()
+					-- [수정] 플레이어 위치의 Zone에 맞는 바닥 자원 스폰
+					local zoneName = SpawnConfig.GetZoneAtPosition(char.HumanoidRootPart.Position)
+					local nodeId
+					if zoneName then
+						nodeId = SpawnConfig.GetRandomGroundHarvestForZone(zoneName)
+					else
+						nodeId = SpawnConfig.GetRandomGroundHarvest()
+					end
 					if nodeId then
 						HarvestService._spawnAutoNode(nodeId, pos)
 						
@@ -1337,6 +1394,31 @@ local function ensureResourceNodesFolder()
 	return nodeFolder
 end
 
+--- workspace.ResourceNodes 내 카테고리 폴더에서 템플릿 Clone 캐시
+--- _setupPrePlacedNodes 전에 호출하여 순수 원본 보존
+function HarvestService._cacheTemplatesFromFolders()
+	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
+	if not nodeFolder then return end
+	
+	local cached = 0
+	for _, child in ipairs(nodeFolder:GetChildren()) do
+		if child:IsA("Folder") then
+			local firstModel = child:FindFirstChildWhichIsA("Model")
+			if firstModel then
+				-- 순수 원본 Clone (setupModelForNode 처리 전)
+				local clone = firstModel:Clone()
+				clone.Parent = nil -- detached 상태로 메모리에만 보관
+				templateCache[child.Name] = clone
+				cached = cached + 1
+			end
+		end
+	end
+	
+	if cached > 0 then
+		print(string.format("[HarvestService] Cached %d model templates from ResourceNodes folders", cached))
+	end
+end
+
 --- 맵에 미리 배치된 노드(ResourceNodes 폴더 안)를 태깅/활성화
 function HarvestService._setupPrePlacedNodes()
 	local nodeFolder = ensureResourceNodesFolder()
@@ -1455,19 +1537,26 @@ function HarvestService.Init(
 	-- ResourceNodes 폴더 사전 배치 노드 초기화
 	task.spawn(function()
 		task.wait(1) -- 맵 로드 대기
+		HarvestService._cacheTemplatesFromFolders()
 		HarvestService._setupPrePlacedNodes()
 		
-		-- [추가] 초기 맵 전체 분포 스폰 (바닥 자원 풍부화)
-		HarvestService._initialSpawn()
-	end)
-	
-	-- [수정] 자동스폰 루프 다시 활성화 (잔돌/나뭇가지 전용)
-	task.spawn(function()
-		while true do
-			task.wait(NODE_SPAWN_INTERVAL)
-			HarvestService._spawnLoop()
+		-- [추가] 초기 맵 전체 분포 스폰 (등록된 섬에서만)
+		if SpawnConfig.IsContentPlace() then
+			HarvestService._initialSpawn()
 		end
 	end)
+	
+	-- [수정] 자동스폰 루프 (등록된 섬에서만)
+	if SpawnConfig.IsContentPlace() then
+		task.spawn(function()
+			while true do
+				task.wait(NODE_SPAWN_INTERVAL)
+				HarvestService._spawnLoop()
+				end
+		end)
+	else
+		warn("[HarvestService] 미등록 PlaceId — 자원 노드 자동 스폰 비활성화")
+	end
 
 	-- 디스폰 체크 (플레이어와 너무 멀면 제거하여 성능 확보)
 	task.spawn(function()
@@ -1509,93 +1598,88 @@ function HarvestService.Init(
 	print("[HarvestService] Initialized — PRE-PLACED + AUTO-SPAWN MIXED system")
 end
 
---- ★ 초기 대량 스폰 (서버 시작 시 맵 전체에 자원 노드 배치)
+--- ★ 초기 대량 스폰 (서버 시작 시 각 Zone별로 자원 노드 배치)
 function HarvestService._initialSpawn()
-	local INITIAL_COUNT = Balance.INITIAL_NODE_COUNT or 150
-	local SPAWN_RADIUS = Balance.MAP_EXTENT or 1500
-	local MAP_CENTER = Vector3.new(0, 0, 0) -- 맵 중심
-	
-	-- 맵 중심 찾기 (SpawnLocation이 있으면 그 위치 사용)
-	local spawnLoc = workspace:FindFirstChild("SpawnLocation", true)
-	if spawnLoc and spawnLoc:IsA("BasePart") then
-		MAP_CENTER = spawnLoc.Position
-	end
-	
-	print(string.format("[HarvestService] Starting initial spawn: %d nodes across radius %.0f", 
-		INITIAL_COUNT, SPAWN_RADIUS))
-	
-	local spawned = 0
-	local attempts = 0
-	local MAX_ATTEMPTS = INITIAL_COUNT * 10 -- 성공률을 위해 시도 횟수 증가
-	
-	-- Exclude 리스트 (지형만 감지)
+	local TOTAL_COUNT = Balance.INITIAL_NODE_COUNT or 150
+	local allZones = SpawnConfig.GetAllZoneNames()
+	local PER_ZONE_COUNT = math.floor(TOTAL_COUNT / math.max(1, #allZones))
+
 	local excludeList = {}
 	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
 	if nodeFolder then table.insert(excludeList, nodeFolder) end
 	local creaturesFolder = workspace:FindFirstChild("Creatures")
 	if creaturesFolder then table.insert(excludeList, creaturesFolder) end
-	
-	while spawned < INITIAL_COUNT and attempts < MAX_ATTEMPTS do
-		attempts = attempts + 1
-		
-		-- 사각형 맵 전역 분포 (Corners 포함)
-		local xOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
-		local zOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
-		local x = MAP_CENTER.X + xOffset
-		local z = MAP_CENTER.Z + zOffset
-		local origin = Vector3.new(x, MAP_CENTER.Y + 400, z) -- 더 높은 곳에서 발사
-		
-		-- 지형/맵만 감지하도록 필터링 강화
-		local params = RaycastParams.new()
-		local filterList = { workspace.Terrain }
-		if workspace:FindFirstChild("Map") then
-			table.insert(filterList, workspace.Map)
-		end
-		params.FilterDescendantsInstances = filterList
-		params.FilterType = Enum.RaycastFilterType.Include
-		
-		local result = workspace:Raycast(origin, Vector3.new(0, -800, 0), params)
-		if result then
-			local isWater = result.Material == Enum.Material.Water
-				or result.Material == Enum.Material.CrackedLava
-			-- Balance.SEA_LEVEL 또는 로컬 SEA_LEVEL 사용
-			local currentSeaLevel = Balance.SEA_LEVEL or SEA_LEVEL or 10
-			local belowSeaLevel = result.Position.Y < currentSeaLevel
-			
-			if not isWater and not belowSeaLevel then
-				-- 기존 노드와 거리 체크 (최소 12 studs 간격)
-				local tooClose = false
-				if nodeFolder then
-					for _, existing in ipairs(nodeFolder:GetDescendants()) do
-						if existing:IsA("Model") then
-							local ePart = existing.PrimaryPart or existing:FindFirstChildWhichIsA("BasePart")
-							if ePart and (ePart.Position - result.Position).Magnitude < 12 then
-								tooClose = true
-								break
+
+	local totalSpawned = 0
+
+	for _, zoneName in ipairs(allZones) do
+		local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
+		if not zoneInfo then continue end
+
+		local SPAWN_RADIUS = math.min(Balance.MAP_EXTENT or 1500, zoneInfo.radius)
+		local MAP_CENTER = zoneInfo.center
+
+		print(string.format("[HarvestService] Zone '%s' initial spawn: %d nodes, radius %.0f, center %s",
+			zoneName, PER_ZONE_COUNT, SPAWN_RADIUS, tostring(MAP_CENTER)))
+
+		local spawned = 0
+		local attempts = 0
+		local MAX_ATTEMPTS = PER_ZONE_COUNT * 10
+
+		while spawned < PER_ZONE_COUNT and attempts < MAX_ATTEMPTS do
+			attempts = attempts + 1
+
+			local xOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
+			local zOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
+			local x = MAP_CENTER.X + xOffset
+			local z = MAP_CENTER.Z + zOffset
+			local origin = Vector3.new(x, MAP_CENTER.Y + 400, z)
+
+			local params = RaycastParams.new()
+			local filterList = { workspace.Terrain }
+			if workspace:FindFirstChild("Map") then
+				table.insert(filterList, workspace.Map)
+			end
+			params.FilterDescendantsInstances = filterList
+			params.FilterType = Enum.RaycastFilterType.Include
+
+			local result = workspace:Raycast(origin, Vector3.new(0, -800, 0), params)
+			if result then
+				local isWater = result.Material == Enum.Material.Water
+					or result.Material == Enum.Material.CrackedLava
+				local belowSeaLevel = result.Position.Y < SEA_LEVEL
+
+				if not isWater and not belowSeaLevel then
+					local tooClose = false
+					if nodeFolder then
+						for _, existing in ipairs(nodeFolder:GetDescendants()) do
+							if existing:IsA("Model") then
+								local ePart = existing.PrimaryPart or existing:FindFirstChildWhichIsA("BasePart")
+								if ePart and (ePart.Position - result.Position).Magnitude < 12 then
+									tooClose = true
+									break
+								end
 							end
 						end
 					end
-				end
-				
-				if not tooClose then
-					local pos = result.Position + Vector3.new(0, 0.5, 0)
-					local nodeId = selectNodeForTerrain(result.Material)
-					if nodeId then
-						-- ★ 초기 스폰은 isAutoSpawned = false로 설정하여 "Map" 노드화 (해당 자리 리젠)
-						local uid = HarvestService.registerNode(nodeId, pos, false)
-						
-						-- 모델 생성 (uid 전달하여 속성 설정)
-						HarvestService.spawnNodeModel(nodeId, pos, uid)
-						
-						spawned = spawned + 1
+
+					if not tooClose then
+						local pos = result.Position + Vector3.new(0, 0.5, 0)
+						local nodeId = selectNodeForTerrain(result.Material)
+						if nodeId then
+							local uid = HarvestService.registerNode(nodeId, pos, false)
+							HarvestService.spawnNodeModel(nodeId, pos, uid)
+							spawned = spawned + 1
+						end
 					end
 				end
 			end
 		end
+		totalSpawned = totalSpawned + spawned
 	end
-	
-	print(string.format("[HarvestService] Initial spawn complete: %d/%d nodes spawned (%d attempts)", 
-		spawned, INITIAL_COUNT, attempts))
+
+	print(string.format("[HarvestService] Initial spawn complete: %d nodes across %d zones",
+		totalSpawned, #allZones))
 end
 
 --- 보충 스폰 루프 (CAP까지 부족한 수만큼만 보충)

@@ -23,6 +23,9 @@ local NetController
 -- [userId] = { current, max, lastUseTime, isSprinting, isDodging, isInvulnerable }
 local playerStamina = {}
 
+-- Stagger (경직) 상태: [userId] = { mult = 0.15, expireTime = tick()+0.3 }
+local playerStagger = {}
+
 --========================================
 -- Internal Helpers
 --========================================
@@ -111,6 +114,7 @@ function StaminaService.Init(_NetController)
 	-- 플레이어 퇴장 시 정리
 	Players.PlayerRemoving:Connect(function(player)
 		playerStamina[player.UserId] = nil
+		playerStagger[player.UserId] = nil
 	end)
 	
 	-- 스태미나 틱 루프 (0.1초마다)
@@ -199,6 +203,13 @@ function StaminaService._tickLoop()
 			end
 		end
 		
+		-- [Stagger] 경직 만료 시 속도 복구
+		local stagger = playerStagger[player.UserId]
+		if stagger and tick() >= stagger.expireTime then
+			playerStagger[player.UserId] = nil
+			StaminaService._updatePlayerSpeed(player, data.isSprinting)
+		end
+		
 		-- [Anti-Cheat] 속도 검증 (버프/스탯 반영 최대 속도 기준)
 		local character = player.Character
 		local humanoid = character and character:FindFirstChild("Humanoid")
@@ -271,11 +282,55 @@ function StaminaService._updatePlayerSpeed(player: Player, sprinting: boolean)
 	-- 버프/스탯 반영된 기본 속도
 	local baseSpeed = _getBaseSpeed(player.UserId)
 	
+	local speed
 	if sprinting then
-		humanoid.WalkSpeed = baseSpeed * Balance.SPRINT_SPEED_MULT
+		speed = baseSpeed * Balance.SPRINT_SPEED_MULT
 	else
-		humanoid.WalkSpeed = baseSpeed
+		speed = baseSpeed
 	end
+	
+	-- 경직(Stagger) 배율 적용
+	local stagger = playerStagger[player.UserId]
+	if stagger and tick() < stagger.expireTime then
+		speed = speed * stagger.mult
+	end
+	
+	humanoid.WalkSpeed = speed
+end
+
+--========================================
+-- Stagger (경직) System
+--========================================
+
+--- 경직 상태 부여: mult 배율로 speed를 감소시키고 duration 후 자동 해제
+function StaminaService.setStagger(userId: number, mult: number, duration: number)
+	playerStagger[userId] = {
+		mult = mult,
+		expireTime = tick() + duration,
+	}
+	-- 즉시 속도 반영
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		local data = getStaminaData(userId)
+		StaminaService._updatePlayerSpeed(player, data.isSprinting)
+	end
+end
+
+--- 경직 상태 즉시 해제
+function StaminaService.clearStagger(userId: number)
+	if not playerStagger[userId] then return end
+	playerStagger[userId] = nil
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		local data = getStaminaData(userId)
+		StaminaService._updatePlayerSpeed(player, data.isSprinting)
+	end
+end
+
+--- 경직 중인지 확인
+function StaminaService.isStaggered(userId: number): boolean
+	local stagger = playerStagger[userId]
+	return stagger ~= nil and tick() < stagger.expireTime
 end
 
 --========================================

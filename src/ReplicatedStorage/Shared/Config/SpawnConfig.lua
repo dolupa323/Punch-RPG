@@ -1,56 +1,74 @@
 -- SpawnConfig.lua
--- 섬별 스폰 밸런싱 및 다양성을 관리하는 설정 파일
-local PORTAL_MAP = {
-	GRASSLAND = 000000000, -- 나중에 초원 섬의 PlaceId 입력
-	TROPICAL = 107341024431610, -- 트로피컬 섬
-}
+-- Zone 기반 섬별 스폰 밸런싱 및 다양성을 관리하는 설정 파일
+-- 하나의 Place 내에서 좌표 영역(Zone)별로 섬을 구분한다.
 
 local SpawnConfig = {}
 
--- 신규 유저가 처음 게임에 접속했을 때 스폰될 기본 절대 좌표 (Island/Place 에 따라 분리 가능)
-SpawnConfig.DEFAULT_START_SPAWN = Vector3.new(0, 50, 0) -- 임시로 x:0, y:50, z:0으로 설정. 추후 디자인하시는 스폰포인트 좌표로 수정하시면 됩니다!
+--========================================
+-- Zone 정의 (center + radius)
+-- ★ center, radius, spawnPoint는 실제 맵 레이아웃에 맞춰 수정하세요.
+--========================================
+local HUB_ZONE = "GRASSLAND" -- 모든 포탈의 출발/귀환 중심지
 
-local ISLAND_CONFIGS = {
-	[PORTAL_MAP.GRASSLAND] = {
-		Creatures = {
-			-- 각 종류가 체감상 균등하게 나오도록 가중치 조정
-			-- (콤피는 무리 스폰이므로 가중치를 높여야 발견 빈도가 유사해짐)
-			{ id = "DODO", weight = 90 },
-			{ id = "BABY_TRICERATOPS", weight = 50 },
-			{ id = "COMPY", weight = 80 }
-		},
-		Harvests = {
-			-- 초원섬 전용 자원 노드 구성
-			{ id = "TREE_THIN", weight = 50 },     -- 가는 나무
-			{ id = "ROCK_SOFT", weight = 40 },     -- 무른 바위
-			{ id = "BUSH_BERRY", weight = 45 },    -- 열매 덤불
-			{ id = "GROUND_FIBER", weight = 55 },  -- 섬유 (바닥)
-			{ id = "GROUND_BRANCH", weight = 80 }, -- 나뭇가지 (바닥)
-			{ id = "GROUND_STONE", weight = 90 }   -- 잔돌 (바닥)
-		}
+local ZONES = {
+	GRASSLAND = {
+		center = Vector3.new(-128, 0, -278),      -- 초원 섬 중심 좌표 (Studio SpawnLocation 기준)
+		radius = 2500,                             -- 영역 반경 (studs)
+		spawnPoint = Vector3.new(-128, 20, -278),  -- 초원 섬 기본 스폰 지점
 	},
-	
-	-- [확장] 열대 섬 생태계 설정
-	[PORTAL_MAP.TROPICAL] = {
+	TROPICAL = {
+		center = Vector3.new(-197, 0, 654),            -- 열대 섬 중심 좌표 (귀환 포탈 기준)
+		radius = 2500,                                  -- 영역 반경 (studs)
+		spawnPoint = Vector3.new(-197, 47, 654),        -- 열대 섬 기본 스폰 지점 (지면 +5)
+	},
+}
+
+SpawnConfig.HUB_ZONE = HUB_ZONE
+
+-- 신규 유저가 처음 게임에 접속했을 때 스폰될 기본 절대 좌표
+SpawnConfig.DEFAULT_START_SPAWN = ZONES.GRASSLAND.spawnPoint
+
+--========================================
+-- Zone별 생태계 설정
+--========================================
+local ZONE_CONFIGS = {
+	GRASSLAND = {
 		Creatures = {
-			-- 현재 운영 중인 초원섬/튜토리얼 빌드에서는 3종만 유지
 			{ id = "DODO", weight = 90 },
 			{ id = "BABY_TRICERATOPS", weight = 50 },
-			{ id = "COMPY", weight = 80 }
+			{ id = "COMPY", weight = 80 },
 		},
 		Harvests = {
-			-- 열대 느낌에 맞춘 자원 비중 변화 (예: 야자수, 희귀식물 중심)
-			{ id = "TREE_OAK", weight = 80 }, -- 차후 열대 나무 모델 생기면 TREE_PALM 등으로 교체 가능
+			{ id = "TREE_THIN", weight = 50 },
+			{ id = "ROCK_SOFT", weight = 40 },
+			{ id = "BUSH_BERRY", weight = 45 },
+			{ id = "GROUND_FIBER", weight = 55 },
+			{ id = "GROUND_BRANCH", weight = 80 },
+			{ id = "GROUND_STONE", weight = 90 },
+		},
+	},
+	TROPICAL = {
+		Creatures = {
+			{ id = "DODO", weight = 90 },
+			{ id = "BABY_TRICERATOPS", weight = 50 },
+			{ id = "COMPY", weight = 80 },
+		},
+		Harvests = {
+			{ id = "TREE_OAK", weight = 80 },
 			{ id = "BUSH_BERRY", weight = 70 },
 			{ id = "GROUND_FIBER", weight = 60 },
 			{ id = "GROUND_BRANCH", weight = 60 },
 			{ id = "ROCK_NORMAL", weight = 50 },
-			{ id = "GROUND_STONE", weight = 60 }
-		}
-	}
+			{ id = "GROUND_STONE", weight = 60 },
+		},
+	},
 }
 
--- 가중치 기반 랜덤 선택 헬퍼
+--========================================
+-- 헬퍼 함수
+--========================================
+
+-- 가중치 기반 랜덤 선택
 local function getRandomFromWeight(list)
 	local totalWeight = 0
 	for _, item in ipairs(list) do
@@ -69,36 +87,111 @@ local function getRandomFromWeight(list)
 	return list[1].id
 end
 
+--========================================
+-- Zone 판정
+--========================================
 
-function SpawnConfig.GetCurrentConfig()
-	local currentPlaceId = game.PlaceId
-	local config = ISLAND_CONFIGS[currentPlaceId] or ISLAND_CONFIGS[PORTAL_MAP.GRASSLAND]
-	return config
+--- XZ 평면 거리 기반으로 위치가 속한 Zone 이름을 반환
+--- @param position Vector3 월드 좌표
+--- @return string? Zone 이름 ("GRASSLAND" | "TROPICAL" | nil)
+function SpawnConfig.GetZoneAtPosition(position: Vector3): string?
+	if not position then return nil end
+	local bestZone = nil
+	local bestDist = math.huge
+	for zoneName, zone in pairs(ZONES) do
+		local dx = position.X - zone.center.X
+		local dz = position.Z - zone.center.Z
+		local dist = math.sqrt(dx * dx + dz * dz)
+		if dist <= zone.radius and dist < bestDist then
+			bestDist = dist
+			bestZone = zoneName
+		end
+	end
+	return bestZone
 end
 
-function SpawnConfig.GetRandomCreature()
-	local config = SpawnConfig.GetCurrentConfig()
+--- 모든 Zone 이름 목록 반환
+function SpawnConfig.GetAllZoneNames(): {string}
+	local names = {}
+	for zoneName in pairs(ZONES) do
+		table.insert(names, zoneName)
+	end
+	return names
+end
+
+--- Zone 정보 조회 (center, radius, spawnPoint)
+function SpawnConfig.GetZoneInfo(zoneName: string): any?
+	return ZONES[zoneName]
+end
+
+--- Zone의 생태계 설정 조회
+function SpawnConfig.GetZoneConfig(zoneName: string): any?
+	return ZONE_CONFIGS[zoneName]
+end
+
+--========================================
+-- 하위 호환 (IsContentPlace / GetCurrentConfig)
+-- → 단일 Place이므로 항상 true / 기본 Zone 반환
+--========================================
+
+--- 현재 Place가 콘텐츠 스폰이 등록된 섬인지 확인.
+--- 단일 Place 구조에서는 항상 true.
+function SpawnConfig.IsContentPlace(): boolean
+	return true
+end
+
+--- GetCurrentConfig는 더 이상 PlaceId를 보지 않는다.
+--- 레거시 호출을 위해 기본 Zone(GRASSLAND) 설정을 반환.
+function SpawnConfig.GetCurrentConfig()
+	return ZONE_CONFIGS.GRASSLAND
+end
+
+--========================================
+-- Zone별 랜덤 선택 함수
+--========================================
+
+--- Zone에 맞는 랜덤 크리처 ID 반환
+function SpawnConfig.GetRandomCreatureForZone(zoneName: string): string?
+	local config = ZONE_CONFIGS[zoneName]
+	if not config or not config.Creatures then return nil end
 	return getRandomFromWeight(config.Creatures)
 end
 
-function SpawnConfig.GetRandomHarvest()
-	local config = SpawnConfig.GetCurrentConfig()
+--- Zone에 맞는 랜덤 자원 노드 ID 반환
+function SpawnConfig.GetRandomHarvestForZone(zoneName: string): string?
+	local config = ZONE_CONFIGS[zoneName]
+	if not config or not config.Harvests then return nil end
 	return getRandomFromWeight(config.Harvests)
 end
 
--- [추가] 잔돌, 나뭇가지 등 소형 바닥 자원 전용 랜덤 선택 (자동 스폰용)
-function SpawnConfig.GetRandomGroundHarvest()
-	local config = SpawnConfig.GetCurrentConfig()
+--- Zone에 맞는 랜덤 바닥 자원(GROUND_*) ID 반환
+function SpawnConfig.GetRandomGroundHarvestForZone(zoneName: string): string?
+	local config = ZONE_CONFIGS[zoneName]
+	if not config or not config.Harvests then return nil end
 	local groundList = {}
 	for _, item in ipairs(config.Harvests) do
-		-- GROUND_STONE, GROUND_BRANCH 등 ID에 GROUND가 포함된 것만 추출
 		if item.id:find("GROUND") then
 			table.insert(groundList, item)
 		end
 	end
-	
 	if #groundList == 0 then return nil end
 	return getRandomFromWeight(groundList)
+end
+
+--========================================
+-- 레거시 호환 함수 (위치 없이 호출 시 GRASSLAND 기본값)
+--========================================
+
+function SpawnConfig.GetRandomCreature()
+	return SpawnConfig.GetRandomCreatureForZone("GRASSLAND")
+end
+
+function SpawnConfig.GetRandomHarvest()
+	return SpawnConfig.GetRandomHarvestForZone("GRASSLAND")
+end
+
+function SpawnConfig.GetRandomGroundHarvest()
+	return SpawnConfig.GetRandomGroundHarvestForZone("GRASSLAND")
 end
 
 return SpawnConfig

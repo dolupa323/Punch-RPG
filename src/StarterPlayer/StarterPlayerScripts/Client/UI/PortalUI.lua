@@ -13,6 +13,7 @@ PortalUI.Refs = {}
 local currentUIManager = nil
 local statusData = nil
 local currentTab = "REPAIR" -- REPAIR | USE
+local titleLabel = nil -- 동적 제목 참조
 
 -- forward declarations
 local renderUseTab
@@ -39,8 +40,8 @@ function PortalUI.Init(parent, UIManager, isMobile)
 	})
 	PortalUI.Refs.Frame = window
 
-	-- 제목
-	Utils.mkLabel({
+	-- 제목 (포탈마다 동적 변경)
+	titleLabel = Utils.mkLabel({
 		text = "고대 포탈",
 		size = UDim2.new(1, -70, 0, 46),
 		pos = UDim2.new(0, 16, 0, 10),
@@ -137,7 +138,10 @@ end
 ----------------------------------------------------------------
 function PortalUI.SetData(data)
 	statusData = data or { repaired = false, cost = {} }
-	if statusData.repaired then
+	if statusData.isReturn then
+		-- 귀환 포탈: 항상 USE 탭만 표시
+		currentTab = "USE"
+	elseif statusData.repaired then
 		currentTab = "USE"
 	else
 		currentTab = "REPAIR"
@@ -156,15 +160,22 @@ function PortalUI.Refresh(newData)
 	end
 
 	local repaired = statusData.repaired == true
+	local isReturn = statusData.isReturn == true
 
-	-- 탭 상태 갱신 (ShopUI 패턴: BackgroundColor3 토글)
+	-- 제목 동적 갱신
+	if titleLabel then
+		titleLabel.Text = statusData.displayName or "고대 포탈"
+	end
+
+	-- 탭 상태 갱신
 	local btnRepair = PortalUI.Refs.BtnRepairTab
 	local btnUse = PortalUI.Refs.BtnUseTab
 	if btnRepair then
+		btnRepair.Visible = not isReturn
 		btnRepair.BackgroundColor3 = (currentTab == "REPAIR") and C.BTN_H or C.BTN
 	end
 	if btnUse then
-		btnUse.Visible = repaired
+		btnUse.Visible = repaired or isReturn
 		btnUse.BackgroundColor3 = (currentTab == "USE") and C.BTN_H or C.BTN
 	end
 
@@ -190,8 +201,15 @@ end
 -- Tab: USE
 ----------------------------------------------------------------
 renderUseTab = function(body)
+	local isReturn = statusData and statusData.isReturn == true
+	local destName = statusData and statusData.destinationName or "다음 스페이스"
+
+	local descText = isReturn
+		and "귀환 포탈이 활성화되어 있습니다.\n초원섬으로 돌아갈 수 있습니다."
+		or string.format("포탈이 활성화되었습니다.\n%s(으)로 이동할 수 있습니다.", destName)
+
 	Utils.mkLabel({
-		text = "포탈이 활성화되었습니다.\n다음 스페이스로 이동할 수 있습니다.",
+		text = descText,
 		size = UDim2.new(1, 0, 0, 60),
 		pos = UDim2.new(0, 0, 0, 8),
 		ax = Enum.TextXAlignment.Left,
@@ -202,8 +220,10 @@ renderUseTab = function(body)
 		parent = body,
 	})
 
+	local btnText = isReturn and "초원섬으로 돌아가기" or (destName .. "(으)로 이동")
+
 	Utils.mkBtn({
-		text = "다음 스페이스 이동",
+		text = btnText,
 		size = UDim2.new(1, -4, 0, 44),
 		pos = UDim2.new(0, 2, 1, -56),
 		bg = C.GOLD,

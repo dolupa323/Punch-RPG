@@ -105,7 +105,10 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bgT=1, font=F.TITLE, ts=TS_TAB, color=C.GRAY, parent=leftHeader})
 	
 	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 60", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), ts=TS_SMALL, color=C.GRAY, parent=leftHeader})
-	
+
+	-- 자동정렬 버튼
+	InventoryUI.Refs.SortBtn = Utils.mkBtn({text="정렬", size=UDim2.new(0, isSmall and 46 or 56, 0, isSmall and 28 or 30), bg=C.BG_SLOT, bgT=0.3, font=F.TITLE, ts=isSmall and 11 or 12, color=C.WHITE, r=4, fn=function() UIManager.sortInventory() end, parent=leftHeader})
+
 	local rightHeader = Utils.mkFrame({size=UDim2.new(0.3, 0, 1, 0), pos=UDim2.new(1, -140, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=header})
 	local hList = Instance.new("UIListLayout"); hList.FillDirection=Enum.FillDirection.Horizontal; hList.HorizontalAlignment=Enum.HorizontalAlignment.Right; hList.VerticalAlignment=Enum.VerticalAlignment.Center; hList.Padding=UDim.new(0, 15); hList.Parent=rightHeader
 	

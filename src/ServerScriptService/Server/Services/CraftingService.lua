@@ -148,22 +148,42 @@ end
 -- Internal: 재료 차감
 --========================================
 local function consumeMaterials(userId: number, inputs: { any }): boolean
-	local consumedList = {} -- 롤백을 위한 임시 저장소
+	local consumedList = {} -- 롤백을 위한 임시 저장소 (속성/내구도 포함)
 	
 	for _, input in ipairs(inputs) do
+		-- 제거 전 스냅샷: removeItem이 슬롯 1→MAX 순서로 제거하므로 동일 순서로 백업
+		local snapshots = {}
+		local remaining = input.count
+		for slot = 1, Balance.MAX_INV_SLOTS do
+			if remaining <= 0 then break end
+			local slotData = InventoryService.getSlot(userId, slot)
+			if slotData and slotData.itemId == input.itemId then
+				local willRemove = math.min(remaining, slotData.count)
+				table.insert(snapshots, {
+					itemId = input.itemId,
+					count = willRemove,
+					durability = slotData.durability,
+					attributes = slotData.attributes,
+				})
+				remaining = remaining - willRemove
+			end
+		end
+		
 		local removed = InventoryService.removeItem(userId, input.itemId, input.count)
 		
 		if removed > 0 then
-			table.insert(consumedList, { itemId = input.itemId, count = removed })
+			for _, snap in ipairs(snapshots) do
+				table.insert(consumedList, snap)
+			end
 		end
 		
 		if removed < input.count then
 			warn(string.format("[CraftingService] Failed to consume %s x%d for userId %d (Rollback triggered)",
 				input.itemId, input.count, userId))
 			
-			-- 롤백: 지금까지 차감한 재료들 다시 지급
+			-- 롤백: 지금까지 차감한 재료들 다시 지급 (속성/내구도 보존)
 			for _, item in ipairs(consumedList) do
-				InventoryService.addItem(userId, item.itemId, item.count)
+				InventoryService.addItem(userId, item.itemId, item.count, item.durability, item.attributes)
 			end
 			
 			return false
@@ -231,18 +251,29 @@ local function consumeMaterialsBySlots(userId: number, materialSlots: { any }, r
 		end
 	end
 	
-	-- 3. 슬롯별 소비 (롤백 지원)
+	-- 3. 슬롯별 소비 (롤백 지원 - 속성/내구도 보존)
 	local consumedSlots = {} -- 롤백용
 	for _, entry in ipairs(materialSlots) do
 		local slot = tonumber(entry.slot)
+		-- 제거 전 스냅샷 백업
+		local slotData = InventoryService.getSlot(userId, slot)
+		local snapDurability = slotData and slotData.durability
+		local snapAttributes = slotData and slotData.attributes
+		
 		local removed = InventoryService.removeItemFromSlot(userId, slot, 1)
 		if removed > 0 then
-			table.insert(consumedSlots, { slot = slot, itemId = entry.itemId, count = removed })
+			table.insert(consumedSlots, {
+				slot = slot,
+				itemId = entry.itemId,
+				count = removed,
+				durability = snapDurability,
+				attributes = snapAttributes,
+			})
 		else
 			warn(string.format("[CraftingService] Failed to remove from slot %d (Rollback triggered)", slot))
-			-- 롤백
+			-- 롤백 (속성/내구도 보존)
 			for _, prev in ipairs(consumedSlots) do
-				InventoryService.addItem(userId, prev.itemId, prev.count)
+				InventoryService.addItem(userId, prev.itemId, prev.count, prev.durability, prev.attributes)
 			end
 			return false
 		end
@@ -512,6 +543,7 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 	
 	-- 7. 즉시 제작
 	if realCraftTime <= 0 then -- Changed from == 0 to <= 0
+		local pPos = getPlayerPosition(player)
 		for _, output in ipairs(recipe.outputs) do
 			local outAttrs = inheritedAttributes[output.itemId]
 			-- 내구도 속성(durabilityMult) 적용: 모든 속성의 내구도 효과 합산
@@ -532,7 +564,12 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 				end
 			end
 			for _ = 1, output.count * craftCount do
-				InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
+				local added, remaining = InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
+				if remaining and remaining > 0 and WorldDropService and pPos then
+					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining, outDurability)
+					warn(string.format("[CraftingService] Instant craft overflow for %s: x%d dropped as WorldDrop for userId %d",
+						output.itemId, remaining, userId))
+				end
 			end
 		end
 		
@@ -706,7 +743,8 @@ function CraftingService.collect(player: Player, craftId: string, count: number?
 		end
 	end
 	
-	-- 결과물 추가 (속성 상속 포함)
+	-- 결과물 추가 (속성 상속 포함) + 오버플로우 월드 드롭 안전장치
+	local pPos = getPlayerPosition(player)
 	for _, output in ipairs(recipe.outputs) do
 		local totalOut = output.count * collectCount
 		local outAttrs = entry.inheritedAttributes and entry.inheritedAttributes[output.itemId]
@@ -729,10 +767,20 @@ function CraftingService.collect(player: Player, craftId: string, count: number?
 		end
 		if outAttrs then
 			for _ = 1, totalOut do
-				InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
+				local added, remaining = InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
+				if remaining and remaining > 0 and WorldDropService and pPos then
+					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining, outDurability)
+					warn(string.format("[CraftingService] Collect overflow for %s: x%d dropped as WorldDrop for userId %d",
+						output.itemId, remaining, userId))
+				end
 			end
 		else
-			InventoryService.addItem(userId, output.itemId, totalOut)
+			local added, remaining = InventoryService.addItem(userId, output.itemId, totalOut)
+			if remaining and remaining > 0 and WorldDropService and pPos then
+				WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining)
+				warn(string.format("[CraftingService] Collect overflow for %s: x%d dropped as WorldDrop for userId %d",
+					output.itemId, remaining, userId))
+			end
 		end
 	end
 	
@@ -900,11 +948,11 @@ processTick = function()
 	lastTickTime = now
 	
 	for userId, queue in pairs(craftQueues) do
+		local player = Players:GetPlayerByUserId(userId)
 		for craftId, entry in pairs(queue) do
 			local producedNow = syncEntryProgress(entry, now)
 			if producedNow > 0 then
 				_syncToSave(userId)
-				local player = Players:GetPlayerByUserId(userId)
 				if player then
 					if not entry.structureId then
 						task.spawn(function()
@@ -936,6 +984,23 @@ processTick = function()
 						})
 					end
 				end
+			end
+			
+			-- 오프라인 유저: 완료된 엔트리 정리
+			if not player then
+				local completed = (tonumber(entry.completedCount) or 0) >= getBatchCount(entry)
+				if completed then
+					queue[craftId] = nil
+				end
+			end
+		end
+		
+		-- 오프라인 유저의 큐가 비었으면 메모리 해제
+		if not player then
+			local hasRemaining = false
+			for _ in pairs(queue) do hasRemaining = true break end
+			if not hasRemaining then
+				craftQueues[userId] = nil
 			end
 		end
 	end

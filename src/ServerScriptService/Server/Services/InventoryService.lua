@@ -322,11 +322,22 @@ function InventoryService.getTotalDefense(userId: number): number
 	local inv = playerInventories[userId]
 	if not inv or not inv.equipment then return 0 end
 	
+	local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data").MaterialAttributeData)
+	
 	local defense = 0
 	for _, item in pairs(inv.equipment) do
 		local data = DataService.getItem(item.itemId)
 		if data and data.defense then
-			defense = defense + data.defense
+			local bonusDef = 0
+			if item.attributes then
+				for attrId, level in pairs(item.attributes) do
+					local fx = MaterialAttributeData.getEffectValues(attrId, level)
+					if fx and fx.defenseMult then
+						bonusDef = bonusDef + fx.defenseMult
+					end
+				end
+			end
+			defense = defense + math.floor(data.defense * (1 + bonusDef) + 0.5)
 		end
 	end
 	
@@ -1447,12 +1458,20 @@ function InventoryService.decreaseEquipmentDurability(userId: number, equipmentS
 	local current = slotData.durability
 	
 	if current <= 0 then
-		-- ?�비 ?�괴 (?�착 ?�제)
+		-- 장비 파괴 (장착 제거)
 		print(string.format("[InventoryService] Equipment %s destroyed for user %d", equipmentSlotName, userId))
 		inv.equipment[equipmentSlotName] = nil
 	end
 	
-	-- ?�벤??
+	-- SaveService에 장비 상태 동기화 (내구도 변동 및 파괴 반영)
+	if SaveService then
+		SaveService.updatePlayerState(userId, function(state)
+			state.equipment = inv.equipment
+			return state
+		end)
+	end
+	
+	-- 이벤트 발생
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)
 	if player then
 		NetController.FireClient(player, "Inventory.Equipment.Changed", { equipment = inv.equipment })

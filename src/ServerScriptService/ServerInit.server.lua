@@ -340,8 +340,11 @@ AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, Palbo
 local AutoDepositService = require(Services.AutoDepositService)
 AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
 
--- TutorialQuestService 초기화 (첫 진입 튜토리얼)
+-- TutorialQuestService 초기화 (초원섬 전용 - 등록된 콘텐츠 Place에서만 활성화)
+-- 튜토리얼 퀸스트 초기화 (모든 Zone에서 활성화)
+local SpawnConfig = require(ReplicatedStorage.Shared.Config.SpawnConfig)
 local TutorialQuestService = require(Services.TutorialQuestService)
+
 TutorialQuestService.Init(NetController, SaveService, PlayerStatService, InventoryService, nil)
 
 -- TutorialQuestService 핸들러 등록
