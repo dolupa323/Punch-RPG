@@ -27,7 +27,7 @@ local function titleFromId(id: string?): string
 end
 
 local KO_TO_EN = {
-	["INVENTORY [B]"] = "INVENTORY [B]",
+	["INVENTORY [Tab]"] = "INVENTORY [Tab]",
 	["CRAFTING"] = "CRAFTING",
 	["ITEM DETAILS"] = "ITEM DETAILS",
 	["SELECT ITEM"] = "SELECT ITEM",
@@ -98,7 +98,7 @@ local KO_TO_EN = {
 	["자원 부족"] = "Insufficient Resources",
 	["연구 시작"] = "Start Research",
 	["연구 완료!"] = "Research Complete!",
-	["[ INV: B ]"] = "[ INV: B ]",
+	["[ INV: Tab ]"] = "[ INV: Tab ]",
 	["[ BUILD: C ]"] = "[ BUILD: C ]",
 	["[ CHAR: E ]"] = "[ CHAR: E ]",
 	["[ LOG: P ]"] = "[ LOG: P ]",
@@ -241,7 +241,7 @@ for ko, en in pairs(KO_TO_EN) do
 end
 
 local EN_TO_KO_OVERRIDES = {
-	["INVENTORY [B]"] = "인벤토리 [B]",
+	["INVENTORY [Tab]"] = "인벤토리 [Tab]",
 	["CRAFTING"] = "제작",
 	["ITEM DETAILS"] = "아이템 상세",
 	["SELECT ITEM"] = "아이템 선택",

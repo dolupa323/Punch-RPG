@@ -600,10 +600,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	
 	HUDUI.Refs.levelLabel = Utils.mkLabel({text="LV. 1 [ 0.0% ]", size=UDim2.new(0, 150, 0, 32), pos=UDim2.new(0, 20, 0.5, 0), anchor=Vector2.new(0, 0.5), ts=14, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=bottomEdge})
 	
-	HUDUI.Refs.bagBtn = Utils.mkBtn({text="[ INV: B ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleInventory() end, parent=menuItems})
+	HUDUI.Refs.bagBtn = Utils.mkBtn({text="[ INV: Tab ]", size=UDim2.new(0, isSmall and 85 or 110, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleInventory() end, parent=menuItems})
 	HUDUI.Refs.buildBtn = Utils.mkBtn({text="[ BUILD: C ]", size=UDim2.new(0, isSmall and 85 or 110, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleBuild() end, parent=menuItems})
 	HUDUI.Refs.equipBtn = Utils.mkBtn({text="[ CHAR: E ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleEquipment() end, parent=menuItems})
 	HUDUI.Refs.collectionBtn = Utils.mkBtn({text="[ LOG: P ]", size=UDim2.new(0, isSmall and 75 or 100, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleCollection() end, parent=menuItems})
+	HUDUI.Refs.skillBtn = Utils.mkBtn({text="[ SKILL: K ]", size=UDim2.new(0, isSmall and 80 or 105, 0, 32), bgT=1, ts=isSmall and 13 or 14, font=F.TITLE, color=C.WHITE, fn=function() UIManager.toggleSkillTree() end, parent=menuItems})
 
 	-- [Hotbar] (Center Bottom)
 	local hotbarSize = isSmall and 480 or 410
@@ -1180,6 +1181,13 @@ end
 
 function HUDUI.UpdateLevel(lv)
 	HUDUI.Refs.currentLevel = lv
+	-- 라벨 텍스트도 즉시 갱신 (UpdateXP 호출 없이도 레벨 표시 반영)
+	if HUDUI.Refs.levelLabel then
+		local bar = HUDUI.Refs.xpBar
+		local r = 0
+		if bar then r = bar.Size.X.Scale end
+		HUDUI.Refs.levelLabel.Text = string.format("LV. %s [ %.1f%% ]", tostring(lv), r * 100)
+	end
 end
 
 function HUDUI.SetStatPointAlert(available)

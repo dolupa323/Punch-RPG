@@ -108,6 +108,7 @@ Balance.BASE_XP_PER_LEVEL = 100        -- 레벨 1→2 필요 XP
 Balance.XP_SCALING = 1.2               -- 레벨당 필요 XP 증가율
 Balance.TECH_POINTS_PER_LEVEL = 3      -- 레벨업당 기술 포인트 지급 (2~3)
 Balance.STAT_POINTS_PER_LEVEL = 3      -- 레벨업당 스탯 포인트 지급
+Balance.SKILL_POINTS_PER_LEVEL = 1     -- 레벨업당 스킬 포인트 지급 (택1 전투계열)
 
 --========================================
 -- XP 획득량 (Phase 6 - 개발용 폭발적 상향)
@@ -172,6 +173,7 @@ Balance.REACH_ANGLE = 75               -- 공격 인정 각도 (정면 기준 +-
 Balance.HUNGER_MAX = 100               -- 최대 배고픔 수치
 Balance.HUNGER_DECREASE_RATE = 0.08     -- 초당 배고픔 감소량 (0.5 -> 0.08 완화)
 Balance.HUNGER_STARVATION_DAMAGE = 1   -- 배고픔이 0일 때 초당 잃는 체력
+Balance.HEALTH_REGEN_RATE = 0.001       -- 초당 체력 회복 비율 (0.1% MaxHealth/초, 거의 없음)
 Balance.HUNGER_SPRINT_COST = 0.15      -- 달리기 시 초당 배고픔 추가 소모량 (0.5 -> 0.15 완화)
 Balance.HUNGER_DODGE_COST = 0.5        -- 구르기 1회당 배고픔 소모량 (2.0 -> 0.5 완화)
 Balance.HUNGER_HARVEST_COST = 0.2      -- 채집 1회당 배고픔 소모량 (1.0 -> 0.2 완화)
@@ -179,6 +181,8 @@ Balance.HUNGER_COMBAT_COST = 0.2       -- 공격 1회당 배고픔 소모량 (1.
 
 -- 수면(간이천막) 연출/제한
 Balance.SLEEP_COOLDOWN = 20            -- 연속 수면 방지 쿨다운(초)
+Balance.RECALL_CAST_TIME = 5           -- 귀환 시전 시간(초)
+Balance.RECALL_COOLDOWN = 60           -- 귀환 쿨다운(초)
 Balance.SLEEP_FADE_OUT_TIME = 0.8      -- 수면 페이드아웃 시간(초)
 Balance.SLEEP_BLACK_HOLD_TIME = 0.5    -- 암전 유지 시간(초)
 Balance.SLEEP_FADE_IN_TIME = 1.0       -- 기상 페이드인 시간(초)

@@ -154,6 +154,14 @@ Protocol.Commands = {
 	["Pet.Equip.Request"] = true,
 	["Pet.Unequip.Request"] = true,
 
+	-- Recall 명령어 (귀환 텔레포트)
+	["Recall.Request"] = true,
+
+	-- Skill 명령어 (스킬 트리 시스템)
+	["Skill.Unlock.Request"] = true,
+	["Skill.GetData.Request"] = true,
+	["Skill.SetSlot.Request"] = true,
+
 	-- Portal 명령어 (고대 포탈 시스템)
 	["Portal.GetStatus.Request"] = true,
 	["Portal.Deposit.Request"] = true,

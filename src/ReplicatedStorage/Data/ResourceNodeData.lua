@@ -111,21 +111,6 @@ local ResourceNodeData = {
 	-- 일반 자원 노드 (타 섬 용도 포함)
 	--========================================
 	{
-		id = "TREE_OAK",
-		name = "참나무",
-		level = 5,
-		modelName = "OakTree",
-		nodeType = "TREE",
-		optimalTool = "AXE",
-		resources = {
-			{ itemId = "WOOD", min = 5, max = 10, weight = 1.0 },
-		},
-		maxHealth = 250,
-		respawnTime = 400,
-		xpPerHit = 5,
-		requiresTool = true,
-	},
-	{
 		id = "ROCK_NORMAL",
 		name = "바위",
 		level = 5,

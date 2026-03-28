@@ -64,8 +64,10 @@ local CollectionUI = require(UI.CollectionUI)
 local PromptUI = require(UI.PromptUI)
 local TotemUI = require(UI.TotemUI)
 local PortalUI = require(UI.PortalUI)
+local SkillTreeUI = require(UI.SkillTreeUI)
 
 local CollectionController = require(Controllers.CollectionController)
+local SkillController = require(Controllers.SkillController)
 
 local C = Theme.Colors
 local F = Theme.Fonts
@@ -1601,6 +1603,25 @@ function UIManager.toggleCollection()
 	WindowManager.toggle("COLLECTION")
 end
 
+-- ============ Skill Tree ============
+function UIManager._onOpenSkillTree()
+	if not blurEffect and not WindowManager.isOpen("INV") then
+		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
+	end
+	-- 열 때마다 서버에서 최신 스킬 데이터 재요청 (SP 소급 반영)
+	SkillController.requestData()
+	SkillTreeUI.SetVisible(true)
+end
+
+function UIManager._onCloseSkillTree()
+	if blurEffect and not WindowManager.isAnyOpen() then blurEffect:Destroy(); blurEffect = nil end
+	SkillTreeUI.SetVisible(false)
+end
+
+function UIManager.toggleSkillTree()
+	WindowManager.toggle("SKILL")
+end
+
 function UIManager.refreshFacility()
 	if not currentFacilityType then return end
 	
@@ -2292,8 +2313,59 @@ local function setupEventListeners()
 
 		NetClient.On("Portal.Teleporting", function(data)
 			local dest = (data and data.destination) or "다음 섬"
-			UIManager.sideNotify("🌀 저장 중... " .. dest .. "(으)로 이동합니다", Color3.fromRGB(100, 200, 255))
 			UIManager.closePortal()
+
+			-- 페이드 스크린 생성
+			local fadeGui = Instance.new("ScreenGui")
+			fadeGui.Name = "PortalFadeGui"
+			fadeGui.DisplayOrder = 999
+			fadeGui.IgnoreGuiInset = true
+			fadeGui.ResetOnSpawn = false
+			fadeGui.Parent = player.PlayerGui
+
+			local overlay = Instance.new("Frame")
+			overlay.Size = UDim2.new(1, 0, 1, 0)
+			overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+			overlay.BackgroundTransparency = 1
+			overlay.BorderSizePixel = 0
+			overlay.Parent = fadeGui
+
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 0, 60)
+			label.Position = UDim2.new(0, 0, 0.45, 0)
+			label.BackgroundTransparency = 1
+			label.Text = "🌀 " .. dest .. "(으)로 이동 중..."
+			label.TextColor3 = Color3.fromRGB(200, 230, 255)
+			label.TextSize = 28
+			label.Font = Enum.Font.GothamBold
+			label.TextTransparency = 1
+			label.Parent = overlay
+
+			-- 페이드 인 (검정화면)
+			local fadeIn = TweenService:Create(overlay, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+			local textIn = TweenService:Create(label, TweenInfo.new(0.8), {TextTransparency = 0})
+			fadeIn:Play()
+			textIn:Play()
+		end)
+
+		NetClient.On("Portal.Arrived", function(_data)
+			local fadeGui = player.PlayerGui:FindFirstChild("PortalFadeGui")
+			if fadeGui then
+				local overlay = fadeGui:FindFirstChildWhichIsA("Frame")
+				local label = overlay and overlay:FindFirstChildWhichIsA("TextLabel")
+				if overlay then
+					local fadeOut = TweenService:Create(overlay, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1})
+					if label then
+						TweenService:Create(label, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
+					end
+					fadeOut:Play()
+					fadeOut.Completed:Connect(function()
+						fadeGui:Destroy()
+					end)
+				else
+					fadeGui:Destroy()
+				end
+			end
 		end)
 
 		NetClient.On("Portal.Error", function(data)
@@ -2312,18 +2384,32 @@ local function setupEventListeners()
 			local h2 = c:WaitForChild("Humanoid")
 			UIManager.updateHealth(h2.Health, h2.MaxHealth)
 			h2.HealthChanged:Connect(function(h) UIManager.updateHealth(h, h2.MaxHealth) end)
+			-- 리스폰 시 레벨/XP 재동기화
+			task.delay(0.5, function()
+				local ok2, d2 = NetClient.Request("Player.Stats.Request", {})
+				if ok2 and d2 then
+					cachedStats = d2
+					if d2.level then UIManager.updateLevel(d2.level) end
+					if d2.currentXP and d2.requiredXP then UIManager.updateXP(d2.currentXP, d2.requiredXP) end
+					if d2.statPointsAvailable then UIManager.updateStatPoints(d2.statPointsAvailable) end
+				end
+			end)
 		end)
 	end)
 
-	-- Initial stats load
+	-- Initial stats load (재시도 포함 — 서버 SaveService 로딩 대기 대응)
 	task.spawn(function()
 		task.wait(1)
-		local ok, d = NetClient.Request("Player.Stats.Request", {})
-		if ok and d then
-			cachedStats = d
-			if d.level then UIManager.updateLevel(d.level) end
-			if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
-			if d.statPointsAvailable then UIManager.updateStatPoints(d.statPointsAvailable) end
+		for _attempt = 1, 5 do
+			local ok, d = NetClient.Request("Player.Stats.Request", {})
+			if ok and d then
+				cachedStats = d
+				if d.level then UIManager.updateLevel(d.level) end
+				if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
+				if d.statPointsAvailable then UIManager.updateStatPoints(d.statPointsAvailable) end
+				break
+			end
+			task.wait(2)
 		end
 	end)
 
@@ -2423,6 +2509,8 @@ function UIManager.Init()
 	CollectionUI.Init(mainGui, UIManager)
 	TotemUI.Init(mainGui, UIManager, isMobile)
 	PortalUI.Init(mainGui, UIManager, isMobile)
+	SkillTreeUI.Init(mainGui, UIManager, isMobile)
+	SkillTreeUI.SetController(SkillController)
 	PromptUI.Init()
 	UILocalizer.StartAuto(mainGui)
 
@@ -2463,6 +2551,7 @@ function UIManager.Init()
 	WindowManager.register("COLLECTION", UIManager._onOpenCollection, UIManager._onCloseCollection)
 	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
+	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
 
 	-- [Refactor] DragDropController 초기화
 	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)

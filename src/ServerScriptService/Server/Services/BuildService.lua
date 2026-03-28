@@ -711,7 +711,7 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	end
 
 	if isCampTotem and BaseClaimService and BaseClaimService.moveBaseCenter then
-		local moved, moveErr = BaseClaimService.moveBaseCenter(userId, position)
+		local moved, moveErr = BaseClaimService.moveBaseCenter(userId, position, true)
 		if not moved then
 			warn(string.format("[BuildService] Failed to move base center for totem placement (user=%d, err=%s)", userId, tostring(moveErr)))
 		end
@@ -782,6 +782,25 @@ function BuildService.removeStructure(structureId: string, reason: string)
 		FacilityService.unregister(structureId)
 	end
 
+	-- RESPAWN 시설 파괴 시 소유자의 리스폰 데이터 클리어
+	-- (재접속 시 SpawnLocation 모델로 스폰되도록)
+	local facilityDataForClear = DataService and DataService.getFacility(structure.facilityId)
+	if facilityDataForClear and facilityDataForClear.functionType == "RESPAWN" and structure.ownerId then
+		if SaveService and SaveService.updatePlayerState then
+			SaveService.updatePlayerState(structure.ownerId, function(state)
+				if state.respawnStructureId == structureId then
+					state.respawnStructureId = nil
+					state.lastPosition = nil
+					print(string.format("[BuildService] Cleared respawn data for userId=%d (shelter %s destroyed)", structure.ownerId, structureId))
+				end
+				return state
+			end)
+		end
+		-- PlayerLifeService 리스폰 선호도도 클리어 (런타임 캐시)
+		-- findBedRespawnPoint에서 BuildService.get이 nil 반환하므로 자동 스킵되지만
+		-- SaveService 상태가 이미 클리어되었으므로 재접속 시에도 안전
+	end
+
 	-- 토템 캐시 무효화 (해체된 건물이 CAMP_TOTEM인 경우)
 	if structure.facilityId == "CAMP_TOTEM" and TotemService and TotemService.invalidateTotemCache then
 		TotemService.invalidateTotemCache(structure.ownerId)
@@ -849,8 +868,12 @@ function BuildService.removeStructure(structureId: string, reason: string)
 			end)
 		else
 			SaveService.updateWorldState(function(state)
+				-- wildernessStructures + 레거시 structures 양쪽 모두에서 삭제
 				if state.wildernessStructures then
 					state.wildernessStructures[structureId] = nil
+				end
+				if state.structures then
+					state.structures[structureId] = nil
 				end
 				return state
 			end)
@@ -1016,9 +1039,24 @@ function BuildService.Init(netController: any, dataService: any, inventoryServic
 	-- 월드 상태에서 야생 구조물 로드
 	local worldState = saveService.getWorldState()
 	if worldState then
-		-- 하위 호환성: 기존 structures도 체크
+		-- 하위 호환성: 기존 structures → wildernessStructures로 마이그레이션
 		local legacy = worldState.structures or {}
 		local wilderness = worldState.wildernessStructures or {}
+		
+		-- 레거시 구조물을 wildernessStructures로 이관 (중복 방지)
+		local migrated = 0
+		for structureId, struct in pairs(legacy) do
+			if not wilderness[structureId] then
+				wilderness[structureId] = struct
+				migrated += 1
+			end
+		end
+		if migrated > 0 then
+			print(string.format("[BuildService] Migrated %d legacy structures → wildernessStructures", migrated))
+		end
+		-- 레거시 필드 비우기 (다음 saveWorld 시 정리됨)
+		worldState.structures = {}
+		worldState.wildernessStructures = wilderness
 		
 		local function loadStructMap(map)
 			for structureId, struct in pairs(map) do
@@ -1036,7 +1074,6 @@ function BuildService.Init(netController: any, dataService: any, inventoryServic
 			end
 		end
 
-		loadStructMap(legacy)
 		loadStructMap(wilderness)
 		
 		-- [추가] 설치 순서대로 정렬하여 orderedIds 초기화

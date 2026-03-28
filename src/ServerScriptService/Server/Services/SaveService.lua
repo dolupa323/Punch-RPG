@@ -107,6 +107,11 @@ local function _getDefaultPlayerSave()
 				[Enums.StatId.ATTACK] = 0,
 			}
 		},
+		-- 스킬 트리 (전투 택1 + 건축 자동해금)
+		skillPointsSpent = 0,
+		unlockedSkills = {},
+		combatTreeId = nil,
+		activeSkillSlots = { nil, nil, nil },
 		-- 장착 중인 아이템 (Head, Body, Feet, Hand)
 		equipment = _getDefaultEquipment(),
 		-- 고대 포탈 진행도 (개인 저장)
@@ -251,6 +256,12 @@ local function _normalizePlayerState(state: any): any
 	state.snapshots = type(state.snapshots) == "table" and state.snapshots or {}
 	state._session = type(state._session) == "table" and state._session or { jobId = nil, timestamp = 0 }
 
+	-- 스킬 트리 필드 정규화
+	state.skillPointsSpent = type(state.skillPointsSpent) == "number" and state.skillPointsSpent or 0
+	state.unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {}
+	state.combatTreeId = (type(state.combatTreeId) == "string") and state.combatTreeId or nil
+	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil }
+
 	return state
 end
 
@@ -260,6 +271,7 @@ local function _normalizeWorldState(state: any): any
 	end
 
 	state.structures = type(state.structures) == "table" and state.structures or {}
+	state.wildernessStructures = type(state.wildernessStructures) == "table" and state.wildernessStructures or {}
 	state.facilities = type(state.facilities) == "table" and state.facilities or {}
 	state.storages = type(state.storages) == "table" and state.storages or {}
 	state.barns = type(state.barns) == "table" and state.barns or {}
@@ -342,11 +354,12 @@ function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolea
 		return false, "NO_STATE"
 	end
 	
-	-- [수면/로그아웃 위치 저장] 게임에 접속중인 상태라면 현재 좌표를 마지막 수면 위치로 갱신
+	-- [수면/로그아웃 위치 저장] 간이천막 리스폰 설정이 없을 때만 현재 좌표로 갱신
+	-- 로딩 화면 중(Anchored + Y>3000)에는 저장하지 않음 (클라이언트가 Y+5000으로 올려놓은 상태)
 	local player = Players:GetPlayerByUserId(userId)
-	if player and player.Character then
+	if player and player.Character and not state.respawnStructureId then
 		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-		if hrp then
+		if hrp and not hrp.Anchored and hrp.Position.Y < 3000 then
 			state.lastPosition = {
 				x = hrp.Position.X,
 				y = hrp.Position.Y,
@@ -441,13 +454,23 @@ function SaveService.loadWorld(): (boolean, any)
 end
 
 --- 월드 데이터 저장 (UpdateAsync)
+local _lastWorldSaveTime = 0
+local WORLD_SAVE_DEBOUNCE = 3 -- 3초 이내 중복 저장 방지
+
 function SaveService.saveWorld(snapshot: any?): (boolean, string?)
+	local now = os.clock()
+	if not snapshot and (now - _lastWorldSaveTime) < WORLD_SAVE_DEBOUNCE then
+		return true, "DEBOUNCED"
+	end
+	
 	local state = snapshot or worldState
 	
 	if not state then
 		warn("[SaveService] No world state to save")
 		return false, "NO_STATE"
 	end
+	
+	_lastWorldSaveTime = now
 	
 	-- [최적화] 월드 스냅샷도 주기적으로만 생성
 	local lastSnapshot = state.stats.lastSnapshotTime or 0
@@ -595,6 +618,72 @@ end
 -- Event Handlers
 --========================================
 
+-- 데이터 로드 성공 후 스폰 위치 결정 + LoadCharacter (공통 함수)
+local function _spawnAfterDataLoad(player: Player, userId: number)
+	local state = playerStates[userId]
+	local spawnPos = nil
+
+	-- 우선순위 1: lastPosition (간이천막 취침 시 저장)
+	if state and state.lastPosition then
+		spawnPos = Vector3.new(
+			state.lastPosition.x or 0,
+			(state.lastPosition.y or 0) + 5,
+			state.lastPosition.z or 0
+		)
+		print(string.format("[SaveService] Spawn from lastPosition: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+	end
+
+	-- 우선순위 2: respawnStructureId → BuildService에서 구조물 위치 조회
+	if not spawnPos and state and state.respawnStructureId then
+		local buildOk, BSvc = pcall(function()
+			return require(game:GetService("ServerScriptService").Server.Services.BuildService)
+		end)
+		if buildOk and BSvc and BSvc.get then
+			local struct = BSvc.get(state.respawnStructureId)
+			if struct and struct.position then
+				local pos = struct.position
+				if typeof(pos) == "Vector3" then
+					spawnPos = pos + Vector3.new(0, 5, 0)
+				elseif type(pos) == "table" then
+					spawnPos = Vector3.new(pos.X or pos.x or 0, (pos.Y or pos.y or 0) + 5, pos.Z or pos.z or 0)
+				end
+				if spawnPos then
+					print(string.format("[SaveService] Spawn from respawnStructureId(%s): %.1f, %.1f, %.1f",
+						state.respawnStructureId, spawnPos.X, spawnPos.Y, spawnPos.Z))
+				end
+			end
+		end
+	end
+
+	-- 우선순위 3: SpawnLocation 모델 (신규/데이터없음)
+	if not spawnPos then
+		local spawnModel = workspace:FindFirstChild("SpawnLocation")
+		if spawnModel and spawnModel:IsA("Model") then
+			local cf, size = spawnModel:GetBoundingBox()
+			spawnPos = cf.Position + Vector3.new(0, size.Y / 2 + 5, 0)
+			print(string.format("[SaveService] Spawn from SpawnLocation model: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+		elseif spawnModel and spawnModel:IsA("BasePart") then
+			spawnPos = spawnModel.Position + Vector3.new(0, 5, 0)
+		else
+			spawnPos = Vector3.new(0, 50, 0)
+			print("[SaveService] No spawn target found, using fallback (0,50,0)")
+		end
+	end
+
+	-- 스폰 위치를 player attribute로 전달 (LoadingScreen + CharacterSetupService가 읽음)
+	player:SetAttribute("SpawnPosX", spawnPos.X)
+	player:SetAttribute("SpawnPosY", spawnPos.Y)
+	player:SetAttribute("SpawnPosZ", spawnPos.Z)
+	player:SetAttribute("DataLoaded", true)
+
+	-- LoadCharacter 호출 (CharacterAutoLoads=false이므로 수동)
+	if player.Parent then
+		player:LoadCharacter()
+		print(string.format("[SaveService] LoadCharacter called for %s at %.1f, %.1f, %.1f",
+			player.Name, spawnPos.X, spawnPos.Y, spawnPos.Z))
+	end
+end
+
 --- PlayerAdded 이벤트
 local function onPlayerAdded(player: Player)
 	task.spawn(function()
@@ -608,6 +697,8 @@ local function onPlayerAdded(player: Player)
 		while player.Parent and os.clock() < deadline do
 			local ok, stateOrErr, lockMeta = SaveService.loadPlayer(userId)
 			if ok then
+				print(string.format("[SaveService] Player %d data loaded successfully, spawning character", userId))
+				_spawnAfterDataLoad(player, userId)
 				return
 			end
 
@@ -631,6 +722,8 @@ local function onPlayerAdded(player: Player)
 					warn(string.format("[SaveService] Trying force acquire for player %d after stable lock observation (%d retries)", userId, stableLockRetries))
 					local forceOk, forceStateOrErr = SaveService.loadPlayer(userId, true)
 					if forceOk then
+						print(string.format("[SaveService] Player %d force-acquired successfully, spawning character", userId))
+						_spawnAfterDataLoad(player, userId)
 						return
 					end
 					lastErr = forceStateOrErr
@@ -684,6 +777,8 @@ local function onPlayerRemoving(player: Player)
 	else
 		print(string.format("[SaveService] Successfully saved and unlocked player %d on logout", userId))
 	end
+
+	-- 2b. 월드/파티션 저장은 BindToClose에서 일괄 처리 (DataStore 큐 오버플로 방지)
 	
 	-- 3. 메모리 정리
 	-- 인벤토리 서비스 정리
@@ -758,6 +853,25 @@ function SaveService.Init(netController: any)
 	
 	-- Autosave 시작
 	startAutosave()
+
+	-- BindToClose: 서버 종료 시 월드 + 파티션 + 모든 플레이어 강제 저장
+	game:BindToClose(function()
+		print("[SaveService] BindToClose triggered — saving all data...")
+		-- 플레이어 저장 (onPlayerRemoving에서 이미 처리되지 않은 플레이어만)
+		for userId, _ in pairs(playerStates) do
+			local p = Players:GetPlayerByUserId(userId)
+			if p then
+				pcall(SaveService.savePlayer, userId, nil, true)
+			end
+		end
+		-- 월드 저장 (saveWorld 내부 디바운스가 중복 호출 방지)
+		_lastWorldSaveTime = 0 -- BindToClose는 반드시 저장
+		pcall(SaveService.saveWorld)
+		for pId, _ in pairs(partitionStates) do
+			pcall(SaveService.savePartition, pId)
+		end
+		print("[SaveService] BindToClose save complete")
+	end)
 	
 	initialized = true
 	print(string.format("[SaveService] Initialized - Autosave: %ds, Snapshots: %d", 

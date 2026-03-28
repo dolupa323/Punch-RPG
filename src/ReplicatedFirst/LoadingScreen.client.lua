@@ -274,11 +274,25 @@ local hrp = nil
 task.spawn(function()
 	local char = player.Character or player.CharacterAdded:Wait()
 	hrp = char:WaitForChild("HumanoidRootPart", 10)
-	task.wait(0.2) -- 스폰 후 위치 확정을 위한 짧은 대기
+	
+	-- 서버에서 설정한 SpawnPos 속성 대기 (CharacterAutoLoads=false → LoadCharacter 전에 설정됨)
+	local waitTime = 0
+	while not player:GetAttribute("SpawnPosX") and waitTime < 10 do
+		task.wait(0.1)
+		waitTime += 0.1
+	end
+	
+	-- SpawnPos attribute에서 정확한 스폰 위치 결정 (hrp.CFrame은 0,0,0일 수 있음)
+	local sx = player:GetAttribute("SpawnPosX")
+	local sy = player:GetAttribute("SpawnPosY")
+	local sz = player:GetAttribute("SpawnPosZ")
+	if sx and sy and sz then
+		initCFrame = CFrame.new(sx, sy, sz)
+	elseif hrp then
+		initCFrame = hrp.CFrame
+	end
 	
 	if hrp then
-		initCFrame = hrp.CFrame
-		
 		-- 플레이어를 아주 높은 하늘로 이동 & 고정하여 공룡 타겟팅(공격) 방지
 		hrp.Anchored = true
 		hrp.CFrame = initCFrame + Vector3.new(0, 5000, 0)
@@ -426,7 +440,15 @@ invisibleStartButton.MouseButton1Click:Connect(function()
 	
 	-- 플레이어 위치 원상복구 및 공룡 공격 회피 해제, 카메라 정상화
 	if hrp then
-		hrp.CFrame = initCFrame
+		-- SpawnPos 속성에서 최신 서버 권위 위치 재확인
+		local sx = player:GetAttribute("SpawnPosX")
+		local sy = player:GetAttribute("SpawnPosY")
+		local sz = player:GetAttribute("SpawnPosZ")
+		if sx and sy and sz then
+			hrp.CFrame = CFrame.new(sx, sy, sz)
+		else
+			hrp.CFrame = initCFrame
+		end
 		hrp.Anchored = false
 	end
 	camera.CameraType = Enum.CameraType.Custom

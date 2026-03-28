@@ -25,6 +25,7 @@ local WorldDropService
 local PlayerStatService
 local HungerService -- Cached (Phase 11)
 local TechService
+local SkillService -- 스킬 패시브 보너스
 
 -- Constants
 local DEFAULT_ATTACK_RANGE = Balance.REACH_BAREHAND or 12 -- 맨손 사거리 (Balance 반영)
@@ -225,6 +226,21 @@ local function getAmmoForWeapon(itemId: string): string?
 	return nil
 end
 
+--- 무기 아이템 정보로 스킬 트리 ID 결정 (SPEAR/BOW/AXE)
+local function getWeaponTreeId(itemData): string?
+	if not itemData then return nil end
+	local opt = string.upper(tostring(itemData.optimalTool or ""))
+	if opt == "SPEAR" then return "SPEAR" end
+	if opt == "BOW" or opt == "CROSSBOW" then return "BOW" end
+	if opt == "AXE" then return "AXE" end
+	-- itemId 기반 폴백
+	local id = string.upper(tostring(itemData.id or ""))
+	if id:find("SPEAR", 1, true) then return "SPEAR" end
+	if id:find("BOW", 1, true) then return "BOW" end
+	if id:find("AXE", 1, true) then return "AXE" end
+	return nil
+end
+
 local function findAttackTargetByRay(player: Player, direction: Vector3, range: number, originOverride: Vector3?)
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -263,6 +279,10 @@ end
 
 function CombatService.SetStaminaService(_StaminaService)
 	StaminaService = _StaminaService
+end
+
+function CombatService.SetSkillService(_SkillService)
+	SkillService = _SkillService
 end
 
 --- 플레이어가 무적 상태인지 확인 (구르기 중)
@@ -461,9 +481,19 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	end
 
 	if isBowShot and ammoItemId then
-		local removed = InventoryService.removeItem(userId, ammoItemId, 1)
-		if removed < 1 then
-			return false, Enums.ErrorCode.MISSING_REQUIREMENTS
+		-- 스킬 패시브: NO_ARROW_CONSUME 체크
+		local skipArrow = false
+		if SkillService then
+			local bonuses = SkillService.getPassiveBonuses(userId, "BOW")
+			if (bonuses.NO_ARROW_CONSUME or 0) > 0 then
+				skipArrow = true
+			end
+		end
+		if not skipArrow then
+			local removed = InventoryService.removeItem(userId, ammoItemId, 1)
+			if removed < 1 then
+				return false, Enums.ErrorCode.MISSING_REQUIREMENTS
+			end
 		end
 	end
 
@@ -538,6 +568,17 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		totalDamage = totalDamage * chargeMult
 	end
 
+	-- ★ 스킬 패시브 보너스 적용 (DAMAGE_MULT, CRIT_CHANCE, CRIT_DAMAGE_MULT)
+	local skillBonuses = nil
+	local weaponTreeId = getWeaponTreeId(itemData)
+	if SkillService and weaponTreeId then
+		skillBonuses = SkillService.getPassiveBonuses(userId, weaponTreeId)
+		local skillDmgMult = skillBonuses.DAMAGE_MULT or 0
+		if skillDmgMult > 0 then
+			totalDamage = totalDamage * (1 + skillDmgMult)
+		end
+	end
+
 	-- ★ 무기 속성 효과 적용 (다중 속성 합산)
 	local attrCritChance = 0
 	local attrCritDamageMult = 0
@@ -552,6 +593,12 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 				attrCritDamageMult = attrCritDamageMult + (fx.critDamageMult or 0)
 			end
 		end
+	end
+
+	-- ★ 스킬 패시브 크릿 보너스 합산
+	if skillBonuses then
+		attrCritChance = attrCritChance + (skillBonuses.CRIT_CHANCE or 0)
+		attrCritDamageMult = attrCritDamageMult + (skillBonuses.CRIT_DAMAGE_MULT or 0)
 	end
 
 	-- ★ 데미지 등락폭 적용 (±VARIANCE)
@@ -630,6 +677,19 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	-- 4.5 전투 시 배고픔 소모 연동 (Phase 11)
 	if HungerService then
 		HungerService.consumeHunger(player.UserId, Balance.HUNGER_COMBAT_COST)
+	end
+
+	-- 4.6 스킬 패시브: 적중 시 HP 회복 (도끼 대가 HEAL_ON_HIT)
+	if skillBonuses and targetType == "CREATURE" and hpDamage > 0 then
+		local healChance = skillBonuses.HEAL_ON_HIT_CHANCE or 0
+		local healPct = skillBonuses.HEAL_ON_HIT_PCT or 0
+		if healChance > 0 and healPct > 0 and math.random() < healChance then
+			local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health > 0 then
+				local healAmount = humanoid.MaxHealth * healPct
+				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + healAmount)
+			end
+		end
 	end
 	
 	-- 5. 피냄새 디버프 및 드롭 생성 (크리처를 킬했을 때)

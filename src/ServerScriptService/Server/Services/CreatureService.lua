@@ -8,6 +8,9 @@ local Balance = require(Shared.Config.Balance)
 local Enums = require(Shared.Enums.Enums)
 local SpawnConfig = require(Shared.Config.SpawnConfig)
 
+-- Zone별 스폰 완료 여부 추적
+local spawnedZones = {}
+
 local CreatureService = {}
 
 -- Dependencies
@@ -996,13 +999,20 @@ function CreatureService._findMapSpawnPosition(center: Vector3, radius: number):
 	return nil
 end
 
-	-- ★ 초기 대량 스폰 (서버 시작 시 각 Zone별로 크리처 배치)
+	-- ★ 초기 대량 스폰 (서버 시작 시 허브 Zone만 크리처 배치, 비허브는 SpawnZone으로 지연)
 function CreatureService._initialSpawn()
 	local PER_ZONE_COUNT = math.floor((Balance.INITIAL_CREATURE_COUNT or 80) / math.max(1, #SpawnConfig.GetAllZoneNames()))
 	local SPAWN_RADIUS = Balance.CREATURE_INITIAL_SPAWN_RADIUS or 300
 	local totalSpawned = 0
+	local HUB_ZONE = SpawnConfig.HUB_ZONE or "GRASSLAND"
 
 	for _, zoneName in ipairs(SpawnConfig.GetAllZoneNames()) do
+		-- 허브가 아닌 Zone은 초기 스폰에서 제외
+		if zoneName ~= HUB_ZONE then
+			print(string.format("[CreatureService] Zone '%s' deferred (non-hub)", zoneName))
+			continue
+		end
+
 		local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
 		if not zoneInfo then continue end
 
@@ -1038,7 +1048,51 @@ function CreatureService._initialSpawn()
 		totalSpawned = totalSpawned + spawned
 	end
 
-	print(string.format("[CreatureService] Initial spawn complete: %d total across %d zones", totalSpawned, #SpawnConfig.GetAllZoneNames()))
+	spawnedZones[HUB_ZONE] = true
+	print(string.format("[CreatureService] Initial spawn complete: %d total (hub zone only)", totalSpawned))
+end
+
+--- Zone별 지연 스폰 (포탈 이동 시 호출)
+function CreatureService.SpawnZone(zoneName)
+	if spawnedZones[zoneName] then return end
+	spawnedZones[zoneName] = true
+
+	local PER_ZONE_COUNT = math.floor((Balance.INITIAL_CREATURE_COUNT or 80) / math.max(1, #SpawnConfig.GetAllZoneNames()))
+	local SPAWN_RADIUS = Balance.CREATURE_INITIAL_SPAWN_RADIUS or 300
+
+	local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
+	if not zoneInfo then return end
+
+	local zoneCenter = zoneInfo.center
+	local zoneRadius = math.min(SPAWN_RADIUS, zoneInfo.radius)
+
+	print(string.format("[CreatureService] SpawnZone '%s': %d creatures, radius %.0f", zoneName, PER_ZONE_COUNT, zoneRadius))
+
+	local spawned = 0
+	local attempts = 0
+	local MAX_ATTEMPTS = PER_ZONE_COUNT * 10
+
+	while spawned < PER_ZONE_COUNT and attempts < MAX_ATTEMPTS do
+		attempts = attempts + 1
+		local pos = CreatureService._findMapSpawnPosition(zoneCenter, zoneRadius)
+		if pos then
+			local cid = SpawnConfig.GetRandomCreatureForZone(zoneName)
+			if not cid then continue end
+			local data = DataService.getCreature(cid)
+			local groupSize = (data and data.groupSize) or 1
+
+			for i = 1, groupSize do
+				if spawned >= PER_ZONE_COUNT then break end
+				local offset = groupSize > 1 and Vector3.new(math.random(-8, 8), 0, math.random(-8, 8)) or Vector3.zero
+				local result = CreatureService.spawn(cid, pos + offset)
+				if result then
+					spawned = spawned + 1
+				end
+			end
+		end
+	end
+
+	print(string.format("[CreatureService] SpawnZone '%s' complete: %d creatures spawned", zoneName, spawned))
 end
 
 --- 보충 스폰 루프 (CAP 대비 부족분만 플레이어 주변에 보충 — Zone별 크리처 선택)
@@ -1135,8 +1189,11 @@ function CreatureService._updateAILoop()
 		local char = p.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
+		local isAlive = hum and hum.Health > 0
 		
-		if hrp and hum and hum.Health > 0 then
+		-- [FIX] 사망한 플레이어도 proximity 계산에 포함 (despawn 방지)
+		-- 어그로 대상에서만 제외함 (closestPlayerHum은 살아있는 경우만 설정)
+		if hrp then
 			local pPos = hrp.Position
 			-- 플레이어 주변 300스터드(DESPAWN_DIST) 내의 크리처 파트 탐색
 			local nearbyParts = workspace:GetPartBoundsInRadius(pPos, DESPAWN_DIST, spatialParams)
@@ -1158,8 +1215,9 @@ function CreatureService._updateAILoop()
 								creature.minDist = d
 								creature.closestPlayerPos = pPos
 								creature.closestPlayerRoot = hrp
-								creature.closestPlayerHum = hum
-								creature.closestPlayerUserId = p.UserId
+								-- [FIX] 어그로 대상은 살아있는 플레이어만
+								creature.closestPlayerHum = isAlive and hum or creature.closestPlayerHum
+								creature.closestPlayerUserId = isAlive and p.UserId or creature.closestPlayerUserId
 								
 								-- [추가] 공격 판정용 머리(Head) 위치 탐색
 								local head = creature.model:FindFirstChild("Head", true) or creature.model:FindFirstChild("Neck", true)

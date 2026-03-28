@@ -461,13 +461,14 @@ function BaseClaimService.expand(userId: number): (boolean, string?)
 end
 
 --- 베이스 중심 이동 (토템 재배치용)
-function BaseClaimService.moveBaseCenter(userId: number, newPosition: Vector3): (boolean, string?)
+--- skipPortalCheck: 이미 건설 검증을 통과한 토템 배치 시 true
+function BaseClaimService.moveBaseCenter(userId: number, newPosition: Vector3, skipPortalCheck: boolean?): (boolean, string?)
 	local baseClaim = bases[userId]
 	if not baseClaim then
 		return false, Enums.ErrorCode.NOT_FOUND
 	end
 
-	if overlapsPortalRestrictionZone(newPosition, baseClaim.radius or (Balance.BASE_DEFAULT_RADIUS or 30)) then
+	if not skipPortalCheck and overlapsPortalRestrictionZone(newPosition, baseClaim.radius or (Balance.BASE_DEFAULT_RADIUS or 30)) then
 		return false, Enums.ErrorCode.NO_PERMISSION
 	end
 

@@ -17,8 +17,12 @@ local TotemController = {}
 local initialized = false
 local currentStructureId = nil
 local infoCache = {} -- [structureId] = {data, fetchedAt}
-local previewFillPart = nil
-local previewBorderPart = nil
+local previewFolder = nil     -- 울타리 세그먼트 폴더
+local fenceSegments = {}      -- 복제된 울타리 세그먼트 배열
+local fenceTemplate = nil     -- 울타리 모델 원본 (ReplicatedStorage)
+local fenceSegmentWidth = 4   -- 기본값, 실제 모델에서 자동 측정
+local fencePivotOffsetY = 0   -- 피벗~바닥 오프셋
+local prevSegmentCount = 0    -- 세그먼트 수 변경 감지용
 local previewConn = nil
 local ownInfoCache = nil
 local ownInfoFetchedAt = 0
@@ -33,46 +37,57 @@ local playerNameCache = {}            -- [userId] = displayName
 local PREVIEW_REFRESH_INTERVAL = 0.35
 local INFO_CACHE_TTL = 5
 local OWN_INFO_CACHE_TTL = 30
-local PREVIEW_COLOR_ACTIVE = Color3.fromRGB(255, 200, 50)
-local PREVIEW_COLOR_INACTIVE = Color3.fromRGB(200, 160, 60)
-local OWN_PREVIEW_COLOR_ACTIVE = Color3.fromRGB(255, 180, 30)
-local OWN_PREVIEW_COLOR_INACTIVE = Color3.fromRGB(200, 155, 50)
-local STARTER_PREVIEW_COLOR = Color3.fromRGB(100, 180, 255)
+local PREVIEW_COLOR_ACTIVE = Color3.fromRGB(255, 200, 120)
+local PREVIEW_COLOR_INACTIVE = Color3.fromRGB(240, 180, 100)
+local OWN_PREVIEW_COLOR_ACTIVE = Color3.fromRGB(255, 195, 110)
+local OWN_PREVIEW_COLOR_INACTIVE = Color3.fromRGB(235, 175, 95)
+local STARTER_PREVIEW_COLOR = Color3.fromRGB(170, 210, 255)
 local PREVIEW_BORDER_WIDTH = 1.2
 
 local function destroyPreviewParts()
-	if previewFillPart then
-		previewFillPart:Destroy()
-		previewFillPart = nil
+	for _, seg in ipairs(fenceSegments) do
+		if seg and seg.Parent then
+			seg:Destroy()
+		end
 	end
-	if previewBorderPart then
-		previewBorderPart:Destroy()
-		previewBorderPart = nil
+	fenceSegments = {}
+	prevSegmentCount = 0
+	if previewFolder then
+		previewFolder:Destroy()
+		previewFolder = nil
 	end
 end
 
-local function ensurePreviewParts()
-	if previewFillPart and previewFillPart.Parent and previewBorderPart and previewBorderPart.Parent then
-		return previewFillPart, previewBorderPart
-	end
-	if previewFillPart and previewFillPart.Parent then
-		return previewFillPart, nil
-	end
+local function getFenceTemplate()
+	if fenceTemplate then return fenceTemplate end
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then return nil end
+	local facilityModels = assets:FindFirstChild("FacilityModels")
+	if not facilityModels then return nil end
+	local tmpl = facilityModels:FindFirstChild("TotemFence")
+	if not tmpl then return nil end
+	fenceTemplate = tmpl
 
-	local fill = Instance.new("Part")
-	fill.Name = "TotemZonePreviewFill"
-	fill.Anchored = true
-	fill.CanCollide = false
-	fill.CanQuery = false
-	fill.CanTouch = false
-	fill.Shape = Enum.PartType.Cylinder
-	fill.Material = Enum.Material.SmoothPlastic
-	fill.Transparency = 0.9
-	fill.Color = PREVIEW_COLOR_ACTIVE
-	fill.Size = Vector3.new(math.max(0.8, Balance.TOTEM_PREVIEW_HEIGHT or 1.2), 1, 1)
-	fill.Parent = workspace
-	previewFillPart = fill
-	return previewFillPart, nil
+	if tmpl:IsA("Model") then
+		local cf, size = tmpl:GetBoundingBox()
+		local pivot = tmpl:GetPivot()
+		fenceSegmentWidth = size.X
+		fencePivotOffsetY = pivot.Y - (cf.Y - size.Y / 2)
+	elseif tmpl:IsA("BasePart") then
+		fenceSegmentWidth = tmpl.Size.X
+		fencePivotOffsetY = tmpl.Size.Y / 2
+	end
+	if fenceSegmentWidth < 0.5 then fenceSegmentWidth = 4 end
+	return fenceTemplate
+end
+
+local function ensureFolder()
+	if previewFolder and previewFolder.Parent then return end
+	destroyPreviewParts()
+	local folder = Instance.new("Folder")
+	folder.Name = "TotemZonePreview"
+	folder.Parent = workspace
+	previewFolder = folder
 end
 
 local function hidePreview()
@@ -278,13 +293,15 @@ local function checkTerritoryEntry(hrpPos)
 	end
 end
 
-local function renderPreviewRing(centerPos: Vector3, radius: number, color: Color3, transparency: number, excludeModel: Instance?)
-	local thickness = math.max(0.8, Balance.TOTEM_PREVIEW_HEIGHT or 1.2)
+local function renderPreviewRing(centerPos: Vector3, radius: number, _color: Color3, transparency: number, _excludeModel: Instance?)
+	local template = getFenceTemplate()
+	if not template then return end
+
 	local centerX, centerY, centerZ = centerPos.X, centerPos.Y, centerPos.Z
 
+	-- 지형 높이 추적
 	local terrainY = centerY
 	local rayParams = RaycastParams.new()
-	-- 지형(Terrain)만 감지하여 나무/풀/건물 등 위에 영역이 뜨지 않도록 함
 	rayParams.FilterType = Enum.RaycastFilterType.Include
 	rayParams.FilterDescendantsInstances = { workspace.Terrain }
 	local rayResult = workspace:Raycast(Vector3.new(centerX, centerY + 180, centerZ), Vector3.new(0, -500, 0), rayParams)
@@ -292,15 +309,86 @@ local function renderPreviewRing(centerPos: Vector3, radius: number, color: Colo
 		terrainY = rayResult.Position.Y
 	end
 
-	local fill, _ = ensurePreviewParts()
-	local fillRadius = math.max(1, radius - PREVIEW_BORDER_WIDTH)
-	-- 실린더 중심을 지면에서 thickness/2만큼 내려서 윗면이 지면과 일치하도록 배치
-	local baseCFrame = CFrame.new(centerX, terrainY - (thickness * 0.5) + 0.05, centerZ) * CFrame.Angles(0, 0, math.rad(90))
+	ensureFolder()
+	local halfSide = math.max(1, radius - PREVIEW_BORDER_WIDTH)
+	local sideLen = halfSide * 2
+	local segPerSide = math.max(1, math.ceil(sideLen / fenceSegmentWidth))
+	local totalNeeded = segPerSide * 4
 
-	fill.Size = Vector3.new(thickness, fillRadius * 2, fillRadius * 2)
-	fill.CFrame = baseCFrame
-	fill.Transparency = transparency
-	fill.Color = color
+	-- 세그먼트 수가 바뀌면 재생성
+	if totalNeeded ~= prevSegmentCount then
+		for _, seg in ipairs(fenceSegments) do
+			if seg and seg.Parent then seg:Destroy() end
+		end
+		fenceSegments = {}
+
+		for i = 1, totalNeeded do
+			local clone = template:Clone()
+			clone.Name = "Fence_" .. i
+			local parts = clone:IsA("Model") and clone:GetDescendants() or { clone }
+			for _, part in ipairs(parts) do
+				if part:IsA("BasePart") then
+					part.Anchored = true
+					part.CanCollide = false
+					part.CanQuery = false
+					part.CanTouch = false
+					part.CastShadow = false
+				end
+			end
+			clone.Parent = previewFolder
+			fenceSegments[i] = clone
+		end
+		prevSegmentCount = totalNeeded
+	end
+
+	-- 투명도 적용 (모델 원본 색상/재질 유지)
+	for _, seg in ipairs(fenceSegments) do
+		if seg and seg.Parent then
+			local parts = seg:IsA("Model") and seg:GetDescendants() or { seg }
+			for _, part in ipairs(parts) do
+				if part:IsA("BasePart") then
+					part.Transparency = transparency
+				end
+			end
+		end
+	end
+
+	-- 4면에 울타리 배치
+	local baseY = terrainY + fencePivotOffsetY
+	local spacing = sideLen / segPerSide
+
+	-- 각 면: {along축, edge오프셋, 회전Y}
+	local sides = {
+		{ "X",  Vector3.new(0, 0,  halfSide), 0 },            -- 북(+Z)
+		{ "X",  Vector3.new(0, 0, -halfSide), math.pi },       -- 남(-Z)
+		{ "Z",  Vector3.new( halfSide, 0, 0), math.pi / 2 },   -- 동(+X)
+		{ "Z",  Vector3.new(-halfSide, 0, 0), -math.pi / 2 },  -- 서(-X)
+	}
+
+	local idx = 0
+	for _, side in ipairs(sides) do
+		local axis, offset, rotY = side[1], side[2], side[3]
+		for s = 1, segPerSide do
+			idx += 1
+			local seg = fenceSegments[idx]
+			if not seg then continue end
+
+			local along = ((s - 0.5) / segPerSide - 0.5) * sideLen
+			local pos
+			if axis == "X" then
+				pos = Vector3.new(centerX + along, baseY, centerZ) + offset
+			else
+				pos = Vector3.new(centerX, baseY, centerZ + along) + offset
+			end
+
+			local cf = CFrame.new(pos) * CFrame.Angles(0, rotY, 0)
+			if seg:IsA("Model") then
+				seg:PivotTo(cf)
+			else
+				seg.CFrame = cf
+			end
+		end
+	end
 end
 
 local function refreshNearbyPreview()
@@ -341,7 +429,7 @@ local function refreshNearbyPreview()
 			ownInfo.centerPosition,
 			ownRadius,
 			ownActive and OWN_PREVIEW_COLOR_ACTIVE or OWN_PREVIEW_COLOR_INACTIVE,
-			ownActive and 0.55 or 0.5,
+			ownActive and 0.3 or 0.5,
 			nil
 		)
 		return
@@ -361,7 +449,7 @@ local function refreshNearbyPreview()
 			return
 		end
 
-		renderPreviewRing(starterZone.centerPosition, starterZone.radius, STARTER_PREVIEW_COLOR, 0.6, nil)
+		renderPreviewRing(starterZone.centerPosition, starterZone.radius, STARTER_PREVIEW_COLOR, 0.3, nil)
 		return
 	end
 
@@ -382,7 +470,7 @@ local function refreshNearbyPreview()
 	local radius = (info and tonumber(info.radius)) or (Balance.BASE_DEFAULT_RADIUS or 30)
 	local active = info and info.upkeep and info.upkeep.active
 	local centerPos = (info and info.centerPosition) or pp.Position
-	renderPreviewRing(centerPos, radius, active and PREVIEW_COLOR_ACTIVE or PREVIEW_COLOR_INACTIVE, active and 0.6 or 0.5, totemModel)
+	renderPreviewRing(centerPos, radius, active and PREVIEW_COLOR_ACTIVE or PREVIEW_COLOR_INACTIVE, active and 0.3 or 0.5, totemModel)
 end
 
 function TotemController.getCurrentStructureId()
@@ -446,14 +534,22 @@ function TotemController.requestPay(days, callback)
 end
 
 function TotemController.flashPreview()
-	if previewFillPart and previewFillPart.Parent then
-		previewFillPart.Transparency = 0.93
-	end
-		task.delay(0.3, function()
-			if previewFillPart and previewFillPart.Parent then
-				previewFillPart.Transparency = 0.965
+	local function setFenceTransparency(t)
+		for _, seg in ipairs(fenceSegments) do
+			if seg and seg.Parent then
+				local parts = seg:IsA("Model") and seg:GetDescendants() or { seg }
+				for _, part in ipairs(parts) do
+					if part:IsA("BasePart") then
+						part.Transparency = t
+					end
+				end
 			end
-		end)
+		end
+	end
+	setFenceTransparency(0.1)
+	task.delay(0.3, function()
+		setFenceTransparency(0.3)
+	end)
 end
 
 function TotemController.Init()
@@ -463,7 +559,9 @@ function TotemController.Init()
 
 	-- 이전 세션/핫리로드 잔존 프리뷰 파트 정리
 	for _, child in ipairs(workspace:GetChildren()) do
-		if child:IsA("BasePart") and (child.Name == "TotemZonePreviewFill" or child.Name == "TotemZonePreviewBorder") then
+		if child:IsA("Folder") and child.Name == "TotemZonePreview" then
+			child:Destroy()
+		elseif child:IsA("BasePart") and (child.Name == "TotemZonePreviewFill" or child.Name == "TotemZonePreviewBorder" or child.Name == "TotemZonePreviewInner" or child.Name == "TotemZonePreviewBottom") then
 			child:Destroy()
 		end
 	end
@@ -528,6 +626,62 @@ function TotemController.Init()
 		if currentStructureId and sid and currentStructureId == sid then
 			UIManager.refreshTotem()
 		end
+	end)
+
+	-- 베이스 중심 이동 수신 → 영역 표시 즉시 갱신
+	NetClient.On("Base.Relocated", function(data)
+		if type(data) ~= "table" then
+			return
+		end
+		if type(ownInfoCache) == "table" then
+			if typeof(data.centerPosition) == "Vector3" then
+				ownInfoCache.centerPosition = data.centerPosition
+			end
+			if data.radius then
+				ownInfoCache.radius = data.radius
+			end
+			ownInfoFetchedAt = tick()
+		end
+		-- 캐시 없으면 즉시 재요청
+		if not ownInfoCache then
+			task.spawn(function()
+				requestOwnInfo()
+			end)
+		end
+	end)
+
+	-- 토템 철거/이동 시 영역 표시 즉시 갱신
+	NetClient.On("Build.Removed", function(data)
+		if type(data) ~= "table" or not data.id then
+			return
+		end
+		local removedId = data.id
+
+		-- 해당 구조물 캐시 제거
+		if infoCache[removedId] then
+			infoCache[removedId] = nil
+		end
+
+		-- 본인 토템이 철거된 경우 캐시 초기화 + 영역 숨김
+		if type(ownInfoCache) == "table" and ownInfoCache.structureId == removedId then
+			ownInfoCache = nil
+			ownInfoFetchedAt = 0
+			hidePreview()
+		end
+
+		-- 현재 열려있는 토템 UI가 철거된 토템이면 닫기
+		if currentStructureId == removedId then
+			currentStructureId = nil
+			local UIManager = require(Client.UIManager)
+			if UIManager.closeTotem then
+				UIManager.closeTotem()
+			end
+		end
+
+		-- 본인 토템 정보 재요청 (이동/재배치 대응)
+		task.delay(0.5, function()
+			requestOwnInfo()
+		end)
 	end)
 
 	if previewConn then

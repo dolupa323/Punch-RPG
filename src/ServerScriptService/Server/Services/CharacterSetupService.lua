@@ -3,6 +3,7 @@
 -- 원시/부족 테마 의상 및 액세서리 적용
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local InsertService = game:GetService("InsertService")
 
@@ -132,6 +133,23 @@ local function applyPrehistoricStyle(player, character)
 		-- 인체공학적 서기 (HipHeight 조정)
 		humanoid.HipHeight = 2.0
 	end
+
+	-- [체력 재생 비활성화] Roblox 기본 Health 스크립트 제거 + 커스텀 재생 설정
+	local defaultHealthScript = character:FindFirstChild("Health")
+	if defaultHealthScript then
+		defaultHealthScript:Destroy()
+	end
+	-- Roblox 기본 재생 비활성화 후, 커스텀 극미량 재생 적용
+	task.spawn(function()
+		local okBal, Bal = pcall(function() return require(game:GetService("ReplicatedStorage").Shared.Config.Balance) end)
+		local regenRate = (okBal and Bal and Bal.HEALTH_REGEN_RATE) or 0.001
+		while character.Parent and humanoid and humanoid.Health > 0 do
+			if humanoid.Health < humanoid.MaxHealth then
+				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + (humanoid.MaxHealth * regenRate))
+			end
+			task.wait(1)
+		end
+	end)
 	
 	print(string.format("[CharacterSetupService] Applied prehistoric style & Upright Physics to %s", character.Name))
 end
@@ -153,53 +171,40 @@ end
 --========================================
 
 local function onCharacterAdded(player: Player, character)
-	applyPrehistoricStyle(player, character) -- player 인자 추가
+	-- [통합 스폰 처리] 접속/재접속/사망 리스폰 모두 동일하게 SpawnPos attribute로 즉시 PivotTo
+	-- SaveService(접속) 또는 PlayerLifeService(사망)에서 LoadCharacter 전에 SpawnPos를 설정함
+	local spawnX = player:GetAttribute("SpawnPosX")
+	local spawnY = player:GetAttribute("SpawnPosY")
+	local spawnZ = player:GetAttribute("SpawnPosZ")
+
+	if spawnX and spawnY and spawnZ then
+		local targetPos = Vector3.new(spawnX, spawnY, spawnZ)
+		local hrp = character:WaitForChild("HumanoidRootPart", 5)
+		if hrp then
+			-- Anchor로 Roblox 엔진의 위치 덮어쓰기를 차단한 뒤 즉시 PivotTo
+			hrp.Anchored = true
+			character:PivotTo(CFrame.new(targetPos))
+			print(string.format("[CharacterSetupService] Spawned %s at position: %.1f, %.1f, %.1f (death=%s)",
+				player.Name, targetPos.X, targetPos.Y, targetPos.Z,
+				tostring(player:GetAttribute("PendingDeathRespawn") or false)))
+		end
+	else
+		print(string.format("[CharacterSetupService] %s: No spawn attributes set (new player or data not loaded)", player.Name))
+	end
+
+	-- 외형 + 속성 적용 (위치가 이미 확정된 후, Anchor 상태에서 안전하게 처리)
+	applyPrehistoricStyle(player, character)
 	setupCharacterAttributes(player, character)
-	
-	-- [기존/신규 유저 첫 스폰 위치 설정 (수면 위치 복구)]
-	-- HasSpawnedFirstTime 속성으로 처음 1회 접속 시점만 체크 (사망 시에는 PlayerLifeService가 처리)
-	if not player:GetAttribute("HasSpawnedFirstTime") then
-		player:SetAttribute("HasSpawnedFirstTime", true)
-		
-		task.spawn(function()
-			local ok, SaveService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.SaveService) end)
-			if ok and SaveService then
-				-- 데이터 로딩 대기
-				local hrp = character:WaitForChild("HumanoidRootPart", 5)
-				if hrp then
-					local state = SaveService.getPlayerState(player.UserId)
-					if state and state.lastPosition then
-						-- 기존 유저: 마지막 수면 위치 복원
-						-- 약간의 대기 후 안전하게 텔레포트
-						task.wait(0.2)
-						character:PivotTo(CFrame.new(
-							state.lastPosition.x,
-							state.lastPosition.y + 5, -- 바닥에 끼지 않도록 조금 위쪽
-							state.lastPosition.z
-						))
-						print(string.format("[CharacterSetupService] Existing player %s spawned at previous sleep location", player.Name))
-					else
-						-- 신규 유저: 기본(첫 게임 시작 스폰 포인트)
-						task.wait(0.2)
-						local spawnPos = Vector3.new(0, 50, 0)
-						-- 개발자가 맵에 올려둔 실제 파트가 있다면 그것을 우선순위로 채택
-						local defaultSpawnPart = workspace:FindFirstChild("SpawnLocation")
-						if defaultSpawnPart and defaultSpawnPart:IsA("SpawnLocation") then
-							spawnPos = defaultSpawnPart.Position + Vector3.new(0, 5, 0)
-						else
-							-- 없다면 하드코딩된 설정 좌표 사용
-							local okConfig, SpawnConfig = pcall(function() return require(game:GetService("ReplicatedStorage").Shared.Config.SpawnConfig) end)
-							if okConfig and SpawnConfig and SpawnConfig.DEFAULT_START_SPAWN then
-								spawnPos = SpawnConfig.DEFAULT_START_SPAWN
-							end
-						end
-						
-						character:PivotTo(CFrame.new(spawnPos))
-						print(string.format("[CharacterSetupService] New player %s spawned at starting point %s", player.Name, tostring(spawnPos)))
-					end
-				end
-			end
-		end)
+
+	-- applyPrehistoricStyle 완료 후 Anchor 해제 (applyPrehistoricStyle 내부에 task.wait()이 있음)
+	local hrpFinal = character:FindFirstChild("HumanoidRootPart")
+	if hrpFinal and hrpFinal.Anchored then
+		-- 최종 위치 재확인 후 해제
+		if spawnX and spawnY and spawnZ then
+			character:PivotTo(CFrame.new(spawnX, spawnY, spawnZ))
+		end
+		hrpFinal.Anchored = false
+		print(string.format("[CharacterSetupService] Anchor released for %s", player.Name))
 	end
 end
 

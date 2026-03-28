@@ -1,8 +1,13 @@
 -- ServerInit.server.lua
 -- 서버 초기화 스크립트
 
+local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- [핵심] 캐릭터 자동 로드 비활성화
+-- 데이터 로드 완료 후 수동으로 LoadCharacter 호출하여 정확한 위치에 스폰
+Players.CharacterAutoLoads = false
 
 local Server = ServerScriptService:WaitForChild("Server")
 local Controllers = Server:WaitForChild("Controllers")
@@ -272,6 +277,18 @@ for command, handler in pairs(CombatService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
+-- SkillService 초기화 (스킬 트리: 전투 택1 + 건축 자동해금)
+local SkillService = require(Services.SkillService)
+SkillService.Init(NetController, PlayerStatService, SaveService)
+
+-- SkillService 핸들러 등록
+for command, handler in pairs(SkillService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+
+-- CombatService에 SkillService 연동 (패시브 보너스)
+CombatService.SetSkillService(SkillService)
+
 -- PlayerLifeService 초기화 (Phase 4-2)
 local PlayerLifeService = require(Services.PlayerLifeService)
 PlayerLifeService.Init(NetController, DataService, InventoryService, BuildService)
@@ -425,7 +442,7 @@ CharacterSetupService.Init()
 
 -- PortalService 초기화 (고대 포탈 - 수리 + 텔레포트)
 local PortalService = require(Services.PortalService)
-PortalService.Init(NetController, SaveService, InventoryService)
+PortalService.Init(NetController, SaveService, InventoryService, HarvestService, CreatureService)
 
 -- PortalService 핸들러 등록
 for command, handler in pairs(PortalService.GetHandlers()) do

@@ -36,6 +36,9 @@ local STARTER_NODE_TYPES = { "GROUND_BRANCH", "GROUND_STONE", "GROUND_FIBER" }
 -- 섬별 스폰 밸런싱 데이터
 local SpawnConfig = require(ReplicatedStorage.Shared.Config.SpawnConfig)
 
+-- Zone별 스폰 완료 여부 추적 (허브가 아닌 섬은 포탈 이동 시까지 지연)
+local spawnedZones = {}
+
 -- 풀밑 (Grass) 지형 Material
 local GRASS_MATERIALS = {
 	Enum.Material.Grass,
@@ -216,9 +219,9 @@ local function setupModelForNode(model: Model, position: Vector3, nodeData: any,
 	-- Toolbox 모델 정리
 	cleanModelForHarvest(model)
 
-	-- 잔돌/나뭇가지는 식별성을 위해 시각 크기를 아주 소폭 상향
+	-- 잔돌/나뭇가지는 식별성을 위해 시각 크기를 소폭 상향
 	if nodeData and (nodeData.id == "GROUND_BRANCH" or nodeData.id == "GROUND_STONE") then
-		local scaleMul = 1.15
+		local scaleMul = nodeData.id == "GROUND_STONE" and 1.4 or 1.15
 		for _, part in ipairs(model:GetDescendants()) do
 			if part:IsA("BasePart") and part.Transparency < 1 then
 				part.Size = part.Size * scaleMul
@@ -1399,17 +1402,48 @@ end
 function HarvestService._cacheTemplatesFromFolders()
 	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
 	if not nodeFolder then return end
-	
+
+	-- 폴더 이름 → nodeId 해석 헬퍼
+	local resourceTable = DataService and DataService.get("ResourceNodeData") or {}
+	local function resolveToNodeId(name)
+		-- 1) 정확 매칭
+		if DataService and DataService.getResourceNode(name) then
+			return name
+		end
+		-- 2) 정규화 매칭 + 부분 포함
+		local norm = tostring(name):lower():gsub("[%s_%-]", "")
+		for nodeId, nodeData in pairs(resourceTable) do
+			local nodeIdNorm = tostring(nodeId):lower():gsub("[%s_%-]", "")
+			local modelNameNorm = tostring(nodeData.modelName or ""):lower():gsub("[%s_%-]", "")
+			if norm == nodeIdNorm or norm == modelNameNorm then
+				return nodeId
+			end
+		end
+		-- 3) 부분 포함 (BRANCH → GROUND_BRANCH)
+		for nodeId, nodeData in pairs(resourceTable) do
+			local nodeIdNorm = tostring(nodeId):lower():gsub("[%s_%-]", "")
+			local modelNameNorm = tostring(nodeData.modelName or ""):lower():gsub("[%s_%-]", "")
+			if #norm >= 3 and (nodeIdNorm:find(norm, 1, true) or modelNameNorm:find(norm, 1, true)) then
+				return nodeId
+			end
+		end
+		return nil
+	end
+
 	local cached = 0
-	for _, child in ipairs(nodeFolder:GetChildren()) do
+	-- GetDescendants로 2단계 이상 하위 폴더(GRASSLAND/TREE_THIN 등)도 탐색
+	for _, child in ipairs(nodeFolder:GetDescendants()) do
 		if child:IsA("Folder") then
 			local firstModel = child:FindFirstChildWhichIsA("Model")
 			if firstModel then
-				-- 순수 원본 Clone (setupModelForNode 처리 전)
-				local clone = firstModel:Clone()
-				clone.Parent = nil -- detached 상태로 메모리에만 보관
-				templateCache[child.Name] = clone
-				cached = cached + 1
+				-- 폴더 이름을 실제 nodeId로 해석 (BRANCH → GROUND_BRANCH)
+				local resolvedId = resolveToNodeId(child.Name) or child.Name
+				if not templateCache[resolvedId] then
+					local clone = firstModel:Clone()
+					clone.Parent = nil
+					templateCache[resolvedId] = clone
+					cached = cached + 1
+				end
 			end
 		end
 	end
@@ -1453,11 +1487,23 @@ function HarvestService._setupPrePlacedNodes()
 		end
 
 		local resourceTable = DataService.get("ResourceNodeData") or {}
+		-- Pass 2: 정규화 완전 일치
 		for nodeId, nodeData in pairs(resourceTable) do
 			local nodeIdNorm = normalizeNodeName(nodeId)
 			local modelNameNorm = normalizeNodeName(nodeData.modelName)
 			for candidateNorm in pairs(normalizedCandidates) do
 				if candidateNorm == nodeIdNorm or candidateNorm == modelNameNorm then
+					return nodeId, nodeData
+				end
+			end
+		end
+
+		-- Pass 3: 부분 포함 매칭 (BRANCH → GROUND_BRANCH, STONE → GROUND_STONE 등)
+		for nodeId, nodeData in pairs(resourceTable) do
+			local nodeIdNorm = normalizeNodeName(nodeId)
+			local modelNameNorm = normalizeNodeName(nodeData.modelName)
+			for candidateNorm in pairs(normalizedCandidates) do
+				if #candidateNorm >= 3 and (nodeIdNorm:find(candidateNorm, 1, true) or modelNameNorm:find(candidateNorm, 1, true)) then
 					return nodeId, nodeData
 				end
 			end
@@ -1598,7 +1644,7 @@ function HarvestService.Init(
 	print("[HarvestService] Initialized — PRE-PLACED + AUTO-SPAWN MIXED system")
 end
 
---- ★ 초기 대량 스폰 (서버 시작 시 각 Zone별로 자원 노드 배치)
+--- ★ 초기 대량 스폰 (서버 시작 시 허브 Zone만 자원 배치, 비허브는 SpawnZone으로 지연)
 function HarvestService._initialSpawn()
 	local TOTAL_COUNT = Balance.INITIAL_NODE_COUNT or 150
 	local allZones = SpawnConfig.GetAllZoneNames()
@@ -1611,8 +1657,15 @@ function HarvestService._initialSpawn()
 	if creaturesFolder then table.insert(excludeList, creaturesFolder) end
 
 	local totalSpawned = 0
+	local HUB_ZONE = SpawnConfig.HUB_ZONE or "GRASSLAND"
 
 	for _, zoneName in ipairs(allZones) do
+		-- 허브가 아닌 Zone은 초기 스폰에서 제외 (포탈 이동 시 SpawnZone으로 지연)
+		if zoneName ~= HUB_ZONE then
+			print(string.format("[HarvestService] Zone '%s' deferred (non-hub, will spawn on portal entry)", zoneName))
+			continue
+		end
+
 		local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
 		if not zoneInfo then continue end
 
@@ -1665,7 +1718,8 @@ function HarvestService._initialSpawn()
 
 					if not tooClose then
 						local pos = result.Position + Vector3.new(0, 0.5, 0)
-						local nodeId = selectNodeForTerrain(result.Material)
+						-- Zone별 Harvests 테이블에서 선택 (섬마다 다른 자원 배치)
+						local nodeId = SpawnConfig.GetRandomHarvestForZone(zoneName)
 						if nodeId then
 							local uid = HarvestService.registerNode(nodeId, pos, false)
 							HarvestService.spawnNodeModel(nodeId, pos, uid)
@@ -1678,8 +1732,79 @@ function HarvestService._initialSpawn()
 		totalSpawned = totalSpawned + spawned
 	end
 
-	print(string.format("[HarvestService] Initial spawn complete: %d nodes across %d zones",
-		totalSpawned, #allZones))
+	spawnedZones[HUB_ZONE] = true
+	print(string.format("[HarvestService] Initial spawn complete: %d nodes (hub zone only)", totalSpawned))
+end
+
+--- Zone별 지연 스폰 (포탈 이동 시 호출)
+function HarvestService.SpawnZone(zoneName)
+	if spawnedZones[zoneName] then return end
+	spawnedZones[zoneName] = true
+
+	local TOTAL_COUNT = Balance.INITIAL_NODE_COUNT or 150
+	local allZones = SpawnConfig.GetAllZoneNames()
+	local PER_ZONE_COUNT = math.floor(TOTAL_COUNT / math.max(1, #allZones))
+
+	local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
+	if not zoneInfo then return end
+
+	local SPAWN_RADIUS = math.min(Balance.MAP_EXTENT or 1500, zoneInfo.radius)
+	local MAP_CENTER = zoneInfo.center
+	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
+
+	print(string.format("[HarvestService] SpawnZone '%s': %d nodes, radius %.0f", zoneName, PER_ZONE_COUNT, SPAWN_RADIUS))
+
+	local spawned = 0
+	local attempts = 0
+	local MAX_ATTEMPTS = PER_ZONE_COUNT * 10
+
+	while spawned < PER_ZONE_COUNT and attempts < MAX_ATTEMPTS do
+		attempts = attempts + 1
+		local xOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
+		local zOffset = (math.random() * 2 - 1) * SPAWN_RADIUS
+		local x = MAP_CENTER.X + xOffset
+		local z = MAP_CENTER.Z + zOffset
+		local origin = Vector3.new(x, MAP_CENTER.Y + 400, z)
+
+		local params = RaycastParams.new()
+		local filterList = { workspace.Terrain }
+		if workspace:FindFirstChild("Map") then
+			table.insert(filterList, workspace.Map)
+		end
+		params.FilterDescendantsInstances = filterList
+		params.FilterType = Enum.RaycastFilterType.Include
+
+		local result = workspace:Raycast(origin, Vector3.new(0, -800, 0), params)
+		if result then
+			local isWater = result.Material == Enum.Material.Water or result.Material == Enum.Material.CrackedLava
+			if not isWater and result.Position.Y >= SEA_LEVEL then
+				local tooClose = false
+				if nodeFolder then
+					for _, existing in ipairs(nodeFolder:GetDescendants()) do
+						if existing:IsA("Model") then
+							local ePart = existing.PrimaryPart or existing:FindFirstChildWhichIsA("BasePart")
+							if ePart and (ePart.Position - result.Position).Magnitude < 12 then
+								tooClose = true
+								break
+							end
+						end
+					end
+				end
+
+				if not tooClose then
+					local pos = result.Position + Vector3.new(0, 0.5, 0)
+					local nodeId = SpawnConfig.GetRandomHarvestForZone(zoneName)
+					if nodeId then
+						local uid = HarvestService.registerNode(nodeId, pos, false)
+						HarvestService.spawnNodeModel(nodeId, pos, uid)
+						spawned = spawned + 1
+					end
+				end
+			end
+		end
+	end
+
+	print(string.format("[HarvestService] SpawnZone '%s' complete: %d nodes spawned", zoneName, spawned))
 end
 
 --- 보충 스폰 루프 (CAP까지 부족한 수만큼만 보충)

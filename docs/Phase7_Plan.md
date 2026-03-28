@@ -26,8 +26,8 @@ Phase 6까지 완료된 상태에서, 이제 베이스 자동화를 완성한다
 ```lua
 -- ResourceNodeData.lua (신규)
 {
-  id = "TREE_OAK",
-  name = "참나무",
+  id = "TREE_THIN",
+  name = "가는나무",
   nodeType = "TREE",           -- TREE, ROCK, BUSH, FIBER
   requiredTool = "AXE",        -- 필요 도구 타입
   resources = {

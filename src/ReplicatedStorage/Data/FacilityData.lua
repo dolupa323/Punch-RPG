@@ -44,7 +44,7 @@ local FacilityData = {
 		iconName = "LEAN_TO",
 		iconAliases = { "LeanTo", "LEAN_TO", "Lean_To" },
 		requirements = { { itemId = "LOG", amount = 3 }, { itemId = "FIBER", amount = 3 } },
-		maxHealth = 150,
+		maxHealth = 500,
 		techLevel = 1,
 		functionType = "RESPAWN",
 	},

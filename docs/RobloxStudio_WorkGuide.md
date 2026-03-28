@@ -208,7 +208,7 @@ PRIMITIVE_WORKBENCH = {
 
 | ID            | 이름      | 필요 도구 | 자원             | modelName (권장) |
 | ------------- | --------- | --------- | ---------------- | ---------------- |
-| `TREE_OAK`    | 참나무    | 도끼      | 나무 3-5개       | `OakTree`        |
+| `TREE_THIN`   | 가는나무  | 도끼      | 나무 2-4개       | `ThinTree`       |
 | `TREE_PINE`   | 소나무    | 도끼      | 나무 4-6개, 수지 | `PineTree`       |
 | `ROCK_NORMAL` | 바위      | 곡괭이    | 돌 2-4개, 부싯돌 | `Rock`           |
 | `ORE_IRON`    | 철 광맥   | 곡괭이    | 철광석 4-8개     | `IronOre`        |
@@ -227,7 +227,7 @@ PRIMITIVE_WORKBENCH = {
 ReplicatedStorage/
 └── Assets/
     └── ResourceNodeModels/
-        ├── OakTree         -- Toolbox에서 가져온 참나무 모델
+        ├── ThinTree        -- 가는 나무 모델
         ├── PineTree        -- Toolbox에서 가져온 소나무 모델
         ├── Rock            -- Toolbox에서 가져온 바위 모델
         ├── IronRock        -- 철광석 바위 (빛나는 효과 추가)
@@ -248,18 +248,18 @@ HarvestService가 자동으로 처리하는 것들:
 #### 모델 이름 매칭 규칙 (findResourceModel):
 
 1. **정확한 이름**: `modelName`과 정확히 일치
-2. **nodeId 매칭**: `TREE_OAK` → `Tree_Oak`, `TreeOak`
-3. **대소문자 무시**: `oaktree` = `OakTree` = `OAKTREE`
-4. **부분 매칭**: `OakTreeModel` → `oak` 포함 시 매칭
+2. **nodeId 매칭**: `TREE_THIN` → `Tree_Thin`, `TreeThin`
+3. **대소문자 무시**: `thintree` = `ThinTree` = `THINTREE`
+4. **부분 매칭**: `ThinTreeModel` → `thin` 포함 시 매칭
 5. **nodeType 매칭**: `TREE_*` → `tree` 포함 모델 검색
 
 #### ResourceNodeData.lua 예시:
 
 ```lua
 {
-    id = "TREE_OAK",
-    name = "참나무",
-    modelName = "OakTree",  -- Assets/ResourceNodeModels/OakTree
+    id = "TREE_THIN",
+    name = "가는나무",
+    modelName = "ThinTree",  -- Assets/ResourceNodeModels/ThinTree
     nodeType = "TREE",
     optimalTool = "AXE",
     resources = {
@@ -362,7 +362,7 @@ Balance.NODE_DESPAWN_DIST = 150    -- 디스폰 거리
 #### 예시 구조:
 
 ```
-OakTree (Model)
+ThinTree (Model)
 ├── Hitbox (Part, Transparency=1, Size=3,3,3, 위치=몸통 중앙)
 ├── [Visual Parts...]
 ```

@@ -959,6 +959,7 @@ function FacilityService.sleep(player: Player, structureId: string): (boolean, s
 	end)
 	if okLife and PlayerLifeService and PlayerLifeService.setPreferredRespawn then
 		PlayerLifeService.setPreferredRespawn(player.UserId, structureId)
+		print(string.format("[FacilityService.sleep] setPreferredRespawn OK (userId=%d, structId=%s)", player.UserId, structureId))
 	end
 
 	local okSave, SaveService = pcall(function()
@@ -977,6 +978,7 @@ function FacilityService.sleep(player: Player, structureId: string): (boolean, s
 			}
 			return state
 		end)
+		print(string.format("[FacilityService.sleep] lastPosition saved (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z))
 	end
 
 	local okTime, TimeService = pcall(function()

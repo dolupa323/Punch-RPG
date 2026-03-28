@@ -15,6 +15,8 @@ local initialized = false
 local NetController
 local SaveService
 local InventoryService
+local HarvestService
+local CreatureService
 
 --========================================
 -- Configuration
@@ -357,6 +359,15 @@ local function _requestPortalTeleport(player, payload)
 		destination = destName,
 	})
 
+	-- 페이드 애니메이션 대기 + 대상 Zone 스폰
+	if HarvestService and HarvestService.SpawnZone then
+		HarvestService.SpawnZone(targetZoneName)
+	end
+	if CreatureService and CreatureService.SpawnZone then
+		CreatureService.SpawnZone(targetZoneName)
+	end
+	task.wait(1.5) -- 클라이언트 페이드 완료 대기
+
 	local saveOk = SaveService.savePlayer(userId)
 	if not saveOk then
 		return { success = false, errorCode = "INTERNAL_ERROR" }
@@ -487,12 +498,14 @@ end
 -- Public API
 --========================================
 
-function PortalService.Init(_NetController, _SaveService, _InventoryService)
+function PortalService.Init(_NetController, _SaveService, _InventoryService, _HarvestService, _CreatureService)
 	if initialized then return end
 
 	NetController = _NetController
 	SaveService = _SaveService
 	InventoryService = _InventoryService
+	HarvestService = _HarvestService
+	CreatureService = _CreatureService
 
 	-- 모든 포탈 정의에 대해 프롬프트 설정
 	for _, def in ipairs(PORTAL_DEFINITIONS) do
