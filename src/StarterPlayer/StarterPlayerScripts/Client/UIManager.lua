@@ -65,6 +65,7 @@ local PromptUI = require(UI.PromptUI)
 local TotemUI = require(UI.TotemUI)
 local PortalUI = require(UI.PortalUI)
 local SkillTreeUI = require(UI.SkillTreeUI)
+local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
 
 local CollectionController = require(Controllers.CollectionController)
 local SkillController = require(Controllers.SkillController)
@@ -1640,7 +1641,7 @@ function UIManager.refreshFacility()
 				CRAFT_SPLIT_LOG_TO_PLANK = 1,
 				CRAFT_FIRM_STONE_AXE = 2,
 				CRAFT_FIRM_STONE_PICKAXE = 3,
-				CRAFT_BONE_SPEAR = 4,
+				CRAFT_BONE_SWORD = 4,
 				CRAFT_LEATHER_ARMOR = 5,
 				CRAFT_FEATHER_HELMET = 6,
 			}
@@ -2506,11 +2507,12 @@ function UIManager.Init()
 	StorageUI.Init(mainGui, UIManager, isMobile)
 	FacilityUI.Init(mainGui, UIManager, isMobile)
 	MaterialSelectUI.Init(mainGui, UIManager)
-	CollectionUI.Init(mainGui, UIManager)
+	CollectionUI.Init(mainGui, UIManager, isMobile)
 	TotemUI.Init(mainGui, UIManager, isMobile)
 	PortalUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.SetController(SkillController)
+	ActiveSkillBarUI.Init(mainGui)
 	PromptUI.Init()
 	UILocalizer.StartAuto(mainGui)
 

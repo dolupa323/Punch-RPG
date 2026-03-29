@@ -289,6 +289,15 @@ end
 -- CombatService에 SkillService 연동 (패시브 보너스)
 CombatService.SetSkillService(SkillService)
 
+-- ActiveSkillService 초기화 (액티브 스킬 실행)
+local ActiveSkillService = require(Services.ActiveSkillService)
+ActiveSkillService.Init(NetController, SkillService, CombatService, CreatureService, InventoryService, DataService, PlayerStatService, DebuffService, StaminaService, HungerService)
+
+-- ActiveSkillService 핸들러 등록
+for command, handler in pairs(ActiveSkillService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+
 -- PlayerLifeService 초기화 (Phase 4-2)
 local PlayerLifeService = require(Services.PlayerLifeService)
 PlayerLifeService.Init(NetController, DataService, InventoryService, BuildService)

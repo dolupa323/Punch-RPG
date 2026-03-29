@@ -164,7 +164,7 @@ Balance.XP_HARVEST_XP_PER_HIT = 100000    -- 타격당 XP (10000 -> 100000)
 -- 도구별 사거리 (Reach)
 Balance.REACH_BAREHAND = 12             -- 맨손 (8 -> 12)
 Balance.REACH_TOOL = 14               -- 도끼, 곡괭이, 몽둥이 (10 -> 14)
-Balance.REACH_SPEAR = 28               -- 창 (18 -> 28)
+Balance.REACH_SWORD = 16               -- 검 (근접 무기)
 Balance.REACH_ANGLE = 75               -- 공격 인정 각도 (정면 기준 +-75도)
 
 --========================================

@@ -226,16 +226,16 @@ local function getAmmoForWeapon(itemId: string): string?
 	return nil
 end
 
---- 무기 아이템 정보로 스킬 트리 ID 결정 (SPEAR/BOW/AXE)
+--- 무기 아이템 정보로 스킬 트리 ID 결정 (SWORD/BOW/AXE)
 local function getWeaponTreeId(itemData): string?
 	if not itemData then return nil end
 	local opt = string.upper(tostring(itemData.optimalTool or ""))
-	if opt == "SPEAR" then return "SPEAR" end
+	if opt == "SWORD" then return "SWORD" end
 	if opt == "BOW" or opt == "CROSSBOW" then return "BOW" end
 	if opt == "AXE" then return "AXE" end
 	-- itemId 기반 폴백
 	local id = string.upper(tostring(itemData.id or ""))
-	if id:find("SPEAR", 1, true) then return "SPEAR" end
+	if id:find("SWORD", 1, true) then return "SWORD" end
 	if id:find("BOW", 1, true) then return "BOW" end
 	if id:find("AXE", 1, true) then return "AXE" end
 	return nil
@@ -412,7 +412,7 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 			itemData = DataService.getItem(slotData.itemId)
 			if itemData then
 				baseDamage = itemData.damage or 5
-				range = itemData.range or (itemData.optimalTool == "SPEAR" and Balance.REACH_SPEAR or Balance.REACH_TOOL or 14)
+				range = itemData.range or (itemData.optimalTool == "SWORD" and Balance.REACH_SWORD or Balance.REACH_TOOL or 14)
 				isBlunt = itemData.isBlunt == true
 				toolItem = slotData
 				

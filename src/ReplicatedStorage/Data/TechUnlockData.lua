@@ -14,7 +14,7 @@ local TechUnlockData = {
 		unlocks = { 
 			recipes = { 
 				"CRAFT_CRUDE_STONE_PICKAXE", "CRAFT_CRUDE_STONE_AXE", 
-				"CRAFT_CRUDE_WOODEN_SPEAR", "CRAFT_TORCH",
+				"CRAFT_TORCH",
 				"CRAFT_SPLIT_LOG_TO_PLANK", "CRAFT_FIRM_STONE_AXE", "CRAFT_FIRM_STONE_PICKAXE"
 			}, 
 			facilities = { 
@@ -48,7 +48,7 @@ local TechUnlockData = {
 		name = "본격 수렵",
 		cost = { { itemId = "SHARP_TOOTH", amount = 2 }, { itemId = "FIBER", amount = 20 } },
 		prerequisites = { "TECH_SETTLEMENT" },
-		unlocks = { recipes = { "CRAFT_BONE_SPEAR" }, facilities = {} },
+		unlocks = { recipes = { "CRAFT_BONE_SWORD" }, facilities = {} },
 		category = "WEAPONS",
 		description = "야수들의 부산물을 연마하여 강력한 뼈 창을 제작합니다.",
 	},
@@ -129,7 +129,7 @@ local TechUnlockData = {
 		name = "청동 무기 및 갑옷",
 		cost = { { itemId = "BRONZE_INGOT", amount = 30 }, { itemId = "LEATHER", amount = 20 } },
 		prerequisites = { "TECH_BRONZE_TOOLS", "TECH_BOW" },
-		unlocks = { recipes = { "CRAFT_BRONZE_SPEAR", "CRAFT_BRONZE_BOW", "CRAFT_BRONZE_ARROW", "CRAFT_BRONZE_ARMOR" }, facilities = {} },
+		unlocks = { recipes = { "CRAFT_BRONZE_SWORD", "CRAFT_BRONZE_BOW", "CRAFT_BRONZE_ARROW", "CRAFT_BRONZE_ARMOR" }, facilities = {} },
 		category = "WEAPONS",
 		description = "청동 무기와 갑옷을 갖춰 더욱 치명적인 위협에 대비합니다.",
 	},
@@ -178,7 +178,7 @@ local TechUnlockData = {
 		name = "철제 도구 및 무기",
 		cost = { { itemId = "IRON_INGOT", amount = 50 } },
 		prerequisites = { "TECH_WORKBENCH3" },
-		unlocks = { recipes = { "CRAFT_IRON_PICKAXE", "CRAFT_IRON_AXE", "CRAFT_IRON_SPEAR", "CRAFT_CROSSBOW", "CRAFT_IRON_BOLT", "CRAFT_IRON_ARMOR" }, facilities = {} },
+		unlocks = { recipes = { "CRAFT_IRON_PICKAXE", "CRAFT_IRON_AXE", "CRAFT_IRON_SWORD", "CRAFT_CROSSBOW", "CRAFT_IRON_BOLT", "CRAFT_IRON_ARMOR" }, facilities = {} },
 		category = "WEAPONS",
 		description = "강철 수준의 장비를 개발하여 최고 수준의 적을 제압합니다.",
 	},

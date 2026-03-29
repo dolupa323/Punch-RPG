@@ -47,7 +47,6 @@ NPCShopData.TOOL_SHOP = {
 	buyList = {
 		{ itemId = "FIRM_STONE_PICKAXE", price = 50, stock = -1 },
 		{ itemId = "FIRM_STONE_AXE", price = 50, stock = -1 },
-		{ itemId = "CRUDE_WOODEN_SPEAR", price = 60, stock = -1 },
 		{ itemId = "WOODEN_CLUB", price = 40, stock = -1 },
 		{ itemId = "BRONZE_PICKAXE", price = 250, stock = 10 },
 		{ itemId = "BRONZE_AXE", price = 250, stock = 10 },
@@ -57,7 +56,6 @@ NPCShopData.TOOL_SHOP = {
 	sellList = {
 		{ itemId = "FIRM_STONE_PICKAXE", price = 15 },
 		{ itemId = "FIRM_STONE_AXE", price = 15 },
-		{ itemId = "CRUDE_WOODEN_SPEAR", price = 18 },
 		{ itemId = "BRONZE_PICKAXE", price = 75 },
 		{ itemId = "IRON_PICKAXE", price = 200 },
 	},

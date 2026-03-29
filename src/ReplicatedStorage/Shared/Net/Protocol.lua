@@ -161,6 +161,7 @@ Protocol.Commands = {
 	["Skill.Unlock.Request"] = true,
 	["Skill.GetData.Request"] = true,
 	["Skill.SetSlot.Request"] = true,
+	["Skill.Use.Request"] = true,
 
 	-- Portal 명령어 (고대 포탈 시스템)
 	["Portal.GetStatus.Request"] = true,

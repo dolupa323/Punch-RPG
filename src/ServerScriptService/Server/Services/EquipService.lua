@@ -191,8 +191,8 @@ function EquipService.equipItem(player: Player, itemId: string?)
 				targetSize = 2.8 -- 곡괭이/도끼 등
 			elseif itemType == "WEAPON" then
 				-- 창은 훨씬 더 거대하게 (11.0)
-				if itemData.optimalTool == "SPEAR" then
-					targetSize = 9.0 -- 10.0도 길 수 있으니 조금 더 줄임
+				if itemData.optimalTool == "SWORD" then
+					targetSize = 4.0
 				else
 					targetSize = 4.0
 				end
@@ -273,9 +273,9 @@ function EquipService.equipItem(player: Player, itemId: string?)
 		elseif itemData.optimalTool == "AXE" then
 			-- 도끼: 날카로운 부분이 캐릭터 정면을 향하도록 Y축 90° 회전
 			tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, math.rad(90), 0)
-		elseif itemData.optimalTool == "SPEAR" then
-			-- 창: Z축(가로) 오프셋을 0으로 만들어 손에 딱 붙이고, Y축(세로)를 -1.5로 내려 아래쪽을 쥐게 함
-			tool.Grip = CFrame.new(0, -1.5, 0) * CFrame.Angles(0, 0, 0)
+	elseif itemData.optimalTool == "SWORD" then
+		-- 검: 손잡이에서 아래쪽을 쥐고 날이 전방을 향하도록
+		tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, 0, 0)
 		elseif itemData.optimalTool == "BOW" then
 			-- 활대를 세로로 세우고, 활줄이 몸쪽을 향하도록 축을 뒤집어 정렬.
 			tool.Grip = CFrame.new(0.05, -0.24, -0.40) * CFrame.Angles(math.rad(-88), math.rad(180), math.rad(90))

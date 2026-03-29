@@ -110,7 +110,7 @@ end
 local TRAIL_COLORS = {
 	AXE      = ColorSequence.new(Color3.fromRGB(255, 180, 80), Color3.fromRGB(255, 100, 20)),
 	PICKAXE  = ColorSequence.new(Color3.fromRGB(200, 200, 220), Color3.fromRGB(150, 150, 180)),
-	SPEAR    = ColorSequence.new(Color3.fromRGB(140, 200, 255), Color3.fromRGB(60, 120, 255)),
+	SWORD    = ColorSequence.new(Color3.fromRGB(140, 200, 255), Color3.fromRGB(60, 120, 255)),
 	CLUB     = ColorSequence.new(Color3.fromRGB(200, 160, 100), Color3.fromRGB(140, 100, 50)),
 	TORCH    = ColorSequence.new(Color3.fromRGB(255, 200, 50), Color3.fromRGB(255, 80, 0)),
 	BOW      = ColorSequence.new(Color3.fromRGB(180, 220, 140), Color3.fromRGB(100, 160, 60)),
@@ -157,7 +157,7 @@ local TRAIL_STYLE = {
 		transparencyStart = 0.28,
 		transparencyMid = 0.58,
 	},
-	SPEAR = {
+	SWORD = {
 		startWidth = 0.72,
 		endWidth = 0,
 		lifetime = 0.2,
@@ -1177,11 +1177,12 @@ playAttackAnimation = function(isHit: boolean)
 	local animNames
 	
 	if toolType == "AXE" then
-		animNames = { AnimationIds.ATTACK_SPEAR.SWING }
+		animNames = { AnimationIds.ATTACK_SWORD.SWING }
 	elseif toolType == "PICKAXE" then
 		animNames = { "AttackTool_Mine" }
-	elseif toolType == "SPEAR" then
-		animNames = { AnimationIds.ATTACK_SPEAR.THRUST }
+	elseif toolType == "SWORD" then
+		local swordAnims = { AnimationIds.ATTACK_SWORD.SLASH, AnimationIds.ATTACK_SWORD.SWING }
+		animNames = { swordAnims[math.random(1, #swordAnims)] }
 	elseif toolType == "BOLA" then
 		animNames = { AnimationIds.BOLA.THROW }
 	elseif toolType == "CLUB" or toolType == "TORCH" then
@@ -1334,8 +1335,8 @@ local function findTarget()
 	local toolType = getEquippedToolType()
 	local equippedItem = getEquippedItemData()
 	local reach = Balance.REACH_BAREHAND or 10
-	if toolType == "SPEAR" then
-		reach = Balance.REACH_SPEAR or 16
+	if toolType == "SWORD" then
+		reach = Balance.REACH_SWORD or 16
 	elseif toolType == "AXE" or toolType == "PICKAXE" or toolType == "CLUB" then
 		reach = Balance.REACH_TOOL or 12
 	end
@@ -1514,8 +1515,8 @@ function CombatController.attack(attackMeta)
 		-- 도구별 사거리 결정 (findTarget과 동일하게)
 		local toolType = getEquippedToolType()
 		local reach = Balance.REACH_BAREHAND or 10
-		if toolType == "SPEAR" then
-			reach = Balance.REACH_SPEAR or 16
+		if toolType == "SWORD" then
+			reach = Balance.REACH_SWORD or 16
 		elseif toolType == "AXE" or toolType == "PICKAXE" or toolType == "CLUB" then
 			reach = Balance.REACH_TOOL or 12
 		end
@@ -1541,8 +1542,8 @@ function CombatController.attack(attackMeta)
 		local windupTime = 0.2 -- 기본 0.2초 딜레이
 		if itm and itm.windup then
 			windupTime = itm.windup
-		elseif toolType == "SPEAR" then
-			windupTime = 0.3
+		elseif toolType == "SWORD" then
+			windupTime = 0.2
 		elseif toolType == "CLUB" or toolType == "AXE" then
 			windupTime = 0.4
 		end
@@ -1758,6 +1759,55 @@ function CombatController.Init()
 	
 	initialized = true
 	print("[CombatController] Initialized")
+end
+
+--- 현재 정면의 가장 가까운 크리처 instanceId 반환 (액티브 스킬 타겟팅용)
+function CombatController.getCurrentTarget(): string?
+	local char = player.Character
+	if not char or not char.PrimaryPart then return nil end
+	
+	local creaturesFolder = workspace:FindFirstChild("ActiveCreatures") or workspace:FindFirstChild("Creatures")
+	if not creaturesFolder then return nil end
+	
+	local hrp = char.PrimaryPart
+	local lookFlat = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+	if lookFlat.Magnitude > 0.01 then lookFlat = lookFlat.Unit end
+	
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Include
+	overlap.FilterDescendantsInstances = { creaturesFolder }
+	
+	local scanRadius = 20
+	local parts = workspace:GetPartBoundsInRadius(hrp.Position, scanRadius, overlap)
+	
+	local bestId = nil
+	local bestDist = math.huge
+	local seen = {}
+	
+	for _, p in ipairs(parts) do
+		local current = p
+		while current and current ~= workspace do
+			if current:IsA("Model") then
+				local instanceId = current:GetAttribute("InstanceId")
+				if instanceId and not seen[instanceId] then
+					seen[instanceId] = true
+					local dist = (p.Position - hrp.Position).Magnitude
+					local toTarget = Vector3.new(p.Position.X - hrp.Position.X, 0, p.Position.Z - hrp.Position.Z)
+					if toTarget.Magnitude > 0.01 then
+						local dot = lookFlat:Dot(toTarget.Unit)
+						if dot > 0.3 and dist < bestDist then
+							bestDist = dist
+							bestId = instanceId
+						end
+					end
+				end
+				break
+			end
+			current = current.Parent
+		end
+	end
+	
+	return bestId
 end
 
 return CombatController

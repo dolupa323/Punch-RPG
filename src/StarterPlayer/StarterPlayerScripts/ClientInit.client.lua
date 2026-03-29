@@ -86,6 +86,10 @@ if success then
 	-- SkillController 초기화 (스킬 트리 데이터)
 	local SkillController = require(Controllers.SkillController)
 	SkillController.Init()
+
+	-- SkillEffectController 초기화 (스킬 VFX/사운드/애니메이션 연출)
+	local SkillEffectController = require(Controllers.SkillEffectController)
+	SkillEffectController.Init()
 	
 	-- [추가] PromptUI 초기화 (커스텀 ProximityPrompt)
 	local PromptUI = require(Client:WaitForChild("UI"):WaitForChild("PromptUI"))
@@ -120,6 +124,12 @@ if success then
 	InputManager.bindKey(Enum.KeyCode.P, "ToggleCollection", function() UIManager.toggleCollection() end)
 	InputManager.bindKey(Enum.KeyCode.K, "ToggleSkillTree", function() UIManager.toggleSkillTree() end)
 
+	-- [Active Skills] Q / Z / X = 액티브 스킬 슬롯 1/2/3
+	local ActiveSkillBarUI = require(Client:WaitForChild("UI"):WaitForChild("ActiveSkillBarUI"))
+	InputManager.bindKey(Enum.KeyCode.Q, "ActiveSkill1", function() ActiveSkillBarUI.UseSlot(1) end)
+	InputManager.bindKey(Enum.KeyCode.F, "ActiveSkill2", function() ActiveSkillBarUI.UseSlot(2) end)
+	InputManager.bindKey(Enum.KeyCode.V, "ActiveSkill3", function() ActiveSkillBarUI.UseSlot(3) end)
+
 	-- B = 귀환 (최근 취침 장소로 순간이동, 진행도 바 + 피격/이동 취소)
 	local recallCasting = false -- 시전 중 여부
 	local recallCancelled = false
@@ -143,8 +153,8 @@ if success then
 		cdGui.Parent = playerGui
 
 		local cdFrame = Instance.new("Frame")
-		cdFrame.AnchorPoint = Vector2.new(0.5, 0)
-		cdFrame.Position = UDim2.new(0.5, 0, 0.88, 0)
+		cdFrame.AnchorPoint = Vector2.new(0.5, 1)
+		cdFrame.Position = UDim2.new(0.5, 0, 0.82, 0)
 		cdFrame.Size = UDim2.new(0, 160, 0, 36)
 		cdFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 		cdFrame.BackgroundTransparency = 0.4

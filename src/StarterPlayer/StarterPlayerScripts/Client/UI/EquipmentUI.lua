@@ -58,8 +58,8 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	})
 	
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
-	Utils.mkLabel({text="EQUIPMENT [E]", pos=UDim2.new(0, 15, 0, 0), ts=20, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
-	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
+	Utils.mkLabel({text="EQUIPMENT [E]", pos=UDim2.new(0, 15, 0, 0), ts=26, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 42, 0, 42), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bg=C.BTN, bgT=0.5, ts=24, color=C.WHITE, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
 	
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
 	content.ClipsDescendants = true -- 캐릭터가 프레임 바깥으로 나가는 것 방지
@@ -85,7 +85,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	for i, conf in ipairs(slotConfigs) do
 		local wrapper = Utils.mkFrame({
 			name = conf.id.."Wrap",
-			size = UDim2.new(0, 120, 0, 88),
+			size = UDim2.new(0, 150, 0, 110),
 			bgT = 1,
 			parent = slotsContainer
 		})
@@ -93,7 +93,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		
 		local slot = Utils.mkSlot({
 			name = conf.id.."Slot", 
-			size = UDim2.new(0, 60, 0, 60),
+			size = UDim2.new(0, 78, 0, 78),
 			pos = UDim2.new(0.5, 0, 0, 0),
 			anchor = Vector2.new(0.5, 0.5),
 			bgT = 0.3, 
@@ -107,7 +107,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 			pos = UDim2.new(0.5, -4, 1, -4),
 			anchor = Vector2.new(0.5, 1),
 			bgT = 1,
-			ts = 14,
+			ts = 18,
 			font = F.NORMAL,
 			color = C.WHITE,
 			ax = Enum.TextXAlignment.Center,
@@ -134,16 +134,16 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	
 	-- [Right: Stats Distribution] (55%)
 	local statArea = Utils.mkFrame({name="StatArea", size=UDim2.new(0.55, 0, 1, 0), pos=UDim2.new(1, 0, 0, 0), anchor=Vector2.new(1,0), bg=C.BG_PANEL_L, parent=content})
-	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text=UILocalizer.Localize("보유 포인트: 0"), size=UDim2.new(1, -110, 0, 40), pos=UDim2.new(0,10,0,0), ts=18, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
+	EquipmentUI.Refs.StatPoints = Utils.mkLabel({text=UILocalizer.Localize("보유 포인트: 0"), size=UDim2.new(1, -110, 0, 40), pos=UDim2.new(0,10,0,0), ts=24, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
 	
 	-- 전부 초기화 버튼 (StatPoints 라벨 오른쪽)
 	EquipmentUI.Refs.ResetAllBtn = Utils.mkBtn({
 		text=UILocalizer.Localize("초기화"),
-		size=UDim2.new(0, 90, 0, 30),
+		size=UDim2.new(0, 110, 0, 36),
 		pos=UDim2.new(1, -10, 0, 5),
 		anchor=Vector2.new(1, 0),
 		bg=C.RED or Color3.fromRGB(200, 60, 60),
-		ts=13,
+		ts=17,
 		font=F.TITLE,
 		parent=statArea
 	})
@@ -165,21 +165,21 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	}
 	for _, s in ipairs(stats) do
 		-- 스텟 라인 크기 비율화 (0.18 Scale)
-		local line = Utils.mkFrame({size=UDim2.new(1, 0, 0, 50), bg=C.BG_SLOT, bgT=0.3, parent=statsScroll})
-		Utils.mkLabel({text=UILocalizer.Localize(s.name), size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0,10,0,0), ts=14, ax=Enum.TextXAlignment.Left, parent=line})
-		local val = Utils.mkLabel({text="0", size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0.8,-40,0,0), anchor=Vector2.new(1,0), ts=15, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=line})
+		local line = Utils.mkFrame({size=UDim2.new(1, 0, 0, 60), bg=C.BG_SLOT, bgT=0.3, parent=statsScroll})
+		Utils.mkLabel({text=UILocalizer.Localize(s.name), size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0,10,0,0), ts=20, ax=Enum.TextXAlignment.Left, parent=line})
+		local val = Utils.mkLabel({text="0", size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0.8,-40,0,0), anchor=Vector2.new(1,0), ts=21, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=line})
 		
 		-- 강화 버튼: 필요한 스탯에만 노출
 		local btn = nil
 		if s.up then
-			local bSize = isSmall and 40 or 35
+			local bSize = isSmall and 50 or 44
 			btn = Utils.mkBtn({
 				text="+", 
 				size=UDim2.new(0, bSize, 0.8, 0), -- 가로 오프셋 고정, 세로 비율 유지
 				pos=UDim2.new(1, -10, 0.5, 0), 
 				anchor=Vector2.new(1, 0.5), 
 				bg=C.GOLD_SEL, 
-				ts=isSmall and 24 or 20, 
+				ts=isSmall and 30 or 26, 
 				font=F.NUM, 
 				parent=line
 			})
@@ -317,7 +317,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 					end
 					
 					local order = 0
-					local TT_TS = 13 -- 툴팁 텍스트 사이즈
+					local TT_TS = 16 -- 툴팁 텍스트 사이즈
 					
 					-- 헬퍼: 제목 라벨
 					local function addTitle(text, color, fontSize)
@@ -383,7 +383,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 					local iType = itemData.type
 					
 					-- 아이템 이름
-					addTitle(itemData.name, C.GOLD, 15)
+					addTitle(itemData.name, C.GOLD, 19)
 					
 					-- 등급
 					addStatRow("등급", itemData.rarity or "COMMON", "#CCCCCC")

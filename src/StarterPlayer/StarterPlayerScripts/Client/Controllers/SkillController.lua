@@ -17,15 +17,21 @@ local initialized = false
 
 -- 로컬 상태 캐시
 local unlockedSkills = {}    -- { [skillId] = true }
-local combatTreeId = nil     -- "SPEAR" | "BOW" | "AXE" | nil
+local combatTreeId = nil     -- "SWORD" | "BOW" | "AXE" | nil
 local spAvailable = 0
 local spSpent = 0
 local activeSkillSlots = { nil, nil, nil }
 local playerLevel = 1
 
+-- 액티브 스킬 쿨다운 (클라이언트 예측)
+local DEV_NO_COOLDOWN = true  -- ★ 개발용 노쿨 (릴리즈 시 false로 변경)
+local skillCooldowns = {}     -- { [skillId] = endTime (tick) }
+local skillGCD = 0            -- 글로벌 쿨다운 종료 시각
+
 -- 이벤트 리스너
 local listeners = {
 	skillDataUpdated = {},
+	cooldownUpdated = {},
 }
 
 --========================================
@@ -34,6 +40,12 @@ local listeners = {
 
 local function _fireListeners()
 	for _, cb in ipairs(listeners.skillDataUpdated) do
+		pcall(cb)
+	end
+end
+
+local function _fireCooldownListeners()
+	for _, cb in ipairs(listeners.cooldownUpdated) do
 		pcall(cb)
 	end
 end
@@ -163,11 +175,85 @@ function SkillController.requestSetSlot(slotIndex: number, skillId: string?, cal
 end
 
 --========================================
+-- Active Skill Usage
+--========================================
+
+--- 슬롯 인덱스(1~3)로 스킬 사용
+function SkillController.useSkillBySlot(slotIndex: number, targetId: string?)
+	if slotIndex < 1 or slotIndex > 3 then return end
+	local skillId = activeSkillSlots[slotIndex]
+	if not skillId then return end
+	SkillController.useSkill(skillId, targetId)
+end
+
+--- 스킬 ID로 직접 사용
+function SkillController.useSkill(skillId: string, targetId: string?)
+	-- 로컬 쿨다운 프리체크
+	local now = tick()
+	if not DEV_NO_COOLDOWN then
+		if skillGCD > now then return end
+		if skillCooldowns[skillId] and skillCooldowns[skillId] > now then return end
+	end
+	
+	-- 스킬 데이터 조회
+	local skill = SkillTreeData.GetSkill(skillId)
+	if not skill or skill.type ~= "ACTIVE" then return end
+	
+	-- 로컬 쿨다운 즉시 설정 (클라이언트 예측)
+	if not DEV_NO_COOLDOWN then
+		skillCooldowns[skillId] = now + skill.cooldown
+		skillGCD = now + 0.5
+	end
+	_fireCooldownListeners()
+	
+	task.spawn(function()
+		local ok, data = NetClient.Request("Skill.Use.Request", { skillId = skillId, targetId = targetId })
+		if ok and data then
+			-- 서버에서 받은 쿨다운으로 보정
+			if data.cooldowns then
+				for sid, remaining in pairs(data.cooldowns) do
+					skillCooldowns[sid] = tick() + remaining
+				end
+			end
+		else
+			-- 실패 시 로컬 쿨다운 롤백
+			skillCooldowns[skillId] = nil
+			skillGCD = 0
+		end
+		_fireCooldownListeners()
+	end)
+end
+
+--- 특정 스킬 잔여 쿨다운 조회 (초)
+function SkillController.getSkillCooldownRemaining(skillId: string): number
+	local cd = skillCooldowns[skillId]
+	if not cd then return 0 end
+	local remaining = cd - tick()
+	return remaining > 0 and remaining or 0
+end
+
+--- 슬롯별 쿨다운 조회
+function SkillController.getSlotCooldownRemaining(slotIndex: number): number
+	local skillId = activeSkillSlots[slotIndex]
+	if not skillId then return 0 end
+	return SkillController.getSkillCooldownRemaining(skillId)
+end
+
+--- 특정 스킬이 사용 가능한지 체크
+function SkillController.canUseSkill(skillId: string): boolean
+	return SkillController.getSkillCooldownRemaining(skillId) <= 0
+end
+
+--========================================
 -- Event Listeners
 --========================================
 
 function SkillController.onSkillDataUpdated(callback: () -> ())
 	table.insert(listeners.skillDataUpdated, callback)
+end
+
+function SkillController.onCooldownUpdated(callback: () -> ())
+	table.insert(listeners.cooldownUpdated, callback)
 end
 
 --========================================

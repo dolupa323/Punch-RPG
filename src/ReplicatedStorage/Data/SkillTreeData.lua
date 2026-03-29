@@ -1,6 +1,6 @@
 -- SkillTreeData.lua
 -- 스킬 트리 데이터 정의 (전투 택1 + 건축 자동해금)
--- 전투 계열: SPEAR, BOW, AXE (택 1)
+-- 전투 계열: SWORD, BOW, AXE (택 1)
 -- 건축 계열: BUILD (SP 불요, 레벨 자동 해금)
 
 local SkillTreeData = {}
@@ -9,14 +9,14 @@ local SkillTreeData = {}
 -- 스킬 트리 탭 정의
 --========================================
 SkillTreeData.TABS = {
-	{ id = "SPEAR", name = "창술 연마", isCombat = true },
+	{ id = "SWORD", name = "검술 연마", isCombat = true },
 	{ id = "BOW",   name = "궁술 연마", isCombat = true },
 	{ id = "AXE",   name = "도끼 연마", isCombat = true },
 	{ id = "BUILD", name = "건축 연구", isCombat = false },
 }
 
 -- 전투 계열 ID 목록 (택1 잠금용)
-SkillTreeData.COMBAT_TREE_IDS = { "SPEAR", "BOW", "AXE" }
+SkillTreeData.COMBAT_TREE_IDS = { "SWORD", "BOW", "AXE" }
 
 --========================================
 -- 스킬 타입
@@ -26,99 +26,99 @@ SkillTreeData.COMBAT_TREE_IDS = { "SPEAR", "BOW", "AXE" }
 -- BUILD_TIER: SP 불요, 레벨 도달 시 자동 해금
 
 --========================================
--- 창술 연마 (SPEAR) — 총 32 SP
+-- 검술 연마 (SWORD) — 총 32 SP
 --========================================
-SkillTreeData.SPEAR = {
+SkillTreeData.SWORD = {
 	-- 패시브 5개
 	{
-		id = "SPEAR_P1",
-		name = "창술 수련 I",
+		id = "SWORD_P1",
+		name = "검술 수련 I",
 		type = "PASSIVE",
-		icon = "PASSIVE_SPEAR",
+		icon = "PASSIVE_SWORD",
 		reqLevel = 3,
 		spCost = 2,
 		prereqs = {},
 		effects = {
 			{ stat = "DAMAGE_MULT", value = 0.08 },
 		},
-		description = "창 공격력 +8%",
+		description = "검 공격력 +8%",
 	},
 	{
-		id = "SPEAR_P2",
-		name = "창술 수련 II",
+		id = "SWORD_P2",
+		name = "검술 수련 II",
 		type = "PASSIVE",
-		icon = "PASSIVE_SPEAR",
+		icon = "PASSIVE_SWORD",
 		reqLevel = 10,
 		spCost = 3,
-		prereqs = { "SPEAR_P1" },
+		prereqs = { "SWORD_P1" },
 		effects = {
 			{ stat = "DAMAGE_MULT", value = 0.12 },
 		},
-		description = "창 공격력 +12%",
+		description = "검 공격력 +12%",
 	},
 	{
-		id = "SPEAR_P3",
-		name = "창술 숙련",
+		id = "SWORD_P3",
+		name = "검술 숙련",
 		type = "PASSIVE",
-		icon = "PASSIVE_SPEAR",
+		icon = "PASSIVE_SWORD",
 		reqLevel = 20,
 		spCost = 5,
-		prereqs = { "SPEAR_P2" },
+		prereqs = { "SWORD_P2" },
 		effects = {
 			{ stat = "CRIT_CHANCE", value = 0.08 },
 		},
-		description = "창 치명타율 +8%",
+		description = "검 치명타율 +8%",
 	},
 	{
-		id = "SPEAR_P4",
-		name = "창술 전문화",
+		id = "SWORD_P4",
+		name = "검술 전문화",
 		type = "PASSIVE",
-		icon = "PASSIVE_SPEAR",
+		icon = "PASSIVE_SWORD",
 		reqLevel = 35,
 		spCost = 6,
-		prereqs = { "SPEAR_P3" },
+		prereqs = { "SWORD_P3" },
 		effects = {
 			{ stat = "DAMAGE_MULT", value = 0.15 },
 		},
-		description = "창 공격력 +15%",
+		description = "검 공격력 +15%",
 	},
 	{
-		id = "SPEAR_P5",
-		name = "창술 대가",
+		id = "SWORD_P5",
+		name = "검술 대가",
 		type = "PASSIVE",
-		icon = "PASSIVE_SPEAR",
+		icon = "PASSIVE_SWORD",
 		reqLevel = 45,
 		spCost = 8,
-		prereqs = { "SPEAR_P4" },
+		prereqs = { "SWORD_P4" },
 		effects = {
 			{ stat = "DAMAGE_MULT", value = 0.20 },
 			{ stat = "CRIT_DAMAGE_MULT", value = 0.25 },
 		},
-		description = "창 공격력 +20%, 치명타 데미지 +25%",
+		description = "검 공격력 +20%, 치명타 데미지 +25%",
 	},
 	-- 액티브 3개
 	{
-		id = "SPEAR_A1",
+		id = "SWORD_A1",
 		name = "강타",
 		type = "ACTIVE",
-		icon = "ACTIVE_SPEAR_STRIKE",
+		icon = "ACTIVE_SWORD_STRIKE",
 		reqLevel = 8,
 		spCost = 2,
-		prereqs = { "SPEAR_P1" },
+		prereqs = { "SWORD_P1" },
 		cooldown = 12,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 1.80 },
 		},
-		description = "전방 강력 찌르기, 기본 공격력 180%",
+		description = "전방 강력 베기, 기본 공격력 180%",
 	},
 	{
-		id = "SPEAR_A2",
+		id = "SWORD_A2",
 		name = "돌진",
 		type = "ACTIVE",
-		icon = "ACTIVE_SPEAR_CHARGE",
+		icon = "ACTIVE_SWORD_CHARGE",
 		reqLevel = 25,
 		spCost = 3,
-		prereqs = { "SPEAR_P3" },
+		prereqs = { "SWORD_P3" },
 		cooldown = 18,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 2.00 },
@@ -127,20 +127,20 @@ SkillTreeData.SPEAR = {
 		description = "전방 8스터드 돌진, 200%, 1.5초 둔화",
 	},
 	{
-		id = "SPEAR_A3",
+		id = "SWORD_A3",
 		name = "난무",
 		type = "ACTIVE",
-		icon = "ACTIVE_SPEAR_FLURRY",
+		icon = "ACTIVE_SWORD_FLURRY",
 		reqLevel = 40,
 		spCost = 3,
-		prereqs = { "SPEAR_P4" },
+		prereqs = { "SWORD_P4" },
 		cooldown = 30,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 4 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 1.00 },
 			{ stat = "SKILL_FINAL_HIT_MULT", value = 2.00 },
 		},
-		description = "1.2초간 4회 연속 찌르기, 각 100%, 마지막 200%",
+		description = "1.2초간 4회 연속 베기, 각 100%, 마지막 200%",
 	},
 }
 
@@ -455,7 +455,7 @@ SkillTreeData.BUILD = {
 
 --- 스킬 ID로 스킬 데이터 조회
 function SkillTreeData.GetSkill(skillId: string)
-	for _, treeId in ipairs({ "SPEAR", "BOW", "AXE", "BUILD" }) do
+	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD" }) do
 		local tree = SkillTreeData[treeId]
 		if tree then
 			for _, skill in ipairs(tree) do
@@ -481,7 +481,7 @@ end
 
 --- 스킬 ID가 속한 트리 ID 반환
 function SkillTreeData.GetTreeIdForSkill(skillId: string): string?
-	for _, treeId in ipairs({ "SPEAR", "BOW", "AXE", "BUILD" }) do
+	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD" }) do
 		local tree = SkillTreeData[treeId]
 		if tree then
 			for _, skill in ipairs(tree) do

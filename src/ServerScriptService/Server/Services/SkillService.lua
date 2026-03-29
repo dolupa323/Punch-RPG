@@ -126,7 +126,7 @@ function SkillService.isSkillUnlocked(userId: number, skillId: string): boolean
 end
 
 --- 현재 장착한 무기 타입에 해당하는 해금된 패시브 효과 합산
---- weaponTreeId: "SPEAR" | "BOW" | "AXE"
+--- weaponTreeId: "SWORD" | "BOW" | "AXE"
 function SkillService.getPassiveBonuses(userId: number, weaponTreeId: string): { [string]: number }
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]

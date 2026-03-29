@@ -71,8 +71,8 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -60), pos=UDim2.new(0, 10, 0, 50), bgT=1, parent=main})
 	
 	-- 3. Left Sidebar (Categories)
-	local sidebarWidth = 120
-	local sidebar = Utils.mkFrame({name="Sidebar", size=UDim2.new(0, sidebarWidth, 1, 0), bgT=1, parent=content})
+	local sidebarScale = 0.14
+	local sidebar = Utils.mkFrame({name="Sidebar", size=UDim2.new(sidebarScale, 0, 1, 0), bgT=1, parent=content})
 	local sList = Instance.new("UIListLayout"); sList.Padding=UDim.new(0, 10); sList.Parent=sidebar
 	
 	local categories = {
@@ -94,11 +94,11 @@ function BuildUI.Init(parent, UIManager, isMobile)
 		BuildUI.Refs.CategoryBtns[cat.id] = btn
 	end
 	
-	-- 4. Right Side: Detail Panel (320px)
-	local detailSize = 320
+	-- 4. Right Side: Detail Panel
+	local detailScale = 0.35
 	local detail = Utils.mkFrame({
-		name="Detail", size=UDim2.new(0, detailSize, 1, -8),
-		pos=UDim2.new(1, -detailSize - 4, 0, 4),
+		name="Detail", size=UDim2.new(detailScale, -4, 1, -8),
+		pos=UDim2.new(1 - detailScale, 0, 0, 4),
 		bg=C.BG_PANEL, bgT=T.PANEL, r=6, stroke=false,
 		parent=content
 	})
@@ -140,8 +140,8 @@ function BuildUI.Init(parent, UIManager, isMobile)
 	-- 5. Center: Grid (The scrollable part)
 	local gridArea = Utils.mkFrame({
 		name="GridArea", 
-		size=UDim2.new(1, -sidebarWidth - detailSize - 40, 1, 0), 
-		pos=UDim2.new(0, sidebarWidth + 15, 0, 0), 
+		size=UDim2.new(1 - sidebarScale - detailScale, -20, 1, 0), 
+		pos=UDim2.new(sidebarScale, 10, 0, 0), 
 		bgT=1, parent=content
 	})
 	

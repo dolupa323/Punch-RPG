@@ -624,6 +624,11 @@ function CreatureService.getCreatureRuntime(instanceId: string)
 	return activeCreatures[instanceId]
 end
 
+--- 전체 활성 크리처 런타임 맵 반환 (AOE 스킬용)
+function CreatureService.getActiveCreatures()
+	return activeCreatures
+end
+
 --- 크리처 현재 위치 반환
 function CreatureService.getCreaturePosition(instanceId: string): Vector3?
 	local creature = activeCreatures[instanceId]
@@ -631,6 +636,57 @@ function CreatureService.getCreaturePosition(instanceId: string): Vector3?
 		return creature.rootPart.Position
 	end
 	return nil
+end
+
+--========================================
+-- 액티브 스킬 디버프 효과 (크리처 대상)
+--========================================
+
+--- 둔화 효과 (이동속도 감소, 기간 후 복구)
+function CreatureService.applySlowEffect(instanceId: string, slowAmount: number, duration: number)
+	local creature = activeCreatures[instanceId]
+	if not creature or not creature.humanoid then return end
+	local original = creature.humanoid.WalkSpeed
+	creature.humanoid.WalkSpeed = original * (1 - math.clamp(slowAmount, 0, 0.9))
+	task.delay(duration, function()
+		local c = activeCreatures[instanceId]
+		if c and c.humanoid then
+			c.humanoid.WalkSpeed = original
+		end
+	end)
+end
+
+--- 경직 효과 (잠시 이동 불능)
+function CreatureService.applyStaggerEffect(instanceId: string, duration: number)
+	local creature = activeCreatures[instanceId]
+	if not creature or not creature.humanoid then return end
+	local original = creature.humanoid.WalkSpeed
+	creature.humanoid.WalkSpeed = 0
+	task.delay(duration, function()
+		local c = activeCreatures[instanceId]
+		if c and c.humanoid then
+			c.humanoid.WalkSpeed = original
+		end
+	end)
+end
+
+--- 기절 효과 (행동 불능 + 이동 불능)
+function CreatureService.applyStunEffect(instanceId: string, duration: number)
+	local creature = activeCreatures[instanceId]
+	if not creature or not creature.humanoid then return end
+	local original = creature.humanoid.WalkSpeed
+	creature.humanoid.WalkSpeed = 0
+	-- 기절 중 AI 비활성화 (간이 구현: WalkSpeed=0으로 이동 차단)
+	creature.stunned = true
+	task.delay(duration, function()
+		local c = activeCreatures[instanceId]
+		if c then
+			c.stunned = false
+			if c.humanoid then
+				c.humanoid.WalkSpeed = original
+			end
+		end
+	end)
 end
 
 --- 크리처 강제 제거 (포획 등 특수 상황용)

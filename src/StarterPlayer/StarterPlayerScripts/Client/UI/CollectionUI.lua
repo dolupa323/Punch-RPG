@@ -145,10 +145,10 @@ local function _updateTopTabs()
 	end
 	if scroll then
 		if TOP_MODE == "CODEX" then
-			scroll.Size = UDim2.new(0, 490, 1, -70)
-			scroll.Position = UDim2.new(0, 140, 0, 60)
+			scroll.Size = UDim2.new(0.56, -10, 1, -70)
+			scroll.Position = UDim2.new(0.14, 10, 0, 60)
 		else
-			scroll.Size = UDim2.new(0, 610, 1, -70)
+			scroll.Size = UDim2.new(0.70, -10, 1, -70)
 			scroll.Position = UDim2.new(0, 10, 0, 60)
 		end
 	end
@@ -164,7 +164,7 @@ local function _renderRegionTabs()
 		btn.Name = "Tab_" .. tab.key
 		btn.Size = UDim2.new(1, 0, 0, 50)
 		btn.Font = F.TITLE
-		btn.TextSize = 18
+		btn.TextSize = 22
 		btn.Text = UILocalizer.Localize(tab.label)
 		
 		if activeTabKey == tab.key then
@@ -224,15 +224,17 @@ local function _renderDetails()
 		local iconImg = Utils.CreateImage("IconImg", UDim2.new(0.8,0,0.8,0), UDim2.new(0.1,0,0.1,0), "")
 		iconImg.Parent = iconBg
 		
-		local nameTxt = Utils.CreateTextLabel("NameTxt", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 130), UILocalizer.Localize("이름"))
+		local nameTxt = Utils.CreateTextLabel("NameTxt", UDim2.new(1, 0, 0, 36), UDim2.new(0, 0, 0, 130), UILocalizer.Localize("이름"))
 		nameTxt.Font = F.TITLE
-		nameTxt.TextSize = 24
+		nameTxt.TextSize = 28
 		
-		local dnaTxt = Utils.CreateTextLabel("DnaTxt", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 160), UILocalizer.Localize("DNA: 0/5"))
+		local dnaTxt = Utils.CreateTextLabel("DnaTxt", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 168), UILocalizer.Localize("DNA: 0/5"))
 		dnaTxt.TextColor3 = C.GOLD
+		dnaTxt.TextSize = 18
 		
-		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 60), UDim2.new(0.05, 0, 0, 190), UILocalizer.Localize("동물 정보"))
+		local infoTxt = Utils.CreateTextLabel("InfoTxt", UDim2.new(0.9, 0, 0, 70), UDim2.new(0.05, 0, 0, 198), UILocalizer.Localize("동물 정보"))
 		infoTxt.TextColor3 = C.DIM
+		infoTxt.TextSize = 17
 		infoTxt.TextXAlignment = Enum.TextXAlignment.Left
 		infoTxt.TextYAlignment = Enum.TextYAlignment.Top
 		
@@ -242,15 +244,16 @@ local function _renderDetails()
 		infoTxt.Parent = pnl
 		
 		-- 장착 효과
-		local effBg = Utils.CreateFrame("EffBg", UDim2.new(0.9,0,0,80), UDim2.new(0.05,0,0,260), C.BTN)
+		local effBg = Utils.CreateFrame("EffBg", UDim2.new(0.9,0,0,90), UDim2.new(0.05,0,0,275), C.BTN)
 		Instance.new("UICorner", effBg).CornerRadius = UDim.new(0,8)
 		
 		local effTit = Utils.CreateTextLabel("EffTit", UDim2.new(1,0,0,20), UDim2.new(0,0,0,5), UILocalizer.Localize("장착 시 플레이어 효과"))
-		effTit.TextSize = 14
+		effTit.TextSize = 18
 		effTit.Font = F.TITLE
 		effTit.Parent = effBg
 		
-		local effVal = Utils.CreateTextLabel("EffVal", UDim2.new(0.9,0,0,40), UDim2.new(0.05,0,0,30), UILocalizer.Localize("[장착 보너스 비활성]\n준비 중인 기능입니다."))
+		local effVal = Utils.CreateTextLabel("EffVal", UDim2.new(0.9,0,0,50), UDim2.new(0.05,0,0,32), UILocalizer.Localize("[장착 보너스 비활성]\n준비 중인 기능입니다."))
+		effVal.TextSize = 16
 		effVal.TextXAlignment = Enum.TextXAlignment.Left
 		effVal.Parent = effBg
 		effBg.Parent = pnl
@@ -341,18 +344,18 @@ local function _renderPetDetails()
 		iconBg.Parent = pnl
 		
 		local nameTxt = Utils.CreateTextLabel("PetNameTxt", UDim2.new(1,0,0,30), UDim2.new(0,0,0,130), "")
-		nameTxt.Font = F.TITLE; nameTxt.TextSize = 22
+		nameTxt.Font = F.TITLE; nameTxt.TextSize = 26
 		nameTxt.Parent = pnl
 		
-		local statsTxt = Utils.CreateTextLabel("PetStatsTxt", UDim2.new(0.9,0,0,50), UDim2.new(0.05,0,0,165), "")
+		local statsTxt = Utils.CreateTextLabel("PetStatsTxt", UDim2.new(0.9,0,0,55), UDim2.new(0.05,0,0,165), "")
 		statsTxt.TextColor3 = C.DIM; statsTxt.TextXAlignment = Enum.TextXAlignment.Left
-		statsTxt.TextYAlignment = Enum.TextYAlignment.Top; statsTxt.TextSize = 14
+		statsTxt.TextYAlignment = Enum.TextYAlignment.Top; statsTxt.TextSize = 18
 		statsTxt.Parent = pnl
 		
 		local equipBtn = Utils.CreateFrame("EquipBtn", UDim2.new(0.8,0,0,40), UDim2.new(0.1,0,0,230), C.GOLD)
 		Instance.new("UICorner", equipBtn).CornerRadius = UDim.new(0, 8)
 		local equipTxt = Utils.CreateTextLabel("Txt", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), UILocalizer.Localize("장착"))
-		equipTxt.Font = F.TITLE; equipTxt.TextSize = 18; equipTxt.TextColor3 = C.BG_OVERLAY
+		equipTxt.Font = F.TITLE; equipTxt.TextSize = 22; equipTxt.TextColor3 = C.BG_OVERLAY
 		equipTxt.Parent = equipBtn
 		local equipBtnClick = Instance.new("TextButton")
 		equipBtnClick.Name = "Click"; equipBtnClick.Size = UDim2.new(1,0,1,0)
@@ -363,7 +366,7 @@ local function _renderPetDetails()
 		local unequipBtn = Utils.CreateFrame("UnequipBtn", UDim2.new(0.8,0,0,36), UDim2.new(0.1,0,0,280), C.BTN)
 		Instance.new("UICorner", unequipBtn).CornerRadius = UDim.new(0, 8)
 		local unequipTxt = Utils.CreateTextLabel("Txt", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), UILocalizer.Localize("해제"))
-		unequipTxt.Font = F.TITLE; unequipTxt.TextSize = 16; unequipTxt.TextColor3 = C.WHITE
+		unequipTxt.Font = F.TITLE; unequipTxt.TextSize = 20; unequipTxt.TextColor3 = C.WHITE
 		unequipTxt.Parent = unequipBtn
 		local unequipBtnClick = Instance.new("TextButton")
 		unequipBtnClick.Name = "Click"; unequipBtnClick.Size = UDim2.new(1,0,1,0)
@@ -463,7 +466,7 @@ local function _renderPetTab()
 	
 	-- 섹션 헤더: 펫 슬롯
 	local slotHeader = Utils.CreateTextLabel("SlotHeader", UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, y), UILocalizer.Localize("펫 슬롯"))
-	slotHeader.Font = F.TITLE; slotHeader.TextSize = 18; slotHeader.TextXAlignment = Enum.TextXAlignment.Left
+	slotHeader.Font = F.TITLE; slotHeader.TextSize = 22; slotHeader.TextXAlignment = Enum.TextXAlignment.Left
 	slotHeader.Parent = scroll
 	y = y + 35
 	
@@ -486,11 +489,11 @@ local function _renderPetTab()
 		if not isUnlocked then
 			-- 잠긴 슬롯
 			local lockTxt = Utils.CreateTextLabel("Lock", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.5, -15), UILocalizer.Localize("🔒 잠김"))
-			lockTxt.TextColor3 = C.DIM; lockTxt.TextSize = 16
+			lockTxt.TextColor3 = C.DIM; lockTxt.TextSize = 20
 			lockTxt.Parent = slotBg
 			
-			local infoTxt = Utils.CreateTextLabel("Info", UDim2.new(0.9, 0, 0, 20), UDim2.new(0.05, 0, 0.7, 0), UILocalizer.Localize("(상점에서 해제)"))
-			infoTxt.TextColor3 = C.DIM; infoTxt.TextSize = 11
+			local infoTxt = Utils.CreateTextLabel("Info", UDim2.new(0.9, 0, 0, 22), UDim2.new(0.05, 0, 0.7, 0), UILocalizer.Localize("(상점에서 해제)"))
+			infoTxt.TextColor3 = C.DIM; infoTxt.TextSize = 14
 			infoTxt.Parent = slotBg
 		elseif creatureId then
 			-- 장착된 펫
@@ -501,18 +504,18 @@ local function _renderPetTab()
 			local sourceName = (cData and cData.name) or creatureId
 			local localizedName = UILocalizer.LocalizeDataText("CreatureData", creatureId, "name", sourceName)
 			local nameL = Utils.CreateTextLabel("Name", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 80), localizedName)
-			nameL.TextSize = 13; nameL.Parent = slotBg
+			nameL.TextSize = 16; nameL.Parent = slotBg
 			
-			local slotLabel = Utils.CreateTextLabel("Label", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 105), UILocalizer.Localize(string.format("슬롯 %d", i)))
-			slotLabel.TextSize = 11; slotLabel.TextColor3 = C.GOLD; slotLabel.Parent = slotBg
+			local slotLabel = Utils.CreateTextLabel("Label", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 105), UILocalizer.Localize(string.format("슬롯 %d", i)))
+			slotLabel.TextSize = 14; slotLabel.TextColor3 = C.GOLD; slotLabel.Parent = slotBg
 		else
 			-- 빈 슬롯
 			local emptyTxt = Utils.CreateTextLabel("Empty", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.5, -15), UILocalizer.Localize("비어있음"))
-			emptyTxt.TextColor3 = C.DIM; emptyTxt.TextSize = 14
+			emptyTxt.TextColor3 = C.DIM; emptyTxt.TextSize = 18
 			emptyTxt.Parent = slotBg
 			
-			local slotLabel = Utils.CreateTextLabel("Label", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 105), UILocalizer.Localize(string.format("슬롯 %d", i)))
-			slotLabel.TextSize = 11; slotLabel.TextColor3 = C.DIM; slotLabel.Parent = slotBg
+			local slotLabel = Utils.CreateTextLabel("Label", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 105), UILocalizer.Localize(string.format("슬롯 %d", i)))
+			slotLabel.TextSize = 14; slotLabel.TextColor3 = C.DIM; slotLabel.Parent = slotBg
 		end
 		
 		-- Click
@@ -532,7 +535,7 @@ local function _renderPetTab()
 	
 	-- 섹션 헤더: 사용 가능한 펫
 	local availHeader = Utils.CreateTextLabel("AvailHeader", UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, y), UILocalizer.Localize("사용 가능한 펫"))
-	availHeader.Font = F.TITLE; availHeader.TextSize = 18; availHeader.TextXAlignment = Enum.TextXAlignment.Left
+	availHeader.Font = F.TITLE; availHeader.TextSize = 22; availHeader.TextXAlignment = Enum.TextXAlignment.Left
 	availHeader.Parent = scroll
 	y = y + 35
 	
@@ -565,14 +568,14 @@ local function _renderPetTab()
 			local sourceName = data.name or cid
 			local localizedName = UILocalizer.LocalizeDataText("CreatureData", cid, "name", sourceName)
 			local nameL = Utils.CreateTextLabel("Name", UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 80), localizedName)
-			nameL.TextSize = 13; nameL.Parent = card
+			nameL.TextSize = 16; nameL.Parent = card
 			
 			-- 장착 여부 표시
 			local equipped = false
 			for _, sid in pairs(slots) do if sid == cid then equipped = true; break end end
 			if equipped then
 				local eqTag = Utils.CreateTextLabel("Eq", UDim2.new(1, 0, 0, 18), UDim2.new(0, 0, 0, 105), UILocalizer.Localize("장착중"))
-				eqTag.TextColor3 = Color3.fromRGB(120, 200, 80); eqTag.TextSize = 12; eqTag.Parent = card
+				eqTag.TextColor3 = Color3.fromRGB(120, 200, 80); eqTag.TextSize = 15; eqTag.Parent = card
 			end
 			
 			local btn = Instance.new("TextButton")
@@ -596,7 +599,7 @@ local function _renderPetTab()
 	
 	if not hasAny then
 		local noTxt = Utils.CreateTextLabel("NoPet", UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, y), UILocalizer.Localize("도감을 완성하면 펫이 활성화됩니다."))
-		noTxt.TextColor3 = C.DIM; noTxt.TextSize = 14
+		noTxt.TextColor3 = C.DIM; noTxt.TextSize = 18
 		noTxt.Parent = scroll
 		y = y + 40
 	end
@@ -661,11 +664,11 @@ function CollectionUI.refreshData()
 			local sourceName = data.name or cid
 			local localizedName = UILocalizer.LocalizeDataText("CreatureData", cid, "name", sourceName)
 			local nameL = Utils.CreateTextLabel("Name", UDim2.new(1,0,0,20), UDim2.new(0,0,0,80), localizedName)
-			nameL.TextSize = 13
+			nameL.TextSize = 16
 			nameL.Parent = card
 			
 			-- DNA 바
-			local barBg = Utils.CreateFrame("BarBg", UDim2.new(0.8, 0, 0, 10), UDim2.new(0.1, 0, 0, 105), C.BG_DARK)
+			local barBg = Utils.CreateFrame("BarBg", UDim2.new(0.8, 0, 0, 12), UDim2.new(0.1, 0, 0, 105), C.BG_DARK)
 			Instance.new("UICorner", barBg).CornerRadius = UDim.new(0, 5)
 			
 			local fillRatio = math.clamp(dCount / dRequired, 0, 1)
@@ -674,7 +677,7 @@ function CollectionUI.refreshData()
 			barFill.Parent = barBg
 			
 			local countT = Utils.CreateTextLabel("Cnt", UDim2.new(1,0,1,0), UDim2.new(0,0,0,0), UILocalizer.Localize(string.format("%d/%d", dCount, dRequired)))
-			countT.TextSize = 10
+			countT.TextSize = 13
 			countT.Parent = barBg
 			
 			barBg.Parent = card
@@ -713,18 +716,22 @@ end
 -- Init
 --========================================
 
-function CollectionUI.Init(mainGui, uiManager)
+function CollectionUI.Init(mainGui, uiManager, isMobile)
 	if isUIInitialized then return end
 	UIManager = uiManager
+	local isSmall = isMobile
 	
 	-- Main Window (Using Modern Theme style)
 	local Frame = Utils.mkFrame({
 		name = "CollectionFrame", 
-		size = UDim2.new(0, 900, 0, 580), 
+		size = UDim2.new(isSmall and 0.95 or 0.75, 0, isSmall and 0.92 or 0.82, 0), 
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL, bgT = T.PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER
 	})
+	local sizeConstraint = Instance.new("UISizeConstraint")
+	sizeConstraint.MaxSize = Vector2.new(900, 580)
+	sizeConstraint.Parent = Frame
 	Frame.Visible = false
 	CollectionUI.Refs.Frame = Frame
 	
@@ -738,8 +745,8 @@ function CollectionUI.Init(mainGui, uiManager)
 	titleList.Padding = UDim.new(0, 20)
 	titleList.Parent = leftHeader
 
-	CollectionUI.Refs.TabCodex = Utils.mkBtn({text=UILocalizer.Localize("도감 [P]"), size=UDim2.new(0, 140, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GOLD_SEL, parent=leftHeader})
-	CollectionUI.Refs.TabPet = Utils.mkBtn({text=UILocalizer.Localize("펫"), size=UDim2.new(0, 100, 0, 35), bgT=1, font=F.TITLE, ts=18, color=C.GRAY, parent=leftHeader})
+	CollectionUI.Refs.TabCodex = Utils.mkBtn({text=UILocalizer.Localize("도감 [P]"), size=UDim2.new(0, 160, 0, 42), bgT=1, font=F.TITLE, ts=24, color=C.GOLD_SEL, parent=leftHeader})
+	CollectionUI.Refs.TabPet = Utils.mkBtn({text=UILocalizer.Localize("펫"), size=UDim2.new(0, 110, 0, 42), bgT=1, font=F.TITLE, ts=24, color=C.GRAY, parent=leftHeader})
 
 	CollectionUI.Refs.TabCodex.MouseButton1Click:Connect(function()
 		TOP_MODE = "CODEX"
@@ -759,12 +766,12 @@ function CollectionUI.Init(mainGui, uiManager)
 		CollectionUI.refreshData()
 	end)
 
-	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=20, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 42, 0, 42), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1, 0.5), bg=C.BTN, bgT=0.5, ts=24, color=C.WHITE, r=4, fn=function() UIManager.closeCollection() end, parent=header})
 	
 	-- 좌측 탭 영역
 	local TabList = Instance.new("ScrollingFrame")
 	TabList.Name = "TabList"
-	TabList.Size = UDim2.new(0, 120, 1, -60)
+	TabList.Size = UDim2.new(0.14, 0, 1, -60)
 	TabList.Position = UDim2.new(0, 10, 0, 50)
 	TabList.BackgroundTransparency = 1
 	TabList.CanvasSize = UDim2.new(0, 0, 0, 500)
@@ -776,8 +783,8 @@ function CollectionUI.Init(mainGui, uiManager)
 	-- 중앙 스크롤 (공룡카드)
 	local Scroll = Instance.new("ScrollingFrame")
 	Scroll.Name = "CreatureList"
-	Scroll.Size = UDim2.new(0, 490, 1, -70)
-	Scroll.Position = UDim2.new(0, 140, 0, 60)
+	Scroll.Size = UDim2.new(0.56, -10, 1, -70)
+	Scroll.Position = UDim2.new(0.14, 10, 0, 60)
 	Scroll.BackgroundColor3 = C.BG_SLOT
 	Scroll.BackgroundTransparency = 0.35
 	Scroll.ScrollBarThickness = 5
@@ -796,8 +803,8 @@ function CollectionUI.Init(mainGui, uiManager)
 	-- 우측 상세 정보창
 	local DetailFrame = Instance.new("Frame")
 	DetailFrame.Name = "DetailFrame"
-	DetailFrame.Size = UDim2.new(0, 240, 1, -60)
-	DetailFrame.Position = UDim2.new(0, 640, 0, 50)
+	DetailFrame.Size = UDim2.new(0.28, -5, 1, -60)
+	DetailFrame.Position = UDim2.new(0.72, 0, 0, 50)
 	DetailFrame.BackgroundColor3 = C.BG_PANEL_L
 	DetailFrame.BackgroundTransparency = 0.15
 	Utils.AddCorner(DetailFrame, 8)
