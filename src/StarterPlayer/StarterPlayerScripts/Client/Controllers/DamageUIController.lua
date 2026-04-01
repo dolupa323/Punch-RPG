@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 
 local Client = script.Parent.Parent
 local NetClient = require(Client.NetClient)
+local Debris = game:GetService("Debris")
 
 local DamageUIController = {}
 
@@ -22,6 +23,10 @@ local COLORS = {
 	HEAL = Color3.fromRGB(100, 255, 100),   -- 초록색: 회복
 }
 
+-- 데미지 사운드
+local DAMAGE_SOUND_VOLUME = 0.25
+local damageSoundFolder = nil -- ReplicatedStorage > Assets > SkillSounds > Damage
+
 local BASE_TEXT_SIZE = 22
 local MAX_TEXT_SIZE = 40
 local CRIT_TEXT_MULT = 1.5  -- 치명타 텍스트 크기 배율
@@ -35,6 +40,7 @@ local initialized = false
 
 --- 대상 모델 찾기 (속성 기반 검색)
 local function findTargetModel(targetId: string): Instance?
+	if not targetId or targetId == "" then return nil end
 	local targetModel = nil
 	
 	-- 1. 월드 내 대상 검색 (속성 기반 검색으로 정확도 향상)
@@ -73,6 +79,31 @@ local function findTargetModel(targetId: string): Instance?
 	end
 	
 	return targetModel
+end
+
+--- 데미지 사운드 재생 (1타당 1회, 위치 기반 3D 사운드)
+local function playDamageSound(position: Vector3, isCritical: boolean?)
+	if not damageSoundFolder then return end
+	local sndName = isCritical and "Damage_Critical" or "Damage_Normal"
+	local template = damageSoundFolder:FindFirstChild(sndName)
+		or damageSoundFolder:FindFirstChild("Damage_Normal")
+	if not template then return end
+	
+	local sndPart = Instance.new("Part")
+	sndPart.Size = Vector3.one
+	sndPart.Transparency = 1
+	sndPart.Anchored = true
+	sndPart.CanCollide = false
+	sndPart.CanQuery = false
+	sndPart.CanTouch = false
+	sndPart.Position = position
+	sndPart.Parent = workspace
+	
+	local sfx = template:Clone()
+	sfx.Volume = (sfx.Volume or 0.5) * DAMAGE_SOUND_VOLUME
+	sfx.Parent = sndPart
+	sfx:Play()
+	Debris:AddItem(sndPart, 2)
 end
 
 --- 데미지 텍스트 생성 및 애니메이션 (damageValue → 텍스트 크기 스케일링)
@@ -157,6 +188,15 @@ end
 function DamageUIController.Init()
 	if initialized then return end
 	
+	-- 데미지 사운드 폴더 로드
+	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+	if assetsFolder then
+		local skillSounds = assetsFolder:FindFirstChild("SkillSounds")
+		if skillSounds then
+			damageSoundFolder = skillSounds:FindFirstChild("Damage")
+		end
+	end
+	
 	-- 1. 서버로부터 사냥/전투 타격 결과 수신
 	NetClient.On("Combat.Hit.Result", function(data)
 		-- data: { damage, torporDamage, killed, targetId, hitPosition? }
@@ -166,10 +206,14 @@ function DamageUIController.Init()
 		if targetModel then
 			spawnPos = targetModel:GetPivot().Position
 		elseif data.hitPosition then
-			-- 크리처 사망 후 모델 제거됐을 때 서버에서 전송한 위치 사용
 			spawnPos = Vector3.new(data.hitPosition.x, data.hitPosition.y, data.hitPosition.z)
 		else
 			return
+		end
+		
+		-- 데미지 사운드 재생 (1타당 1회)
+		if data.damage and data.damage > 0 and spawnPos then
+			playDamageSound(spawnPos, data.isCritical)
 		end
 		
 		-- 데미지 표시 (치명타 분기)

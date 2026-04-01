@@ -107,9 +107,9 @@ SkillTreeData.SWORD = {
 		prereqs = { "SWORD_P1" },
 		cooldown = 12,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 1.80 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 2.00 },
 		},
-		description = "전방 강력 베기, 기본 공격력 180%",
+		description = "전방 강력 베기, 기본 공격력 200%",
 	},
 	{
 		id = "SWORD_A2",
@@ -121,10 +121,10 @@ SkillTreeData.SWORD = {
 		prereqs = { "SWORD_P3" },
 		cooldown = 18,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 2.00 },
-			{ stat = "SLOW_DURATION", value = 1.5 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 3.50 },
+			{ stat = "SLOW_DURATION", value = 2.5 },
 		},
-		description = "전방 8스터드 돌진, 200%, 1.5초 둔화",
+		description = "전방 8스터드 돌진, 350%, 2.5초 둔화",
 	},
 	{
 		id = "SWORD_A3",
@@ -136,11 +136,11 @@ SkillTreeData.SWORD = {
 		prereqs = { "SWORD_P4" },
 		cooldown = 30,
 		effects = {
-			{ stat = "SKILL_MULTI_HIT", value = 4 },
-			{ stat = "SKILL_DAMAGE_MULT", value = 1.00 },
-			{ stat = "SKILL_FINAL_HIT_MULT", value = 2.00 },
+			{ stat = "SKILL_MULTI_HIT", value = 5 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 1.60 },
+			{ stat = "SKILL_FINAL_HIT_MULT", value = 3.50 },
 		},
-		description = "1.2초간 4회 연속 베기, 각 100%, 마지막 200%",
+		description = "1.5초간 5회 연속 베기, 각 160%, 마지막 350% (총 1150%)",
 	},
 }
 
@@ -185,8 +185,9 @@ SkillTreeData.BOW = {
 		prereqs = { "BOW_P2" },
 		effects = {
 			{ stat = "CRIT_CHANCE", value = 0.08 },
+			{ stat = "NO_ARROW_CONSUME", value = 1 },
 		},
-		description = "활 치명타율 +8%",
+		description = "활 치명타율 +8%, 화살 소모 없음",
 	},
 	{
 		id = "BOW_P4",
@@ -211,9 +212,8 @@ SkillTreeData.BOW = {
 		prereqs = { "BOW_P4" },
 		effects = {
 			{ stat = "DAMAGE_MULT", value = 0.15 },
-			{ stat = "NO_ARROW_CONSUME", value = 1 },
 		},
-		description = "활 공격력 +15%, 화살 소모 없음",
+		description = "활 공격력 +15%",
 	},
 	-- 액티브 3개
 	{
@@ -226,11 +226,11 @@ SkillTreeData.BOW = {
 		prereqs = { "BOW_P1" },
 		cooldown = 14,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 2.00 },
-			{ stat = "STAGGER_DURATION", value = 1.5 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 2.50 },
+			{ stat = "STAGGER_DURATION", value = 2.0 },
 			{ stat = "SKILL_CHARGE_TIME", value = 1.5 },
 		},
-		description = "1.5초 충전, 200%, 1.5초 경직",
+		description = "1.5초 충전, 250%, 2초 경직",
 	},
 	{
 		id = "BOW_A2",
@@ -242,10 +242,10 @@ SkillTreeData.BOW = {
 		prereqs = { "BOW_P3" },
 		cooldown = 20,
 		effects = {
-			{ stat = "SKILL_MULTI_HIT", value = 3 },
-			{ stat = "SKILL_DAMAGE_MULT", value = 0.70 },
+			{ stat = "SKILL_MULTI_HIT", value = 5 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 0.90 },
 		},
-		description = "0.8초간 3발 연속 사격, 각 70%",
+		description = "1초간 5발 연속 사격, 각 90% (총 450%)",
 	},
 	{
 		id = "BOW_A3",
@@ -257,12 +257,12 @@ SkillTreeData.BOW = {
 		prereqs = { "BOW_P4" },
 		cooldown = 35,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 1.60 },
-			{ stat = "SKILL_AOE_RADIUS", value = 5 },
-			{ stat = "SKILL_DOT_DURATION", value = 3 },
-			{ stat = "SKILL_DOT_TICK_PCT", value = 0.03 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 3.00 },
+			{ stat = "SKILL_AOE_RADIUS", value = 8 },
+			{ stat = "SKILL_DOT_DURATION", value = 5 },
+			{ stat = "SKILL_DOT_TICK_PCT", value = 0.05 },
 		},
-		description = "폭발 화살, 5스터드 범위 160%, 3초 화상(틱당 3%)",
+		description = "폭발 화살, 8스터드 범위 300%, 5초 화상(틱당 5%)",
 	},
 }
 
@@ -349,11 +349,12 @@ SkillTreeData.AXE = {
 		prereqs = { "AXE_P1" },
 		cooldown = 12,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 2.20 },
-			{ stat = "SLOW_DURATION", value = 2 },
-			{ stat = "SLOW_AMOUNT", value = 0.30 },
+			{ stat = "SKILL_MULTI_HIT", value = 4 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 0.625 },
+			{ stat = "SLOW_DURATION", value = 2.5 },
+			{ stat = "SLOW_AMOUNT", value = 0.40 },
 		},
-		description = "수직 타격, 220%, 2초 둔화(-30%)",
+		description = "수직 타격, 4회 각 62.5% (총 250%), 2.5초 둔화(-40%)",
 	},
 	{
 		id = "AXE_A2",
@@ -365,10 +366,11 @@ SkillTreeData.AXE = {
 		prereqs = { "AXE_P3" },
 		cooldown = 22,
 		effects = {
-			{ stat = "SKILL_DAMAGE_MULT", value = 1.60 },
-			{ stat = "SKILL_AOE_RADIUS", value = 6 },
+			{ stat = "SKILL_MULTI_HIT", value = 28 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 0.10 },
+			{ stat = "SKILL_AOE_RADIUS", value = 8 },
 		},
-		description = "360도 6스터드 범위, 160%",
+		description = "360도 8스터드 범위, 28회 연타 각 10% (총 280%)",
 	},
 	{
 		id = "AXE_A3",
@@ -380,11 +382,10 @@ SkillTreeData.AXE = {
 		prereqs = { "AXE_P4" },
 		cooldown = 35,
 		effects = {
-			{ stat = "SKILL_MULTI_HIT", value = 3 },
-			{ stat = "SKILL_DAMAGE_MULT", value = 1.40 },
-			{ stat = "STUN_DURATION", value = 1.5 },
+			{ stat = "SKILL_MULTI_HIT", value = 8 },
+			{ stat = "SKILL_DAMAGE_MULT", value = 1.50 },
 		},
-		description = "2초간 3회 회전, 각 140%, 마지막 기절 1.5초",
+		description = "2초간 8회 연타, 각 150% (총 1200%)",
 	},
 }
 

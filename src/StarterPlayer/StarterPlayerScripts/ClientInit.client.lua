@@ -124,7 +124,7 @@ if success then
 	InputManager.bindKey(Enum.KeyCode.P, "ToggleCollection", function() UIManager.toggleCollection() end)
 	InputManager.bindKey(Enum.KeyCode.K, "ToggleSkillTree", function() UIManager.toggleSkillTree() end)
 
-	-- [Active Skills] Q / Z / X = 액티브 스킬 슬롯 1/2/3
+	-- [Active Skills] Q / F / V = 액티브 스킬 슬롯 1/2/3
 	local ActiveSkillBarUI = require(Client:WaitForChild("UI"):WaitForChild("ActiveSkillBarUI"))
 	InputManager.bindKey(Enum.KeyCode.Q, "ActiveSkill1", function() ActiveSkillBarUI.UseSlot(1) end)
 	InputManager.bindKey(Enum.KeyCode.F, "ActiveSkill2", function() ActiveSkillBarUI.UseSlot(2) end)

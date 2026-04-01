@@ -553,11 +553,21 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	local attackMult = calculated.attackMult or 1.0
 
 	-- 도끼/곡괭이는 동물/공룡 상대로 맨손 데미지로 고정.
+	-- 단, AXE 스킬트리 선택자는 도끼로 전투 가능 (평타도 원본 데미지 유지)
 	if targetType == "CREATURE" and itemData and itemData.type == "TOOL" then
 		local toolRole = tostring(itemData.optimalTool or ""):upper()
 		if toolRole == "AXE" or toolRole == "PICKAXE" then
-			baseDamage = DEFAULT_BAREHAND_DAMAGE
-			isBlunt = true
+			local skipNerf = false
+			if toolRole == "AXE" and SkillService then
+				local treeId = SkillService.getCombatTreeId and SkillService.getCombatTreeId(userId)
+				if treeId == "AXE" then
+					skipNerf = true
+				end
+			end
+			if not skipNerf then
+				baseDamage = DEFAULT_BAREHAND_DAMAGE
+				isBlunt = true
+			end
 		end
 	end
 

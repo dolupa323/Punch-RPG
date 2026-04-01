@@ -78,22 +78,10 @@ local function playCharacterShake(sourcePos)
 end
 
 --- 경직 효과 (피격 시 짧은 이동속도 감소)
+--- NOTE: WalkSpeed 조작은 서버 StaminaService.setStagger에서 일원화.
+---       클라이언트에서 중복 조작하면 경쟁 조건으로 속도가 영구 저하될 수 있으므로 제거.
 local function applyStagger()
-	if isStaggered then return end
-	local char = player.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if not hum then return end
-	
-	isStaggered = true
-	local origSpeed = hum.WalkSpeed
-	hum.WalkSpeed = origSpeed * STAGGER_SPEED_MULT
-	
-	task.delay(STAGGER_DURATION, function()
-		if hum and hum.Parent then
-			hum.WalkSpeed = origSpeed
-		end
-		isStaggered = false
-	end)
+	-- 서버가 이미 경직을 처리하므로 클라이언트에서는 시각 연출만 담당
 end
 
 --- 피격 레드 비네트 플래시 (화면 테두리 빨갛게)

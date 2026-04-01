@@ -54,7 +54,6 @@ local ZONE_CONFIGS = {
 			{ id = "TRICERATOPS", weight = 40 },
 		},
 		Harvests = {
-			{ id = "TREE_THIN", weight = 80 },
 			{ id = "BUSH_BERRY", weight = 70 },
 			{ id = "GROUND_FIBER", weight = 60 },
 			{ id = "GROUND_BRANCH", weight = 60 },

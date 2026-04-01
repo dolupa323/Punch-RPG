@@ -104,12 +104,20 @@ AnimationIds.SKILL_ANIM_MAP = {
 	SWORD_A1 = "SkillSword_Strike",
 	SWORD_A2 = "SkillSword_Charge",
 	SWORD_A3 = "SkillSword_Flurry",
-	BOW_A1   = "SkillBow_Power",
-	BOW_A2   = "SkillBow_Rapid",
-	BOW_A3   = "SkillBow_Explosive",
+	BOW_A1   = "AttackBow_Draw",
+	BOW_A2   = "AttackBow_Draw",
+	BOW_A3   = "AttackBow_Draw",
 	AXE_A1   = "SkillAxe_Slam",
 	AXE_A2   = "SkillAxe_Spin",
-	AXE_A3   = "SkillAxe_Storm",
+	AXE_A3   = "SkillAxe_Spin",   -- Storm: Spin→Slam 순차 (전용 애니 없음)
+}
+
+-- 스킬ID → VFX/사운드 에셋 이름 매핑 (애니메이션과 다른 경우)
+AnimationIds.SKILL_ASSET_MAP = {
+	BOW_A1 = "SkillBow_Power",
+	BOW_A2 = "SkillBow_Rapid",
+	BOW_A3 = "SkillBow_Explosive",
+	AXE_A3 = "SkillAxe_Storm",    -- VFX/사운드는 Storm 에셋 사용
 }
 
 AnimationIds.COMBO_UNARMED = {

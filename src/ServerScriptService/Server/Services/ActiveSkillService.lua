@@ -31,6 +31,7 @@ local DEV_NO_COOLDOWN = true             -- ★ 개발용 노쿨 (릴리즈 시 
 local SKILL_STAMINA_COST = 15           -- 스킬 사용 시 스태미나 소모
 local SKILL_GCD = 0.5                    -- 글로벌 쿨다운 (연타 방지)
 local MULTI_HIT_INTERVAL = 0.3          -- 멀티히트 간격 (초)
+local MULTI_HIT_INTERVAL_FAST = 0.06     -- 고타수(10+) 멀티히트 간격
 local CHARGE_SKILL_GCD = 0.3            -- 차지 스킬 완료 후 GCD
 local DEFAULT_BAREHAND_DAMAGE = 5
 
@@ -299,6 +300,14 @@ end
 -- Skill Execution Logic
 --========================================
 
+--- 패시브 DAMAGE_MULT 보너스 조회 (스킬 데미지에도 적용)
+local function getPassiveDamageMult(player: Player, itemData: any?): number
+	local weaponTreeId = getWeaponTreeId(itemData)
+	if not SkillService or not weaponTreeId then return 0 end
+	local bonuses = SkillService.getPassiveBonuses(player.UserId, weaponTreeId)
+	return bonuses and bonuses.DAMAGE_MULT or 0
+end
+
 --- 단일 타겟 스킬 (강타, 강사, 내려찍기)
 local function executeSingleTarget(player, skill, targetId, baseDamage, itemData)
 	local damageMult = getEffectValue(skill, "SKILL_DAMAGE_MULT")
@@ -307,7 +316,8 @@ local function executeSingleTarget(player, skill, targetId, baseDamage, itemData
 	-- 공격력 보정
 	local calculated = PlayerStatService.GetCalculatedStats(player.UserId)
 	local attackMult = calculated.attackMult or 1.0
-	local totalDamage = baseDamage * damageMult * attackMult
+	local passiveDmgMult = getPassiveDamageMult(player, itemData)
+	local totalDamage = baseDamage * damageMult * attackMult * (1 + passiveDmgMult)
 	
 	-- 데미지 등락폭
 	local variance = Balance.DAMAGE_VARIANCE or 0.15
@@ -345,7 +355,8 @@ local function executeAOE(player, skill, targetId, baseDamage, itemData)
 	
 	local calculated = PlayerStatService.GetCalculatedStats(player.UserId)
 	local attackMult = calculated.attackMult or 1.0
-	local totalDamage = baseDamage * damageMult * attackMult
+	local passiveDmgMult = getPassiveDamageMult(player, itemData)
+	local totalDamage = baseDamage * damageMult * attackMult * (1 + passiveDmgMult)
 	
 	local variance = Balance.DAMAGE_VARIANCE or 0.15
 	totalDamage = math.max(1, totalDamage * (1 + (math.random() * 2 - 1) * variance))
@@ -359,7 +370,18 @@ local function executeAOE(player, skill, targetId, baseDamage, itemData)
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return false, { errorCode = "INTERNAL_ERROR" } end
 	
-	local center = hrp.Position
+	-- 원거리 무기는 타겟 위치 기준 AOE, 근접은 HRP 기준
+	local center
+	if targetId and targetId ~= "" then
+		local targetCreature = CreatureService.getCreatureRuntime(targetId)
+		if targetCreature and targetCreature.rootPart then
+			center = targetCreature.rootPart.Position
+		else
+			center = hrp.Position
+		end
+	else
+		center = hrp.Position
+	end
 	local isBlunt = itemData and itemData.isBlunt
 	
 	-- AOE 범위 내 모든 크리처에 피해
@@ -418,6 +440,7 @@ local function executeMultiHit(player, skill, targetId, baseDamage, itemData)
 	
 	local calculated = PlayerStatService.GetCalculatedStats(player.UserId)
 	local attackMult = calculated.attackMult or 1.0
+	local passiveDmgMult = getPassiveDamageMult(player, itemData)
 	local isBlunt = itemData and itemData.isBlunt
 	local critChance, critDamageMult = getCritInfo(player, itemData)
 	
@@ -431,9 +454,10 @@ local function executeMultiHit(player, skill, targetId, baseDamage, itemData)
 			lastKnownPos = initCreature.rootPart.Position
 		end
 		
+		local hitInterval = multiHit >= 10 and MULTI_HIT_INTERVAL_FAST or MULTI_HIT_INTERVAL
 		for i = 1, multiHit do
 			if i > 1 then
-				task.wait(MULTI_HIT_INTERVAL)
+				task.wait(hitInterval)
 			end
 			
 			-- 타겟 위치 갱신 (생존 시)
@@ -448,13 +472,13 @@ local function executeMultiHit(player, skill, targetId, baseDamage, itemData)
 			end
 			
 			local variance = Balance.DAMAGE_VARIANCE or 0.15
-			local hitDamage = math.max(1, baseDamage * hitMult * attackMult * (1 + (math.random() * 2 - 1) * variance))
+			local hitDamage = math.max(1, baseDamage * hitMult * attackMult * (1 + passiveDmgMult) * (1 + (math.random() * 2 - 1) * variance))
 			
 			-- 히트별 치명타 판정
 			local isCritical
 			hitDamage, isCritical = rollCritical(hitDamage, critChance, critDamageMult)
 			
-			-- AOE가 있으면 범위 공격 (도끼 폭풍)
+			-- AOE가 있으면 범위 공격 (도끼 회전베기 등)
 			if aoeRadius > 0 then
 				local char = player.Character
 				local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -463,17 +487,21 @@ local function executeMultiHit(player, skill, targetId, baseDamage, itemData)
 					for _, t in ipairs(targets) do
 						applySkillDamage(player, t.instanceId, hitDamage, isBlunt, lastKnownPos, isCritical)
 					end
-					-- 메인 타겟
-					local alreadyHit = false
-					for _, t in ipairs(targets) do
-						if t.instanceId == targetId then alreadyHit = true break end
-					end
-					if not alreadyHit then
-						applySkillDamage(player, targetId, hitDamage, isBlunt, lastKnownPos, isCritical)
+					-- 메인 타겟 (유효할 때만 중복 체크)
+					if targetId and targetId ~= "" then
+						local alreadyHit = false
+						for _, t in ipairs(targets) do
+							if t.instanceId == targetId then alreadyHit = true break end
+						end
+						if not alreadyHit then
+							applySkillDamage(player, targetId, hitDamage, isBlunt, lastKnownPos, isCritical)
+						end
 					end
 				end
 			else
-				applySkillDamage(player, targetId, hitDamage, isBlunt, lastKnownPos, isCritical)
+				if targetId and targetId ~= "" then
+					applySkillDamage(player, targetId, hitDamage, isBlunt, lastKnownPos, isCritical)
+				end
 			end
 			
 			-- 마지막 히트에 디버프 적용
@@ -577,7 +605,14 @@ local function handleUseSkill(player: Player, payload: any)
 			local hrp = char:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dist = (creature.rootPart.Position - hrp.Position).Magnitude
-				local maxRange = (itemData and itemData.range or 14) + 8
+				local weaponType = itemData and itemData.toolType
+				local isRanged = (weaponType == "BOW" or weaponType == "CROSSBOW")
+				local maxRange
+				if isRanged then
+					maxRange = tonumber(itemData and (itemData.maxRange or itemData.range)) or 120
+				else
+					maxRange = (itemData and itemData.range or 14) + 8
+				end
 				if dist > maxRange then
 					targetId = nil -- 사거리 밖 → 허공으로 처리
 				end
@@ -628,16 +663,15 @@ local function handleUseSkill(player: Player, payload: any)
 		if not charCheck or not humCheck or humCheck.Health <= 0 then return end
 		
 		local execResult
-		if hasAOE then
-			-- AOE (회전 베기, 폭렬 사격) — 타겟 없어도 주변 적에게 피해
+		if multiHit > 0 then
+			-- 멀티히트 (AOE 포함 가능 — executeMultiHit 내부에서 AOE 처리)
+			_, execResult = executeMultiHit(player, skill, targetId, baseDamage, itemData)
+		elseif hasAOE then
+			-- 순수 AOE (폭렬 사격 등) — 타겟 없어도 주변 적에게 피해
 			_, execResult = executeAOE(player, skill, targetId, baseDamage, itemData)
 		elseif targetId and targetId ~= "" then
-			-- 단일/멀티히트 — 유효한 타겟이 있을 때만 데미지
-			if multiHit > 0 then
-				_, execResult = executeMultiHit(player, skill, targetId, baseDamage, itemData)
-			else
-				_, execResult = executeSingleTarget(player, skill, targetId, baseDamage, itemData)
-			end
+			-- 단일 타겟 — 유효한 타겟이 있을 때만 데미지
+			_, execResult = executeSingleTarget(player, skill, targetId, baseDamage, itemData)
 		end
 		-- 타겟 없으면 데미지 스킵 (허공 사용 — 애니메이션/VFX만 재생됨)
 	end)

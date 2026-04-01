@@ -243,7 +243,7 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 
 	-- skillId(SWORD_A1 등) → 에셋 이름(SkillSword_Strike 등) 변환
 	local animName = AnimationIds.SKILL_ANIM_MAP[skillId]
-	local assetName = animName
+	local assetName = AnimationIds.SKILL_ASSET_MAP and AnimationIds.SKILL_ASSET_MAP[skillId] or animName
 
 	--========================================
 	-- SWORD_A3 난무: 전용 연출 (애니메이션 우선 → 전진 → Cast VFX 1회 → 사운드/Hit VFX)
@@ -356,12 +356,313 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 	-- 기본 스킬 연출 (SWORD_A1, SWORD_A2, BOW, AXE 등)
 	--========================================
 
+	local isBowSkill = skillId:sub(1, 4) == "BOW_"
+	local isAxeSkill = skillId:sub(1, 4) == "AXE_"
+
 	-- 1. 시전 VFX 먼저 출력 (애니메이션보다 살짝 빠르게)
 	local isShortVFX = SHORT_VFX_SKILLS[skillId]
 	local castLife = isShortVFX and VFX_CAST_LIFETIME_SHORT or VFX_CAST_LIFETIME
 	local hitLife = isShortVFX and VFX_HIT_LIFETIME_SHORT or VFX_HIT_LIFETIME
-	
-	if castVFXFolder and assetName then
+
+	if isBowSkill and castVFXFolder and assetName then
+		-- ★ BOW 스킬: Cast VFX가 화살 경로를 따라 날아감
+		local castTemplates = findVFXTemplates(castVFXFolder, assetName .. "_Cast")
+		if #castTemplates > 0 then
+			-- 타겟 위치 결정
+			local targetPos: Vector3?
+			if targetId then
+				local targetModel = getCreatureModel(targetId)
+				if targetModel then
+					local tHrp = targetModel:FindFirstChild("HumanoidRootPart")
+						or targetModel.PrimaryPart
+						or targetModel:FindFirstChildWhichIsA("BasePart")
+					if tHrp then
+						targetPos = tHrp.Position
+					end
+				end
+			end
+			if not targetPos then
+				-- 타겟 없으면 전방으로 발사
+				targetPos = hrp.Position + hrp.CFrame.LookVector * 80
+			end
+
+			local startPos = hrp.Position + Vector3.new(0, 1.5, 0)
+			local direction = (targetPos - startPos)
+			if direction.Magnitude < 1 then direction = hrp.CFrame.LookVector end
+			direction = direction.Unit
+
+			-- ★ 화살 모델 발사 (로컬 플레이어만)
+			if userId == player.UserId then
+				local ok, CombatCtrl = pcall(function()
+					return require(script.Parent.CombatController)
+				end)
+				if ok and CombatCtrl and CombatCtrl.fireArrowTracer then
+					CombatCtrl.fireArrowTracer(targetPos, startPos, direction)
+				end
+			end
+			local distance = (targetPos - startPos).Magnitude
+			local travelTime = math.clamp(distance / 60, 0.4, 1.5)
+
+			-- 스킬별 CFrame 보정
+			local rotationOffset = CFrame.new()
+			if skillId == "BOW_A1" then
+				-- 강사: 촉이 전방을 향하도록 X축 90도
+				rotationOffset = CFrame.Angles(math.rad(90), 0, 0)
+			elseif skillId == "BOW_A2" then
+				-- 속사: 세로 배치 (가로→세로 전환)
+				rotationOffset = CFrame.Angles(math.rad(-90), 0, math.rad(90))
+			elseif skillId == "BOW_A3" then
+				-- 폭렬 사격: X축 180도 (촉이 전방을 향하도록)
+				rotationOffset = CFrame.Angles(math.rad(180), 0, 0)
+			end
+			-- BOW_A2 속사: 보정 없음 (세로 그대로)
+
+			-- VFX 파트 생성
+			local vfx = castTemplates[1]:Clone()
+			if vfx:IsA("BasePart") then
+				local forwardCF = CFrame.lookAt(startPos, startPos + direction)
+				vfx.CFrame = forwardCF * rotationOffset
+				vfx.Anchored = true
+				vfx.CanCollide = false
+				vfx.CanQuery = false
+				vfx.CanTouch = false
+				if vfx:IsA("Part") and not vfx:IsA("MeshPart") then
+					vfx.Transparency = 1
+				end
+			elseif vfx:IsA("Model") then
+				local forwardCF = CFrame.lookAt(startPos, startPos + direction)
+				vfx:PivotTo(forwardCF * rotationOffset)
+			end
+			vfx.Parent = workspace
+
+			-- ParticleEmitter 활성화
+			for _, desc in vfx:GetDescendants() do
+				if desc:IsA("ParticleEmitter") then
+					local burstCount = desc:GetAttribute("BurstCount")
+					if burstCount then
+						desc:Emit(burstCount)
+					else
+						desc.Enabled = true
+					end
+				end
+			end
+
+			-- 화살 경로 추종 이동
+			task.spawn(function()
+				local t0 = tick()
+				while true do
+					local elapsed = tick() - t0
+					local alpha = math.min(elapsed / travelTime, 1)
+					local pos = startPos:Lerp(targetPos, alpha)
+					local cf = CFrame.lookAt(pos, pos + direction)
+					if vfx:IsA("BasePart") and vfx.Parent then
+						vfx.CFrame = cf * rotationOffset
+					elseif vfx:IsA("Model") and vfx.Parent then
+						vfx:PivotTo(cf * rotationOffset)
+					end
+					if alpha >= 1 then break end
+					task.wait()
+				end
+				-- 도착 후 파티클 비활성화
+				for _, desc in vfx:GetDescendants() do
+					if desc:IsA("ParticleEmitter") then
+						desc.Enabled = false
+					end
+				end
+
+				-- ★ 모든 BOW 스킬: 도착 지점에서 Hit VFX + Hit 사운드 재생
+				do
+					local arrivalPos = targetPos
+					local isAOE = (skillId == "BOW_A3")
+					local isRapid = (skillId == "BOW_A2")
+					local sizeScale = isAOE and 3 or 1
+					local hitCount = isRapid and 5 or 1
+					local hitInterval = 0.15  -- 속사 화살 간격
+
+					for hitIdx = 1, hitCount do
+						local delay = isRapid and ((hitIdx - 1) * hitInterval) or 0
+						task.delay(delay, function()
+							-- 속사: 화살마다 랜덤 오프셋 (반경 3스터드 내)
+							local spawnPos = arrivalPos
+							if isRapid then
+								local rx = (math.random() - 0.5) * 6
+								local ry = (math.random() - 0.5) * 3
+								local rz = (math.random() - 0.5) * 6
+								spawnPos = arrivalPos + Vector3.new(rx, ry, rz)
+							end
+
+							if hitVFXFolder then
+								local hitTemplates = findVFXTemplates(hitVFXFolder, assetName .. "_Hit")
+								for _, tmpl in ipairs(hitTemplates) do
+									local hitVfx = tmpl:Clone()
+									if hitVfx:IsA("BasePart") then
+										hitVfx.Anchored = true
+										hitVfx.CanCollide = false
+										hitVfx.CanQuery = false
+										hitVfx.CanTouch = false
+										hitVfx.CFrame = CFrame.new(spawnPos)
+										if hitVfx:IsA("Part") and not hitVfx:IsA("MeshPart") then
+											hitVfx.Transparency = 1
+										end
+									end
+									hitVfx.Parent = workspace
+									if sizeScale > 1 then
+										if hitVfx:IsA("BasePart") then
+											hitVfx.Size = hitVfx.Size * sizeScale
+										end
+									end
+									for _, d in hitVfx:GetDescendants() do
+										if sizeScale > 1 and d:IsA("BasePart") then
+											d.Size = d.Size * sizeScale
+										end
+										if d:IsA("ParticleEmitter") then
+											if sizeScale > 1 then
+												d.Size = NumberSequence.new({
+													NumberSequenceKeypoint.new(0, (d.Size.Keypoints[1].Value) * sizeScale),
+													NumberSequenceKeypoint.new(1, (d.Size.Keypoints[#d.Size.Keypoints].Value) * sizeScale),
+												})
+											end
+											local bc = d:GetAttribute("BurstCount")
+											if bc then d:Emit(bc)
+											else d.Enabled = true
+												task.delay(1.5, function()
+													if d and d.Parent then d.Enabled = false end
+												end)
+											end
+										end
+									end
+									Debris:AddItem(hitVfx, hitLife)
+								end
+							end
+							if hitSoundFolder then
+								local hitSndTmpl = hitSoundFolder:FindFirstChild(assetName .. "_Hit")
+								if hitSndTmpl then
+									local sndPart = Instance.new("Part")
+									sndPart.Size = Vector3.one
+									sndPart.Transparency = 1
+									sndPart.Anchored = true
+									sndPart.CanCollide = false
+									sndPart.CanQuery = false
+									sndPart.CanTouch = false
+									sndPart.Position = spawnPos
+									sndPart.Parent = workspace
+									local sfx = hitSndTmpl:Clone()
+									sfx.Parent = sndPart
+									sfx:Play()
+									Debris:AddItem(sndPart, 3)
+								end
+							end
+						end)
+					end
+				end
+			end)
+
+			Debris:AddItem(vfx, castLife)
+		end
+	elseif isAxeSkill and castVFXFolder and assetName then
+		--========================================
+		-- ★ AXE 스킬 전용 Cast VFX 처리
+		--========================================
+		local castTemplates = findVFXTemplates(castVFXFolder, assetName .. "_Cast")
+
+		if skillId == "AXE_A1" then
+			-- ★ 내려찍기: Cast VFX → 캐릭터 머리 위에 Anchored (내려치기 전 기운 모으기)
+			if #castTemplates > 0 then
+				local abovePos = hrp.Position + Vector3.new(0, 3, 0) + hrp.CFrame.LookVector * 1
+				local anchor = Instance.new("Part")
+				anchor.Size = Vector3.new(1, 1, 1)
+				anchor.Transparency = 1
+				anchor.Anchored = true
+				anchor.CanCollide = false
+				anchor.CanQuery = false
+				anchor.CanTouch = false
+				anchor.CFrame = CFrame.new(abovePos)
+				anchor.Parent = workspace
+				spawnVFX(castTemplates[1], anchor, castLife)
+				Debris:AddItem(anchor, castLife + 0.5)
+			end
+
+		elseif skillId == "AXE_A2" then
+			-- ★ 회전베기: Cast VFX를 캐릭터 위치에 Anchored (회전 안 따라감)
+			if #castTemplates > 0 then
+				local anchor = Instance.new("Part")
+				anchor.Size = Vector3.new(1, 1, 1)
+				anchor.Transparency = 1
+				anchor.Anchored = true
+				anchor.CanCollide = false
+				anchor.CanQuery = false
+				anchor.CanTouch = false
+				anchor.CFrame = hrp.CFrame
+				anchor.Parent = workspace
+				spawnVFX(castTemplates[1], anchor, castLife)
+				Debris:AddItem(anchor, castLife + 0.5)
+			end
+
+		elseif skillId == "AXE_A3" then
+			-- ★ 도끼 폭풍: Storm VFX 난도질 + Slam Cast VFX 3~4회 출력
+			if #castTemplates > 0 then
+				local stormCount = 14
+				local stormDuration = 1.8  -- Spin 재생 시간 동안 퍼부음
+				local spawnPos = hrp.Position + hrp.CFrame.LookVector * 5
+
+				local anchor = Instance.new("Part")
+				anchor.Size = Vector3.new(1, 1, 1)
+				anchor.Transparency = 1
+				anchor.Anchored = true
+				anchor.CanCollide = false
+				anchor.CanQuery = false
+				anchor.CanTouch = false
+				anchor.CFrame = CFrame.lookAt(spawnPos, spawnPos + hrp.CFrame.LookVector)
+				anchor.Parent = workspace
+
+				-- Slam Cast VFX (내려찍기 이펙트) 3~4회 섞어서 출력
+				local slamTemplates = findVFXTemplates(castVFXFolder, "SkillAxe_Slam_Cast")
+				if #slamTemplates > 0 then
+					local slamCount = math.random(3, 4)
+					for i = 1, slamCount do
+						task.delay((i - 1) * (stormDuration / slamCount), function()
+							if not anchor or not anchor.Parent then return end
+							local rx = (math.random() - 0.5) * 5
+							local ry = (math.random() - 0.5) * 3
+							local rz = (math.random() - 0.5) * 5
+							local slamAnchor = Instance.new("Part")
+							slamAnchor.Size = Vector3.one
+							slamAnchor.Transparency = 1
+							slamAnchor.Anchored = true
+							slamAnchor.CanCollide = false
+							slamAnchor.CanQuery = false
+							slamAnchor.CanTouch = false
+							slamAnchor.CFrame = CFrame.new(spawnPos + Vector3.new(rx, ry, rz))
+								* CFrame.Angles(0, math.rad(math.random(-30, 30)), 0)
+							slamAnchor.Parent = workspace
+							spawnVFX(slamTemplates[math.random(1, #slamTemplates)], slamAnchor, VFX_CAST_LIFETIME_FLURRY)
+							Debris:AddItem(slamAnchor, VFX_CAST_LIFETIME_FLURRY + 0.5)
+						end)
+					end
+				end
+
+				for i = 1, stormCount do
+					task.delay((i - 1) * (stormDuration / stormCount), function()
+						if not anchor or not anchor.Parent then return end
+						local tmpl = castTemplates[math.random(1, #castTemplates)]
+						-- 랜덤 위치 오프셋 (반경 3스터드) + 랜덤 회전
+						local rx = (math.random() - 0.5) * 6
+						local ry = (math.random() - 0.5) * 4
+						local rz = (math.random() - 0.5) * 6
+						local offsetCF = CFrame.new(spawnPos + Vector3.new(rx, ry, rz))
+							* CFrame.Angles(
+								math.rad(math.random(-30, 30)),
+								math.rad(math.random(-180, 180)),
+								math.rad(math.random(-30, 30))
+							)
+						anchor.CFrame = offsetCF
+						spawnVFX(tmpl, anchor, VFX_CAST_LIFETIME_FLURRY)
+					end)
+				end
+				Debris:AddItem(anchor, stormDuration + VFX_CAST_LIFETIME_FLURRY + 0.5)
+			end
+		end
+	elseif castVFXFolder and assetName then
 		local castTemplates = findVFXTemplates(castVFXFolder, assetName .. "_Cast")
 		if #castTemplates > 0 then
 			local bladePart = getWeaponBladePart(character)
@@ -373,7 +674,17 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 	if castSoundFolder and assetName then
 		local castSoundTemplate = castSoundFolder:FindFirstChild(assetName .. "_Cast")
 		if castSoundTemplate then
-			playSound(castSoundTemplate, hrp)
+			if skillId == "BOW_A2" then
+				-- 속사: 짧게 5회 반복 재생
+				task.spawn(function()
+					for i = 1, 5 do
+						playSound(castSoundTemplate, hrp)
+						task.wait(0.18)
+					end
+				end)
+			else
+				playSound(castSoundTemplate, hrp)
+			end
 		end
 	end
 
@@ -381,7 +692,23 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 	local animDelay = isShortVFX and 0.25 or 0.05
 	task.delay(animDelay, function()
 		if not humanoid or not humanoid.Parent then return end
-		if animName then
+
+		if skillId == "AXE_A3" then
+			-- ★ 도끼 폭풍: Spin 재생 → 완료 후 Slam 재생 (별도 애니메이션 없음)
+			local spinTrack = AnimationManager.play(humanoid, "SkillAxe_Spin", 0.05)
+			if spinTrack then
+				spinTrack.Priority = Enum.AnimationPriority.Action4
+				spinTrack.Looped = false
+				spinTrack.Stopped:Once(function()
+					if not humanoid or not humanoid.Parent then return end
+					local slamTrack = AnimationManager.play(humanoid, "SkillAxe_Slam", 0.05)
+					if slamTrack then
+						slamTrack.Priority = Enum.AnimationPriority.Action4
+						slamTrack.Looped = false
+					end
+				end)
+			end
+		elseif animName then
 			local track = AnimationManager.play(humanoid, animName, 0.05)
 			if track then
 				track.Priority = Enum.AnimationPriority.Action4
@@ -396,7 +723,88 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 	end
 
 	-- 4. 피격 VFX + 사운드 (타겟 기준)
-	if targetId then
+	if isAxeSkill and targetId then
+		-- ★ AXE 스킬: 대상 유무와 관계없이 캐릭터 전방에 Hit VFX/Sound 출력
+		-- A1 내려찍기: 애니메이션 진행 후 바닥 충격 (0.7초)
+		-- A2 회전베기: 회전 중간 (0.4초)
+		-- A3 도끼폭풍: Spin→Slam 후 찍기 타이밍 (Spin길이 + 0.5초)
+		local hitDelay
+		if skillId == "AXE_A1" then
+			hitDelay = 0.7
+		elseif skillId == "AXE_A3" then
+			hitDelay = 2.0
+		else
+			hitDelay = 0.4
+		end
+		task.delay(hitDelay, function()
+			if not hrp or not hrp.Parent then return end
+			local hitPos = hrp.Position + hrp.CFrame.LookVector * 4
+			local isAOE = (skillId == "AXE_A2" or skillId == "AXE_A3")
+			local sizeScale = isAOE and 2 or 1
+
+			if hitVFXFolder and assetName then
+				local hitTemplates = findVFXTemplates(hitVFXFolder, assetName .. "_Hit")
+				for _, tmpl in ipairs(hitTemplates) do
+					local hitVfx = tmpl:Clone()
+					if hitVfx:IsA("BasePart") then
+						hitVfx.Anchored = true
+						hitVfx.CanCollide = false
+						hitVfx.CanQuery = false
+						hitVfx.CanTouch = false
+						hitVfx.CFrame = CFrame.new(hitPos)
+						if hitVfx:IsA("Part") and not hitVfx:IsA("MeshPart") then
+							hitVfx.Transparency = 1
+						end
+					end
+					hitVfx.Parent = workspace
+					if sizeScale > 1 then
+						if hitVfx:IsA("BasePart") then
+							hitVfx.Size = hitVfx.Size * sizeScale
+						end
+					end
+					for _, d in hitVfx:GetDescendants() do
+						if sizeScale > 1 and d:IsA("BasePart") then
+							d.Size = d.Size * sizeScale
+						end
+						if d:IsA("ParticleEmitter") then
+							if sizeScale > 1 then
+								d.Size = NumberSequence.new({
+									NumberSequenceKeypoint.new(0, (d.Size.Keypoints[1].Value) * sizeScale),
+									NumberSequenceKeypoint.new(1, (d.Size.Keypoints[#d.Size.Keypoints].Value) * sizeScale),
+								})
+							end
+							local bc = d:GetAttribute("BurstCount")
+							if bc then d:Emit(bc)
+							else d.Enabled = true
+								task.delay(1.5, function()
+									if d and d.Parent then d.Enabled = false end
+								end)
+							end
+						end
+					end
+					Debris:AddItem(hitVfx, hitLife)
+				end
+			end
+			if hitSoundFolder and assetName then
+				local hitSndTmpl = hitSoundFolder:FindFirstChild(assetName .. "_Hit")
+				if hitSndTmpl then
+					local sndPart = Instance.new("Part")
+					sndPart.Size = Vector3.one
+					sndPart.Transparency = 1
+					sndPart.Anchored = true
+					sndPart.CanCollide = false
+					sndPart.CanQuery = false
+					sndPart.CanTouch = false
+					sndPart.Position = hitPos
+					sndPart.Parent = workspace
+					local sfx = hitSndTmpl:Clone()
+					sfx.Parent = sndPart
+					sfx:Play()
+					Debris:AddItem(sndPart, 3)
+				end
+			end
+		end)
+	elseif targetId then
 		local targetModel = getCreatureModel(targetId)
 		if targetModel then
 			local targetHrp = targetModel:FindFirstChild("HumanoidRootPart")
