@@ -743,6 +743,28 @@ function HarvestUI._runSingleGather(slotIndex)
 		setHexBorderColor(slot, UITheme.Colors.BORDER_DIM)
 
 		if ok2 then
+			-- 인벤토리 가득 참 알림
+			if result2 and result2.inventoryFull then
+				if UIManager then
+					UIManager.notify("가방이 가득 찼습니다! 남은 아이템이 발 밑에 떨어졌습니다.", Color3.fromRGB(255, 140, 140))
+				end
+				-- 더 이상 채집 불가 → 모든 슬롯 완료 처리 후 닫기
+				removeBadge(slot)
+				for _, s in ipairs(slots) do
+					s.remainingCount = 0
+					s.countLabel.Text = "0"
+					s.isComplete = true
+					clearBadges(s)
+				end
+				slot.isGathering = false
+				setHexBorderColor(slot, UITheme.Colors.BORDER_DIM)
+				syncAnimation()
+				task.delay(1.2, function()
+					if isOpen then HarvestUI.Close() end
+				end)
+				return
+			end
+
 			-- 1개 채집 성공: 배지 제거 + 남은 수량 감소
 			removeBadge(slot)
 			slot.remainingCount = math.max(0, slot.remainingCount - 1)
@@ -899,9 +921,23 @@ function HarvestUI.Open(nodeUID, nodeId, nodeModel)
 	local localGatherTime, toolStatus = estimateGatherTime(nodeData)
 	local gatherTime = serverGatherTimeOverride or localGatherTime
 	local resources = nodeData.resources or {}
-	local numItems = #resources
 
-	-- 허니콤 위치 계산
+	-- 실제 표시할 아이템만 필터링 (서버 응답 기준)
+	local displayResources = {}
+	for _, resource in ipairs(resources) do
+		local count
+		if serverRemaining then
+			count = serverRemaining[resource.itemId] or 0
+		else
+			count = math.random(resource.min, resource.max)
+		end
+		if count > 0 then
+			table.insert(displayResources, { resource = resource, count = count })
+		end
+	end
+	local numItems = #displayResources
+
+	-- 허니콤 위치 계산 (실제 표시 아이템 수 기준)
 	local hexPositions = getHoneycombPositions(numItems, HEX_SIZE, HEX_GAP)
 
 	-- 바운딩 박스 계산 (BillboardGui 크기 결정)
@@ -974,33 +1010,26 @@ function HarvestUI.Open(nodeUID, nodeId, nodeModel)
 
 	-- 슬롯 생성 (허니콤 배치) — 카드 펼침 애니메이션 준비
 	local slotFinalPositions = {}  -- { [slotIndex] = UDim2 }
-	for i, resource in ipairs(resources) do
-		-- 서버 응답이 있으면 서버 값 사용, 없으면 로컬 폴백
-		local count
-		if serverRemaining and serverRemaining[resource.itemId] then
-			count = serverRemaining[resource.itemId]
-		else
-			count = math.random(resource.min, resource.max)
-		end
-		-- 0개 이하인 아이템은 표시하지 않음
-		if count > 0 then
-			local slotData = createSlotFrame(slotContainer, i, resource, count, gatherTime)
+	for i, entry in ipairs(displayResources) do
+		local resource = entry.resource
+		local count = entry.count
 
-			local pos = hexPositions[i]
-			local finalPos = UDim2.new(
-				0.5, pos.x - centerX,
-				0.5, pos.y - centerY
-			)
+		local slotData = createSlotFrame(slotContainer, i, resource, count, gatherTime)
 
-			-- 카드 펼침: 초기에는 중앙에 모여있고, 축소 + 투명 상태
-			slotData.frame.AnchorPoint = Vector2.new(0.5, 0.5)
-			slotData.frame.Position = UDim2.new(0.5, 0, 0.5, 0) -- 중앙
-			slotData.frame.Size = UDim2.new(0, HEX_SIZE * 0.3, 0, HEX_SIZE * 0.3) -- 축소
-			slotData.frame.Rotation = -15 + (i - 1) * 10  -- 카드처럼 살짝 기울임
+		local pos = hexPositions[i]
+		local finalPos = UDim2.new(
+			0.5, pos.x - centerX,
+			0.5, pos.y - centerY
+		)
 
-			table.insert(slots, slotData)
-			slotFinalPositions[#slots] = finalPos
-		end
+		-- 카드 펼침: 초기에는 중앙에 모여있고, 축소 + 투명 상태
+		slotData.frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		slotData.frame.Position = UDim2.new(0.5, 0, 0.5, 0) -- 중앙
+		slotData.frame.Size = UDim2.new(0, HEX_SIZE * 0.3, 0, HEX_SIZE * 0.3) -- 축소
+		slotData.frame.Rotation = -15 + (i - 1) * 10  -- 카드처럼 살짝 기울임
+
+		table.insert(slots, slotData)
+		slotFinalPositions[#slots] = finalPos
 	end
 
 	-- 채집 가능한 슬롯이 없으면 UI 열지 않음

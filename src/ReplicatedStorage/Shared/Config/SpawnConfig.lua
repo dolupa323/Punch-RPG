@@ -17,9 +17,9 @@ local ZONES = {
 		spawnPoint = Vector3.new(-128, 20, -278),  -- 초원 섬 기본 스폰 지점
 	},
 	TROPICAL = {
-		center = Vector3.new(-197, 0, 654),            -- 열대 섬 중심 좌표 (귀환 포탈 기준)
+		center = Vector3.new(-197, 0, 2892),            -- 열대 섬 중심 좌표 (귀환 포탈 기준)
 		radius = 2500,                                  -- 영역 반경 (studs)
-		spawnPoint = Vector3.new(-197, 47, 654),        -- 열대 섬 기본 스폰 지점 (지면 +5)
+		spawnPoint = Vector3.new(-197, 45, 2892),       -- 열대 섬 기본 스폰 지점 (귀환 포탈 근처)
 	},
 }
 
@@ -52,6 +52,7 @@ local ZONE_CONFIGS = {
 			{ id = "PARASAUR", weight = 70 },
 			{ id = "STEGOSAURUS", weight = 50 },
 			{ id = "TRICERATOPS", weight = 40 },
+			{ id = "RAPTOR", weight = 35 },
 		},
 		Harvests = {
 			{ id = "BUSH_BERRY", weight = 70 },

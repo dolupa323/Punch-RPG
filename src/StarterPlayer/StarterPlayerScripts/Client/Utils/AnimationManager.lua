@@ -42,7 +42,7 @@ end
 
 --- 애니메이션 로드 및 트랙 반환 (캐싱 포함)
 function AnimationManager.load(humanoid: Humanoid, animName: string): AnimationTrack?
-	if not humanoid or humanoid.Health <= 0 then return nil end
+	if not humanoid then return nil end
 	
 	-- 1. 캐시 확인
 	if not trackCache[humanoid] then

@@ -12,6 +12,7 @@ local Players = game:GetService("Players")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
 local Balance = require(Shared.Config.Balance)
+local CreatureAnimationIds = require(Shared.Config.CreatureAnimationIds)
 
 local Data = ReplicatedStorage:WaitForChild("Data")
 local MaterialAttributeData = require(Data.MaterialAttributeData)
@@ -986,7 +987,8 @@ function HarvestService.registerNode(nodeId: string, position: Vector3, isAutoSp
 end
 
 -- 시체 디스폰 시간 (초)
-local CORPSE_DESPAWN_TIME = 120
+local CORPSE_DESPAWN_TIME = 60
+local CORPSE_BLINK_START = 10   -- 사라지기 n초 전부터 깜빡임
 
 --- 시체 노드 등록 (크리처 사망 시 호출)
 --- creature 모델을 ResourceNodes 폴더로 이전하고 채집 가능하도록 설정
@@ -1016,82 +1018,220 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 		end
 	end
 
-	-- 애니메이션 완전 정지 (Animator 트랙 전부 중단 + 파괴)
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.WalkSpeed = 0
-		humanoid.JumpPower = 0
-		humanoid.AutoRotate = false
-		humanoid.PlatformStand = true
-
-		local animator = humanoid:FindFirstChildOfClass("Animator")
-		if animator then
-			for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-				track:Stop(0)
-			end
-			animator:Destroy()
-		end
-	end
-
-	-- AnimationController도 제거 (혹시 Humanoid 외부에 있을 경우)
+	-- Humanoid 외부 AnimationController 제거
 	for _, desc in ipairs(model:GetDescendants()) do
 		if desc:IsA("AnimationController") then
-			local anim = desc:FindFirstChildOfClass("Animator")
-			if anim then
-				for _, track in ipairs(anim:GetPlayingAnimationTracks()) do
-					track:Stop(0)
-				end
-			end
-			desc:Destroy()
-		elseif desc:IsA("Animation") then
 			desc:Destroy()
 		end
 	end
 
-	-- 모든 파트 고정 (눕히기 전에 먼저 앵커)
-	for _, part in ipairs(model:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.Anchored = true
-			part.CanCollide = true
-			part.CanQuery = true
-			part.CanTouch = true
-		end
-	end
-
-	-- 시체 눕히기: 모델 전체를 X축 기준 90° 회전 (옆으로 쓰러진 포즈)
-	local rootPart = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-	if rootPart then
-		local currentCF = rootPart.CFrame
-		-- 모델 높이 계산 (지면 밀착용)
-		local _, modelSize = model:GetBoundingBox()
-		local halfHeight = modelSize.Y * 0.3
-		-- X축으로 -90도 회전 (옆으로 쓰러짐) + 지면 밀착
-		local tiltedCF = currentCF * CFrame.Angles(math.rad(-90), 0, 0) * CFrame.new(0, 0, halfHeight)
-		model:PivotTo(tiltedCF)
-	end
-
-	-- 속성 설정 (InteractController 인식용)
+	-- 속성 설정 (InteractController 인식용) — 폴더 이동 전에 설정
 	model:SetAttribute("NodeId", nodeId)
 	model:SetAttribute("NodeUID", nodeUID)
 	model:SetAttribute("AutoSpawned", false)
 	model:SetAttribute("Depleted", false)
-
-	-- CollectionService 태그 추가
 	CollectionService:AddTag(model, "ResourceNode")
 
-	-- ResourceNodes 폴더로 이동
+	-- ★ 모델을 ResourceNodes로 먼저 이동 (클라이언트 AnimController 추적 해제)
 	model.Name = nodeId
 	model.Parent = nodeFolder
 
-	-- 활성 노드 등록
+	-- 클라이언트 ChildRemoved 처리 대기 → 클라이언트 애니메이션 루프 정지
+	task.wait(0.3)
+
+	-- 사망 애니메이션 재생 (Humanoid + Animator 유지)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local deathTrack = nil
+	if humanoid then
+		humanoid.WalkSpeed = 0
+		humanoid.JumpPower = 0
+		humanoid.AutoRotate = false
+		-- ★ PlatformStand 제거: Motor6D 관절 비활성화로 애니메이션 불가 방지
+		humanoid.PlatformStand = false
+		
+		-- ★ Dead 상태 방지 + Health 복원 (애니메이션 재생 위해)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+		humanoid.MaxHealth = 100
+		humanoid.Health = 1
+
+		-- 기존 애니메이션 전부 중지 (fade 적용)
+		local animator = humanoid:FindFirstChildOfClass("Animator")
+		if not animator then
+			animator = Instance.new("Animator")
+			animator.Parent = humanoid
+		end
+		for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+			track:Stop(0.2)
+		end
+
+		-- 데스 애니메이션 검색 (CreatureAnimationIds 우선, 폴백으로 creatureId_Death)
+		local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds.DEFAULT or {}
+		local deathAnimName = animSet.DEATH or (creatureId .. "_Death")
+		local animObj = nil
+		local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+		if assetsFolder then
+			local animFolder = assetsFolder:FindFirstChild("Animations")
+			if animFolder then
+				animObj = animFolder:FindFirstChild(deathAnimName, true)
+			end
+		end
+		if not animObj then
+			animObj = ReplicatedStorage:FindFirstChild(deathAnimName, true)
+		end
+
+		if animObj and animObj:IsA("Animation") then
+			deathTrack = animator:LoadAnimation(animObj)
+			deathTrack.Looped = false
+			deathTrack.Priority = Enum.AnimationPriority.Action4
+			deathTrack:Play(0.2)
+		end
+	end
+
+	local rootPart = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+	if rootPart then
+		rootPart.Anchored = true
+		rootPart.CanCollide = true
+		rootPart.CanQuery = true
+		rootPart.CanTouch = true
+	end
+
+	-- 크리처별 지면 오프셋 (체형에 따라 다름)
+	local CORPSE_GROUND_OFFSETS = {
+		COMPY = 2.5,
+		BABY_TRICERATOPS = 2,
+		DODO = 0,
+		PARASAUR = 2,
+		STEGOSAURUS = 2,
+		TRICERATOPS = 2,
+		RAPTOR = 2,
+	}
+	local groundOffset = CORPSE_GROUND_OFFSETS[creatureId] or 2.5
+
+	-- 지면 스냅 헬퍼 (최종 포즈 상태에서 호출)
+	local function snapToGround()
+		if not rootPart or not model or not model.Parent then return end
+		-- 최종 포즈의 시각적 최하단 Y 계산 (투명 파트 제외)
+		local lowestY = math.huge
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") and part.Transparency < 0.9 then
+				local bottomY = part.Position.Y - part.Size.Y / 2
+				if bottomY < lowestY then lowestY = bottomY end
+			end
+		end
+		if lowestY == math.huge then
+			lowestY = rootPart.Position.Y - rootPart.Size.Y / 2
+		end
+		-- 모델/ResourceNodes 제외, 레이캐스트로 실제 지형 검색
+		local nodeFolder2 = workspace:FindFirstChild("ResourceNodes")
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		rayParams.FilterDescendantsInstances = nodeFolder2 and {model, nodeFolder2} or {model}
+		local rayOrigin = Vector3.new(rootPart.Position.X, rootPart.Position.Y + 10, rootPart.Position.Z)
+		local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -60, 0), rayParams)
+		if rayResult then
+			local groundY = rayResult.Position.Y
+			-- 최하단보다 추가로 내려서 지면에 확실히 밀착
+			local dropDist = (lowestY + groundOffset) - groundY
+			if math.abs(dropDist) > 0.1 then
+				rootPart.CFrame = rootPart.CFrame - Vector3.new(0, dropDist, 0)
+			end
+		end
+	end
+
+	-- ★ 위치 먼저 잡기: 지면 스냅 (애니메이션 전)
+	snapToGround()
+
+	-- 데스 애니메이션: 재생 → 프리즈
+	if deathTrack then
+		task.spawn(function()
+			-- Length가 비동기 로딩일 수 있으므로 0이면 대기
+			local waited = 0
+			while deathTrack.Length <= 0 and waited < 2 do
+				task.wait(0.1)
+				waited = waited + 0.1
+			end
+			local trackLength = deathTrack.Length
+
+			-- Heartbeat 폴링으로 정확하게 95% 지점 감지
+			if trackLength > 0 then
+				local targetTime = trackLength * 0.95
+				while deathTrack.IsPlaying and deathTrack.TimePosition < targetTime do
+					task.wait()
+				end
+			else
+				task.wait(2.0)
+			end
+
+			if not model or not model.Parent then return end
+			if deathTrack.IsPlaying then
+				deathTrack:AdjustSpeed(0) -- 마지막 프레임에서 프리즈
+			end
+
+			-- Humanoid 비활성화 (파괴하지 않아 포즈 유지)
+			if humanoid and humanoid.Parent then
+				humanoid.WalkSpeed = 0
+				humanoid.JumpPower = 0
+				humanoid.PlatformStand = true
+			end
+		end)
+	else
+		-- 데스 애니메이션 없으면 앵커 + Humanoid 제거
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = true
+				part.CanCollide = true
+				part.CanQuery = true
+				part.CanTouch = true
+			end
+		end
+		if humanoid and humanoid.Parent then
+			humanoid:Destroy()
+		end
+	end
+
+	-- ★ 드롭 확률(weight) 적용: 각 자원을 확률 롤하여 실제 출현 자원 결정
+	local resolvedResources = {}
+	for _, res in ipairs(nodeData.resources or {}) do
+		if math.random() <= (res.weight or 1.0) then
+			local count = math.random(res.min or 1, res.max or 1)
+			table.insert(resolvedResources, {
+				itemId = res.itemId,
+				count = count,      -- 이 자원에서 얻을 실제 수량
+				min = res.min,
+				max = res.max,
+				weight = 1.0,       -- 이미 확률 통과
+			})
+		end
+	end
+	-- 최소 1개 보장 (아무것도 안 뜨면 첫 번째 자원 강제)
+	if #resolvedResources == 0 and #(nodeData.resources or {}) > 0 then
+		local fallback = nodeData.resources[1]
+		table.insert(resolvedResources, {
+			itemId = fallback.itemId,
+			count = math.random(fallback.min or 1, fallback.max or 1),
+			min = fallback.min,
+			max = fallback.max,
+			weight = 1.0,
+		})
+	end
+
+	-- resolvedResources 기반으로 총 채집 횟수(=HP) 결정
+	local totalGathers = 0
+	for _, res in ipairs(resolvedResources) do
+		totalGathers = totalGathers + res.count
+	end
+
+	-- 활성 노드 등록 (resolvedResources 포함)
 	activeNodes[nodeUID] = {
 		nodeId = nodeId,
-		remainingHits = nodeData.maxHealth,
+		remainingHits = totalGathers,    -- 총 채집 횟수 = HP
 		depletedAt = nil,
 		position = position,
 		isAutoSpawned = false,
 		nodeModel = model,
 		isCorpse = true,
+		resolvedResources = resolvedResources,  -- 확률 적용 완료된 자원 목록
+		resolvedMaxHealth = totalGathers,        -- 확률 적용 후 HP
 	}
 
 	-- 클라이언트 알림
@@ -1100,17 +1240,43 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 			nodeUID = nodeUID,
 			nodeId = nodeId,
 			position = position,
-			maxHits = nodeData.maxHealth,
+			maxHits = totalGathers,
 		})
 	end
 
-	-- 시체 자동 디스폰 타이머 (시간 초과 시 제거)
-	task.delay(CORPSE_DESPAWN_TIME, function()
+	-- 시체 자동 디스폰: 마지막 n초간 깜빡임 후 제거
+	task.delay(CORPSE_DESPAWN_TIME - CORPSE_BLINK_START, function()
+		if not activeNodes[nodeUID] or not model or not model.Parent then return end
+
+		-- 깜빡임 효과: 투명도를 토글하며 점점 빠르게
+		local blinkParts = {}
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				table.insert(blinkParts, { part = part, origTransparency = part.Transparency })
+			end
+		end
+
+		local elapsed = 0
+		local blinkOn = false
+		while elapsed < CORPSE_BLINK_START do
+			if not activeNodes[nodeUID] or not model or not model.Parent then return end
+			-- 간격: 0.5초에서 시작 → 0.1초까지 점점 빠르게
+			local progress = elapsed / CORPSE_BLINK_START
+			local interval = 0.5 - 0.4 * progress  -- 0.5 → 0.1
+			blinkOn = not blinkOn
+			for _, info in ipairs(blinkParts) do
+				if info.part and info.part.Parent then
+					info.part.Transparency = blinkOn and math.min(info.origTransparency + 0.6, 1) or info.origTransparency
+				end
+			end
+			task.wait(interval)
+			elapsed = elapsed + interval
+		end
+
+		-- 디스폰
 		if activeNodes[nodeUID] then
 			HarvestService._destroyNodeModel(nodeUID)
-			-- 시체는 리스폰하지 않으므로 즉시 제거
 			activeNodes[nodeUID] = nil
-			-- 모델도 완전 파괴
 			if model and model.Parent then
 				model:Destroy()
 			end
@@ -1750,7 +1916,20 @@ function HarvestService.Init(
 			HarvestService._despawnCheck()
 		end
 	end)
-	
+
+	-- activeGathers 타임아웃 정리 (60초 초과 시 만료 제거)
+	task.spawn(function()
+		while true do
+			task.wait(30)
+			local now = tick()
+			for key, state in pairs(activeGathers) do
+				if now - state.startTime > 60 then
+					activeGathers[key] = nil
+				end
+			end
+		end
+	end)
+
 	initialized = true
 
 	local function seedForPlayer(player: Player)
@@ -2058,9 +2237,10 @@ local function handleGatherRequest(player: Player, payload: any)
 		end
 	end
 
-	-- 해당 아이템이 이 노드의 resources에 있는지 확인
+	-- 해당 아이템이 이 노드의 resources에 있는지 확인 (resolvedResources 우선)
+	local resList = nodeState.resolvedResources or nodeData.resources
 	local foundResource = nil
-	for _, resource in ipairs(nodeData.resources) do
+	for _, resource in ipairs(resList) do
 		if resource.itemId == itemId then
 			foundResource = resource
 			break
@@ -2079,10 +2259,15 @@ local function handleGatherRequest(player: Player, payload: any)
 	-- 채집 시간 계산
 	local gatherTime = calculateGatherTime(player, nodeData)
 
-	-- 1클릭 = 1개 (weight 확률 적용)
+	-- 1클릭 = 1개 (이미 확률 적용된 resolvedResources면 항상 1개, 일반 노드는 weight 확률)
 	local count = 0
-	if math.random() <= (foundResource.weight or 1.0) then
+	if nodeState.resolvedResources then
+		-- 확률은 등록 시 이미 적용됨
 		count = 1
+	else
+		if math.random() <= (foundResource.weight or 1.0) then
+			count = 1
+		end
 	end
 
 	-- 진행 중 상태 저장
@@ -2094,12 +2279,14 @@ local function handleGatherRequest(player: Player, payload: any)
 		count = count,
 	}
 
-	-- 남은 채집 가능 횟수 계산
+	-- 남은 채집 가능 횟수 계산 (resolvedResources 우선)
+	local reqResList = nodeState.resolvedResources or nodeData.resources or {}
+	local reqEffectiveMaxHealth = nodeState.resolvedMaxHealth or nodeData.maxHealth or 50
 	local totalMaxGathers = 0
-	for _, res in ipairs(nodeData.resources or {}) do
-		totalMaxGathers = totalMaxGathers + (res.max or 1)
+	for _, res in ipairs(reqResList) do
+		totalMaxGathers = totalMaxGathers + (res.count or res.max or 1)
 	end
-	local damagePerGather = math.max(1, math.ceil((nodeData.maxHealth or 50) / math.max(1, totalMaxGathers)))
+	local damagePerGather = math.max(1, math.ceil(reqEffectiveMaxHealth / math.max(1, totalMaxGathers)))
 	local remainingGathers = math.floor(nodeState.remainingHits / damagePerGather)
 
 	return {
@@ -2154,16 +2341,64 @@ local function handleGatherComplete(player: Player, payload: any)
 	local count = gatherState.count
 	activeGathers[gatherKey] = nil
 
-	-- count가 0이면 (확률 실패) 성공은 하되 아이템 없음
+	-- count가 0이면 (확률 실패) 아이템은 없지만 HP는 감소시켜야 함 (노드 정상 고갈)
 	if count <= 0 then
+		-- HP 감소 (weight 실패해도 채집 시도는 소모)
+		local zeroResList = nodeState.resolvedResources or (nodeData and nodeData.resources) or {}
+		local zeroEffMaxHP = nodeState.resolvedMaxHealth or (nodeData and nodeData.maxHealth) or 50
+		local zeroTotalMax = 0
+		for _, res in ipairs(zeroResList) do
+			zeroTotalMax = zeroTotalMax + (res.count or res.max or 1)
+		end
+		local zeroDmgPerGather = math.max(1, math.ceil(zeroEffMaxHP / math.max(1, zeroTotalMax)))
+		nodeState.remainingHits = math.max(0, nodeState.remainingHits - zeroDmgPerGather)
+
+		-- 고갈 시 노드 제거
+		if nodeState.remainingHits <= 0 then
+			HarvestService._destroyNodeModel(nodeUID)
+			if nodeState.isCorpse then
+				local nodeModel = nodeState.nodeModel
+				activeNodes[nodeUID] = nil
+				if nodeModel and nodeModel.Parent then
+					nodeModel:Destroy()
+				end
+			elseif nodeState.isAutoSpawned then
+				local nodeId2 = nodeState.nodeId
+				spawnedNodesByType[nodeId2] = math.max(0, (spawnedNodesByType[nodeId2] or 0) - 1)
+				spawnedNodeCount = math.max(0, spawnedNodeCount - 1)
+				activeNodes[nodeUID] = nil
+			else
+				depletedNodes[nodeUID] = {
+					nodeId = nodeState.nodeId,
+					position = nodeState.position,
+					respawnAt = os.time() + (nodeData.respawnTime or 300),
+					isAutoSpawned = nodeState.isAutoSpawned,
+					nodeModel = nodeState.nodeModel,
+				}
+				activeNodes[nodeUID] = nil
+				task.delay(nodeData.respawnTime or 300, function()
+					HarvestService._respawnNode(nodeUID)
+				end)
+			end
+		end
+
 		return { success = true, data = { itemId = itemId, count = 0 } }
 	end
 
 	-- 인벤토리에 직접 추가
+	local inventoryFull = false
 	if InventoryService then
 		local added, remaining = InventoryService.addItem(userId, itemId, count)
-		if remaining > 0 and UIManager then
-			-- 인벤토리 가득 참 — 일부만 추가
+		if remaining > 0 then
+			inventoryFull = true
+			-- 남은 아이템은 월드 드롭으로 발 밑에 생성 (유실 방지)
+			if WorldDropService then
+				local character = player.Character
+				local dropPos = character and character:FindFirstChild("HumanoidRootPart")
+					and character.HumanoidRootPart.Position + Vector3.new(0, 2, 0)
+					or nodeState.position
+				WorldDropService.spawnDrop(dropPos, itemId, remaining)
+			end
 		end
 	end
 
@@ -2184,12 +2419,14 @@ local function handleGatherComplete(player: Player, payload: any)
 		questCallback(userId, nodeData.nodeType or nodeData.id)
 	end
 
-	-- 노드 내구도 감소 (1개당 고정 비율 — 전체 가능 채집수 기반)
+	-- 노드 내구도 감소 (resolvedResources 우선)
+	local complResList = nodeState.resolvedResources or (nodeData and nodeData.resources) or {}
+	local complEffMaxHP = nodeState.resolvedMaxHealth or (nodeData and nodeData.maxHealth) or 50
 	local totalMaxGathers = 0
-	for _, res in ipairs(nodeData and nodeData.resources or {}) do
-		totalMaxGathers = totalMaxGathers + (res.max or 1)
+	for _, res in ipairs(complResList) do
+		totalMaxGathers = totalMaxGathers + (res.count or res.max or 1)
 	end
-	local damagePerGather = math.max(1, math.ceil((nodeData and nodeData.maxHealth or 50) / math.max(1, totalMaxGathers)))
+	local damagePerGather = math.max(1, math.ceil(complEffMaxHP / math.max(1, totalMaxGathers)))
 	nodeState.remainingHits = math.max(0, nodeState.remainingHits - damagePerGather)
 
 	-- 남은 채집 가능 횟수 응답에 포함
@@ -2200,7 +2437,7 @@ local function handleGatherComplete(player: Player, payload: any)
 		NetController.FireClientsInRange(nodeState.position, 400, "Harvest.Node.Hit", {
 			nodeUID = nodeUID,
 			remainingHits = nodeState.remainingHits,
-			maxHits = nodeData.maxHealth,
+			maxHits = complEffMaxHP,
 		})
 	end
 
@@ -2235,7 +2472,7 @@ local function handleGatherComplete(player: Player, payload: any)
 		end
 	end
 
-	return { success = true, data = { itemId = itemId, count = count, remainingGathers = remainingGathers } }
+	return { success = true, data = { itemId = itemId, count = count, remainingGathers = remainingGathers, inventoryFull = inventoryFull } }
 end
 
 --- Harvest.Gather.Info: 노드의 아이템별 채집 가능 횟수 반환
@@ -2256,19 +2493,25 @@ local function handleGatherInfo(player: Player, payload: any)
 	end
 
 	-- 아이템별 채집 가능 횟수 계산 (서버 HP 기반)
+	-- resolvedResources가 있으면 확률 적용된 자원 목록 사용
+	local resList = nodeState.resolvedResources or nodeData.resources or {}
+	local useResolvedMaxHealth = nodeState.resolvedMaxHealth
+	local effectiveMaxHealth = useResolvedMaxHealth or nodeData.maxHealth or 50
+
 	local totalMaxGathers = 0
-	for _, res in ipairs(nodeData.resources or {}) do
-		totalMaxGathers = totalMaxGathers + (res.max or 1)
+	for _, res in ipairs(resList) do
+		-- resolvedResources의 경우 count가 실제 횟수, 일반 노드는 max
+		totalMaxGathers = totalMaxGathers + (res.count or res.max or 1)
 	end
-	local damagePerGather = math.max(1, math.ceil((nodeData.maxHealth or 50) / math.max(1, totalMaxGathers)))
+	local damagePerGather = math.max(1, math.ceil(effectiveMaxHealth / math.max(1, totalMaxGathers)))
 	local remainingTotal = math.floor(nodeState.remainingHits / damagePerGather)
 
 	-- 각 리소스별 비율로 분배 (floor 손실분 보정)
 	local resourceCounts = {}
-	local resList = nodeData.resources or {}
 	local distributed = 0
 	for i, res in ipairs(resList) do
-		local ratio = (res.max or 1) / math.max(1, totalMaxGathers)
+		local resMax = res.count or res.max or 1
+		local ratio = resMax / math.max(1, totalMaxGathers)
 		local count = math.max(0, math.floor(remainingTotal * ratio))
 		resourceCounts[res.itemId] = count
 		distributed = distributed + count
@@ -2276,10 +2519,9 @@ local function handleGatherInfo(player: Player, payload: any)
 	-- floor 절삭으로 빠진 나머지를 max 비율 높은 순으로 +1 보정
 	local deficit = remainingTotal - distributed
 	if deficit > 0 then
-		-- 비율 높은 리소스부터 보정 (원본 순서 유지를 위해 인덱스 정렬)
 		local sortedIdx = {}
 		for i, res in ipairs(resList) do
-			table.insert(sortedIdx, { idx = i, maxVal = res.max or 1 })
+			table.insert(sortedIdx, { idx = i, maxVal = res.count or res.max or 1 })
 		end
 		table.sort(sortedIdx, function(a, b) return a.maxVal > b.maxVal end)
 		for _, entry in ipairs(sortedIdx) do

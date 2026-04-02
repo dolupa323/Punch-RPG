@@ -393,10 +393,19 @@ local function findNearbyInteractable(): (Instance?, string?)
 				closestFacility = entity
 			end
 		end
-		if dist <= allowedDistance and dist < closestDist then
-			closestDist = dist
-			closestTarget = entity
-			closestType = currentType
+		-- ★ 시체(CORPSE_)는 일반 채집노드보다 항상 우선
+		local nodeId = entity:GetAttribute("NodeId")
+		local isCorpse = nodeId and string.sub(tostring(nodeId), 1, 7) == "CORPSE_"
+		local closestIsCorpse = closestTarget and closestTarget:GetAttribute("NodeId")
+			and string.sub(tostring(closestTarget:GetAttribute("NodeId")), 1, 7) == "CORPSE_"
+		
+		if dist <= allowedDistance then
+			-- 시체가 일반 노드를 밀어냄 / 같은 종류면 거리 비교
+			if (isCorpse and not closestIsCorpse) or (dist < closestDist and (isCorpse == closestIsCorpse or not closestIsCorpse)) then
+				closestDist = dist
+				closestTarget = entity
+				closestType = currentType
+			end
 		end
 	end
 

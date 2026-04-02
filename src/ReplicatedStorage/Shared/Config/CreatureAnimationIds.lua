@@ -20,6 +20,7 @@ local CreatureAnimationIds = {
 		WALK = "Raptor_Walk",
 		RUN = "Raptor_Run",
 		ATTACK = "Raptor_Attack",
+		DEATH = "Raptor_Death",
 	},
 
 	-- 트리케라톱스 (성체)
@@ -28,6 +29,9 @@ local CreatureAnimationIds = {
 		WALK = "Triceratops_Walk",
 		RUN = "Triceratops_Walk", 
 		ATTACK = "Triceratops_Attack",
+		DEATH = "Triceratops_Death",
+		EAT = "Triceratops_Eat",
+		IDLE_VARIANTS = { "Triceratops_Idle", "Triceratops_Walk", "Triceratops_Eat" },
 	},
 	-- 아기 트리케라톱스 (성체와 동일한 애니메이션 사용 확인됨)
 	BABY_TRICERATOPS = {
@@ -35,12 +39,38 @@ local CreatureAnimationIds = {
 		WALK = "Triceratops_Walk",
 		RUN = "Triceratops_Walk", 
 		ATTACK = "Triceratops_Attack",
+		DEATH = "Triceratops_Death",
+		EAT = "Triceratops_Eat",
+		IDLE_VARIANTS = { "Triceratops_Idle", "Triceratops_Walk", "Triceratops_Eat" },
 	},
 	COMPY = {
 		IDLE = "Raptor_Idle",
 		WALK = "Raptor_Walk",
 		RUN = "Raptor_Run",
 		ATTACK = "Raptor_Attack",
+		DEATH = "COMPY_Death",
+	},
+
+	-- 파라사우롤로푸스
+	PARASAUR = {
+		IDLE = "Parasaur_Idle",
+		WALK = "Parasaur_Walk",
+		RUN = "Parasaur_Walk",
+		ATTACK = "Parasaur_Attack",
+		DEATH = "Parasaur_Death",
+		EAT = "Parasaur_Eat",
+		IDLE_VARIANTS = { "Parasaur_Idle", "Parasaur_Walk", "Parasaur_Eat" },
+	},
+
+	-- 스테고사우루스
+	STEGOSAURUS = {
+		IDLE = "Stegosaurus_Idle",
+		WALK = "Stegosaurus_Walk",
+		RUN = "Stegosaurus_Walk",
+		ATTACK = "Stegosaurus_Attack",
+		DEATH = "Stegosaurus_Death",
+		EAT = "Stegosaurus_Eat",
+		IDLE_VARIANTS = { "Stegosaurus_Idle", "Stegosaurus_Walk", "Stegosaurus_Eat" },
 	},
 	
 	-- 티라노 등 다른 공룡은 준비되면 아래 주석을 풀고 등록하세요.

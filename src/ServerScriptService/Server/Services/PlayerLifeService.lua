@@ -18,8 +18,25 @@ local BuildService
 
 -- Constants
 local ITEM_LOSS_PERCENT = 0.3 -- 사망 시 인벤토리 아이템 30% 손실
-local DEFAULT_RESPAWN_POS = Vector3.new(0, 50, 0) -- 기본 리스폰 위치
 local RESPAWN_DELAY = 5 -- 리스폰까지 대기 시간(초)
+
+--- 기본 리스폰 위치: SpawnLocation 모델 → SpawnConfig 초원 스폰 → 폴백
+local function getDefaultRespawnPos(): Vector3
+	local spawnModel = workspace:FindFirstChild("SpawnLocation")
+	if spawnModel and spawnModel:IsA("Model") then
+		local cf, size = spawnModel:GetBoundingBox()
+		return cf.Position + Vector3.new(0, size.Y / 2 + 5, 0)
+	elseif spawnModel and spawnModel:IsA("BasePart") then
+		return spawnModel.Position + Vector3.new(0, 5, 0)
+	end
+	local ok, SpawnConfig = pcall(function()
+		return require(ReplicatedStorage:WaitForChild("Shared").Config.SpawnConfig)
+	end)
+	if ok and SpawnConfig and SpawnConfig.DEFAULT_START_SPAWN then
+		return SpawnConfig.DEFAULT_START_SPAWN + Vector3.new(0, 5, 0)
+	end
+	return Vector3.new(0, 50, 0)
+end
 
 -- Player State
 local playerDeathState = {} -- [userId] = { isDead, deathTime, respawnPoint, respawnPart }
@@ -183,7 +200,7 @@ local function handleDeathRespawnCleanup(player: Player, character)
 		return
 	end
 
-	local targetPoint = dState.respawnPoint or DEFAULT_RESPAWN_POS
+	local targetPoint = dState.respawnPoint or getDefaultRespawnPos()
 	playerDeathState[userId] = nil
 	player:SetAttribute("PendingDeathRespawn", nil)
 
@@ -261,7 +278,10 @@ function PlayerLifeService._onPlayerDied(player: Player)
 	applyItemLoss(userId)
 
 	local respawnTarget = findBedRespawnPoint(userId)
-	print(string.format("[PlayerLifeService] _onPlayerDied: respawnTarget=%s", tostring(respawnTarget or DEFAULT_RESPAWN_POS)))
+	if not respawnTarget then
+		respawnTarget = getDefaultRespawnPos()
+	end
+	print(string.format("[PlayerLifeService] _onPlayerDied: respawnTarget=%s", tostring(respawnTarget)))
 
 	-- CharacterSetupService가 사망 리스폰을 구분할 수 있도록 플래그 설정
 	player:SetAttribute("PendingDeathRespawn", true)
@@ -269,14 +289,14 @@ function PlayerLifeService._onPlayerDied(player: Player)
 	playerDeathState[userId] = {
 		isDead = true,
 		deathTime = os.time(),
-		respawnPoint = respawnTarget or DEFAULT_RESPAWN_POS,
+		respawnPoint = respawnTarget,
 		respawnPart = (typeof(respawnTarget) == "Instance") and respawnTarget or nil,
 	}
 
 	if NetController then
 		NetController.FireClient(player, "Player.Died", {
 			respawnDelay = RESPAWN_DELAY,
-			respawnPoint = (typeof(respawnTarget) == "Instance") and respawnTarget.Position or (respawnTarget or DEFAULT_RESPAWN_POS),
+			respawnPoint = (typeof(respawnTarget) == "Instance") and respawnTarget.Position or respawnTarget,
 		})
 	end
 
@@ -296,7 +316,7 @@ function PlayerLifeService._respawnPlayer(player: Player)
 		return
 	end
 
-	local respawnPoint = state.respawnPoint or DEFAULT_RESPAWN_POS
+	local respawnPoint = state.respawnPoint or getDefaultRespawnPos()
 	print(string.format("[PlayerLifeService] _respawnPlayer: calling LoadCharacter for %s (target=%s)", player.Name, tostring(respawnPoint)))
 
 	-- RespawnLocation 클리어 (SpawnLocation 강제 배치 방지)

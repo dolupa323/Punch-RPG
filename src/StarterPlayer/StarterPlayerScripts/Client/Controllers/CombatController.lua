@@ -1023,19 +1023,22 @@ local function findTarget()
 			-- [개선] 모든 파트를 검사하여 가장 가까운 지점을 찾음 (히트박스 전영역화)
 			local targetPos = p.Position
 			local toTarget = (targetPos - char.PrimaryPart.Position)
-			local dist = toTarget.Magnitude
+			-- ★ XZ 평면 거리 사용 (큰 공룡의 높이 차이로 인한 히트 실패 방지)
+			local flatDist = Vector2.new(toTarget.X, toTarget.Z).Magnitude
 			
 			-- 현재 모델에 대해 더 가까운 파트가 있으면 갱신
-			if not reachableTargets[id] or dist < reachableTargets[id].dist then
+			if not reachableTargets[id] or flatDist < reachableTargets[id].dist then
 				-- Y축 무시한 방향 벡터 (평면 판정)
-				local toTargetFlat = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+				local toTargetFlat = Vector3.new(toTarget.X, 0, toTarget.Z)
+				if toTargetFlat.Magnitude < 0.01 then toTargetFlat = Vector3.new(0, 0, 1) end
+				toTargetFlat = toTargetFlat.Unit
 				local lookFlat = Vector3.new(char.PrimaryPart.CFrame.LookVector.X, 0, char.PrimaryPart.CFrame.LookVector.Z).Unit
 				local dot = lookFlat:Dot(toTargetFlat)
 				local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
 				
 				-- 사거리 이내 & 정면 부근(75도)인 것들만 수집
-				if dist <= reach + 5 and angle <= (Balance.REACH_ANGLE or 75) then
-					reachableTargets[id] = {model=model, pos=targetPos, id=id, type=tType, dist=dist, angle=angle}
+				if flatDist <= reach + 5 and angle <= (Balance.REACH_ANGLE or 75) then
+					reachableTargets[id] = {model=model, pos=targetPos, id=id, type=tType, dist=flatDist, angle=angle}
 				end
 			end
 		end
@@ -1048,7 +1051,9 @@ local function findTarget()
 		local mModel, mId, mType = checkModel(mousePart)
 		if mId and mType ~= "structure" then
 			local mPos = mousePart.Position
-			local mDist = (mPos - char.PrimaryPart.Position).Magnitude
+			-- ★ XZ 평면 거리 사용 (머리/꼬리 등 높은 파트도 타격 가능)
+			local mToTarget = mPos - char.PrimaryPart.Position
+			local mDist = Vector2.new(mToTarget.X, mToTarget.Z).Magnitude
 			
 			-- 마우스로 직접 찍은 경우 정면 판정 완화 (히트박스 우선)
 			if mDist <= reach + 8 then

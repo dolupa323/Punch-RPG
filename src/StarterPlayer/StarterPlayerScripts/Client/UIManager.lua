@@ -364,7 +364,12 @@ end
 function UIManager.selectHotbarSlot(idx, skipSync)
 	selectedSlot = idx
 	HUDUI.SelectHotbarSlot(idx, skipSync, UIManager, C)
-	
+
+	-- 채집 중 도구 교체 시 HarvestUI 닫기 (혼동 방지)
+	if HarvestUI.IsOpen() then
+		HarvestUI.Close()
+	end
+
 	if not skipSync then
 		InventoryController.requestSetActiveSlot(idx)
 	end
@@ -2556,6 +2561,36 @@ function UIManager.Init()
 	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
+
+	-- ★ 오픈/닫기 애니메이션용 메인 패널 프레임 등록
+	-- 오버레이 구조(INV, BUILD 등): 첫 자식 윈도우가 애니 대상
+	-- 직접 윈도우 구조(TOTEM, PORTAL): Frame 자체가 애니 대상
+	task.defer(function()
+		-- 오버레이 내부의 메인 윈도우 패널 검색 헬퍼
+		local function findMainPanel(overlay)
+			if not overlay then return nil end
+			for _, child in ipairs(overlay:GetChildren()) do
+				if child:IsA("Frame") or child:IsA("CanvasGroup") then
+					return child
+				end
+			end
+			return nil
+		end
+
+		-- 오버레이 구조 UI들 (Refs.Frame이 전체 오버레이)
+		WindowManager.registerFrame("INV", findMainPanel(InventoryUI.Refs.Frame))
+		WindowManager.registerFrame("EQUIP", findMainPanel(EquipmentUI.Refs.Frame))
+		WindowManager.registerFrame("SHOP", findMainPanel(ShopUI.Refs.Frame))
+		WindowManager.registerFrame("BUILD", findMainPanel(BuildUI.Refs.Frame))
+		WindowManager.registerFrame("STORAGE", findMainPanel(StorageUI.Refs.Frame))
+		WindowManager.registerFrame("FACILITY", findMainPanel(FacilityUI.Refs.Frame))
+		WindowManager.registerFrame("COLLECTION", findMainPanel(CollectionUI.Refs.Frame))
+		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
+
+		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
+		WindowManager.registerFrame("TOTEM", TotemUI.Refs.Frame)
+		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
+	end)
 
 	-- [Refactor] DragDropController 초기화
 	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)

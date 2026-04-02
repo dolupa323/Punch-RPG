@@ -219,6 +219,21 @@ function SkillController.useSkill(skillId: string, targetId: string?)
 			-- 실패 시 로컬 쿨다운 롤백
 			skillCooldowns[skillId] = nil
 			skillGCD = 0
+			-- ★ 에러 피드백 표시
+			local errorCode = data -- NetClient는 실패 시 (false, errorCode) 반환
+			local UIManager = require(script.Parent.Parent.UIManager)
+			if UIManager and UIManager.notify then
+				local SKILL_ERROR_MESSAGES = {
+					WEAPON_MISMATCH = "해당 스킬에 맞는 무기를 장착해주세요.",
+					SKILL_NOT_IN_SLOT = "스킬이 슬롯에 장착되어 있지 않습니다.",
+					SKILL_NOT_UNLOCKED = "스킬이 해금되지 않았습니다.",
+					NOT_ENOUGH_STAMINA = "스태미나가 부족합니다.",
+					PLAYER_DEAD = "사용할 수 없는 상태입니다.",
+					COOLDOWN = "스킬이 재사용 대기 중입니다.",
+				}
+				local msg = SKILL_ERROR_MESSAGES[errorCode] or ("스킬 사용 실패: " .. tostring(errorCode))
+				UIManager.notify(msg, Color3.fromRGB(255, 140, 140))
+			end
 		end
 		_fireCooldownListeners()
 	end)

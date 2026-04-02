@@ -48,6 +48,15 @@ end
 local activeCreatures = {} -- [instanceId] = { model=Part, data=Data, state=..., targetPosition=Vector3, lastStateChange=number }
 local creatureCount = 0
 
+--- 크리처 상태 설정 헬퍼 (내부 상태 + 클라이언트 속성 동기화)
+local function setCreatureState(creature, newState)
+	creature.state = newState
+	creature.lastStateChange = tick()
+	if creature.model then
+		creature.model:SetAttribute("State", newState)
+	end
+end
+
 -- groupSize > 1인 크리처는 cap 기여량을 줄여 과잉 점유 방지
 local function getCapWeight(data)
 	local gs = (data and data.groupSize) or 1
@@ -92,6 +101,7 @@ local AGGRO_COOLDOWN = 5 -- 어그로 다시 끌리기까지의 최소 시간 ->
 -- 물/해수면 상수
 local SEA_LEVEL = Balance.SEA_LEVEL or 2 -- Balance 기준 해수면 높이 사용
 local WATER_CHECK_DISTANCE = 5 -- 이동 전 물 체크 거리
+local WATER_MARGIN = 10 -- 물 반경 접근 금지 거리 (studs)
 
 -- Torpor 관련 (Phase 6)
 local TORPOR_DECAY_RATE = 2 -- 초당 Torpor 감소량
@@ -323,6 +333,16 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 		end
 	end
 	
+	-- ★ 물리 안정화: 고밀도 + 높은 마찰 → 밀림/미끄러짐 방지
+	rootPart.CustomPhysicalProperties = PhysicalProperties.new(
+		100,  -- Density: 매우 무거움 (기본 0.7)
+		2,    -- Friction: 높은 마찰력
+		0,    -- Elasticity: 반발력 없음 (튕김 방지)
+		1,    -- FrictionWeight
+		0     -- ElasticityWeight
+	)
+	rootPart.RootPriority = 127  -- 최대 우선순위: 다른 파트에 의해 밀리지 않음
+	
 	-- 3. PrimaryPart 설정
 	model.PrimaryPart = rootPart
 	if not model.PrimaryPart then
@@ -349,32 +369,47 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 	humanoid.Health = data.maxHealth
 	
 	-- [추가] 지형 적응력 향상 (오르막/내리막)
-	humanoid.MaxSlopeAngle = 89 -- 거의 모든 경사로를 오를 수 있도록 최대치로 상향
-	humanoid.AutoJumpEnabled = true -- 턱에 걸리면 자동으로 점프 시도
+	humanoid.MaxSlopeAngle = 60 -- 적당한 경사까지만 등반 가능
+	humanoid.AutoJumpEnabled = false -- ★ 비활성화: 랜덤 점프/바운스 방지
 	
-	-- [추가] 물리적 이상 현상 방지 (쓰러짐/날아감 방지)
+	-- [추가] 물리적 이상 현상 방지 (쓰러짐/날아감/점프 방지)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)  -- ★ 점프 상태 자체를 비활성화
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)  -- ★ 수영 물리 비활성화
 	humanoid.UseJumpPower = true
-	humanoid.JumpPower = 40 -- 점프력 부여
+	humanoid.JumpPower = 0 -- ★ 점프력 0: 거대공룡은 점프하지 않음
 	
-	-- [수정] HipHeight 계산 공식 보정 (조금 더 여유를 줌)
-	-- Roblox Humanoid의 HipHeight는 'HRP 바닥면'부터 '지면'까지의 거리입니다.
+	-- [수정] HipHeight 계산 공식: 지면에 정확히 붙도록 보정
+	-- HipHeight = HRP 바닥 ~ 모델 바닥 거리 (추가 여유 없음)
 	local modelCF, modelSize = model:GetBoundingBox()
 	local bottomToCenter = rootPart.Position.Y - (modelCF.Position.Y - modelSize.Y/2)
-	-- HRP의 절반 높이를 빼서 'HRP 바닥' 기준의 거리를 구함 + 0.5의 여유를 주어 단차 극복 용이하게 함
-	humanoid.HipHeight = math.max(1, bottomToCenter - (rootPart.Size.Y / 2) + 0.5)
+	humanoid.HipHeight = math.max(0, bottomToCenter - (rootPart.Size.Y / 2))
 	
-	-- 7. 근거리 전용 울음소리 (RollOff로 가까이에서만 들림)
-	local ambientSound = Instance.new("Sound")
-	ambientSound.Name = "AmbientCry"
-	ambientSound.Volume = 0.25
-	ambientSound.RollOffMode = Enum.RollOffMode.Linear
-	ambientSound.RollOffMinDistance = 10
-	ambientSound.RollOffMaxDistance = 60  -- 60 스터드 밖에서는 안 들림
-	ambientSound.Looped = false
-	ambientSound.Parent = rootPart
+	-- 7. 크리처 사운드 (전투 진입 시 한 번 재생)
+	-- 에셋 폴더: Assets/Sounds/Creatures/{크리처ID}
+	local combatCry = Instance.new("Sound")
+	combatCry.Name = "CombatCry"
+	combatCry.Volume = 0.5
+	combatCry.RollOffMode = Enum.RollOffMode.Linear
+	combatCry.RollOffMinDistance = 15
+	combatCry.RollOffMaxDistance = 80
+	combatCry.Looped = false
+	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+	if assetsFolder then
+		local cf = assetsFolder:FindFirstChild("CreatureSounds")
+		if cf then
+			local snd = cf:FindFirstChild(data.id)
+			if snd and snd:IsA("Sound") then
+				combatCry.SoundId = snd.SoundId
+				print(string.format("[CreatureService] CombatCry loaded for %s: %s", data.id, snd.SoundId))
+			else
+				warn(string.format("[CreatureService] No sound found for creature: %s", data.id))
+			end
+		end
+	end
+	combatCry.Parent = rootPart
 	
 	return model, rootPart, humanoid
 end
@@ -592,6 +627,11 @@ function CreatureService.spawn(creatureId, position)
 		end
 	end
 	
+	-- ★ 서버 물리 권한 고정: 클라이언트 물리 간섭 완전 차단
+	pcall(function()
+		rootPart:SetNetworkOwner(nil) -- nil = 서버 소유
+	end)
+	
 	activeCreatures[instanceId] = {
 		id = instanceId,
 		creatureId = creatureId,
@@ -614,6 +654,9 @@ function CreatureService.spawn(creatureId, position)
 		torporGui = torporFill, -- 기절 바 업데이트용
 	}
 	creatureCount = creatureCount + getCapWeight(data)
+	
+	-- ★ 클라이언트 애니메이션 연동: 초기 상태 속성 설정
+	model:SetAttribute("State", "IDLE")
 	
 	print(string.format("[CreatureService] Spawned %s (%s)", creatureId, instanceId))
 	
@@ -741,7 +784,7 @@ local function playNaturalDeathSequence(creature)
 		creature.humanoid.WalkSpeed = 0
 		creature.humanoid.JumpPower = 0
 		creature.humanoid.AutoRotate = false
-		creature.humanoid.PlatformStand = true
+		-- ★ PlatformStand 제거: Motor6D 관절을 비활성화하면 애니메이션 재생 불가
 	end
 
 	if rootPart and rootPart.Parent then
@@ -805,23 +848,35 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 	
 	creature.humanoid.Health = creature.currentHealth
 	
+	-- ★ 사망 시 Humanoid Dead 상태 진입 방지 (사망 애니메이션 재생을 위해)
+	-- Health가 0이면 Roblox가 Humanoid를 Dead 상태로 전환하여 Animator 비활성화
+	if creature.currentHealth <= 0 and creature.humanoid then
+		creature.humanoid.Health = 1 -- 임시 유지 (뒤에서 다시 0 설정)
+	end
+	
 	-- 2. 상태 변화 및 연쇄 어그로 (Pack Mentality)
 	if creature.currentHealth > 0 then
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
-			creature.state = "STUNNED"
-			creature.lastStateChange = tick()
+			setCreatureState(creature, "STUNNED")
 			creature.humanoid.PlatformStand = true 
 			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
 		elseif creature.state ~= "STUNNED" then
 			-- 피격 시 어그로/도망
 			local oldState = creature.state
 			if creature.data.behavior ~= "PASSIVE" then
-				creature.state = "CHASE"
-				creature.lastStateChange = tick()
+				setCreatureState(creature, "CHASE")
 			else
-				creature.state = "FLEE"
+				setCreatureState(creature, "FLEE")
 				creature.humanoid.WalkSpeed = (creature.data.runSpeed or 20) * 1.2
+			end
+
+			-- ★ 피격 전투 진입 사운드 (IDLE/WANDER에서 전환된 경우만)
+			if (oldState == "IDLE" or oldState == "WANDER") then
+				local cry = creature.rootPart:FindFirstChild("CombatCry")
+				if cry and cry.SoundId ~= "" then
+					cry:Play()
+				end
 			end
 
 			-- [시스템 추가] 주변 동족 인식 (Pack Mentality)
@@ -832,12 +887,17 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 					local dist = (other.rootPart.Position - pPos).Magnitude
 					if dist < (Balance.PACK_AGGRO_RADIUS or 50) then
 						if other.state == "IDLE" or other.state == "WANDER" then
+							local otherOldState = other.state
 							if other.data.behavior ~= "PASSIVE" then
-								other.state = "CHASE"
-								other.lastStateChange = tick()
+								setCreatureState(other, "CHASE")
 							else
-								other.state = "FLEE"
+								setCreatureState(other, "FLEE")
 								other.humanoid.WalkSpeed = (other.data.runSpeed or 20) * 1.2
+							end
+							-- 동족도 전투 진입 사운드 재생
+							local otherCry = other.rootPart:FindFirstChild("CombatCry")
+							if otherCry and otherCry.SoundId ~= "" then
+								otherCry:Play()
 							end
 						end
 					end
@@ -930,28 +990,47 @@ function CreatureService._isWaterPosition(position: Vector3): boolean
 	return false
 end
 
+--- 위치가 물 반경 WATER_MARGIN 이내인지 체크 (물 자체 포함)
+function CreatureService._isNearWater(position: Vector3): boolean
+	-- 자기 자신이 물이면 당연히 true
+	if CreatureService._isWaterPosition(position) then
+		return true
+	end
+	-- 4방향 + 대각선 4방향 (총 8방향) 으로 margin 거리 체크
+	for i = 0, 7 do
+		local angle = math.rad(i * 45)
+		local checkPos = position + Vector3.new(math.sin(angle) * WATER_MARGIN, 0, math.cos(angle) * WATER_MARGIN)
+		if CreatureService._isWaterPosition(checkPos) then
+			return true
+		end
+	end
+	return false
+end
+
 --- 물에서 가장 가까운 육지 방향 찾기
 function CreatureService._findLandDirection(position: Vector3): Vector3?
 	local bestDir = nil
 	local bestDist = math.huge
 	
-	-- 8방향 체크
+	-- 8방향, 다중 거리 체크 (20, 40, 60 studs)
 	for i = 0, 7 do
 		local angle = math.rad(i * 45)
 		local dir = Vector3.new(math.sin(angle), 0, math.cos(angle))
 		
-		-- 해당 방향으로 Raycast
-		local checkPos = position + dir * 20
-		local params = RaycastParams.new()
-		params.FilterDescendantsInstances = { workspace.Terrain }
-		params.FilterType = Enum.RaycastFilterType.Include
-		
-		local result = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), params)
-		if result and result.Material ~= Enum.Material.Water and result.Position.Y >= SEA_LEVEL then
-			local dist = (result.Position - position).Magnitude
-			if dist < bestDist then
-				bestDist = dist
-				bestDir = dir
+		for _, checkDist in ipairs({20, 40, 60}) do
+			local checkPos = position + dir * checkDist
+			local params = RaycastParams.new()
+			params.FilterDescendantsInstances = { workspace.Terrain }
+			params.FilterType = Enum.RaycastFilterType.Include
+			
+			local result = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), params)
+			if result and result.Material ~= Enum.Material.Water and result.Position.Y >= SEA_LEVEL then
+				local dist = (result.Position - position).Magnitude
+				if dist < bestDist then
+					bestDist = dist
+					bestDir = dir
+				end
+				break -- 이 방향에서 찾았으면 다음 방향으로
 			end
 		end
 	end
@@ -959,11 +1038,10 @@ function CreatureService._findLandDirection(position: Vector3): Vector3?
 	return bestDir
 end
 
---- 안전한 이동 위치 계산 (물 회피)
+--- 안전한 이동 위치 계산 (물 반경 회피 + 경로 중간 체크)
 function CreatureService._getSafeTarget(currentPos: Vector3, targetPos: Vector3): Vector3
-	-- 목표가 물이면 현재 위치 방향으로 육지 찾기
-	if CreatureService._isWaterPosition(targetPos) then
-		-- 현재 위치와 목표 사이에서 물이 아닌 위치 찾기
+	-- 목표가 물 근처이면 안전한 지점으로 후퇴
+	if CreatureService._isNearWater(targetPos) then
 		local dir = (targetPos - currentPos)
 		if dir.Magnitude > 0.1 then
 			dir = dir.Unit
@@ -971,16 +1049,31 @@ function CreatureService._getSafeTarget(currentPos: Vector3, targetPos: Vector3)
 			return currentPos
 		end
 		
-		-- 점진적으로 거리 줄여서 안전한 위치 찾기
 		for dist = 5, 20, 5 do
 			local safePos = currentPos + dir * dist
-			if not CreatureService._isWaterPosition(safePos) then
+			if not CreatureService._isNearWater(safePos) then
 				return safePos
 			end
 		end
 		
-		-- 안전한 위치 못 찾으면 현재 위치 유지
 		return currentPos
+	end
+	
+	-- 경로 중간 지점 물 근접 체크 (25%, 50%, 75% 지점)
+	local diff = targetPos - currentPos
+	if diff.Magnitude > 8 then
+		for _, frac in ipairs({0.25, 0.5, 0.75}) do
+			local midPos = currentPos + diff * frac
+			if CreatureService._isNearWater(midPos) then
+				-- 중간에 물 근처이면 그 직전까지만 이동
+				local safeFrac = math.max(0, frac - 0.15)
+				local safePos = currentPos + diff * safeFrac
+				if not CreatureService._isNearWater(safePos) then
+					return safePos
+				end
+				return currentPos
+			end
+		end
 	end
 	
 	return targetPos
@@ -1017,8 +1110,8 @@ function CreatureService._findSpawnPosition(playerRootPart: Part): Vector3?
 			-- 물이 아니고 해수면 위인 경우만 허용
 			if not isWater and not belowSeaLevel then
 				local spawnPos = result.Position + Vector3.new(0, 0.5, 0)
-				-- 추가 안전 체크: isWaterPosition으로 한번 더 확인
-				if not CreatureService._isWaterPosition(spawnPos) then
+				-- 추가 안전 체크: 물 반경 이내 스폰 방지
+				if not CreatureService._isNearWater(spawnPos) then
 					return spawnPos
 				end
 			end
@@ -1058,8 +1151,8 @@ function CreatureService._findMapSpawnPosition(center: Vector3, radius: number):
 			
 			if not isWater and not belowSeaLevel then
 				local pos = result.Position + Vector3.new(0, 0.5, 0)
-				-- 추가적인 물 체크 (있다면)
-				if not CreatureService._isWaterPosition(pos) then
+				-- 물 반경 이내 스폰 방지
+				if not CreatureService._isNearWater(pos) then
 					return pos
 				end
 			end
@@ -1378,8 +1471,7 @@ function CreatureService._updateAILoop()
 			
 			-- 기절 회복 체크
 			if creature.state == "STUNNED" and creature.currentTorpor <= STUN_RECOVERY_THRESHOLD then
-				creature.state = "IDLE"
-				creature.lastStateChange = now
+				setCreatureState(creature, "IDLE")
 				creature.humanoid.PlatformStand = false
 				print(string.format("[CreatureService] %s recovered from STUN!", id))
 			end
@@ -1487,11 +1579,17 @@ function CreatureService._updateAILoop()
 		
 		-- 상태 변경 처리
 		if newState ~= creature.state then
-			creature.state = newState
-			creature.lastStateChange = now
-			-- [중요] 클라이언트 애니메이션 연동을 위해 속성 설정
-			creature.model:SetAttribute("State", newState)
-			
+			local oldState2 = creature.state
+			setCreatureState(creature, newState)
+
+			-- ★ 전투 진입 사운드 (IDLE/WANDER → CHASE/FLEE 전환 시 한 번)
+			if (oldState2 == "IDLE" or oldState2 == "WANDER") and (newState == "CHASE" or newState == "FLEE") then
+				local cry = creature.rootPart:FindFirstChild("CombatCry")
+				if cry and cry.SoundId ~= "" then
+					cry:Play()
+				end
+			end
+
 			-- 새 상태에 맞는 랜덤 지속시간 설정
 			if newState == "IDLE" then
 				creature.stateDuration = getRandomDuration(IDLE_MIN_TIME, IDLE_MAX_TIME)
@@ -1512,6 +1610,24 @@ function CreatureService._updateAILoop()
 		-- 물 진입 방지 (최우선 처리)
 		-- ============================================
 		local isInWater = CreatureService._isWaterPosition(hrp.Position)
+		local isNearWater = not isInWater and CreatureService._isNearWater(hrp.Position)
+		
+		if isNearWater and creature.state ~= "IDLE" then
+			-- 물 근처에 접근: 즉시 이동 취소 + 육지 쪽으로 방향 전환
+			creature.targetPosition = nil
+			creature.pathData = nil
+			local landDir = CreatureService._findLandDirection(hrp.Position)
+			if landDir then
+				local retreatTarget = hrp.Position + landDir * (WATER_MARGIN + 5)
+				humanoid:MoveTo(retreatTarget)
+			else
+				humanoid:MoveTo(hrp.Position) -- 정지
+			end
+			setCreatureState(creature, "IDLE")
+			creature.stateDuration = getRandomDuration(IDLE_MIN_TIME, IDLE_MAX_TIME)
+			continue
+		end
+		
 		if isInWater then
 			-- 긴급: 즉시 육지로 복귀
 			local landDir = CreatureService._findLandDirection(hrp.Position)
@@ -1527,9 +1643,8 @@ function CreatureService._updateAILoop()
 					local safePos = rayResult.Position + Vector3.new(0, 3, 0)
 					hrp.CFrame = CFrame.new(safePos)
 					creature.targetPosition = nil
-					creature.state = "IDLE"
-					creature.lastStateChange = now
-					creature.stateDuration = getRandomDuration(IDLE_MIN_TIME, IDLE_MAX_TIME)
+					setCreatureState(creature, "IDLE")
+					creature.stateDuration = getRandomDuration(IDLE_MAX_TIME, IDLE_MAX_TIME + 5) -- 물 탈출 후 충분히 대기
 				else
 					-- 육지 못 찾으면 위로 이동
 					hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
@@ -1549,8 +1664,7 @@ function CreatureService._updateAILoop()
 				if dir.Magnitude < 0.1 then
 					dir = Vector3.new((math.random() - 0.5), 0, (math.random() - 0.5))
 				end
-				creature.state = "FLEE"
-				creature.lastStateChange = now
+				setCreatureState(creature, "FLEE")
 				creature.stateDuration = getRandomDuration(WANDER_MIN_TIME, WANDER_MAX_TIME)
 				creature.chaseStartTime = nil
 				if dir.Magnitude > 0.1 then
@@ -1564,9 +1678,9 @@ function CreatureService._updateAILoop()
 			-- [목적지 결정]
 			local target = nil
 			if creature.state == "CHASE" and closestPlayerPos then
-				-- 추격: 목표가 물이면 추격 포기
-				if CreatureService._isWaterPosition(closestPlayerPos) or getProtectedZoneInfo(closestPlayerPos) then
-					creature.state = "WANDER"; creature.lastStateChange = now
+				-- 추격: 목표가 물 근처이면 추격 포기
+				if CreatureService._isNearWater(closestPlayerPos) or getProtectedZoneInfo(closestPlayerPos) then
+					setCreatureState(creature, "WANDER")
 					creature.stateDuration = getRandomDuration(WANDER_MIN_TIME, WANDER_MAX_TIME)
 					creature.targetPosition = nil
 				else
@@ -1580,7 +1694,7 @@ function CreatureService._updateAILoop()
 					repeat
 						wTarget = getSmartWanderTarget(hrp.Position, currentDir, WANDER_RADIUS)
 						attempts = attempts + 1
-					until not CreatureService._isWaterPosition(wTarget) or attempts >= 5
+					until not CreatureService._isNearWater(wTarget) or attempts >= 10
 					creature.targetPosition = CreatureService._getSafeTarget(hrp.Position, wTarget)
 					
 					local diff = creature.targetPosition - hrp.Position
@@ -1595,7 +1709,7 @@ function CreatureService._updateAILoop()
 					local diff = hrp.Position - closestPlayerPos
 					local dir = diff.Magnitude > 0.1 and diff.Unit or Vector3.new(1,0,0)
 					local fTarget = hrp.Position + dir * WANDER_RADIUS * 2
-					if CreatureService._isWaterPosition(fTarget) then
+					if CreatureService._isNearWater(fTarget) then
 						local rot = Vector3.new(dir.Z, 0, -dir.X)
 						fTarget = hrp.Position + rot * WANDER_RADIUS * 2
 					end
@@ -1616,7 +1730,7 @@ function CreatureService._updateAILoop()
 					end
 					if escapeDir.Magnitude > 0.1 then
 						local fallbackTarget = center + escapeDir.Unit * (radius + 8)
-						if not CreatureService._isWaterPosition(fallbackTarget) then
+						if not CreatureService._isNearWater(fallbackTarget) then
 							target = fallbackTarget
 							creature.targetPosition = target
 						else
@@ -1733,10 +1847,17 @@ function CreatureService._updateAILoop()
 					-- 1.5 웨이포인트 이동 (pathData가 있을 때만)
 					if creature.pathData and creature.pathData.currentIndex <= #creature.pathData.waypoints then
 						local wp = creature.pathData.waypoints[creature.pathData.currentIndex]
-						humanoid:MoveTo(wp.Position)
-						if wp.Action == Enum.PathWaypointAction.Jump then humanoid.Jump = true end
-						if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
-							creature.pathData.currentIndex = creature.pathData.currentIndex + 1
+						-- 웨이포인트가 물 근처이면 스킵
+						if CreatureService._isNearWater(wp.Position) then
+							creature.pathData = nil
+							creature.targetPosition = nil
+							humanoid:MoveTo(hrp.Position) -- 정지
+						else
+							humanoid:MoveTo(wp.Position)
+							if wp.Action == Enum.PathWaypointAction.Jump then humanoid.Jump = true end
+							if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
+								creature.pathData.currentIndex = creature.pathData.currentIndex + 1
+							end
 						end
 					elseif not creature.pathData then
 						-- 직접 이동 중인 경우 타겟 방향 실시간 갱신
@@ -1763,17 +1884,8 @@ function CreatureService._updateAILoop()
 			creature.targetPosition = nil
 			humanoid:MoveTo(hrp.Position) -- 정지
 			
-			-- IDLE 시 가까운 플레이어가 있으면 울음소리 + 머리 회전
+			-- IDLE 시 가까운 플레이어가 있으면 머리 회전
 			if minDist < 80 then
-				-- 주기적 울음소리 (15~30초 간격)
-				if not creature.lastCryTime or (now - creature.lastCryTime > 15 + math.random() * 15) then
-					creature.lastCryTime = now
-					local cry = hrp:FindFirstChild("AmbientCry")
-					if cry then
-						cry:Play()
-					end
-				end
-				
 				-- IDLE 시 좌우 둘러보기 (직접 CFrame 조작 대신 회전 유도)
 				if not creature.idleLookTime or (now - creature.idleLookTime > 3 + math.random() * 4) then
 					creature.idleLookTime = now
@@ -1788,8 +1900,7 @@ function CreatureService._updateAILoop()
 		-- 5. Creature -> Player/Structure Damage (Phase 11-4)
 		if creature.state == "CHASE" then
 			if getProtectedZoneInfo(hrp.Position) then
-				creature.state = "FLEE"
-				creature.lastStateChange = now
+				setCreatureState(creature, "FLEE")
 				creature.chaseStartTime = nil
 				continue
 			end
@@ -1798,8 +1909,7 @@ function CreatureService._updateAILoop()
 			if dmg > 0 then
 				if closestPlayerPos and isInAttackRange then
 					if getProtectedZoneInfo(closestPlayerPos) then
-						creature.state = "FLEE"
-						creature.lastStateChange = now
+						setCreatureState(creature, "FLEE")
 						creature.chaseStartTime = nil
 						continue
 					end

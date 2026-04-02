@@ -1264,8 +1264,10 @@ function InventoryService.sort(userId: number)
 			EquipService.equipItem(player, item and item.itemId)
 		end
 		
-		-- ?�라?�언?�에 ?�바 ?�기???�림
-		NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = active })
+		-- 클라이언트에 핫바 동기화 알림
+		if NetController then
+			NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = active })
+		end
 	end
 end
 

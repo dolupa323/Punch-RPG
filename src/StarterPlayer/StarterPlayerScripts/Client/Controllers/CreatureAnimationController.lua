@@ -47,7 +47,7 @@ end
 -- Private Functions
 --========================================
 
-local function getAnimNameForState(creatureModel, speed)
+local function getAnimNameForState(creatureModel, speed, info)
 	-- [개선] 더 다양한 이름 형식 지원
 	local attrId = creatureModel:GetAttribute("CreatureId")
 	local nameId = creatureModel.Name:upper()
@@ -71,12 +71,33 @@ local function getAnimNameForState(creatureModel, speed)
 		animKey = speed > 15 and "RUN" or "WALK"
 	end
 	
+	-- IDLE 상태에서 IDLE_VARIANTS가 있으면 일정 시간마다 랜덤 교체
+	if animKey == "IDLE" and animSet and animSet.IDLE_VARIANTS and info then
+		local now = tick()
+		if not info.idleVariantUntil or now >= info.idleVariantUntil then
+			local variants = animSet.IDLE_VARIANTS
+			info.idleVariantAnim = variants[math.random(1, #variants)]
+			info.idleVariantUntil = now + math.random(4, 8) -- 4~8초 유지
+		end
+		return info.idleVariantAnim
+	end
+	
+	-- IDLE이 아닌 상태로 전환 시 변형 리셋
+	if info and animKey ~= "IDLE" then
+		info.idleVariantUntil = nil
+		info.idleVariantAnim = nil
+	end
+	
 	return animSet and animSet[animKey]
 end
 
 local function updateCreatureAnimation(model, info)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then 
+	if not humanoid then return end
+	
+	-- ★ DEAD 상태에서도 사망 애니메이션 재생 허용
+	local currentState = model:GetAttribute("State")
+	if humanoid.Health <= 0 and currentState ~= "DEAD" then 
 		return 
 	end
 	
@@ -87,11 +108,11 @@ local function updateCreatureAnimation(model, info)
 	end
 	
 	-- 1. 속도 기반 상태 측정
-	local velocity = rootPart.Velocity * Vector3.new(1, 0, 1)
+	local velocity = rootPart.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
 	local speed = velocity.Magnitude
 	
 	-- 2. 대상 애니메이션 결정
-	local targetAnimName = getAnimNameForState(model, speed)
+	local targetAnimName = getAnimNameForState(model, speed, info)
 	
 	-- [중요] 공격 중일 때는 이동 애니메이션으로 덮어쓰지 않음
 	local creatureId = model:GetAttribute("CreatureId") or model.Name:upper()
@@ -110,6 +131,8 @@ local function updateCreatureAnimation(model, info)
 	end
 
 	-- 3. 애니메이션 전환 처리
+	local isLocomotion = targetAnimName and (targetAnimName:lower():find("walk") or targetAnimName:lower():find("run"))
+	
 	if info.lastAnim ~= targetAnimName then
 		-- 기존 이동 트랙 서서히 중지
 		if info.lastAnim and info.lastAnim ~= "" then
@@ -120,20 +143,33 @@ local function updateCreatureAnimation(model, info)
 		if targetAnimName and targetAnimName ~= "" then
 			local track = AnimationManager.play(humanoid, targetAnimName, 0.3)
 			if track then
-				-- 보행/달리기 속도 조절
-				if targetAnimName:lower():find("walk") or targetAnimName:lower():find("run") then
-					track:AdjustSpeed(speed / math.max(humanoid.WalkSpeed, 1))
+				-- ★ DEATH 애니메이션은 1회 재생 후 마지막 프레임 유지 (루프 X)
+				local isDeath = (currentState == "DEAD")
+				track.Looped = not isDeath
+				-- 보행/달리기 속도 조절 (최소 0.5 보장 — 동결 방지)
+				if isLocomotion then
+					local playbackSpeed = math.clamp(speed / math.max(humanoid.WalkSpeed, 1), 0.5, 2.0)
+					track:AdjustSpeed(playbackSpeed)
 				end
+				info.lastAnim = targetAnimName
+			else
+				-- 애니메이션 로드 실패 시 잠금 방지 (다음 프레임 재시도 허용)
+				info.lastAnim = ""
 			end
-			info.lastAnim = targetAnimName
 		else
 			info.lastAnim = ""
 		end
 	elseif targetAnimName and targetAnimName ~= "" then
-		-- 재생 중인 트랙 속도 실시간 동기화
+		-- 동일 애니메이션 유지 중
 		local track = AnimationManager.load(humanoid, targetAnimName)
-		if track and track.IsPlaying then
-			if targetAnimName:lower():find("walk") or targetAnimName:lower():find("run") then
+		if track then
+			-- 트랙이 중지된 경우 재시작 (루프 안 걸린 트랙 보호)
+			if not track.IsPlaying then
+				track.Looped = true
+				track:Play(0.3)
+			end
+			-- 보행/달리기 속도 실시간 동기화
+			if isLocomotion then
 				local playbackSpeed = math.clamp(speed / math.max(humanoid.WalkSpeed, 1), 0.5, 2.0)
 				track:AdjustSpeed(playbackSpeed)
 			end
@@ -165,6 +201,16 @@ local function setupFolderListeners(creatureFolder)
 	
 	creatureFolder.ChildAdded:Connect(onAdded)
 	creatureFolder.ChildRemoved:Connect(function(child)
+		-- 클라이언트 애니메이션 트랙 전부 정지 (공격 모션 잔류 방지)
+		local humanoid = child:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			local animator = humanoid:FindFirstChildOfClass("Animator")
+			if animator then
+				for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+					track:Stop(0.2)
+				end
+			end
+		end
 		activeCreatures[child] = nil
 	end)
 end

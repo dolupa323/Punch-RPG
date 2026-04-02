@@ -643,14 +643,17 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	local state = playerStates[userId]
 	local spawnPos = nil
 
-	-- 우선순위 1: lastPosition (간이천막 취침 시 저장)
+	-- 우선순위 1: lastPosition (간이천막 취침 시 저장, 0,0,0은 무효)
 	if state and state.lastPosition then
-		spawnPos = Vector3.new(
-			state.lastPosition.x or 0,
-			(state.lastPosition.y or 0) + 5,
-			state.lastPosition.z or 0
-		)
-		print(string.format("[SaveService] Spawn from lastPosition: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+		local lx = state.lastPosition.x or 0
+		local ly = state.lastPosition.y or 0
+		local lz = state.lastPosition.z or 0
+		if math.abs(lx) > 1 or math.abs(ly) > 1 or math.abs(lz) > 1 then
+			spawnPos = Vector3.new(lx, ly + 5, lz)
+			print(string.format("[SaveService] Spawn from lastPosition: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+		else
+			print("[SaveService] lastPosition is near origin (0,0,0), ignoring")
+		end
 	end
 
 	-- 우선순위 2: respawnStructureId → BuildService에서 구조물 위치 조회

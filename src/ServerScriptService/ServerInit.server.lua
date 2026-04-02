@@ -31,6 +31,9 @@ local function initCollisionGroups()
 	
 	-- 크리처끼리는 충돌하지 않도록 설정 (Physics 부하 절감)
 	PhysicsService:CollisionGroupSetCollidable("Creatures", "Creatures", false)
+	-- ★ 비전투 크리처 vs 플레이어: 충돌 ON (몸 통과 방지)
+	-- 밀림 방지는 CustomPhysicalProperties(100) + RootPriority(127) + SetNetworkOwner(nil)로 처리
+	PhysicsService:CollisionGroupSetCollidable("Creatures", "Players", true)
 	-- 전투 중 크리처는 플레이어와 충돌 (뚫고 지나가기 방지)
 	PhysicsService:CollisionGroupSetCollidable("CombatCreatures", "Players", true)
 	PhysicsService:CollisionGroupSetCollidable("CombatCreatures", "Creatures", false)
