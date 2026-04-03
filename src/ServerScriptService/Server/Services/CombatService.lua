@@ -547,10 +547,21 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		dist = (p1 - p2).Magnitude
 	end
 	
+	-- ★ 대형 크리처 바운딩 박스 반경 보정
+	-- 클라이언트는 모든 파트 중 가장 가까운 파트 기준으로 거리 판정하지만
+	-- 서버는 rootPart 중심 거리를 사용하므로, 모델 XZ 반경을 관용도에 추가
+	local creatureHalfExtent = 0
+	if targetType == "CREATURE" and creature and creature.model then
+		local ok, extents = pcall(function() return creature.model:GetExtentsSize() end)
+		if ok and extents then
+			creatureHalfExtent = math.max(extents.X, extents.Z) * 0.5
+		end
+	end
+	
 	-- ★ 서버 거리 검증: 근접 무기도 합리적인 관용도 적용
-	-- 근접: range + 8 (네트워크 지연 + 대형 크리처 히트박스 보정)
+	-- 근접: range + 8 + 크리처 반경 (네트워크 지연 + 대형 크리처 히트박스 보정)
 	-- 활: 조준 시간 기반 유효 사거리 + 2 (비행 시간 보정)
-	local allowedRange = isBowShot and (bowEffectiveRange or range) or (range + 8)
+	local allowedRange = isBowShot and (bowEffectiveRange or range) or (range + 8 + creatureHalfExtent)
 	if dist > allowedRange + (isBowShot and 2 or 0) then 
 		return false, Enums.ErrorCode.OUT_OF_RANGE
 	end
@@ -670,7 +681,21 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 					knockDir = Vector3.new(0, 0, 1)
 				end
 				local knockForce = Balance.CREATURE_KNOCKBACK_FORCE or 12
+				
+				-- ★ PlatformStand로 Humanoid 물리 오버라이드 차단
+				-- MoveTo가 AssemblyLinearVelocity를 즉시 덮어쓰는 문제 방지
+				local creatureHum = creature.humanoid
+				if creatureHum then
+					creatureHum.PlatformStand = true
+				end
 				creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, 4, 0)
+				
+				-- 넉백 지속 후 PlatformStand 해제
+				task.delay(0.25, function()
+					if creatureHum and creatureHum.Parent then
+						creatureHum.PlatformStand = false
+					end
+				end)
 			end
 			
 			-- 모든 클라이언트에 피격 연출 이벤트 (파티클 + 히트스톱)

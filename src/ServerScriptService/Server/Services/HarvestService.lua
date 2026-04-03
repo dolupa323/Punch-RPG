@@ -288,10 +288,11 @@ local function setupModelForNode(model: Model, position: Vector3, nodeData: any,
 	end
 	
 	-- 모든 파트를 Anchored로 (AI 없음, 자원 노드는 고정)
+	-- ★ CanCollide = false: R키 상호작용이므로 물리 충돌 불필요 (이동 방해 제거)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = true
-			part.CanCollide = true
+			part.CanCollide = false
 			part.CanQuery = true
 			part.CanTouch = true
 		end
@@ -1073,7 +1074,22 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 			local animFolder = assetsFolder:FindFirstChild("Animations")
 			if animFolder then
 				animObj = animFolder:FindFirstChild(deathAnimName, true)
+				-- ★ 디버그: 검색 실패 시 폴더 내용 출력
+				if not animObj then
+					local childNames = {}
+					for _, c in ipairs(animFolder:GetChildren()) do
+						if c.Name:find("Parasaur") or c.Name:find("parasaur") or c.Name:find("Death") or c.Name:find("death") then
+							table.insert(childNames, c.Name .. "(" .. c.ClassName .. ")")
+						end
+					end
+					warn(string.format("[HarvestService] DEBUG: searching '%s' in Animations folder. Matching children: %s", 
+						deathAnimName, table.concat(childNames, ", ")))
+				end
+			else
+				warn("[HarvestService] DEBUG: Animations folder not found in Assets")
 			end
+		else
+			warn("[HarvestService] DEBUG: Assets folder not found in ReplicatedStorage")
 		end
 		if not animObj then
 			animObj = ReplicatedStorage:FindFirstChild(deathAnimName, true)
@@ -1084,13 +1100,19 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 			deathTrack.Looped = false
 			deathTrack.Priority = Enum.AnimationPriority.Action4
 			deathTrack:Play(0.2)
+			print(string.format("[HarvestService] Death anim playing: %s (AnimationId=%s)", deathAnimName, tostring(animObj.AnimationId)))
+		else
+			warn(string.format("[HarvestService] Death anim FAILED for %s: animObj=%s, class=%s", 
+				deathAnimName, 
+				tostring(animObj), 
+				animObj and animObj.ClassName or "nil"))
 		end
 	end
 
 	local rootPart = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
 	if rootPart then
 		rootPart.Anchored = true
-		rootPart.CanCollide = true
+		rootPart.CanCollide = false
 		rootPart.CanQuery = true
 		rootPart.CanTouch = true
 	end
@@ -1100,12 +1122,13 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 		COMPY = 2.5,
 		BABY_TRICERATOPS = 2,
 		DODO = 0,
-		PARASAUR = 2,
-		STEGOSAURUS = 2,
-		TRICERATOPS = 2,
-		RAPTOR = 2,
+		PARASAUR = 10,
+		STEGOSAURUS = 7,
+		TRICERATOPS = 7.5,
+		RAPTOR = 4,
 	}
-	local groundOffset = CORPSE_GROUND_OFFSETS[creatureId] or 2.5
+	local groundOffset = CORPSE_GROUND_OFFSETS[creatureId] or 2
+	print(string.format("[HarvestService] Corpse offset for '%s' = %s (matched=%s)", creatureId, groundOffset, tostring(CORPSE_GROUND_OFFSETS[creatureId] ~= nil)))
 
 	-- 지면 스냅 헬퍼 (최종 포즈 상태에서 호출)
 	local function snapToGround()
@@ -1122,10 +1145,9 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 			lowestY = rootPart.Position.Y - rootPart.Size.Y / 2
 		end
 		-- 모델/ResourceNodes 제외, 레이캐스트로 실제 지형 검색
-		local nodeFolder2 = workspace:FindFirstChild("ResourceNodes")
 		local rayParams = RaycastParams.new()
-		rayParams.FilterType = Enum.RaycastFilterType.Exclude
-		rayParams.FilterDescendantsInstances = nodeFolder2 and {model, nodeFolder2} or {model}
+		rayParams.FilterType = Enum.RaycastFilterType.Include
+		rayParams.FilterDescendantsInstances = {workspace.Terrain}
 		local rayOrigin = Vector3.new(rootPart.Position.X, rootPart.Position.Y + 10, rootPart.Position.Z)
 		local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -60, 0), rayParams)
 		if rayResult then
@@ -1167,6 +1189,10 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 				deathTrack:AdjustSpeed(0) -- 마지막 프레임에서 프리즈
 			end
 
+			-- ★ 사망 애니메이션 완료 후 지면 재스냅 (포즈 변환 후 정확한 위치)
+			task.wait(0.1) -- Motor6D 위치 반영 대기
+			snapToGround()
+
 			-- Humanoid 비활성화 (파괴하지 않아 포즈 유지)
 			if humanoid and humanoid.Parent then
 				humanoid.WalkSpeed = 0
@@ -1179,7 +1205,7 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 		for _, part in ipairs(model:GetDescendants()) do
 			if part:IsA("BasePart") then
 				part.Anchored = true
-				part.CanCollide = true
+				part.CanCollide = false
 				part.CanQuery = true
 				part.CanTouch = true
 			end
@@ -1606,8 +1632,8 @@ function HarvestService._respawnNode(nodeUID: string)
 				if part.Name ~= "Hitbox" then
 					part.Transparency = 0
 				end
-				-- 콜리전 복원
-				part.CanCollide = (part.Name ~= "Hitbox")
+				-- 콜리전 복원 (CanCollide는 false 유지 — R키 상호작용)
+				part.CanCollide = false
 				part.CanQuery = true
 				part.CanTouch = true
 			elseif part:IsA("ParticleEmitter") or part:IsA("Trail") then
@@ -1737,11 +1763,12 @@ function HarvestService._cacheTemplatesFromFolders()
 
 	local cached = 0
 	-- GetDescendants로 2단계 이상 하위 폴더(GRASSLAND/TREE_THIN 등)도 탐색
+	-- ★ Folder뿐 아니라 Model 컨테이너도 탐색 (FARM_TREE가 Model로 배치된 경우 대응)
 	for _, child in ipairs(nodeFolder:GetDescendants()) do
-		if child:IsA("Folder") then
+		if child:IsA("Folder") or (child:IsA("Model") and child:FindFirstChildWhichIsA("Model")) then
 			local firstModel = child:FindFirstChildWhichIsA("Model")
 			if firstModel then
-				-- 폴더 이름을 실제 nodeId로 해석 (BRANCH → GROUND_BRANCH)
+				-- 컨테이너 이름을 실제 nodeId로 해석 (BRANCH → GROUND_BRANCH)
 				local resolvedId = resolveToNodeId(child.Name) or child.Name
 				if not templateCache[resolvedId] then
 					local clone = firstModel:Clone()
@@ -1775,8 +1802,15 @@ function HarvestService._setupPrePlacedNodes()
 		end
 
 		local candidates = { nodeModel.Name }
-		if nodeModel.Parent and nodeModel.Parent:IsA("Folder") then
-			table.insert(candidates, nodeModel.Parent.Name)
+		-- ★ 부모/조부모 이름도 후보에 포함 (Folder뿐 아니라 Model 컨테이너도 대응)
+		local parent = nodeModel.Parent
+		if parent and parent.Name ~= "ResourceNodes" then
+			table.insert(candidates, parent.Name)
+			-- 조부모도 체크 (ResourceNodes/TROPICAL/FARM_TREE/모델 구조 대응)
+			local grandparent = parent.Parent
+			if grandparent and grandparent.Name ~= "ResourceNodes" then
+				table.insert(candidates, grandparent.Name)
+			end
 		end
 
 		for _, candidate in ipairs(candidates) do

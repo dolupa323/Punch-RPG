@@ -276,22 +276,8 @@ function HitFeedbackController.Init()
 			spawnHitParticle(hrp.Position + Vector3.new(0, 1, 0))
 		end
 		
-		-- 7. ★ 클라이언트측 넉백 적용 (서버 소유권 충돌 방지)
-		if data.knockbackForce and data.sourcePos and hrp and hum and hum.Health > 0 then
-			local sourcePos = data.sourcePos
-			if typeof(sourcePos) ~= "Vector3" then
-				sourcePos = Vector3.new(sourcePos.X or sourcePos[1] or 0, sourcePos.Y or sourcePos[2] or 0, sourcePos.Z or sourcePos[3] or 0)
-			end
-			local diff = (hrp.Position - sourcePos)
-			local dir = Vector3.new(diff.X, 0, diff.Z)
-			if dir.Magnitude > 0.01 then
-				dir = dir.Unit
-			else
-				dir = hrp.CFrame.LookVector * -1
-			end
-			hrp.AssemblyLinearVelocity = dir * data.knockbackForce + Vector3.new(0, 2, 0)
-			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end
+		-- 7. ★ 넉백 제거: 크리처 반격 시 플레이어 위치 변경 없음 (튕김 방지)
+		-- 화면 흔들림 + 경직만으로 피격 피드백 제공
 	end)
 	
 	-- 크리처 피격 연출 이벤트 수신 (모든 클라이언트)
@@ -341,26 +327,8 @@ function HitFeedbackController.Init()
 		-- 짧은 비네트 (접촉 피드백)
 		flashRedVignette()
 		
-		-- ★ 클라이언트측 접촉 넉백 적용 (서버 소유권 충돌 방지)
-		if data.knockbackForce and data.sourcePos then
-			local char = player.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			local hum = char and char:FindFirstChildOfClass("Humanoid")
-			if hrp and hum and hum.Health > 0 then
-				local sourcePos = data.sourcePos
-				if typeof(sourcePos) ~= "Vector3" then
-					sourcePos = Vector3.new(sourcePos.X or sourcePos[1] or 0, sourcePos.Y or sourcePos[2] or 0, sourcePos.Z or sourcePos[3] or 0)
-				end
-				local pushDir = (hrp.Position - sourcePos)
-				pushDir = Vector3.new(pushDir.X, 0, pushDir.Z)
-				if pushDir.Magnitude < 0.1 then
-					pushDir = hrp.CFrame.LookVector * -1
-				else
-					pushDir = pushDir.Unit
-				end
-				hrp.AssemblyLinearVelocity = pushDir * data.knockbackForce
-			end
-		end
+		-- ★ 접촉 넉백 제거: 플레이어 위치 변경 없음 (튕김 방지)
+		-- 화면 흔들림 + 비네트만으로 접촉 피드백 제공
 	end)
 	
 	-- 눕는 현상을 방지하기 위한 주기적 체크 부하가 적으므로 Heartbeat 사용

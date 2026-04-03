@@ -60,6 +60,7 @@ local ZONE_CONFIGS = {
 			{ id = "GROUND_BRANCH", weight = 60 },
 			{ id = "ROCK_SOFT", weight = 50 },
 			{ id = "GROUND_STONE", weight = 90 },
+			{ id = "FALM_TREE", weight = 55 },
 		},
 	},
 }

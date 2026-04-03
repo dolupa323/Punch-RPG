@@ -4,6 +4,7 @@
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CreatureAnimationIds = require(Shared.Config.CreatureAnimationIds)
@@ -114,10 +115,12 @@ local function updateCreatureAnimation(model, info)
 	info.smoothedSpeed = info.smoothedSpeed and (info.smoothedSpeed + (rawSpeed - info.smoothedSpeed) * smoothing) or rawSpeed
 	local speed = info.smoothedSpeed
 	
-	-- ★ 넉백 달리기 모션 방지: 실제 WalkSpeed 대비 비정상적으로 빠르면 외부 충격(넉백)
-	-- WalkSpeed의 1.5배 이상 속도 → 자발적 이동이 아닌 물리 충격으로 판단하여 속도 0 취급
+	-- ★ 넉백 달리기 모션 방지: WalkSpeed가 0 이상이고 실제 물리 속도가 WalkSpeed의 1.5배 초과
+	-- → 자발적 이동이 아닌 외부 충격(넉백)으로 판단하여 속도 0 취급
+	-- 단, 서버 State가 이동 상태(WANDER/CHASE/FLEE)이면 넉백 억제 적용하지 않음
 	local walkSpeed = humanoid.WalkSpeed
-	if walkSpeed < 0.1 or speed > walkSpeed * 1.5 then
+	local isServerMoving = (currentState == "WANDER" or currentState == "CHASE" or currentState == "FLEE")
+	if not isServerMoving and walkSpeed > 0.1 and speed > walkSpeed * 1.5 then
 		speed = 0
 	end
 	
@@ -129,7 +132,10 @@ local function updateCreatureAnimation(model, info)
 	local animSet = CreatureAnimationIds[creatureId] or CreatureAnimationIds.DEFAULT
 	local attackAnimName = animSet.ATTACK
 	
-	if info.isAttacking then
+	-- ★ 사망 상태면 공격 플래그 강제 해제 → 사망 애니메이션 우선
+	if currentState == "DEAD" then
+		info.isAttacking = false
+	elseif info.isAttacking then
 		-- 공격 애니메이션이 끝났는지 체크 (캐시된 트랙 활용)
 		local attackTrack = AnimationManager.load(humanoid, attackAnimName)
 		if attackTrack and not attackTrack.IsPlaying then
@@ -142,6 +148,19 @@ local function updateCreatureAnimation(model, info)
 
 	-- 3. 애니메이션 전환 처리
 	local isLocomotion = targetAnimName and (targetAnimName:lower():find("walk") or targetAnimName:lower():find("run"))
+	
+	-- ★ 보행/달리기 애니메이션 재생 속도 계산
+	-- 서버 State가 이동 중이면 물리 속도가 0이어도 기본 1.0 보장 (미끄러짐 방지)
+	local locomotionSpeed = 1.0
+	if isLocomotion then
+		local effectiveSpeed = math.max(speed, rawSpeed * 0.5)
+		if isServerMoving and effectiveSpeed < 1 then
+			-- 서버가 이동 상태인데 물리 속도가 거의 없는 경우 (시작/정지 순간)
+			locomotionSpeed = 1.0
+		else
+			locomotionSpeed = math.clamp(effectiveSpeed / math.max(walkSpeed, 1), 0.5, 2.0)
+		end
+	end
 	
 	if info.lastAnim ~= targetAnimName then
 		-- 기존 이동 트랙 서서히 중지
@@ -156,10 +175,9 @@ local function updateCreatureAnimation(model, info)
 				-- ★ DEATH 애니메이션은 1회 재생 후 마지막 프레임 유지 (루프 X)
 				local isDeath = (currentState == "DEAD")
 				track.Looped = not isDeath
-				-- 보행/달리기 속도 조절 (최소 0.5 보장 — 동결 방지)
+				-- 보행/달리기 속도 조절
 				if isLocomotion then
-					local playbackSpeed = math.clamp(speed / math.max(humanoid.WalkSpeed, 1), 0.5, 2.0)
-					track:AdjustSpeed(playbackSpeed)
+					track:AdjustSpeed(locomotionSpeed)
 				end
 				info.lastAnim = targetAnimName
 			else
@@ -180,8 +198,7 @@ local function updateCreatureAnimation(model, info)
 			end
 			-- 보행/달리기 속도 실시간 동기화
 			if isLocomotion then
-				local playbackSpeed = math.clamp(speed / math.max(humanoid.WalkSpeed, 1), 0.5, 2.0)
-				track:AdjustSpeed(playbackSpeed)
+				track:AdjustSpeed(locomotionSpeed)
 			end
 		end
 	end
@@ -272,68 +289,99 @@ function CreatureAnimationController.Init()
 						info.lastAnim = "" 
 					end
 					
-					-- [핵심] 시퀀스 재생 루틴 (Prep -> Charge, 근접 시 돌진 생략)
+					-- [핵심] 공격 애니메이션 재생 루틴
 					task.spawn(function()
 						info.isAttacking = true
-						local isTrike = (creatureId == "TRICERATOPS" or creatureId == "BABY_TRICERATOPS")
-						local isClose = data.isClose
 						
-						-- ★ 공격 중 미끄러짐 방지: WalkSpeed를 0으로 설정하여 관성 이동 차단
-						local savedWalkSpeed = humanoid.WalkSpeed
-						if savedWalkSpeed < 1 then savedWalkSpeed = model:GetAttribute("DefaultWalkSpeed") or 16 end
-						humanoid.WalkSpeed = 0
-						-- ★ 잔류 속도도 제거하여 즉각 정지
-						local rp = model.PrimaryPart
-						if rp then
-							rp.AssemblyLinearVelocity = Vector3.new(0, rp.AssemblyLinearVelocity.Y, 0)
-						end
+						-- ★ 서버 권위 객체: WalkSpeed/Velocity 조작 제거
+						-- NetworkOwner=nil(서버 소유) 크리처의 물리 속성은 서버에서만 제어
+						-- 서버의 CreatureService에서 attackingUntil + WalkSpeed=0 으로 이미 처리됨
 						
-						-- 1. 공격 준비 (ATTACK 애니메이션)
+						-- 공격 애니메이션 재생
 						local prepTrack = AnimationManager.play(humanoid, attackAnimName, 0.1)
 						if prepTrack then
 							prepTrack.Priority = Enum.AnimationPriority.Action
-							-- 근접 시 트리케라톱스도 일반 애니메이션 길이만큼만 대기
-							if isTrike and not isClose then
-								task.wait(0.6)
-							else
-								task.wait(prepTrack.Length > 0 and prepTrack.Length or 0.5)
-							end
+							task.wait(prepTrack.Length > 0 and prepTrack.Length or 0.5)
 						end
 						
-						-- 2. 후속 돌격 (트리케라톱스 계열 특화 — 근접 시 생략)
-						if isTrike and not isClose and model.Parent then
-							local runAnim = animSet.RUN
-							if runAnim then
-								local chargeTrack = AnimationManager.play(humanoid, runAnim, 0.1, nil, 2.0) -- 2배속 돌진
-								if chargeTrack then
-									chargeTrack.Priority = Enum.AnimationPriority.Action
-									task.wait(0.6)
-									AnimationManager.stop(humanoid, runAnim, 0.2)
-								end
-							end
-						end
-						
-						-- ★ 공격 상태 해제 + WalkSpeed 복원 (보호 로직 강화)
-						-- 모델 생존 여부와 무관하게 isAttacking은 반드시 해제
+						-- ★ 공격 상태 해제 (애니메이션 상태만 관리)
+						-- 서버가 WalkSpeed를 제어하므로 클라이언트 복원 불필요
 						task.wait(0.1)
 						info.isAttacking = false
-						if model.Parent and humanoid.Parent then
-							humanoid.WalkSpeed = savedWalkSpeed
-						end
 					end)
 				end
 			end
 		end
 	end)
 	
+	-- ★ 육식공룡 야간 눈빛 효과
+	local EYE_GLOW_COLOR = Color3.fromRGB(180, 255, 120) -- 옅은 초록빛
+	local EYE_GLOW_BRIGHTNESS = 1.5
+	local EYE_GLOW_RANGE = 4
+	local lastNightCheck = 0
+	local isCurrentlyNight = false
+
+	local function updateNightEyeGlow()
+		local now = tick()
+		-- 2초마다 밤낮 체크 (성능)
+		if now - lastNightCheck > 2 then
+			lastNightCheck = now
+			local clockTime = Lighting.ClockTime
+			isCurrentlyNight = (clockTime >= 18.5 or clockTime <= 5.5)
+		end
+
+		for model, info in pairs(activeCreatures) do
+			if not model:IsDescendantOf(Workspace) then continue end
+			local behavior = model:GetAttribute("Behavior")
+			local isDead = model:GetAttribute("IsDead")
+			if behavior ~= "AGGRESSIVE" or isDead then
+				-- 육식이 아니거나 죽었으면 기존 빛 제거
+				local head = model:FindFirstChild("Head", true)
+				if head then
+					local existing = head:FindFirstChild("NightEyeGlow")
+					if existing then existing:Destroy() end
+				end
+				continue
+			end
+
+			local head = model:FindFirstChild("Head", true) or model:FindFirstChild("Neck", true)
+			if not head or not head:IsA("BasePart") then continue end
+
+			local glow = head:FindFirstChild("NightEyeGlow")
+			if isCurrentlyNight then
+				if not glow then
+					glow = Instance.new("PointLight")
+					glow.Name = "NightEyeGlow"
+					glow.Color = EYE_GLOW_COLOR
+					glow.Brightness = EYE_GLOW_BRIGHTNESS
+					glow.Range = EYE_GLOW_RANGE
+					glow.Shadows = false
+					glow.Parent = head
+				end
+				glow.Enabled = true
+			else
+				if glow then
+					glow:Destroy()
+				end
+			end
+		end
+	end
+
 	-- 루프 업데이트 (최적화: 0.1초 간격으로 상태 체크)
-	RunService.Heartbeat:Connect(function()
+	local eyeGlowTimer = 0
+	RunService.Heartbeat:Connect(function(dt)
 		for model, info in pairs(activeCreatures) do
 			if model:IsDescendantOf(Workspace) then
 				updateCreatureAnimation(model, info)
 			else
 				activeCreatures[model] = nil
 			end
+		end
+		-- 눈빛 업데이트: 3초마다 (매 프레임 불필요)
+		eyeGlowTimer = eyeGlowTimer + dt
+		if eyeGlowTimer >= 3 then
+			eyeGlowTimer = 0
+			updateNightEyeGlow()
 		end
 	end)
 	

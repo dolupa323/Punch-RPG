@@ -41,9 +41,9 @@ Balance.SEA_LEVEL = 2              -- 해수면 높이 (0 -> 2)
 --========================================
 -- 야생동물 / 크리처
 --========================================
-Balance.WILDLIFE_CAP = 120         -- 서버 전체 야생동물 최대 수 (300 -> 120)
+Balance.WILDLIFE_CAP = 400         -- 서버 전체 야생동물 최대 수
 Balance.CREATURE_COOLDOWN = 600    -- 크리처 리스폰 쿨다운 (초)
-Balance.INITIAL_CREATURE_COUNT = 40 -- 서버 시작 시 초기 스폰 크리처 수 (80 -> 40)
+Balance.INITIAL_CREATURE_COUNT = 160 -- 서버 시작 시 초기 스폰 크리처 수 (Zone당 80마리)
 Balance.CREATURE_REPLENISH_INTERVAL = 60 -- 보충 스폰 간격 (초) (45 -> 60)
 
 --========================================

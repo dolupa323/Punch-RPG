@@ -111,6 +111,21 @@ local ResourceNodeData = {
 	-- 일반 자원 노드 (타 섬 용도 포함)
 	--========================================
 	{
+		id = "FALM_TREE",
+		name = "열대 나무",
+		level = 4,
+		modelName = "FALM_TREE",
+		nodeType = "TREE",
+		optimalTool = "AXE",
+		resources = {
+			{ itemId = "LOG", min = 2, max = 4, weight = 1.0 },
+		},
+		maxHealth = 80,
+		respawnTime = 300,
+		xpPerHit = 4,
+		requiresTool = true,
+	},
+	{
 		id = "ROCK_NORMAL",
 		name = "바위",
 		level = 5,

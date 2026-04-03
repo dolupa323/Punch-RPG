@@ -78,7 +78,7 @@ local DESPAWN_DIST = Balance.CREATURE_DESPAWN_DIST or 300 -- 150 -> 300 (LOD가 
 local CREATURE_ATTACK_COOLDOWN = 2 -- 크리처 공격 쿨다운 (초)
 local DEATH_FADE_TIME = 1.1
 local DEATH_SINK_DISTANCE = 2.5
-local NETWORK_ANIM_BUFFER = 0.1 -- ★ 유령 이빨 방지: 데미지를 애니메이션보다 늦게 적용 (네트워크 지연 보상)
+local NETWORK_ANIM_BUFFER = 0.35 -- ★ 유령 이빨 방지: 데미지를 애니메이션보다 늦게 적용 (네트워크 지연 + 애니 로드 보상)
 local LABEL_VISIBLE_DURATION = 6
 
 -- LOD (Level of Detail) 상수
@@ -382,17 +382,18 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 	humanoid.Health = data.maxHealth
 	
 	-- [추가] 지형 적응력 향상 (오르막/내리막)
-	humanoid.MaxSlopeAngle = 60 -- 적당한 경사까지만 등반 가능
+	humanoid.MaxSlopeAngle = 89 -- ★ 거의 모든 경사면 이동 가능 (경사 실패 방지)
 	humanoid.AutoJumpEnabled = false -- ★ 비활성화: 랜덤 점프/바운스 방지
 	
-	-- [추가] 물리적 이상 현상 방지 (쓰러짐/날아감/점프 방지)
+	-- [추가] 물리적 이상 현상 방지 (쓰러짐/날아감 방지)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)  -- ★ 점프 상태 자체를 비활성화
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)   -- ★ 활성화: 경사면 내부 마이크로 점프 필요
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)  -- ★ 수영 물리 비활성화
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)   -- ★ 경사면 등반 활성화
 	humanoid.UseJumpPower = true
-	humanoid.JumpPower = 0 -- ★ 점프력 0: 거대공룡은 점프하지 않음
+	humanoid.JumpPower = 5 -- ★ 최소 점프력: 지형 미세 단차 물리 보정용 (시각적 점프 발생 안 함)
 	
 	-- [수정] HipHeight 계산 공식: 지면에 정확히 붙도록 보정
 	-- HipHeight = HRP 바닥 ~ 모델 바닥 거리 (추가 여유 없음)
@@ -435,6 +436,14 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 		end
 	end
 	combatCry.Parent = rootPart
+	
+	-- ★ 크리처 파트 CanCollide=false: 플레이어와 물리 충돌 완전 제거
+	-- 밀림/끼임/튕김 방지 — Humanoid 내부 캡슐이 지면 충돌을 담당
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
+		end
+	end
 	
 	return model, rootPart, humanoid
 end
@@ -550,11 +559,17 @@ function CreatureService.spawn(creatureId, position)
 	model:SetAttribute("CurrentTorpor", 0)
 	model:SetAttribute("LabelVisibleUntil", 0)
 	
+	-- ★ 스폰 물리 안정화: workspace 배치 전 rootPart를 Anchored로 고정
+	-- 모든 파트가 Anchored=false인 채 배치되면 지형 겹침으로 물리 발사 발생
+	-- (열대섬 등 경사 지형에서 크리처가 물로 날아가는 버그 방지)
+	rootPart.Anchored = true
+	
 	model.Parent = creatureFolder
 	
 	local instanceId = game:GetService("HttpService"):GenerateGUID(false)
 	model:SetAttribute("InstanceId", instanceId)
 	model:SetAttribute("CreatureId", creatureId)
+	model:SetAttribute("Behavior", data.behavior or "NEUTRAL")
 	
 	-- Collision Group 설정
 	for _, part in ipairs(model:GetDescendants()) do
@@ -566,6 +581,13 @@ function CreatureService.spawn(creatureId, position)
 	-- ★ 서버 물리 권한 고정: 클라이언트 물리 간섭 완전 차단
 	pcall(function()
 		rootPart:SetNetworkOwner(nil) -- nil = 서버 소유
+	end)
+	
+	-- ★ 0.5초 후 Anchored 해제: Humanoid가 지면에 안착할 시간 확보
+	task.delay(0.5, function()
+		if rootPart and rootPart.Parent then
+			rootPart.Anchored = false
+		end
 	end)
 	
 	activeCreatures[instanceId] = {
@@ -707,6 +729,9 @@ local function playNaturalDeathSequence(creature)
 	local model = creature.model
 	local rootPart = creature.rootPart
 
+	-- ★ 사망 상태 설정: 클라이언트에서 DEAD 상태 감지 → 사망 애니메이션 재생
+	setCreatureState(creature, "DEAD")
+
 	-- ★ 시체 방패 방지: 즉시 모든 파트의 충돌/쿼리 비활성화 (HarvestService 등록 여부와 무관)
 	model:SetAttribute("IsDead", true)
 	for _, inst in ipairs(model:GetDescendants()) do
@@ -800,10 +825,22 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
 			setCreatureState(creature, "STUNNED")
-			creature.humanoid.PlatformStand = true
-			-- ★ 경사로 슬라이딩 방지: Anchored로 위치 고정
+			-- ★ PlatformStand 사용 안 함: 관절이 풀려 래그돌 → Anchored와 결합 시
+			-- 공중에 사지가 늘어진 채 얼음 상태로 굳는 버그 발생
+			-- 대신 WalkSpeed=0 + MoveTo 정지 + 짧은 딜레이 후 Anchored로 지면 고정
+			creature.humanoid.WalkSpeed = 0
+			creature.humanoid.JumpPower = 0
+			creature.humanoid.AutoRotate = false
+			creature.humanoid:MoveTo(creature.rootPart.Position)
 			if creature.rootPart then
-				creature.rootPart.Anchored = true
+				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, creature.rootPart.AssemblyLinearVelocity.Y, 0)
+				-- ★ 지면 안착 후 Anchored: 물리 시뮬레이션 1프레임 대기하여
+				-- 크리처가 지면에 착지한 상태에서 고정 (공중 조각상 방지)
+				task.delay(0.1, function()
+					if creature.rootPart and creature.rootPart.Parent and creature.state == "STUNNED" then
+						creature.rootPart.Anchored = true
+					end
+				end)
 			end
 			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
 		elseif creature.state ~= "STUNNED" then
@@ -1142,8 +1179,23 @@ function CreatureService._initialSpawn()
 
 				for i = 1, groupSize do
 					if spawned >= PER_ZONE_COUNT then break end
-					local offset = groupSize > 1 and Vector3.new(math.random(-8, 8), 0, math.random(-8, 8)) or Vector3.zero
-					local result = CreatureService.spawn(cid, pos + offset)
+					local spawnPos = pos
+					if groupSize > 1 and i > 1 then
+						local ox = math.random(-8, 8)
+						local oz = math.random(-8, 8)
+						local rayOrigin = pos + Vector3.new(ox, 200, oz)
+						local rayParams = RaycastParams.new()
+						local filterList = { workspace.Terrain }
+						local mapRef = workspace:FindFirstChild("Map")
+						if mapRef then table.insert(filterList, mapRef) end
+						rayParams.FilterDescendantsInstances = filterList
+						rayParams.FilterType = Enum.RaycastFilterType.Include
+						local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
+						if rayResult and rayResult.Material ~= Enum.Material.Water and rayResult.Position.Y >= SEA_LEVEL then
+							spawnPos = rayResult.Position + Vector3.new(0, 0.5, 0)
+						end
+					end
+					local result = CreatureService.spawn(cid, spawnPos)
 					if result then
 						spawned = spawned + 1
 					end
@@ -1188,8 +1240,27 @@ function CreatureService.SpawnZone(zoneName)
 
 			for i = 1, groupSize do
 				if spawned >= PER_ZONE_COUNT then break end
-				local offset = groupSize > 1 and Vector3.new(math.random(-8, 8), 0, math.random(-8, 8)) or Vector3.zero
-				local result = CreatureService.spawn(cid, pos + offset)
+				local spawnPos = pos
+				if groupSize > 1 and i > 1 then
+					-- ★ 그룹 멤버: 오프셋 위치에서 지면 재Raycast
+					-- Y좌표 미보정 시 경사 지형에서 지면 아래/위에 스폰되어 물리 발사 발생
+					local ox = math.random(-8, 8)
+					local oz = math.random(-8, 8)
+					local rayOrigin = pos + Vector3.new(ox, 200, oz)
+					local rayParams = RaycastParams.new()
+					local filterList = { workspace.Terrain }
+					local map = workspace:FindFirstChild("Map")
+					if map then table.insert(filterList, map) end
+					rayParams.FilterDescendantsInstances = filterList
+					rayParams.FilterType = Enum.RaycastFilterType.Include
+					local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
+					if rayResult and rayResult.Material ~= Enum.Material.Water and rayResult.Position.Y >= SEA_LEVEL then
+						spawnPos = rayResult.Position + Vector3.new(0, 0.5, 0)
+					else
+						spawnPos = pos -- 실패 시 원래 위치 사용
+					end
+				end
+				local result = CreatureService.spawn(cid, spawnPos)
 				if result then
 					spawned = spawned + 1
 				end
@@ -1231,8 +1302,23 @@ function CreatureService._replenishLoop()
 				
 				for i = 1, groupSize do
 					if creatureCount >= CREATURE_CAP then break end
-					local offset = groupSize > 1 and Vector3.new(math.random(-5, 5), 0, math.random(-5, 5)) or Vector3.zero
-					CreatureService.spawn(cid, pos + offset)
+					local spawnPos = pos
+					if groupSize > 1 and i > 1 then
+						local ox = math.random(-5, 5)
+						local oz = math.random(-5, 5)
+						local rayOrigin = pos + Vector3.new(ox, 200, oz)
+						local rayParams = RaycastParams.new()
+						local filterList = { workspace.Terrain }
+						local mapRef = workspace:FindFirstChild("Map")
+						if mapRef then table.insert(filterList, mapRef) end
+						rayParams.FilterDescendantsInstances = filterList
+						rayParams.FilterType = Enum.RaycastFilterType.Include
+						local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
+						if rayResult and rayResult.Material ~= Enum.Material.Water and rayResult.Position.Y >= SEA_LEVEL then
+							spawnPos = rayResult.Position + Vector3.new(0, 0.5, 0)
+						end
+					end
+					CreatureService.spawn(cid, spawnPos)
 				end
 				toSpawn = toSpawn - 1
 			end
@@ -1411,11 +1497,16 @@ function CreatureService._updateAILoop()
 			-- 기절 회복 체크
 			if creature.state == "STUNNED" and creature.currentTorpor <= STUN_RECOVERY_THRESHOLD then
 				setCreatureState(creature, "IDLE")
-				creature.humanoid.PlatformStand = false
-				-- ★ 기절 해제: Anchored 해제하여 다시 이동 가능하게
+				-- ★ 기절 해제: Anchored 해제 + 이동 능력 복원
 				if creature.rootPart then
 					creature.rootPart.Anchored = false
 				end
+				creature.humanoid.WalkSpeed = creature.data.walkSpeed or 10
+				creature.humanoid.JumpPower = 5
+				-- ★ 큰 초식공룡은 AutoRotate=false 유지 (수동 Lerp 회전)
+				local cId = creature.creatureId
+				local isLargeCreature = (cId == "TRICERATOPS" or cId == "STEGOSAURUS" or cId == "PARASAUR")
+				creature.humanoid.AutoRotate = not isLargeCreature
 				print(string.format("[CreatureService] %s recovered from STUN!", id))
 			end
 		end
@@ -1460,8 +1551,8 @@ function CreatureService._updateAILoop()
 								local path = PathfindingService:CreatePath({
 									AgentRadius = agentRadius,
 									AgentHeight = agentHeight,
-									AgentCanJump = false,
-									AgentStepHeight = math.clamp(agentHeight * 0.3, 1, 4),
+									AgentCanJump = false, -- ★ 점프 경로 비활성: 자연스러운 도보 이동
+									AgentStepHeight = math.clamp(agentHeight * 0.5, 3, 8), -- ★ 높은 스텝: 단차를 걸어서 넘기
 								})
 								local ok = pcall(function() path:ComputeAsync(startPos, targetPos) end)
 								local latest = activeCreatures[creature.id]
@@ -1638,21 +1729,58 @@ function CreatureService._updateAILoop()
 		end
 		
 		if isInWater then
-			-- ★ 물에 빠진 경우: 순간이동 대신 걸어서 나오기
+			-- ★ 물에 빠진 크리처 즉시 구출 (텔레포트)
+			-- Swimming 상태가 비활성화되어 MoveTo로는 물에서 이동 불가
+			-- 즉시 안전한 육지로 텔레포트하여 갇힘 방지
 			local landDir = CreatureService._findLandDirection(hrp.Position)
 			if landDir then
-				local escapeTarget = hrp.Position + landDir * 40
-				-- ★ MoveTo로 자연스럽게 이동 (텔레포트/점프 없음)
-				humanoid.WalkSpeed = (creature.data.walkSpeed or 16) * 1.5
-				humanoid:MoveTo(escapeTarget)
-				setCreatureState(creature, "WANDER")
-				creature.targetPosition = escapeTarget
-				creature.stateDuration = 5
+				-- 육지 방향으로 Raycast하여 정확한 지면 위치 찾기
+				local searchDist = 80
+				local rescued = false
+				for _, dist in ipairs({20, 40, 60, 80}) do
+					local checkPos = hrp.Position + landDir * dist
+					local rayParams = RaycastParams.new()
+					rayParams.FilterDescendantsInstances = { workspace.Terrain }
+					rayParams.FilterType = Enum.RaycastFilterType.Include
+					local rayResult = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rayParams)
+					if rayResult and rayResult.Material ~= Enum.Material.Water and rayResult.Position.Y >= SEA_LEVEL then
+						local safePos = rayResult.Position + Vector3.new(0, 2, 0)
+						if not CreatureService._isNearWater(safePos) then
+							hrp.CFrame = CFrame.new(safePos)
+							hrp.AssemblyLinearVelocity = Vector3.zero
+							rescued = true
+							break
+						end
+					end
+				end
+				if not rescued then
+					-- 가까운 육지 못 찾음 → 스폰 존 중심으로 텔레포트
+					local zoneName = SpawnConfig.GetZoneAtPosition(hrp.Position)
+					local zoneInfo = zoneName and SpawnConfig.GetZoneInfo(zoneName)
+					if zoneInfo and zoneInfo.spawnPoint then
+						hrp.CFrame = CFrame.new(zoneInfo.spawnPoint + Vector3.new(0, 3, 0))
+						hrp.AssemblyLinearVelocity = Vector3.zero
+					else
+						hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
+						hrp.AssemblyLinearVelocity = Vector3.zero
+					end
+				end
 			else
-				-- 육지 방향 못 찾으면 위로만 약간 올리고 다시 시도
-				hrp.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-				humanoid:MoveTo(hrp.Position)
+				-- 육지 방향 자체를 못 찾음 → 스폰 존 중심으로 텔레포트
+				local zoneName = SpawnConfig.GetZoneAtPosition(hrp.Position)
+				local zoneInfo = zoneName and SpawnConfig.GetZoneInfo(zoneName)
+				if zoneInfo and zoneInfo.spawnPoint then
+					hrp.CFrame = CFrame.new(zoneInfo.spawnPoint + Vector3.new(0, 3, 0))
+					hrp.AssemblyLinearVelocity = Vector3.zero
+				else
+					hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
+					hrp.AssemblyLinearVelocity = Vector3.zero
+				end
 			end
+			setCreatureState(creature, "IDLE")
+			humanoid:MoveTo(hrp.Position)
+			creature.targetPosition = nil
+			creature.pathData = nil
 			continue -- ★ 물 탈출 로직 후 나머지 AI 로직 스킵
 		elseif creature.state == "CHASE" or creature.state == "WANDER" or creature.state == "FLEE" then
 			local currentZone = getProtectedZoneInfo(hrp.Position)
@@ -1745,7 +1873,12 @@ function CreatureService._updateAILoop()
 				end
 
 				-- [추가] 공격 사거리 내에 있거나 공격 애니메이션 중이면 정지 (미끄러짐 방지)
-				if creature.state == "CHASE" and (isInAttackRange or (creature.attackingUntil and now < creature.attackingUntil)) then
+				-- ★ 정지 거리 = attackRange * 1.3: 공격 사거리 직전에 멈춰서 플레이어와 겹치지 않음
+				local stopRange = attackRange * 1.3
+				-- ★ 공격 직후 쿨다운 대기 중에도 정지 유지 (겹치며 따라가기 방지)
+				local isInCooldown = creature.lastAttackTime and (now - creature.lastAttackTime < (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN))
+				local shouldStop = (headDist <= stopRange) or (creature.attackingUntil and now < creature.attackingUntil) or (isInCooldown and headDist <= stopRange * 2)
+				if creature.state == "CHASE" and shouldStop then
 					-- ★ 공격 중 WalkSpeed=0: Humanoid 내부 물리가 이동력을 재적용하는 것을 원천 차단
 					humanoid.WalkSpeed = 0
 					humanoid:MoveTo(hrp.Position)
@@ -1757,8 +1890,11 @@ function CreatureService._updateAILoop()
 						local dir = (closestPlayerPos - hrp.Position) * Vector3.new(1, 0, 1)
 						if dir.Magnitude > 0.1 then
 							local targetCF = CFrame.lookAt(hrp.Position, hrp.Position + dir.Unit)
-							-- ★ 현재 방향에서 목표 방향으로 30% Lerp (매 AI 틱마다 점진적 회전)
-							local turnAlpha = math.clamp(updateInterval * 3, 0.1, 0.4)
+							-- ★ 크리처 체형별 회전 속도: 큰 초식공룡은 느리게, 소형/포식자는 빠르게
+							local cId = creature.creatureId
+							local isLarge = (cId == "TRICERATOPS" or cId == "STEGOSAURUS" or cId == "PARASAUR")
+							local baseTurn = isLarge and 0.5 or 3.0
+							local turnAlpha = math.clamp(updateInterval * baseTurn, 0.02, isLarge and 0.08 or 0.4)
 							hrp.CFrame = hrp.CFrame:Lerp(targetCF, turnAlpha)
 						end
 					end
@@ -1797,12 +1933,15 @@ function CreatureService._updateAILoop()
 						if isObstructed then
 							creature.lastPathCompute = now
 							creature.pathComputeInFlight = true
-							-- ★ 경로 계산 중 관성 방지: 이전 경로 무효화 + 즉시 정지
-							-- ComputeAsync 0.1~0.3초 동안 이전 방향으로 질주하는 것을 차단
-							creature.pathData = nil
-							humanoid:MoveTo(hrp.Position)
-							creature.lastMoveToPos = hrp.Position
-							hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+							-- ★ 백그라운드 스왑: 기존 경로를 유지한 채 이동 계속
+							-- ComputeAsync 완료 후 pathData를 원자적으로 교체하여 끊김 제거
+							if not creature.pathData then
+								-- 기존 경로 없음 → 대상 방향으로 직선 이동 유지
+								if not creature.lastMoveToPos or (creature.lastMoveToPos - target).Magnitude > MOVETO_RETHRESHOLD then
+									humanoid:MoveTo(target)
+									creature.lastMoveToPos = target
+								end
+							end
 							
 							creature.pathReqToken = (creature.pathReqToken or 0) + 1
 							local reqToken = creature.pathReqToken
@@ -1819,12 +1958,14 @@ function CreatureService._updateAILoop()
 								if latest then latest.pathComputeInFlight = false end
 								return
 							end
+							local agentRadius = math.clamp(math.max(cSize.X, cSize.Z) / 2, 2, 12)
+							local agentHeight = math.clamp(cSize.Y, 4, 20)
 								
 								local path = PathfindingService:CreatePath({
 									AgentRadius = agentRadius,
 									AgentHeight = agentHeight,
-									AgentCanJump = true,
-									AgentStepHeight = math.clamp(agentHeight * 0.3, 2, 6),
+									AgentCanJump = false, -- ★ 점프 경로 비활성: 자연스러운 도보 이동
+									AgentStepHeight = math.clamp(agentHeight * 0.5, 3, 8), -- ★ 높은 스텝: 단차를 걸어서 넘기
 								})
 
 								local ok = pcall(function()
@@ -1885,7 +2026,17 @@ function CreatureService._updateAILoop()
 								humanoid:MoveTo(wp.Position)
 								creature.lastMoveToPos = wp.Position
 							end
-							if wp.Action == Enum.PathWaypointAction.Jump then humanoid.Jump = true end
+							-- ★ 큰 초식공룡 이동 중 부드러운 회전 (AutoRotate=false 대체)
+							local cId2 = creature.creatureId
+							local isLarge2 = (cId2 == "TRICERATOPS" or cId2 == "STEGOSAURUS" or cId2 == "PARASAUR")
+							if isLarge2 then
+								local moveDir = (wp.Position - hrp.Position) * Vector3.new(1, 0, 1)
+								if moveDir.Magnitude > 0.5 then
+									local moveCF = CFrame.lookAt(hrp.Position, hrp.Position + moveDir.Unit)
+									hrp.CFrame = hrp.CFrame:Lerp(moveCF, math.clamp(updateInterval * 1.0, 0.03, 0.1))
+								end
+							end
+							-- ★ Jump 웨이포인트 무시: 경사면에서 폴짝거림 방지, MaxSlopeAngle=89로 도보 이동
 							local wpReach = getWaypointReachDist(creature)
 							if (hrp.Position - wp.Position).Magnitude < wpReach then
 								creature.pathData.currentIndex = creature.pathData.currentIndex + 1
@@ -1900,8 +2051,10 @@ function CreatureService._updateAILoop()
 
 			-- 3. 속도 설정
 			if creature.state == "CHASE" then
-				-- 공격 사거리 내 또는 공격 애니메이션 중이면 정지 (아이스 스케이팅 방지)
-				if isInAttackRange or (creature.attackingUntil and now < creature.attackingUntil) then
+				-- 공격 사거리 내 또는 공격 애니메이션 중이면 정지
+				local stopRange2 = attackRange * 1.3
+				local isInCooldown2 = creature.lastAttackTime and (now - creature.lastAttackTime < (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN))
+				if (headDist <= stopRange2) or (creature.attackingUntil and now < creature.attackingUntil) or (isInCooldown2 and headDist <= stopRange2 * 2) then
 					humanoid.WalkSpeed = 0
 				else
 					humanoid.WalkSpeed = creature.data.runSpeed or 20
@@ -1939,7 +2092,9 @@ function CreatureService._updateAILoop()
 
 			local dmg = creature.data.damage or 0
 			if dmg > 0 then
-				if closestPlayerPos and isInAttackRange then
+				-- ★ 공격 판정 거리 = 정지 거리와 동일 (attackRange * 1.3)
+				local attackTriggerRange = attackRange * 1.3
+				if closestPlayerPos and (headDist <= attackTriggerRange) then
 					if getProtectedZoneInfo(closestPlayerPos) then
 						setCreatureState(creature, "FLEE")
 						creature.chaseStartTime = nil
@@ -1949,7 +2104,7 @@ function CreatureService._updateAILoop()
 					if not creature.lastAttackTime or (now - creature.lastAttackTime >= (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN)) then
 						creature.lastAttackTime = now
 						-- ★ 공격 딘레이 동안 이동 차단 (미끄러짐 방지)
-						local baseDelay = creature.data.attackDelay or 0.3
+						local baseDelay = creature.data.attackDelay or 0.7
 						local isTrike = (creature.data.id == "TRICERATOPS" or creature.data.id == "BABY_TRICERATOPS")
 						local isClose = (headDist <= attackRange * 0.6)
 						local attackDelay = (isClose and isTrike) and math.min(baseDelay, 0.6) or baseDelay
@@ -1959,10 +2114,13 @@ function CreatureService._updateAILoop()
 								NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetUserId = closestPlayerUserId, isClose = isClose })
 							end
 
-							-- ★ 유령 이빨 방지: 네트워크 지연만큼 데미지 판정을 뒤로 밀어
-							-- 클라이언트가 애니메이션을 수신·재생한 뒤에 데미지가 들어오도록 함
+							-- ★ 타겟 락킹: 공격 선언 시점 플레이어 위치 기록
+							-- 딜레이 후 플레이어 이동량으로 회피 성공 여부를 판정
+							-- (1) 허공 타격 후 접근 → 데미지 없음 (위치 기준이 선언 시점)
+							-- (2) 구르기/이동 회피 → 이동 거리만큼 공정한 판정
+							local lockedPlayerPos = closestPlayerPos
 							task.delay(attackDelay + NETWORK_ANIM_BUFFER, function()
-								-- 1. 활성 상태 및 거리 재확인 (피했을 경우 판정 무효)
+								-- 1. 크리처 활성 상태 재확인
 								local currentCreature = activeCreatures[id]
 								if not currentCreature or not currentCreature.model or not currentCreature.model.Parent then return end
 
@@ -1978,25 +2136,15 @@ function CreatureService._updateAILoop()
 								if not playerHrp then return end
 								if getProtectedZoneInfo(playerHrp.Position) then return end
 								
-								-- ★ 머리(Head) 기준 거리로 판정 (공격 개시 기준과 일치시킴)
-								-- 목이 긴 크리처(브론토 등)가 머리 기준으로 공격 시작했으므로
-								-- 데미지 판정도 머리 기준이어야 함. 머리가 없으면 PrimaryPart 폴백
-								local primaryPos = currentCreature.model.PrimaryPart.Position
-								local attackOrigin = primaryPos
-								local headOffset = 0
-								local head = currentCreature.model:FindFirstChild("Head", true) or currentCreature.model:FindFirstChild("Neck", true)
-								if head and head:IsA("BasePart") then
-									attackOrigin = head.Position
-									-- ★ 목 오프셋: PrimaryPart↔Head 거리 (목이 길수록 관용도 증가)
-									headOffset = (head.Position - primaryPos).Magnitude
-								end
-								local currentDist = (attackOrigin - playerHrp.Position).Magnitude
-								-- 판정 관용도: 사거리 1.3배 + 목 오프셋의 50%
-								-- (공격 애니메이션으로 머리가 흔들려도 판정 유지)
-								if currentDist <= attackRange * 1.3 + headOffset * 0.5 then
-									local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
-									CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position, id)
-								end
+								-- ★ 타겟 락킹 회피 판정
+								-- 공격 선언 시점 위치에서 충분히 이동했으면 회피 성공
+								-- dodgeThreshold: 공격 사거리의 40% 또는 최소 5스터드
+								local dodgeDist = (playerHrp.Position - lockedPlayerPos).Magnitude
+								local dodgeThreshold = math.max(attackRange * 0.4, 5)
+								if dodgeDist > dodgeThreshold then return end -- 회피 성공
+								
+								local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
+								CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position, id)
 							end)
 						end
 					end

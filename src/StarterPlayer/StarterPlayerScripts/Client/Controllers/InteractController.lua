@@ -351,8 +351,9 @@ local function findNearbyInteractable(): (Instance?, string?)
 						break
 					end
 					
-					-- 폴더의 직계 자식이면 엔티티로 후보 등록
-					if check.Parent == folder then
+					-- 폴더의 직계 자식 Model이면 엔티티로 후보 등록
+					-- ★ Folder(TROPICAL 등 서브폴더)는 제외하여 속성 누락 경고 방지
+					if check.Parent == folder and check:IsA("Model") then
 						entity = entity or check
 						break
 					end

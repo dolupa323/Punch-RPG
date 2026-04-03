@@ -717,10 +717,10 @@ local function executeSkillEffects(userId: number, skillId: string, targetId: st
 		end
 	end)
 
-	-- ★ SWORD_A2 돌진: 로컬 플레이어면 전방 대시 이동
-	if skillId == "SWORD_A2" and userId == player.UserId then
-		performChargeDash(character, CHARGE_DISTANCE, CHARGE_DURATION)
-	end
+	-- ★ SWORD_A2 돌진: 위치 이동 제거 (애니메이션만 유지)
+	-- if skillId == "SWORD_A2" and userId == player.UserId then
+	-- 	performChargeDash(character, CHARGE_DISTANCE, CHARGE_DURATION)
+	-- end
 
 	-- 4. 피격 VFX + 사운드 (타겟 기준)
 	if isAxeSkill and targetId then
