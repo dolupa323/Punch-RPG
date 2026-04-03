@@ -75,6 +75,10 @@ if success then
 	local CreatureAnimationController = require(Controllers.CreatureAnimationController)
 	CreatureAnimationController.Init()
 	
+	-- CreatureHealthUIController 초기화 (크리처 HP/Torpor 바 — 클라이언트 로컬 관리)
+	local CreatureHealthUIController = require(Controllers.CreatureHealthUIController)
+	CreatureHealthUIController.Init()
+	
 	-- [추가] HitFeedbackController 초기화 (피격 연출 및 물리 보정)
 	local HitFeedbackController = require(Controllers.HitFeedbackController)
 	HitFeedbackController.Init()

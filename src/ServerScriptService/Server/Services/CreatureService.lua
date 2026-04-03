@@ -78,6 +78,7 @@ local DESPAWN_DIST = Balance.CREATURE_DESPAWN_DIST or 300 -- 150 -> 300 (LOD가 
 local CREATURE_ATTACK_COOLDOWN = 2 -- 크리처 공격 쿨다운 (초)
 local DEATH_FADE_TIME = 1.1
 local DEATH_SINK_DISTANCE = 2.5
+local NETWORK_ANIM_BUFFER = 0.1 -- ★ 유령 이빨 방지: 데미지를 애니메이션보다 늦게 적용 (네트워크 지연 보상)
 local LABEL_VISIBLE_DURATION = 6
 
 -- LOD (Level of Detail) 상수
@@ -109,7 +110,18 @@ local STUN_RECOVERY_THRESHOLD = 0 -- Torpor가 이 이하로 내려가면 깨어
 
 -- Pathfinding Constants
 local PATH_RECALC_DIST = 8 -- 목표가 이 거리 이상 움직이면 경로 재계산
-local WAYPOINT_REACH_DIST = 4 -- 웨이포인트 도달 판정 거리
+local WAYPOINT_REACH_DIST_BASE = 4 -- 웨이포인트 도달 판정 기본 거리 (소형 크리처)
+local MOVETO_RETHRESHOLD = 2 -- MoveTo 재호출 최소 거리 차이 (마이크로 스터터 방지)
+local PACK_MENTALITY_HEIGHT_DIFF = 15 -- 동족 인식 최대 고저차 (절벽 투시 방지)
+
+-- ★ 크리처 크기 기반 동적 웨이포인트 도달 거리 계산
+local function getWaypointReachDist(creature)
+	if not creature or not creature.model then return WAYPOINT_REACH_DIST_BASE end
+	local ok, _, cSize = pcall(function() return creature.model:GetBoundingBox() end)
+	if not ok or not cSize then return WAYPOINT_REACH_DIST_BASE end
+	-- 몸통 크기의 절반 + 기본 2스터드 여유, 최소 4 최대 15
+	return math.clamp(math.max(cSize.X, cSize.Z) / 2 + 2, WAYPOINT_REACH_DIST_BASE, 15)
+end
 
 local creatureFolder = workspace:FindFirstChild("Creatures") or Instance.new("Folder", workspace)
 creatureFolder.Name = "Creatures"
@@ -325,11 +337,12 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 		print(string.format("[CreatureService] Created HumanoidRootPart for model (center: %.1f, %.1f, %.1f)", center.X, center.Y, center.Z))
 	end
 	
-	-- 2. 모든 파트 Anchored = false 및 충돌 그룹 설정
+	-- 2. 모든 파트 Anchored = false 및 충돌 그룹 설정 + ★ CanQuery 보장 (히트박스 전체 적용)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false
 			part.CollisionGroup = "Creatures"
+			part.CanQuery = true  -- ★ 모든 파트를 GetPartBoundsInRadius로 감지 가능하게
 		end
 	end
 	
@@ -384,8 +397,20 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 	-- [수정] HipHeight 계산 공식: 지면에 정확히 붙도록 보정
 	-- HipHeight = HRP 바닥 ~ 모델 바닥 거리 (추가 여유 없음)
 	local modelCF, modelSize = model:GetBoundingBox()
-	local bottomToCenter = rootPart.Position.Y - (modelCF.Position.Y - modelSize.Y/2)
-	humanoid.HipHeight = math.max(0, bottomToCenter - (rootPart.Size.Y / 2))
+	-- ★ 실제 모델 바닥을 레이캐스트로 측정
+	local lowestY = math.huge
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") and part.Transparency < 0.9 then
+			local bottomY = part.Position.Y - part.Size.Y / 2
+			if bottomY < lowestY then lowestY = bottomY end
+		end
+	end
+	if lowestY == math.huge then
+		lowestY = modelCF.Position.Y - modelSize.Y / 2
+	end
+	-- HRP 바닥면에서 모델 바닥까지의 거리
+	local hrpBottom = rootPart.Position.Y - rootPart.Size.Y / 2
+	humanoid.HipHeight = math.max(0, hrpBottom - lowestY)
 	
 	-- 7. 크리처 사운드 (전투 진입 시 한 번 재생)
 	-- 에셋 폴더: Assets/Sounds/Creatures/{크리처ID}
@@ -512,107 +537,18 @@ function CreatureService.spawn(creatureId, position)
 		humanoid.Parent = model
 	end
 	
-	-- 빌보드 GUI (세련된 이름/체력 표시)
-	local modelHeight = getModelHeight(model)
-	local bg = Instance.new("BillboardGui")
-	bg.Name = "CreatureLabel"
-	bg.Size = UDim2.new(0, 100, 0, 30) -- 전체 박스 축소
-	
-	-- 바운딩 박스를 기준으로 위치 세팅 (모델 중심/Y축 고려)
-	local _, size = model:GetBoundingBox()
-	local offsetY = 2 -- 공룡/동물의 경우 머리에서 살짝만 위
-	if size.Y > 15 then -- 티렉스 같은 거대 공룡
-		offsetY = 3
-	end
-	
-	bg.StudsOffset = Vector3.new(0, (size.Y/2) + offsetY, 0)
-	bg.AlwaysOnTop = true -- 몹 몸체에 묻히지 않도록 수정
-	bg.MaxDistance = 60
-	bg.Enabled = false -- 기본 비표시: 피격 시 잠깐 노출
-	bg.Parent = rootPart
-	
-	-- 배경 (이름 + 바)
-	local mainFrame = Instance.new("Frame")
-	mainFrame.Size = UDim2.new(1, 0, 1, 0)
-	mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	mainFrame.BackgroundTransparency = 0.95 -- 유리 수준으로 매우 투명하게 변경
-	mainFrame.BorderSizePixel = 0
-	mainFrame.Parent = bg
-	
-	local cornerMain = Instance.new("UICorner")
-	cornerMain.CornerRadius = UDim.new(0, 4)
-	cornerMain.Parent = mainFrame
-	
-	-- 이름 텍스트 (레벨 포함)
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Name = "NameLabel"
-	nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
-	nameLabel.BackgroundTransparency = 1
+	-- ★ UI 데이터를 Attribute로 설정 (클라이언트에서 BillboardGui를 생성·관리)
+	-- 서버에서 GUI를 직접 조작하면 250마리분의 UI 속성 복제로 대역폭 낭비 → Attribute만 설정
 	local creatureName = data.name or creatureId
 	if data.level then
 		creatureName = "Lv." .. data.level .. " " .. creatureName
 	end
-	nameLabel.Text = creatureName
-	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	nameLabel.TextTransparency = 0.5
-	nameLabel.TextStrokeTransparency = 1 -- 텍스트 외곽선 제거
-	nameLabel.Font = Enum.Font.GothamMedium
-	nameLabel.TextSize = 8 -- 글자 사이즈 매우 작게 (10 -> 8)
-	nameLabel.Parent = mainFrame
-	
-	-- HP 바 배경
-	local healthBG = Instance.new("Frame")
-	healthBG.Name = "HealthBG"
-	healthBG.Size = UDim2.new(0.8, 0, 0.15, 0) -- 두께 아주 얇게 변경
-	healthBG.Position = UDim2.new(0.5, 0, 0.65, 0)
-	healthBG.AnchorPoint = Vector2.new(0.5, 0)
-	healthBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	healthBG.BackgroundTransparency = 1 -- 투명하게 하여 mainFrame 배경만 보이도록 유도
-	healthBG.BorderSizePixel = 0
-	healthBG.Parent = mainFrame
-	
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 4)
-	corner.Parent = healthBG
-	
-	-- HP 바 채우기
-	local healthFill = Instance.new("Frame")
-	healthFill.Name = "HealthFill"
-	healthFill.Size = UDim2.new(1, 0, 1, 0)
-	healthFill.BackgroundColor3 = Color3.fromRGB(100, 255, 100) -- 연두색 통일
-	healthFill.BackgroundTransparency = 0.6
-	healthFill.BorderSizePixel = 0
-	healthFill.Parent = healthBG
-	
-	local corner2 = corner:Clone()
-	corner2.Parent = healthFill
-	
-	-- Torpor 바 배경
-	local torporBG = Instance.new("Frame")
-	torporBG.Name = "TorporBG"
-	torporBG.Size = UDim2.new(0.8, 0, 0.1, 0) -- 두께 아주 얇게 유지
-	torporBG.Position = UDim2.new(0.5, 0, 0.85, 0)
-	torporBG.AnchorPoint = Vector2.new(0.5, 0)
-	torporBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	torporBG.BackgroundTransparency = 1
-	torporBG.BorderSizePixel = 0
-	torporBG.Parent = mainFrame
-	
-	local corner3 = corner:Clone()
-	corner3.Parent = torporBG
-	
-	-- Torpor 바 채우기
-	local torporFill = Instance.new("Frame")
-	torporFill.Name = "TorporFill"
-	torporFill.Size = UDim2.new(0, 0, 1, 0)
-	torporFill.BackgroundColor3 = Color3.fromRGB(160, 60, 220) -- 보라색
-	torporFill.BackgroundTransparency = 0.6
-	torporFill.BorderSizePixel = 0
-	torporFill.Visible = false
-	torporFill.Parent = torporBG
-	
-	local corner4 = corner:Clone()
-	corner4.Parent = torporFill
+	model:SetAttribute("DisplayName", creatureName)
+	model:SetAttribute("MaxHealth", data.maxHealth)
+	model:SetAttribute("CurrentHealth", data.maxHealth)
+	model:SetAttribute("MaxTorpor", data.maxTorpor or 100)
+	model:SetAttribute("CurrentTorpor", 0)
+	model:SetAttribute("LabelVisibleUntil", 0)
 	
 	model.Parent = creatureFolder
 	
@@ -644,14 +580,11 @@ function CreatureService.spawn(creatureId, position)
 		maxTorpor = data.maxTorpor or 100,
 		currentTorpor = 0,
 		state = "IDLE",
-		labelGui = bg,
 		labelVisibleUntil = 0,
 		targetPosition = nil,
 		lastStateChange = tick(),
 		lastUpdate = tick(),
 		lastUpdateAt = tick(),
-		gui = healthFill, -- HP 바 업데이트용
-		torporGui = torporFill, -- 기절 바 업데이트용
 	}
 	creatureCount = creatureCount + getCapWeight(data)
 	
@@ -749,13 +682,7 @@ function CreatureService.removeCreature(instanceId: string)
 	activeCreatures[instanceId] = nil
 	creatureCount = creatureCount - weight
 	
-	-- 시각적 제거 (BillboardGui 및 관련 UI 명시적 파괴)
-	if creature.rootPart then
-		local label = creature.rootPart:FindFirstChild("CreatureLabel")
-		if label then label:Destroy() end
-	end
-	if creature.gui then creature.gui:Destroy() end
-	if creature.torporGui then creature.torporGui:Destroy() end
+	-- 시각적 제거 (클라이언트 BillboardGui는 모델 제거 시 자동 정리됨)
 	
 	if creature.model then
 		-- 연출을 위해 투명화 후 제거
@@ -779,6 +706,20 @@ local function playNaturalDeathSequence(creature)
 
 	local model = creature.model
 	local rootPart = creature.rootPart
+
+	-- ★ 시체 방패 방지: 즉시 모든 파트의 충돌/쿼리 비활성화 (HarvestService 등록 여부와 무관)
+	model:SetAttribute("IsDead", true)
+	for _, inst in ipairs(model:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			inst.CanCollide = false
+			inst.CanTouch = false
+			inst.CanQuery = false
+		end
+	end
+	-- ★ rootPart만 CanQuery 유지: HarvestService 시체 채집 감지에 필요
+	if rootPart and rootPart.Parent then
+		rootPart.CanQuery = true
+	end
 
 	if creature.humanoid then
 		creature.humanoid.WalkSpeed = 0
@@ -805,9 +746,6 @@ local function playNaturalDeathSequence(creature)
 	-- 시체 등록 실패 시 기존 사망 연출 (페이드 + 하강)으로 폴백
 	for _, inst in ipairs(model:GetDescendants()) do
 		if inst:IsA("BasePart") then
-			inst.CanCollide = false
-			inst.CanTouch = false
-			inst.CanQuery = false
 			TweenService:Create(inst, TweenInfo.new(DEATH_FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Transparency = 1,
 			}):Play()
@@ -842,8 +780,11 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 	creature.currentHealth = math.max(0, creature.currentHealth - hpDamage)
 	creature.currentTorpor = math.min(creature.maxTorpor, creature.currentTorpor + torporDamage)
 	creature.labelVisibleUntil = tick() + LABEL_VISIBLE_DURATION
-	if creature.labelGui then
-		creature.labelGui.Enabled = true
+	-- ★ Attribute 갱신 (클라이언트에서 UI 반영)
+	if creature.model then
+		creature.model:SetAttribute("CurrentHealth", creature.currentHealth)
+		creature.model:SetAttribute("CurrentTorpor", creature.currentTorpor)
+		creature.model:SetAttribute("LabelVisibleUntil", creature.labelVisibleUntil)
 	end
 	
 	creature.humanoid.Health = creature.currentHealth
@@ -859,7 +800,11 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
 			setCreatureState(creature, "STUNNED")
-			creature.humanoid.PlatformStand = true 
+			creature.humanoid.PlatformStand = true
+			-- ★ 경사로 슬라이딩 방지: Anchored로 위치 고정
+			if creature.rootPart then
+				creature.rootPart.Anchored = true
+			end
 			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
 		elseif creature.state ~= "STUNNED" then
 			-- 피격 시 어그로/도망
@@ -884,8 +829,25 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 			local pPos = creature.rootPart.Position
 			for _, other in pairs(activeCreatures) do
 				if other.id ~= instanceId and other.creatureId == creature.creatureId then
-					local dist = (other.rootPart.Position - pPos).Magnitude
+					local otherPos = other.rootPart.Position
+					local dist = (otherPos - pPos).Magnitude
 					if dist < (Balance.PACK_AGGRO_RADIUS or 50) then
+						-- ★ 고저차 체크: 절벽 위/아래 투시 방지
+						local heightDiff = math.abs(otherPos.Y - pPos.Y)
+						if heightDiff > PACK_MENTALITY_HEIGHT_DIFF then
+							continue
+						end
+						
+						-- ★ 시야(LOS) 확인: 중간에 지형 장애물이 있으면 감지 불가
+						local losParams = RaycastParams.new()
+						losParams.FilterDescendantsInstances = { creature.model, other.model, creatureFolder }
+						losParams.FilterType = Enum.RaycastFilterType.Exclude
+						local losRay = workspace:Raycast(pPos, (otherPos - pPos), losParams)
+						if losRay and (losRay.Position - otherPos).Magnitude > 5 then
+							-- 지형에 막혀서 시야가 없음 → 동족 인식 실패
+							continue
+						end
+						
 						if other.state == "IDLE" or other.state == "WANDER" then
 							local otherOldState = other.state
 							if other.data.behavior ~= "PASSIVE" then
@@ -906,27 +868,8 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 		end
 	end
 	
-	-- 3. GUI 갱신
-	if creature.gui then
-		local hpRatio = math.clamp(creature.currentHealth / creature.maxHealth, 0, 1)
-		creature.gui.Size = UDim2.new(hpRatio, 0, 1, 0)
-		
-		-- HP 색상
-		if hpRatio > 0.5 then
-			creature.gui.BackgroundColor3 = Color3.fromRGB(60, 220, 60)
-		elseif hpRatio > 0.2 then
-			creature.gui.BackgroundColor3 = Color3.fromRGB(220, 180, 60)
-		else
-			creature.gui.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-		end
-	end
-	
-	-- 기절 바 업데이트 (별도 GUI 레이아웃 필요 시 수정)
-	if creature.torporGui then
-		local torporRatio = math.clamp(creature.currentTorpor / creature.maxTorpor, 0, 1)
-		creature.torporGui.Size = UDim2.new(torporRatio, 0, 1, 0)
-		creature.torporGui.Visible = torporRatio > 0
-	end
+	-- 3. GUI 갱신 → Attribute 기반으로 클라이언트에서 처리 (서버 복제 대역폭 절감)
+	-- (CurrentHealth, CurrentTorpor, LabelVisibleUntil은 위에서 이미 설정됨)
 
 	-- 4. 사망 처리
 	if creature.currentHealth <= 0 then
@@ -1409,10 +1352,8 @@ function CreatureService._updateAILoop()
 		local hrp = creature.rootPart
 		if not hrp then continue end
 
-		if creature.labelGui then
-			local untilTs = creature.labelVisibleUntil or 0
-			creature.labelGui.Enabled = untilTs > now and creature.currentHealth > 0
-		end
+		-- ★ 라벨 표시 타이머: Attribute 기반으로 클라이언트에서 처리
+		-- (클라이언트의 CreatureHealthUIController가 LabelVisibleUntil Attribute를 감시)
 		
 		-- 위에서 미리 계산된 근접 데이터 활용
 		local minDist = creature.minDist or 9999
@@ -1462,17 +1403,19 @@ function CreatureService._updateAILoop()
 		if creature.currentTorpor > 0 then
 			creature.currentTorpor = math.max(0, creature.currentTorpor - (TORPOR_DECAY_RATE * dt))
 			
-			-- GUI 갱신
-			if creature.torporGui then
-				local torporRatio = math.clamp(creature.currentTorpor / creature.maxTorpor, 0, 1)
-				creature.torporGui.Size = UDim2.new(torporRatio, 0, 1, 0)
-				creature.torporGui.Visible = torporRatio > 0
+			-- ★ Torpor Attribute 갱신 (클라이언트 UI 반영)
+			if creature.model then
+				creature.model:SetAttribute("CurrentTorpor", creature.currentTorpor)
 			end
 			
 			-- 기절 회복 체크
 			if creature.state == "STUNNED" and creature.currentTorpor <= STUN_RECOVERY_THRESHOLD then
 				setCreatureState(creature, "IDLE")
 				creature.humanoid.PlatformStand = false
+				-- ★ 기절 해제: Anchored 해제하여 다시 이동 가능하게
+				if creature.rootPart then
+					creature.rootPart.Anchored = false
+				end
 				print(string.format("[CreatureService] %s recovered from STUN!", id))
 			end
 		end
@@ -1482,22 +1425,87 @@ function CreatureService._updateAILoop()
 			-- 베이스 팰은 야생 AI 로직(Despawn, Hunger, Aggro 등)을 타지 않음
 			-- 오직 TASK 상태에서의 이동만 처리함
 			if creature.state == "TASK" and creature.targetPosition then
-				-- 이동 로직만 수행하고 나머지는 스킵
 				local target = creature.targetPosition
+				local wpReachDist = getWaypointReachDist(creature)
 				local needsNewPath = false
-				if not creature.pathData or (creature.pathData.targetPos - target).Magnitude > PATH_RECALC_DIST then
+				if not creature.pathData then
+					needsNewPath = true
+				elseif (creature.pathData.targetPos - target).Magnitude > PATH_RECALC_DIST then
+					needsNewPath = true
+				elseif creature.pathData.currentIndex > #creature.pathData.waypoints then
 					needsNewPath = true
 				end
 				
+				-- ★ PathfindingService를 사용하여 베이스 내 장애물(벽, 시설물) 우회
 				if needsNewPath then
-					creature.pathData = { waypoints = {{Position = target}}, currentIndex = 1, targetPos = target, lastRecalc = now }
+					if not creature.lastPathCompute or (now - creature.lastPathCompute) >= 1.0 then
+						creature.lastPathCompute = now
+						local startPos = hrp.Position
+						local targetPos = target
+						
+						-- 장애물 유무 확인 (Raycast)
+						local rayParams = RaycastParams.new()
+						rayParams.FilterDescendantsInstances = { creature.model, creatureFolder, workspace.Terrain }
+						rayParams.FilterType = Enum.RaycastFilterType.Exclude
+						local rayResult = workspace:Raycast(startPos, (targetPos - startPos), rayParams)
+						local isObstructed = rayResult and (rayResult.Position - targetPos).Magnitude > 3
+						
+						if isObstructed then
+							-- 장애물 있음 → Pathfinding 사용
+							task.spawn(function()
+								local _, cSize = creature.model:GetBoundingBox()
+								local agentRadius = math.clamp(math.max(cSize.X, cSize.Z) / 2, 2, 8)
+								local agentHeight = math.clamp(cSize.Y, 4, 12)
+								
+								local path = PathfindingService:CreatePath({
+									AgentRadius = agentRadius,
+									AgentHeight = agentHeight,
+									AgentCanJump = false,
+									AgentStepHeight = math.clamp(agentHeight * 0.3, 1, 4),
+								})
+								local ok = pcall(function() path:ComputeAsync(startPos, targetPos) end)
+								local latest = activeCreatures[creature.id]
+								if not latest then return end
+								
+								if ok and path.Status == Enum.PathStatus.Success then
+									local waypoints = path:GetWaypoints()
+									local startIndex = (#waypoints >= 2) and 2 or 1
+									latest.pathData = {
+										waypoints = waypoints,
+										currentIndex = startIndex,
+										targetPos = targetPos,
+										lastRecalc = now,
+									}
+								else
+									-- 경로 계산 실패 시 직선 폴백
+									latest.pathData = { waypoints = {{Position = targetPos}}, currentIndex = 1, targetPos = targetPos, lastRecalc = now }
+								end
+							end)
+						else
+							-- 장애물 없음 → 직선 이동
+							creature.pathData = { waypoints = {{Position = targetPos}}, currentIndex = 1, targetPos = targetPos, lastRecalc = now }
+						end
+					end
 				end
 				
+				-- 웨이포인트 이동 실행
 				if creature.pathData and creature.pathData.currentIndex <= #creature.pathData.waypoints then
 					local wp = creature.pathData.waypoints[creature.pathData.currentIndex]
-					humanoid:MoveTo(wp.Position)
-					if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
+					local wpPos = wp.Position or wp
+					if not creature.lastMoveToPos or (creature.lastMoveToPos - wpPos).Magnitude > MOVETO_RETHRESHOLD then
+						humanoid:MoveTo(wpPos)
+						creature.lastMoveToPos = wpPos
+					end
+					if (hrp.Position - wpPos).Magnitude < wpReachDist then
 						creature.pathData.currentIndex = creature.pathData.currentIndex + 1
+						-- ★ 목표 도달 확인: 모든 웨이포인트 완료 시 IDLE로 복귀
+						if creature.pathData.currentIndex > #creature.pathData.waypoints then
+							creature.targetPosition = nil
+							creature.pathData = nil
+							setCreatureState(creature, "IDLE")
+							humanoid:MoveTo(hrp.Position)
+							creature.lastMoveToPos = hrp.Position
+						end
 					end
 				end
 			else
@@ -1596,6 +1604,8 @@ function CreatureService._updateAILoop()
 			elseif newState == "WANDER" then
 				creature.stateDuration = getRandomDuration(WANDER_MIN_TIME, WANDER_MAX_TIME)
 			end
+			-- ★ 상태 전환 시 MoveTo 캐시 초기화 (새 상태의 첫 MoveTo가 즉시 실행되도록)
+			creature.lastMoveToPos = nil
 		end
 		
 		-- 4. Behavior Execution
@@ -1613,48 +1623,37 @@ function CreatureService._updateAILoop()
 		local isNearWater = not isInWater and CreatureService._isNearWater(hrp.Position)
 		
 		if isNearWater and creature.state ~= "IDLE" then
-			-- 물 근처에 접근: 즉시 이동 취소 + 육지 쪽으로 방향 전환
+			-- 물 근처에 접근: 이동 취소 + 육지 쪽으로 걸어서 후퇴
 			creature.targetPosition = nil
 			creature.pathData = nil
 			local landDir = CreatureService._findLandDirection(hrp.Position)
 			if landDir then
 				local retreatTarget = hrp.Position + landDir * (WATER_MARGIN + 5)
 				humanoid:MoveTo(retreatTarget)
-			else
-				humanoid:MoveTo(hrp.Position) -- 정지
 			end
-			setCreatureState(creature, "IDLE")
+			-- ★ WANDER 상태로 전환 (걸어서 이동 애니메이션 유지)
+			setCreatureState(creature, "WANDER")
 			creature.stateDuration = getRandomDuration(IDLE_MIN_TIME, IDLE_MAX_TIME)
 			continue
 		end
 		
 		if isInWater then
-			-- 긴급: 즉시 육지로 복귀
+			-- ★ 물에 빠진 경우: 순간이동 대신 걸어서 나오기
 			local landDir = CreatureService._findLandDirection(hrp.Position)
 			if landDir then
-				local escapeTarget = hrp.Position + landDir * 30
-				-- Raycast로 실제 육지 높이 찾기
-				local rayParams = RaycastParams.new()
-				rayParams.FilterDescendantsInstances = { workspace.Terrain }
-				rayParams.FilterType = Enum.RaycastFilterType.Include
-				local rayResult = workspace:Raycast(escapeTarget + Vector3.new(0, 100, 0), Vector3.new(0, -200, 0), rayParams)
-				if rayResult and rayResult.Position.Y >= SEA_LEVEL then
-					-- 안전한 육지 발견 → 즉시 텔레포트
-					local safePos = rayResult.Position + Vector3.new(0, 3, 0)
-					hrp.CFrame = CFrame.new(safePos)
-					creature.targetPosition = nil
-					setCreatureState(creature, "IDLE")
-					creature.stateDuration = getRandomDuration(IDLE_MAX_TIME, IDLE_MAX_TIME + 5) -- 물 탈출 후 충분히 대기
-				else
-					-- 육지 못 찾으면 위로 이동
-					hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
-				end
+				local escapeTarget = hrp.Position + landDir * 40
+				-- ★ MoveTo로 자연스럽게 이동 (텔레포트/점프 없음)
+				humanoid.WalkSpeed = (creature.data.walkSpeed or 16) * 1.5
+				humanoid:MoveTo(escapeTarget)
+				setCreatureState(creature, "WANDER")
+				creature.targetPosition = escapeTarget
+				creature.stateDuration = 5
 			else
-				-- 방향도 못 찾으면 높이 올리기
-				hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
+				-- 육지 방향 못 찾으면 위로만 약간 올리고 다시 시도
+				hrp.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+				humanoid:MoveTo(hrp.Position)
 			end
-			humanoid:MoveTo(hrp.Position) -- 정지
-			humanoid:MoveTo(hrp.Position) -- 정지
+			continue -- ★ 물 탈출 로직 후 나머지 AI 로직 스킵
 		elseif creature.state == "CHASE" or creature.state == "WANDER" or creature.state == "FLEE" then
 			local currentZone = getProtectedZoneInfo(hrp.Position)
 			if currentZone then
@@ -1745,14 +1744,22 @@ function CreatureService._updateAILoop()
 					continue
 				end
 
-				-- [추가] 공격 사거리 내에 있으면 플레이어를 바라보고 정지 (공격 집중)
-				if creature.state == "CHASE" and isInAttackRange then
+				-- [추가] 공격 사거리 내에 있거나 공격 애니메이션 중이면 정지 (미끄러짐 방지)
+				if creature.state == "CHASE" and (isInAttackRange or (creature.attackingUntil and now < creature.attackingUntil)) then
+					-- ★ 공격 중 WalkSpeed=0: Humanoid 내부 물리가 이동력을 재적용하는 것을 원천 차단
+					humanoid.WalkSpeed = 0
 					humanoid:MoveTo(hrp.Position)
-					-- 플레이어 방향으로 회전
+					creature.lastMoveToPos = hrp.Position
+					-- ★ 관성 제거: 수평 속도 즉시 0으로
+					hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+					-- ★ 부드러운 회전 (Lerp) — 팡이처럼 도는 순간 회전 방지
 					if closestPlayerPos then
 						local dir = (closestPlayerPos - hrp.Position) * Vector3.new(1, 0, 1)
 						if dir.Magnitude > 0.1 then
-							hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + dir.Unit)
+							local targetCF = CFrame.lookAt(hrp.Position, hrp.Position + dir.Unit)
+							-- ★ 현재 방향에서 목표 방향으로 30% Lerp (매 AI 틱마다 점진적 회전)
+							local turnAlpha = math.clamp(updateInterval * 3, 0.1, 0.4)
+							hrp.CFrame = hrp.CFrame:Lerp(targetCF, turnAlpha)
 						end
 					end
 				else
@@ -1790,6 +1797,13 @@ function CreatureService._updateAILoop()
 						if isObstructed then
 							creature.lastPathCompute = now
 							creature.pathComputeInFlight = true
+							-- ★ 경로 계산 중 관성 방지: 이전 경로 무효화 + 즉시 정지
+							-- ComputeAsync 0.1~0.3초 동안 이전 방향으로 질주하는 것을 차단
+							creature.pathData = nil
+							humanoid:MoveTo(hrp.Position)
+							creature.lastMoveToPos = hrp.Position
+							hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+							
 							creature.pathReqToken = (creature.pathReqToken or 0) + 1
 							local reqToken = creature.pathReqToken
 							local creatureId = creature.id
@@ -1798,11 +1812,19 @@ function CreatureService._updateAILoop()
 							local recalcAt = now
 
 							task.spawn(function()
+								-- ★ 크리처 바운딩박스 기반 동적 NavMesh 파라미터
+							local ok2, _, cSize = pcall(function() return creature.model:GetBoundingBox() end)
+							if not ok2 or not cSize then
+								local latest = activeCreatures[creatureId]
+								if latest then latest.pathComputeInFlight = false end
+								return
+							end
+								
 								local path = PathfindingService:CreatePath({
-									AgentRadius = 3,
-									AgentHeight = 6,
+									AgentRadius = agentRadius,
+									AgentHeight = agentHeight,
 									AgentCanJump = true,
-									AgentStepHeight = 4,
+									AgentStepHeight = math.clamp(agentHeight * 0.3, 2, 6),
 								})
 
 								local ok = pcall(function()
@@ -1840,7 +1862,11 @@ function CreatureService._updateAILoop()
 						else
 							-- 3. 장애물 없음 → 직접 이동 (최우선)
 							creature.pathData = nil
-							humanoid:MoveTo(target)
+							-- ★ MoveTo 반복 호출 방지: 목표가 유의미하게 바뀔 때만 재호출
+							if not creature.lastMoveToPos or (creature.lastMoveToPos - target).Magnitude > MOVETO_RETHRESHOLD then
+								humanoid:MoveTo(target)
+								creature.lastMoveToPos = target
+							end
 						end
 					end
 					
@@ -1852,24 +1878,30 @@ function CreatureService._updateAILoop()
 							creature.pathData = nil
 							creature.targetPosition = nil
 							humanoid:MoveTo(hrp.Position) -- 정지
+							creature.lastMoveToPos = hrp.Position
 						else
-							humanoid:MoveTo(wp.Position)
+							-- ★ 같은 웨이포인트에 대해 반복 호출 방지
+							if not creature.lastMoveToPos or (creature.lastMoveToPos - wp.Position).Magnitude > MOVETO_RETHRESHOLD then
+								humanoid:MoveTo(wp.Position)
+								creature.lastMoveToPos = wp.Position
+							end
 							if wp.Action == Enum.PathWaypointAction.Jump then humanoid.Jump = true end
-							if (hrp.Position - wp.Position).Magnitude < WAYPOINT_REACH_DIST then
+							local wpReach = getWaypointReachDist(creature)
+							if (hrp.Position - wp.Position).Magnitude < wpReach then
 								creature.pathData.currentIndex = creature.pathData.currentIndex + 1
 							end
 						end
 					elseif not creature.pathData then
-						-- 직접 이동 중인 경우 타겟 방향 실시간 갱신
-						humanoid:MoveTo(target)
+						-- 직접 이동 중인 경우 — pathData nil이므로 위에서 이미 MoveTo 처리됨
+						-- ★ 중복 MoveTo 호출 제거 (같은 틱에서 이미 호출했으므로 스킵)
 					end
 				end
 			end
 
 			-- 3. 속도 설정
 			if creature.state == "CHASE" then
-				-- 공격 사거리 내 도달 시 정지 (제자리 달리기 방지)
-				if isInAttackRange then
+				-- 공격 사거리 내 또는 공격 애니메이션 중이면 정지 (아이스 스케이팅 방지)
+				if isInAttackRange or (creature.attackingUntil and now < creature.attackingUntil) then
 					humanoid.WalkSpeed = 0
 				else
 					humanoid.WalkSpeed = creature.data.runSpeed or 20
@@ -1916,18 +1948,20 @@ function CreatureService._updateAILoop()
 
 					if not creature.lastAttackTime or (now - creature.lastAttackTime >= (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN)) then
 						creature.lastAttackTime = now
+						-- ★ 공격 딘레이 동안 이동 차단 (미끄러짐 방지)
+						local baseDelay = creature.data.attackDelay or 0.3
+						local isTrike = (creature.data.id == "TRICERATOPS" or creature.data.id == "BABY_TRICERATOPS")
+						local isClose = (headDist <= attackRange * 0.6)
+						local attackDelay = (isClose and isTrike) and math.min(baseDelay, 0.6) or baseDelay
+						creature.attackingUntil = now + attackDelay + NETWORK_ANIM_BUFFER + 0.15 -- 애니메이션 여유 + 네트워크 보상
 						if closestPlayerHum and closestPlayerHum.Health > 0 then
-							-- 근접 여부 판단 (공격사거리 60% 이내 = 이미 밀착)
-							local isClose = (headDist <= attackRange * 0.6)
 							if NetController then
 								NetController.FireAllClients("Creature.Attack.Play", { instanceId = id, targetUserId = closestPlayerUserId, isClose = isClose })
 							end
-							
-							-- [수정] 근접 시 돌진 시간 생략하여 딜레이 단축
-							local baseDelay = creature.data.attackDelay or 0.3
-							local isTrike = (creature.data.id == "TRICERATOPS" or creature.data.id == "BABY_TRICERATOPS")
-							local attackDelay = (isClose and isTrike) and math.min(baseDelay, 0.6) or baseDelay
-							task.delay(attackDelay, function()
+
+							-- ★ 유령 이빨 방지: 네트워크 지연만큼 데미지 판정을 뒤로 밀어
+							-- 클라이언트가 애니메이션을 수신·재생한 뒤에 데미지가 들어오도록 함
+							task.delay(attackDelay + NETWORK_ANIM_BUFFER, function()
 								-- 1. 활성 상태 및 거리 재확인 (피했을 경우 판정 무효)
 								local currentCreature = activeCreatures[id]
 								if not currentCreature or not currentCreature.model or not currentCreature.model.Parent then return end
@@ -1944,9 +1978,22 @@ function CreatureService._updateAILoop()
 								if not playerHrp then return end
 								if getProtectedZoneInfo(playerHrp.Position) then return end
 								
-								local currentDist = (currentCreature.model.PrimaryPart.Position - playerHrp.Position).Magnitude
-								-- 판정 관용도: 원래 사거리의 1.3배까지 인정 (돌진 중일 수 있음)
-								if currentDist <= attackRange * 1.3 then
+								-- ★ 머리(Head) 기준 거리로 판정 (공격 개시 기준과 일치시킴)
+								-- 목이 긴 크리처(브론토 등)가 머리 기준으로 공격 시작했으므로
+								-- 데미지 판정도 머리 기준이어야 함. 머리가 없으면 PrimaryPart 폴백
+								local primaryPos = currentCreature.model.PrimaryPart.Position
+								local attackOrigin = primaryPos
+								local headOffset = 0
+								local head = currentCreature.model:FindFirstChild("Head", true) or currentCreature.model:FindFirstChild("Neck", true)
+								if head and head:IsA("BasePart") then
+									attackOrigin = head.Position
+									-- ★ 목 오프셋: PrimaryPart↔Head 거리 (목이 길수록 관용도 증가)
+									headOffset = (head.Position - primaryPos).Magnitude
+								end
+								local currentDist = (attackOrigin - playerHrp.Position).Magnitude
+								-- 판정 관용도: 사거리 1.3배 + 목 오프셋의 50%
+								-- (공격 애니메이션으로 머리가 흔들려도 판정 유지)
+								if currentDist <= attackRange * 1.3 + headOffset * 0.5 then
 									local CombatService = require(game:GetService("ServerScriptService").Server.Services.CombatService)
 									CombatService.damagePlayer(closestPlayerUserId, dmg, currentCreature.rootPart.Position, id)
 								end
@@ -1987,20 +2034,8 @@ function CreatureService._updateAILoop()
 			end
 		end
 		
-		-- GUI 업데이트 (HP 바 크기 조절)
-		if creature.gui then
-			local ratio = math.clamp(creature.currentHealth / creature.maxHealth, 0, 1)
-			creature.gui.Size = UDim2.new(ratio, 0, 1, 0)
-			
-			-- 체력에 따른 색상 변화
-			if ratio > 0.5 then
-				creature.gui.BackgroundColor3 = Color3.fromRGB(60, 220, 60)
-			elseif ratio > 0.2 then
-				creature.gui.BackgroundColor3 = Color3.fromRGB(220, 180, 60)
-			else
-				creature.gui.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-			end
-		end
+		-- ★ GUI 업데이트 제거 — 클라이언트에서 Attribute 기반으로 처리
+		-- (CurrentHealth는 processAttack에서 이미 Attribute에 반영됨)
 	end
 end
 

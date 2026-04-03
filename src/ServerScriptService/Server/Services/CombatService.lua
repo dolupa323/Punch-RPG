@@ -73,6 +73,8 @@ local staggeredPlayers = {} -- [userId] = true (중복 경직 방지)
 
 local function applyContactKnockback(userId, creaturePos)
 	if staggeredPlayers[userId] then return end
+	-- ★ 구르기 무적 프레임 존중: 무적 상태면 접촉 밀어내기/경직 무시
+	if CombatService.isPlayerInvulnerable(userId) then return end
 	local player = Players:GetPlayerByUserId(userId)
 	if not player or not player.Character then return end
 	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
@@ -88,8 +90,10 @@ local function applyContactKnockback(userId, creaturePos)
 		pushDir = pushDir.Unit
 	end
 
-	-- 밀어내기
-	hrp.AssemblyLinearVelocity = pushDir * CONTACT_KNOCKBACK_FORCE + Vector3.new(0, 4, 0)
+	-- ★ 서버에서 AssemblyLinearVelocity 직접 조작 제거
+	-- 플레이어 캐릭터는 클라이언트 소유(Network Ownership)이므로
+	-- 서버에서 속도를 바꾸면 클라이언트 이동 입력과 충돌 → Rubberbanding 발생
+	-- 넉백은 클라이언트 이벤트로 전달하여 클라이언트에서 처리
 
 	-- 짧은 경직 (StaminaService 경유 속도 배율 적용)
 	staggeredPlayers[userId] = true
@@ -97,12 +101,13 @@ local function applyContactKnockback(userId, creaturePos)
 		StaminaService.setStagger(userId, 0.15, CONTACT_STAGGER_DURATION)
 	end
 	
-	-- 클라이언트에 접촉 경직 알림 (화면 효과용)
+	-- 클라이언트에 접촉 경직 + 넉백 정보 전송 (클라이언트에서 물리 적용)
 	if NetController then
 		local plr = Players:GetPlayerByUserId(userId)
 		if plr then
 			NetController.FireClient(plr, "Combat.Contact.Stagger", {
 				sourcePos = {creaturePos.X, creaturePos.Y, creaturePos.Z},
+				knockbackForce = CONTACT_KNOCKBACK_FORCE,
 			})
 		end
 	end
@@ -542,8 +547,10 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		dist = (p1 - p2).Magnitude
 	end
 	
-	-- 활은 조준 시간 기반 유효 사거리로 엄격 검증, 근접 무기는 기존 완화 검증 유지
-	local allowedRange = isBowShot and (bowEffectiveRange or range) or (range + 50)
+	-- ★ 서버 거리 검증: 근접 무기도 합리적인 관용도 적용
+	-- 근접: range + 8 (네트워크 지연 + 대형 크리처 히트박스 보정)
+	-- 활: 조준 시간 기반 유효 사거리 + 2 (비행 시간 보정)
+	local allowedRange = isBowShot and (bowEffectiveRange or range) or (range + 8)
 	if dist > allowedRange + (isBowShot and 2 or 0) then 
 		return false, Enums.ErrorCode.OUT_OF_RANGE
 	end
@@ -797,24 +804,17 @@ function CombatService.damagePlayer(userId: number, rawDamage: number, sourcePos
 	-- 4. 데미지 적용
 	humanoid:TakeDamage(finalDamage)
 	
-	-- 5. ★ 물리적 피격 피드백 (넉백 + 클라이언트 연출)
-	if sourcePos then
-		-- 반대 방향으로 밀어냄
-		local diff = (hrp.Position - sourcePos)
-		local dir = Vector3.new(diff.X, 0, diff.Z).Unit
-		
-		-- 넉백 강도 상향 및 Y축 방향성 추가 (살짝 뜨게 하여 마찰력 무시)
-		hrp.AssemblyLinearVelocity = dir * (Balance.KNOCKBACK_FORCE or 25) + Vector3.new(0, 15, 0)
-		
-		-- [추가] 눕기/넘어짐 방지를 위해 서버에서도 상태 강제 고정
-		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-	end
+	-- 5. ★ 넉백을 클라이언트로 이관
+	-- 플레이어 캐릭터는 클라이언트 소유(Network Ownership)이므로
+	-- 서버에서 AssemblyLinearVelocity를 바꾸면 Rubberbanding 발생
+	-- 넉백 정보를 이벤트에 담아 클라이언트에서 직접 물리를 적용
 	
-	-- 6. 클라이언트 연출 요청 (화면 흔들림, 피격 효과 등)
+	-- 6. 클라이언트 연출 요청 (화면 흔들림, 피격 효과, 넉백 등)
 	if NetController then
 		NetController.FireClient(player, "Combat.Player.Hit", {
 			damage = finalDamage,
-			sourcePos = sourcePos
+			sourcePos = sourcePos,
+			knockbackForce = sourcePos and (Balance.KNOCKBACK_FORCE or 25) or nil,
 		})
 	end
 	

@@ -107,9 +107,19 @@ local function updateCreatureAnimation(model, info)
 		return 
 	end
 	
-	-- 1. 속도 기반 상태 측정
+	-- 1. 속도 기반 상태 측정 (★ EMA 스무딩 적용 — 네트워크 지연으로 인한 떨림 방지)
 	local velocity = rootPart.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
-	local speed = velocity.Magnitude
+	local rawSpeed = velocity.Magnitude
+	local smoothing = 0.25 -- EMA 계수 (0~1, 낮을수록 부드러움)
+	info.smoothedSpeed = info.smoothedSpeed and (info.smoothedSpeed + (rawSpeed - info.smoothedSpeed) * smoothing) or rawSpeed
+	local speed = info.smoothedSpeed
+	
+	-- ★ 넉백 달리기 모션 방지: 실제 WalkSpeed 대비 비정상적으로 빠르면 외부 충격(넉백)
+	-- WalkSpeed의 1.5배 이상 속도 → 자발적 이동이 아닌 물리 충격으로 판단하여 속도 0 취급
+	local walkSpeed = humanoid.WalkSpeed
+	if walkSpeed < 0.1 or speed > walkSpeed * 1.5 then
+		speed = 0
+	end
 	
 	-- 2. 대상 애니메이션 결정
 	local targetAnimName = getAnimNameForState(model, speed, info)
@@ -268,6 +278,16 @@ function CreatureAnimationController.Init()
 						local isTrike = (creatureId == "TRICERATOPS" or creatureId == "BABY_TRICERATOPS")
 						local isClose = data.isClose
 						
+						-- ★ 공격 중 미끄러짐 방지: WalkSpeed를 0으로 설정하여 관성 이동 차단
+						local savedWalkSpeed = humanoid.WalkSpeed
+						if savedWalkSpeed < 1 then savedWalkSpeed = model:GetAttribute("DefaultWalkSpeed") or 16 end
+						humanoid.WalkSpeed = 0
+						-- ★ 잔류 속도도 제거하여 즉각 정지
+						local rp = model.PrimaryPart
+						if rp then
+							rp.AssemblyLinearVelocity = Vector3.new(0, rp.AssemblyLinearVelocity.Y, 0)
+						end
+						
 						-- 1. 공격 준비 (ATTACK 애니메이션)
 						local prepTrack = AnimationManager.play(humanoid, attackAnimName, 0.1)
 						if prepTrack then
@@ -293,9 +313,13 @@ function CreatureAnimationController.Init()
 							end
 						end
 						
-						-- 애니메이션이 완전히 끝난 후 공격 상태 해제
+						-- ★ 공격 상태 해제 + WalkSpeed 복원 (보호 로직 강화)
+						-- 모델 생존 여부와 무관하게 isAttacking은 반드시 해제
 						task.wait(0.1)
 						info.isAttacking = false
+						if model.Parent and humanoid.Parent then
+							humanoid.WalkSpeed = savedWalkSpeed
+						end
 					end)
 				end
 			end

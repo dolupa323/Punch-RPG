@@ -1036,8 +1036,13 @@ local function findTarget()
 				local dot = lookFlat:Dot(toTargetFlat)
 				local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
 				
-				-- 사거리 이내 & 정면 부근(75도)인 것들만 수집
-				if flatDist <= reach + 5 and angle <= (Balance.REACH_ANGLE or 75) then
+				-- ★ 초근접 사각지대 방지: 거리가 리치의 30% 이내(또는 3스터드)이면
+				-- 대형 공룡 다리 사이 등에서 각도 왜곡이 극심하므로 각도 검증 생략
+				local closeThreshold = math.max(reach * 0.3, 3)
+				local angleOk = flatDist <= closeThreshold or angle <= (Balance.REACH_ANGLE or 75)
+				
+				-- 사거리 이내 & (초근접 or 정면 부근)인 것들만 수집
+				if flatDist <= reach + 5 and angleOk then
 					reachableTargets[id] = {model=model, pos=targetPos, id=id, type=tType, dist=flatDist, angle=angle}
 				end
 			end
@@ -1231,22 +1236,24 @@ function CombatController.attack(attackMeta)
 			
 			if conn then conn:Disconnect() end
 
-			-- [FX] 타격 피드백 (카메라 쉐이크 & 대상 흔들림)
+			-- [FX] 타격 피드백 (카메라 쉐이크 & Highlight 플래시)
 			playHitShake(0.5) -- 더욱 강한 쉐이크 (기존 0.3)
-			local char = player.Character
-			if ACTION_EFFECTS_ENABLED and targetType ~= "structure" and targetModel and char and char.PrimaryPart then
-				local targetPos = targetModel:GetPivot().Position
-				local charPos = char.PrimaryPart.Position
-				local origCFrame = targetModel:GetPivot()
-				
+			-- ★ PivotTo 제거: 서버 소유(SetNetworkOwner(nil)) 크리처를 클라이언트에서
+			-- 움직이면 서버 물리 롤백으로 극심한 떨림(Rubberbanding)이 발생하므로
+			-- Highlight 플래시로 대체하여 물리 간섭 없이 시각적 피드백 제공
+			if ACTION_EFFECTS_ENABLED and targetType ~= "structure" and targetModel then
 				task.spawn(function()
-					local shakeDir = (targetPos - charPos).Unit
-					-- 2단계 흔들기로 반동 연출 (더욱 큰 피드백)
-					targetModel:PivotTo(origCFrame * CFrame.new(shakeDir * 0.6))
-					task.wait(0.04)
-					targetModel:PivotTo(origCFrame * CFrame.new(-shakeDir * 0.2))
-					task.wait(0.04)
-					targetModel:PivotTo(origCFrame)
+					local highlight = Instance.new("Highlight")
+					highlight.Name = "HitFlash"
+					highlight.FillColor = Color3.fromRGB(255, 255, 255)
+					highlight.OutlineColor = Color3.fromRGB(255, 200, 100)
+					highlight.FillTransparency = 0.7
+					highlight.OutlineTransparency = 0
+					highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+					highlight.Adornee = targetModel
+					highlight.Parent = targetModel
+					task.wait(0.08)
+					highlight:Destroy()
 				end)
 			end
 
