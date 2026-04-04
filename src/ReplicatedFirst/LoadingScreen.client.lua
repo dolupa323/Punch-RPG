@@ -301,8 +301,11 @@ task.spawn(function()
 	end
 	
 	if hrp then
-		-- 플레이어를 아주 높은 하늘로 이동 & 고정하여 공룡 타겟팅(공격) 방지
+		-- *** 매우 중요 *** Anchored=true를 먼저 설정 (물리 엔진 작동 방지)
 		hrp.Anchored = true
+		-- 프레임 대기: Anchored 설정이 완전히 적용되도록 보장
+		task.wait()
+		-- 이제 안전하게 위치 이동 가능
 		hrp.CFrame = initCFrame + Vector3.new(0, 5000, 0)
 		
 		-- 카메라는 플레이어 스폰 지역 근처의 풍경을 조용히 바라보게 셋팅 (일시정지된 듯한 화면)

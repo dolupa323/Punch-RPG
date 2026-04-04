@@ -768,6 +768,95 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.harvestPct = Utils.mkLabel({text="0%", size=UDim2.new(1, 0, 0, 20), pos=UDim2.new(0.5, 0, 0, 45), anchor=Vector2.new(0.5, 0), ts=14, color=C.GOLD, parent=HUDUI.Refs.harvestFrame})
 
 	-- =============================================
+	-- Combat UI (Durango Style - Reference Based)
+	-- =============================================
+	
+	-- Combat container (no visible background)
+	local combatContainer = Instance.new("Frame")
+	combatContainer.Name = "CombatUIContainer"
+	combatContainer.Size = UDim2.new(1, 0, 0, 200)
+	combatContainer.Position = UDim2.new(0, 0, 0, 0)
+	combatContainer.BackgroundTransparency = 1
+	combatContainer.BorderSizePixel = 0
+	combatContainer.ClipsDescendants = true -- ★ 범위 밖 테스트 숨김
+	combatContainer.Visible = false
+	combatContainer.ZIndex = 99
+	combatContainer.Parent = parent
+	HUDUI.Refs.combatUIContainer = combatContainer
+
+	-- Creature Name Label (White, Bold, 28pt)
+	HUDUI.Refs.combatBossName = Utils.mkLabel({
+		name = "CreatureName",
+		text = "",
+		size = UDim2.new(1, 0, 0, 32),
+		pos = UDim2.new(0.5, 0, 0, 60),
+		anchor = Vector2.new(0.5, 0),
+		ts = 28,
+		bold = true,
+		color = Color3.fromRGB(255, 255, 255),
+		ax = Enum.TextXAlignment.Center,
+		parent = combatContainer
+	})
+	HUDUI.Refs.combatBossName.BackgroundTransparency = 1
+	HUDUI.Refs.combatBossName.Font = F.TITLE
+
+	-- Creature Level Label (Red, 20pt, right next to name)
+	HUDUI.Refs.combatBossLevel = Utils.mkLabel({
+		name = "CreatureLevel",
+		text = "",
+		size = UDim2.new(0, 80, 0, 32),
+		pos = UDim2.new(0.5, 60, 0, 60),
+		anchor = Vector2.new(0, 0),
+		ts = 24,
+		bold = true,
+		color = Color3.fromRGB(255, 100, 100),
+		ax = Enum.TextXAlignment.Left,
+		parent = combatContainer
+	})
+	HUDUI.Refs.combatBossLevel.BackgroundTransparency = 1
+	HUDUI.Refs.combatBossLevel.Font = F.TITLE
+
+	-- HP Bar Background (Black, max width 400px)
+	local hpBarBg = Instance.new("Frame")
+	hpBarBg.Name = "HPBarBg"
+	hpBarBg.Size = UDim2.new(0.5, 0, 0, 8)
+	hpBarBg.Position = UDim2.new(0.5, 0, 0, 135)
+	hpBarBg.AnchorPoint = Vector2.new(0.5, 0)
+	hpBarBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	hpBarBg.BackgroundTransparency = 0.1
+	hpBarBg.BorderSizePixel = 0
+	-- ★ 최대 너비 400px 제약
+	local hpSizeConstraint = Instance.new("UISizeConstraint")
+	hpSizeConstraint.MaxSize = Vector2.new(400, 999)
+	hpSizeConstraint.Parent = hpBarBg
+	hpBarBg.Parent = combatContainer
+	HUDUI.Refs.combatHPBarBg = hpBarBg
+
+	-- HP Bar Fill (Red)
+	local hpBarFill = Instance.new("Frame")
+	hpBarFill.Name = "HPBarFill"
+	hpBarFill.Size = UDim2.new(1, 0, 1, 0)
+	hpBarFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+	hpBarFill.BackgroundTransparency = 0
+	hpBarFill.BorderSizePixel = 0
+	hpBarFill.Parent = hpBarBg
+	HUDUI.Refs.combatHPBarFill = hpBarFill
+
+	-- HP Text Label (White, 16pt, centered below bar)
+	HUDUI.Refs.combatHPLabel = Utils.mkLabel({
+		name = "HPLabel",
+		text = "",
+		size = UDim2.new(0.5, 0, 0, 24),
+		pos = UDim2.new(0.5, 0, 0, 147),
+		anchor = Vector2.new(0.5, 0),
+		ts = 16,
+		color = C.WHITE,
+		ax = Enum.TextXAlignment.Center,
+		parent = combatContainer
+	})
+	HUDUI.Refs.combatHPLabel.BackgroundTransparency = 1
+
+	-- =============================================
 	-- HUD 바 툴팁 (마우스 호버 시 설명창)
 	-- =============================================
 	local tooltip = Instance.new("Frame")
@@ -1380,6 +1469,73 @@ function HUDUI.SelectHotbarSlot(idx, skipSync, UIManager, C)
 			end
 		end
 	end
-end 
+end
+
+-- =============================================
+-- Combat UI Functions (Reference Style)
+-- =============================================
+
+function HUDUI.ShowCombatUI(creatureName, level, currentHP, maxHP)
+	if not HUDUI.Refs.combatUIContainer then return end
+	
+	-- Show container
+	HUDUI.Refs.combatUIContainer.Visible = true
+	
+	-- Clean creature name (remove any "Lv." prefix if exists)
+	local cleanName = creatureName or "?"
+	cleanName = string.gsub(cleanName, "^Lv%.%d+%s*", "")
+	cleanName = string.gsub(cleanName, "%s*Lv%.%d+$", "")
+	
+	-- Set creature name only (White)
+	if HUDUI.Refs.combatBossName then
+		HUDUI.Refs.combatBossName.Text = cleanName
+	end
+	
+	-- Set creature level only (Red, separate label)
+	if HUDUI.Refs.combatBossLevel then
+		HUDUI.Refs.combatBossLevel.Text = string.format("Lv.%d", level or 1)
+	end
+	
+	-- ★ Dynamically adjust level label position based on name length
+	-- to avoid overlap (updated Y positions for new 200px container)
+	if HUDUI.Refs.combatBossLevel then
+		local nameLength = string.len(cleanName)
+		if nameLength > 15 then
+			-- If name is long, move level below (name: y=60, h=32, so below at y=92)
+			HUDUI.Refs.combatBossLevel.Position = UDim2.new(0.5, 0, 0, 100)
+			HUDUI.Refs.combatBossLevel.TextXAlignment = Enum.TextXAlignment.Center
+		else
+			-- Otherwise, place level to the right (y=60, same as name)
+			HUDUI.Refs.combatBossLevel.Position = UDim2.new(0.5, 80, 0, 60)
+			HUDUI.Refs.combatBossLevel.TextXAlignment = Enum.TextXAlignment.Left
+		end
+	end
+	
+	-- Update HP bar
+	HUDUI.UpdateCombatUI(currentHP, maxHP)
+end
+
+function HUDUI.HideCombatUI()
+	if HUDUI.Refs.combatUIContainer then
+		HUDUI.Refs.combatUIContainer.Visible = false
+	end
+end
+
+function HUDUI.UpdateCombatUI(currentHP, maxHP)
+	if not currentHP or not maxHP or maxHP <= 0 then return end
+	
+	local hpRatio = math.clamp(currentHP / maxHP, 0, 1)
+	
+	-- Update HP bar fill (always RED, no color change)
+	if HUDUI.Refs.combatHPBarFill then
+		HUDUI.Refs.combatHPBarFill.Size = UDim2.new(hpRatio, 0, 1, 0)
+		HUDUI.Refs.combatHPBarFill.BackgroundColor3 = Color3.fromRGB(255, 60, 60) -- Always red
+	end
+	
+	-- Update HP text label
+	if HUDUI.Refs.combatHPLabel then
+		HUDUI.Refs.combatHPLabel.Text = string.format("%d / %d", math.floor(currentHP), math.floor(maxHP))
+	end
+end
 
 return HUDUI

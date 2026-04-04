@@ -7,9 +7,9 @@ local Balance = {}
 --========================================
 -- 시간 시스템
 --========================================
-Balance.DAY_LENGTH = 960           -- 하루 총 길이 (단축)
-Balance.DAY_DURATION = 640         -- 낮 지속 시간 (단축)
-Balance.NIGHT_DURATION = 320       -- 밤 지속 시간 (단축)
+Balance.DAY_LENGTH = 960           -- 하루 총 길이 (초, 16분)
+Balance.DAY_DURATION = 640         -- 낮 지속 시간 (초, 10.67분)
+Balance.NIGHT_DURATION = 320       -- 밤 지속 시간 (초, 5.33분)
 
 --========================================
 -- 인벤토리

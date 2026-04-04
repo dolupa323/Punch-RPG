@@ -36,10 +36,10 @@ local PVP_ENABLED = false       -- PvP 비활성화
 -- Combat Engagement Constants
 local COMBAT_DISENGAGE_TIMEOUT = 8   -- 교전 없이 8초 경과 → 전투 해제
 local COMBAT_DISENGAGE_DISTANCE = 50 -- 50스터드 이상 벗어나면 즉시 전투 해제
-local CONTACT_KNOCKBACK_FORCE = 18   -- 전투 중 접촉 시 밀어내기 힘
+local CONTACT_KNOCKBACK_FORCE = 10   -- 전투 중 접촉 시 밀어내기 힘 (18 → 10, 플레이어 튕김 방지)
 local CONTACT_STAGGER_DURATION = 0.3 -- 접촉 경직 시간 (초)
 local CONTACT_STAGGER_COOLDOWN = 2.0 -- 접촉 경직 쿨다운 (경직 해제 후 재발동까지)
-local CONTACT_CHECK_DIST = 5         -- 접촉 판정 거리 (스터드)
+local CONTACT_CHECK_DIST = 3         -- 접촉 판정 거리 (스터드) (5 → 3, 과도한 감지 방지)
 
 -- State
 local playerAttackCooldowns = {} -- [userId] = nextAttackTime
@@ -682,18 +682,24 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 				end
 				local knockForce = Balance.CREATURE_KNOCKBACK_FORCE or 12
 				
-				-- ★ PlatformStand로 Humanoid 물리 오버라이드 차단
-				-- MoveTo가 AssemblyLinearVelocity를 즉시 덮어쓰는 문제 방지
-				local creatureHum = creature.humanoid
-				if creatureHum then
-					creatureHum.PlatformStand = true
-				end
-				creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, 4, 0)
+				-- ★ 넉백 적용: X,Z 방향만, Y는 현재 속도 유지
+				creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, creature.rootPart.AssemblyLinearVelocity.Y * 0.8, 0)
 				
-				-- 넉백 지속 후 PlatformStand 해제
-				task.delay(0.25, function()
-					if creatureHum and creatureHum.Parent then
-						creatureHum.PlatformStand = false
+				-- ★ 넉백 후 안정화: Anchored로 고정하되, 플레이어와 충돌 방지
+				task.delay(0.05, function()
+					if creature and creature.rootPart and creature.rootPart.Parent then
+						creature.rootPart.Anchored = true
+						-- ★ Anchored 상태에서도 플레이어와 충돌하지 않도록 CanCollide=false
+						-- (플레이어가 공룡을 통과하더라도 튕기지 않음)
+						creature.rootPart.CanCollide = false
+					end
+				end)
+				
+				task.delay(0.3, function()
+					if creature and creature.rootPart and creature.rootPart.Parent and creature.state ~= "STUNNED" then
+						creature.rootPart.Anchored = false
+						-- ★ 복구 시 CanCollide를 다시 true로 (정상 물리 상호작용 복원)
+						creature.rootPart.CanCollide = true
 					end
 				end)
 			end

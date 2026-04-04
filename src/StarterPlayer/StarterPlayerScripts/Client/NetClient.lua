@@ -35,10 +35,18 @@ function NetClient.Request(command: string, payload: any?): (boolean, any)
 	
 	local requestId = generateRequestId()
 	
-	-- 타임아웃 처리 (UI 프리징 방지)
+	-- [수정 #4] 명령별 동적 타임아웃 조정
+	-- 인벤토리 정렬 같은 무거운 작업: 15초
+	-- 기본: 5초
+	local timeoutSeconds = 5
+	if command == "Inventory.Sort" or command == "Inventory.Organize" then
+		timeoutSeconds = 15
+	elseif command and (command:match("Crafting") or command:match("Build") or command:match("Tutorial")) then
+		timeoutSeconds = 10
+	end
+	
 	local thread = coroutine.running()
 	local completed = false
-	local timeoutSeconds = 5
 	local timeoutTask = nil
 	
 	timeoutTask = task.delay(timeoutSeconds, function()

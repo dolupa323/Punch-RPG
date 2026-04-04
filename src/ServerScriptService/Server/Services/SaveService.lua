@@ -22,7 +22,7 @@ local SaveService = {}
 --========================================
 -- Configuration
 --========================================
-local AUTOSAVE_INTERVAL = 60  -- 초 (데이터 유실 방지용)
+local AUTOSAVE_INTERVAL = 30  -- 초 (데이터 유실 방지용, 60 → 30으로 단축)
 local SNAPSHOT_INTERVAL = 300 -- 초 (5분마다 스냅샷 생성 - 연산 부하 경감)
 local MAX_SNAPSHOTS = 3       -- 롤백 스냅샷 수
 local SAVE_VERSION = 1        -- 스키마 버전
@@ -30,13 +30,9 @@ local PLAYER_LOAD_RETRY_WINDOW = RunService:IsStudio() and 25 or 45
 local PLAYER_LOAD_RETRY_INTERVAL = 2
 local SESSION_LOCK_FORCE_ACQUIRE_DELAY = RunService:IsStudio() and 4 or 10
 local ENABLE_SESSION_LOCK_FORCE_ACQUIRE = true
-local SESSION_LOCK_STABLE_RETRY_THRESHOLD = math.max(
-	3,
-	math.min(
-		math.ceil((AUTOSAVE_INTERVAL + PLAYER_LOAD_RETRY_INTERVAL) / PLAYER_LOAD_RETRY_INTERVAL),
-		math.max(3, math.floor((PLAYER_LOAD_RETRY_WINDOW / PLAYER_LOAD_RETRY_INTERVAL) - 2))
-	)
-)
+-- [수정 #5] 간단화: 3초 이상 안정적이면 강제 획득 시도
+-- (이전: 복잡한 수식으로 계산 → 유지보수 어려움 + 엣지 케이스 누락)
+local SESSION_LOCK_STABLE_RETRY_THRESHOLD = 3  -- 3회 이상 같은 락 → 강제 획득 시도
 
 --========================================
 -- Private State
@@ -699,9 +695,21 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	player:SetAttribute("SpawnPosZ", spawnPos.Z)
 	player:SetAttribute("DataLoaded", true)
 
+	-- [수정 #1-추가] 데이터 로드 완료 신호 전파 후 1 프레임 대기
+	-- 다른 PlayerAdded 핸들러들이 DataLoaded attribute를 받을 시간 확보
+	task.wait()
+
 	-- LoadCharacter 호출 (CharacterAutoLoads=false이므로 수동)
 	if player.Parent then
 		player:LoadCharacter()
+		
+		-- [안정화] 캐릭터 생성 대기 (비동기 완료 보장)
+		-- Character 모델이 생성될 때까지 대기 (최대 10초)
+		local charStart = tick()
+		while not player.Character and (tick() - charStart) < 10 and player.Parent do
+			task.wait(0.05)
+		end
+		
 		print(string.format("[SaveService] LoadCharacter called for %s at %.1f, %.1f, %.1f",
 			player.Name, spawnPos.X, spawnPos.Y, spawnPos.Z))
 	end

@@ -825,22 +825,18 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
 			setCreatureState(creature, "STUNNED")
-			-- ★ PlatformStand 사용 안 함: 관절이 풀려 래그돌 → Anchored와 결합 시
-			-- 공중에 사지가 늘어진 채 얼음 상태로 굳는 버그 발생
-			-- 대신 WalkSpeed=0 + MoveTo 정지 + 짧은 딜레이 후 Anchored로 지면 고정
+			-- ★ WalkSpeed=0 + 즉시 Anchored로 정지 (MoveTo 제거)
+			-- MoveTo는 Humanoid 내부 물리를 작동시켜 지형 뚫림 발생
 			creature.humanoid.WalkSpeed = 0
 			creature.humanoid.JumpPower = 0
 			creature.humanoid.AutoRotate = false
-			creature.humanoid:MoveTo(creature.rootPart.Position)
 			if creature.rootPart then
-				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, creature.rootPart.AssemblyLinearVelocity.Y, 0)
-				-- ★ 지면 안착 후 Anchored: 물리 시뮬레이션 1프레임 대기하여
-				-- 크리처가 지면에 착지한 상태에서 고정 (공중 조각상 방지)
-				task.delay(0.1, function()
-					if creature.rootPart and creature.rootPart.Parent and creature.state == "STUNNED" then
-						creature.rootPart.Anchored = true
-					end
-				end)
+				-- ★ 속도 0으로 고정
+				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+				-- ★ 즉시 Anchored (물리 엔진 비활성화)
+				creature.rootPart.Anchored = true
+				-- ★ 플레이어와 충돌 비활성화 (기절 중 플레이어가 공룡 통과 가능하지만 튕기지 않음)
+				creature.rootPart.CanCollide = false
 			end
 			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
 		elseif creature.state ~= "STUNNED" then
@@ -1497,9 +1493,10 @@ function CreatureService._updateAILoop()
 			-- 기절 회복 체크
 			if creature.state == "STUNNED" and creature.currentTorpor <= STUN_RECOVERY_THRESHOLD then
 				setCreatureState(creature, "IDLE")
-				-- ★ 기절 해제: Anchored 해제 + 이동 능력 복원
+				-- ★ 기절 해제: Anchored 해제 + CanCollide 복원 + 이동 능력 복원
 				if creature.rootPart then
 					creature.rootPart.Anchored = false
+					creature.rootPart.CanCollide = true  -- ★ 충돌 복원
 				end
 				creature.humanoid.WalkSpeed = creature.data.walkSpeed or 10
 				creature.humanoid.JumpPower = 5

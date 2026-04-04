@@ -258,6 +258,15 @@ function TechService.unlock(userId: number, techId: string): (boolean, string?)
 			-- techPointsRemaining 은 더 이상 사용하지 않음 (nil 또는 제거 가능하나 하위호환 유지)
 			techPointsRemaining = 0,
 		})
+		
+		-- [수정 #10] 기술 해금 캐싱 동기화: 모든 클라이언트에 브로드캐스트
+		-- 다른 플레이어의 UI에서 기술 잠금/해금 상태 실시간 반영
+		NetController.FireAllClients("Tech.UnlockedByPlayer", {
+			userId = userId,
+			playerName = player.Name,
+			techId = techId,
+			techName = tech.name,
+		})
 	end
 	
 	print(string.format("[TechService] Player %d unlocked tech: %s", userId, techId))

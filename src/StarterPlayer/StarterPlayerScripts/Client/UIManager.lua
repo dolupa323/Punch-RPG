@@ -21,6 +21,21 @@ local Enums = require(Shared.Enums.Enums)
 local Balance = require(Shared.Config.Balance)
 local DataHelper = require(Shared.Util.DataHelper)
 
+-- Load Creature Data for combat UI
+local CreatureData = {}
+local function loadCreatureData()
+	local Data = ReplicatedStorage:FindFirstChild("Data")
+	if Data then
+		local ok, result = pcall(function()
+			return require(Data:WaitForChild("CreatureData", 5))
+		end)
+		if ok and result then
+			CreatureData = result
+		end
+	end
+end
+loadCreatureData()
+
 local Client = script.Parent
 local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
@@ -124,6 +139,9 @@ end
 
 -- Harvest progress
 local harvestFrame, harvestBar, harvestPctLabel, harvestNameLabel
+
+-- Combat State
+local currentCombatCreatureId = nil
 
 -- Inventory
 local invSlots = {}
@@ -2295,6 +2313,68 @@ local function setupEventListeners()
 		end)
 	end
 
+	-- Combat Engagement UI
+	if NetClient.On then
+		NetClient.On("Combat.Engagement.Changed", function(data)
+			if not data then return end
+			
+			if data.inCombat then
+				currentCombatCreatureId = data.instanceId
+				
+				-- Find creature model by instanceId
+				local creatureModel = nil
+				local workspace_creatures = workspace:FindFirstChild("Creatures") or workspace
+				
+				-- Search for creature with matching instanceId
+				for _, model in ipairs(workspace_creatures:GetDescendants()) do
+					if model:IsA("Model") and model:GetAttribute("InstanceId") == data.instanceId then
+						creatureModel = model
+						break
+					end
+				end
+				
+				-- Fallback: search in Workspace directly
+				if not creatureModel then
+					for _, child in ipairs(workspace:GetChildren()) do
+						if child:IsA("Model") and child:GetAttribute("InstanceId") == data.instanceId then
+							creatureModel = child
+							break
+						end
+					end
+				end
+				
+				if creatureModel then
+					local displayName = creatureModel:GetAttribute("DisplayName") or creatureModel.Name
+					local creatureId = creatureModel:GetAttribute("CreatureId") or creatureModel.Name
+					
+					-- Clean up display name (remove "Lv.X" if already included)
+					displayName = string.match(displayName, "([^L][^v]*?)%s*Lv%.%d+$") or displayName
+					displayName = string.match(displayName, "^(.+?)%s*Lv%.") or displayName
+					
+					-- Look up creature data for actual level
+					local creatureLevel = creatureModel:GetAttribute("Level") or 1
+					if CreatureData and type(CreatureData) == "table" then
+						for _, cData in ipairs(CreatureData) do
+							if cData.id == creatureId or cData.name == displayName then
+								creatureLevel = cData.level or creatureLevel
+								break
+							end
+						end
+					end
+					
+					local currentHP = creatureModel:GetAttribute("CurrentHealth") or 100
+					local maxHP = creatureModel:GetAttribute("MaxHealth") or 100
+					
+					HUDUI.ShowCombatUI(displayName, creatureLevel, currentHP, maxHP)
+				end
+			else
+				-- Hide combat UI when disengaged
+				currentCombatCreatureId = nil
+				HUDUI.HideCombatUI()
+			end
+		end)
+	end
+
 	-- Portal Events (고대 포탈 시스템)
 	if NetClient.On then
 		NetClient.On("Portal.UI.Open", function(data)
@@ -2605,5 +2685,40 @@ function UIManager.hideAllLoading()
 	end
 	-- 추가적인 로딩 UI가 있다면 여기서 처리
 end
+
+-- =============================================
+-- Combat UI Periodic Update
+-- =============================================
+RunService.RenderStepped:Connect(function()
+	if currentCombatCreatureId then
+		-- Find creature model by instanceId
+		local creatureModel = nil
+		local workspace_creatures = workspace:FindFirstChild("Creatures")
+		
+		if workspace_creatures then
+			for _, model in ipairs(workspace_creatures:GetDescendants()) do
+				if model:IsA("Model") and model:GetAttribute("InstanceId") == currentCombatCreatureId then
+					creatureModel = model
+					break
+				end
+			end
+		end
+		
+		if not creatureModel then
+			for _, child in ipairs(workspace:GetChildren()) do
+				if child:IsA("Model") and child:GetAttribute("InstanceId") == currentCombatCreatureId then
+					creatureModel = child
+					break
+				end
+			end
+		end
+		
+		if creatureModel then
+			local currentHP = creatureModel:GetAttribute("CurrentHealth") or 0
+			local maxHP = creatureModel:GetAttribute("MaxHealth") or 100
+			HUDUI.UpdateCombatUI(currentHP, maxHP)
+		end
+	end
+end)
 
 return UIManager

@@ -219,9 +219,32 @@ for command, handler in pairs(StorageService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
--- BuildService 초기화 (+ TechService, PlayerStatService 추가)
+-- FacilityService 초기화 (BuildService가 필요하므로 먼저)
+local FacilityService = require(Services.FacilityService)
+FacilityService.Init(NetController, DataService, InventoryService, nil, Balance, RecipeService, WorldDropService, TechService)
+
+-- FacilityService 핸들러 등록
+for command, handler in pairs(FacilityService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+
+-- BuildService 초기화 (+ TechService, PlayerStatService 추가, FacilityService 이제 주입 가능)
 local BuildService = require(Services.BuildService)
 BuildService.Init(NetController, DataService, InventoryService, SaveService, TechService, PlayerStatService)
+
+-- BuildService에 FacilityService 주입 (양방향 연동)
+-- [안정화] nil 체크 추가
+if BuildService and BuildService.SetFacilityService and FacilityService then
+	BuildService.SetFacilityService(FacilityService)
+else
+	warn("[ServerInit] BuildService/SetFacilityService or FacilityService not available")
+end
+
+if BuildService and BuildService.SetWorldDropService and WorldDropService then
+	BuildService.SetWorldDropService(WorldDropService)
+else
+	warn("[ServerInit] BuildService/SetWorldDropService or WorldDropService not available")
+end
 
 -- BuildService 핸들러 등록
 for command, handler in pairs(BuildService.GetHandlers()) do
@@ -240,26 +263,27 @@ for command, handler in pairs(CraftingService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
--- FacilityService 초기화
-local FacilityService = require(Services.FacilityService)
-FacilityService.Init(NetController, DataService, InventoryService, BuildService, Balance, RecipeService, WorldDropService, TechService)
-
--- FacilityService 핸들러 등록
-for command, handler in pairs(FacilityService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
+-- FacilityService에 BuildService 나중 주입 (순환 방지)
+-- [안정화] nil 체크 추가 (require 실패 등 방지)
+if FacilityService and FacilityService.SetBuildService then
+	FacilityService.SetBuildService(BuildService)
+else
+	warn("[ServerInit] FacilityService or SetBuildService not available, skipping injection")
 end
-
--- BuildService에 FacilityService 주입 (양방향 연동)
-BuildService.SetFacilityService(FacilityService)
-BuildService.SetWorldDropService(WorldDropService)
 
 -- DebuffService 초기화 (Phase 4-4) - CreatureService보다 먼저 초기화
 local DebuffService = require(Services.DebuffService)
-DebuffService.Init(NetController, TimeService, DataService, StaminaService, FacilityService, InventoryService)
+if DebuffService and DebuffService.Init then
+	DebuffService.Init(NetController, TimeService, DataService, StaminaService, FacilityService, InventoryService)
+else
+	warn("[ServerInit] DebuffService or Init not available")
+end
 
 -- DebuffService 핸들러 등록
-for command, handler in pairs(DebuffService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
+if DebuffService and DebuffService.GetHandlers then
+	for command, handler in pairs(DebuffService.GetHandlers()) do
+		NetController.RegisterHandler(command, handler)
+	end
 end
 
 -- CreatureService 초기화 (+ PlayerStatService 추가, HarvestService는 후순위 주입)

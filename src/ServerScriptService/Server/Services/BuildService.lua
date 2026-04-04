@@ -69,10 +69,17 @@ end
 local function checkCollision(position: Vector3, facilityId: string): boolean
 	local collisionRadius = Balance.BUILD_COLLISION_RADIUS
 	
-	-- [최적화] O(N) 순회 대신 공간 쿼리(Spatial Query) 사용
+	-- [수정 #2] Terrain + 구조물 검사 (지형/산 내부 건설 방지)
+	local terrain = workspace.Terrain
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
-	overlapParams.FilterDescendantsInstances = { facilitiesFolder }
+	
+	-- facilitiesFolder + Terrain 포함 (자연 지물과의 충돌 감지)
+	local filterList = { facilitiesFolder }
+	if terrain then
+		table.insert(filterList, terrain)
+	end
+	overlapParams.FilterDescendantsInstances = filterList
 	
 	local parts = workspace:GetPartBoundsInRadius(position, collisionRadius * 1.5, overlapParams)
 	return #parts > 0

@@ -23,6 +23,10 @@ local NetController
 -- [userId] = { current, max, lastUseTime, isSprinting, isDodging, isInvulnerable }
 local playerStamina = {}
 
+-- [FIX #7] 동시성 보호: 스태미나 업데이트 중 플래그
+-- [userId] = true (업데이트 중) 또는 nil (대기 중)
+local staminaUpdateLocks = {}
+
 -- Stagger (경직) 상태: [userId] = { mult = 0.15, expireTime = tick()+0.3 }
 local playerStagger = {}
 
@@ -342,6 +346,13 @@ function StaminaService.performDodge(player: Player, direction: Vector3?): { suc
 	local data = getStaminaData(userId)
 	local now = tick()
 	
+	-- [FIX #7] 뮤텍스: 동시 dodge 요청 방지
+	-- 최대 100ms 대기 후 강제 진행
+	local waitStart = tick()
+	while staminaUpdateLocks[userId] and (tick() - waitStart) < 0.1 do
+		task.wait(0.001)
+	end
+	
 	-- 쿨다운 체크
 	local lastDodge = data.lastDodgeTime or 0
 	if now - lastDodge < Balance.DODGE_COOLDOWN then
@@ -365,11 +376,23 @@ function StaminaService.performDodge(player: Player, direction: Vector3?): { suc
 		return { success = false, reason = "already_dodging" }
 	end
 	
-	-- 스태미나 소모
-	data.current = data.current - Balance.DODGE_STAMINA_COST
+	-- [FIX #7] 락 설정 후 최종 검증
+	staminaUpdateLocks[userId] = true
+	
+	-- 최종 스태미나 검증 (락 획득 후 재확인)
+	if data.current < Balance.DODGE_STAMINA_COST then
+		staminaUpdateLocks[userId] = nil
+		return { success = false, reason = "no_stamina" }
+	end
+	
+	-- 스태미나 소모 (원자적)
+	data.current = math.max(0, data.current - Balance.DODGE_STAMINA_COST)
 	data.lastUseTime = now
 	data.lastDodgeTime = now
 	data.isDodging = true
+	
+	-- 락 해제
+	staminaUpdateLocks[userId] = nil
 	
 	-- 구르기 시 배고픔 소모 연동
 	local HSuccess, HungerService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.HungerService) end)
@@ -425,14 +448,29 @@ function StaminaService.hasEnoughStamina(userId: number, amount: number): boolea
 end
 
 function StaminaService.consumeStamina(userId: number, amount: number): boolean
+	-- [FIX #7] 뮤텍스: 동시 업데이트 방지
+	-- 최대 100ms 대기 후 강제 진행 (데드락 방지)
+	local waitStart = tick()
+	while staminaUpdateLocks[userId] and (tick() - waitStart) < 0.1 do
+		task.wait(0.001)
+	end
+	
+	-- 락 설정
+	staminaUpdateLocks[userId] = true
+	
 	local data = getStaminaData(userId)
 	
+	-- 스태미나 검증 및 차감 (원자적 연산)
 	if data.current < amount then
+		staminaUpdateLocks[userId] = nil
 		return false
 	end
 	
-	data.current = data.current - amount
+	data.current = math.max(0, data.current - amount)
 	data.lastUseTime = tick()
+	
+	-- 락 해제
+	staminaUpdateLocks[userId] = nil
 	
 	local player = Players:GetPlayerByUserId(userId)
 	if player then

@@ -303,12 +303,68 @@ local function onHeartbeat(dt: number)
 end
 
 --========================================
+-- 4.1.5 Helper: Ground Height Raycast
+--========================================
+--- 지면 높이 구하기 (레이캐스트)
+--- 드롭이 지형에 닿도록 위치 조정
+local function getGroundHeight(pos: Vector3): Vector3
+	-- 레이캐스트: 위에서 아래로 1000 스터드 검색
+	local rayOrigin = pos + Vector3.new(0, 500, 0)
+	local rayDirection = Vector3.new(0, -1000, 0)
+	
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Include
+	
+	-- 지형/바닥 객체만 포함: "Terrain", "Grass", "Ground", "Floor" 포함 이름
+	local Workspace = game:GetService("Workspace")
+	local includeList = {}
+	
+	-- Terrain 포함 (지면)
+	local terrain = Workspace.Terrain
+	if terrain then
+		table.insert(includeList, terrain)
+	end
+	
+	-- 명시적 바닥 파트 포함 (성능 최적화: 깊이 제한)
+	local function collectGroundParts(folder, depth)
+		if not folder or depth > 5 then return end
+		for _, part in ipairs(folder:GetChildren()) do
+			if part:IsA("BasePart") then
+				local name = part.Name:upper()
+				-- "Ground", "Floor", "Terrain" 등 포함하는 파트 추가
+				if name:find("GROUND") or name:find("FLOOR") or name:find("TERRAIN") or part.CanCollide then
+					table.insert(includeList, part)
+				end
+			elseif part:IsA("Folder") or part:IsA("Model") then
+				collectGroundParts(part, depth + 1)
+			end
+		end
+	end
+	
+	collectGroundParts(Workspace, 0)
+	rayParams.FilterDescendantsInstances = includeList
+	
+	local result = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
+	
+	if result then
+		-- 지면 발견: 충돌점 + 약간 위에 배치 (지형과 겹치지 않도록)
+		return result.Position + Vector3.new(0, 1.5, 0)
+	else
+		-- 지면 없음: 기존 높이 사용 (sky drop?)
+		return pos
+	end
+end
+
+--========================================
 -- 4.2 Public API
 --========================================
 
 --- 드롭 생성
 --- 반환: (success, errorCode?, data?)
 function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number, durability: number?, sourceLevel: number?): (boolean, string?, any?)
+	-- [수정] 드롭 위치 자동 조정: 지면과의 높이 맞추기
+	local adjustedPos = getGroundHeight(pos)
+	
 	-- 아이템 존재 검증
 	local itemData = DataService.getItem(itemId)
 	if not itemData then
@@ -323,7 +379,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 	-- 병합 대상 찾기 (내구도가 있거나 비스택 아이템은 병합 제외 - AMMO만 병합)
 	local mergeTarget = nil
 	if not durability and itemData.type == "AMMO" then
-		mergeTarget = findMergeTarget(pos, itemId)
+		mergeTarget = findMergeTarget(adjustedPos, itemId)
 	end
 	
 	if mergeTarget then
@@ -364,7 +420,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 		for _, group in pairs(groups) do
 			local drop = {
 				dropId = generateDropId(),
-				pos = pos,
+				pos = adjustedPos,
 				itemId = itemId,
 				count = group.count,
 				durability = durability,
@@ -404,7 +460,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 	
 	local drop = {
 		dropId = generateDropId(),
-		pos = pos,
+		pos = adjustedPos,
 		itemId = itemId,
 		count = count,
 		durability = durability,

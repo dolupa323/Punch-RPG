@@ -70,12 +70,19 @@ function Serialization.deserialize(data: any): any
 			-- 딕셔너리 역직렬화
 			for k, v in pairs(data) do
 				-- JSON 변환기로 인해 숫자 인덱스(1, 2)가 문자열("1", "2")로 강제 캐스팅된 경우, 원상 복구 시도
+				local realKey = k
 				local numKey = tonumber(k)
-				if type(k) == "string" and numKey and tostring(numKey) == k then
-					k = numKey
+				
+				-- *** 매우 중요 *** 숫자 키 복구:
+				-- JSON에서 {"1": value}는 문자열 "1"로 저장되지만
+				-- 원본은 [1] = value였을 가능성이 높음
+				-- numKey가 nil이면 k 그대로 사용, 아니면 숫자로 변환
+				if numKey ~= nil then
+					-- "1" → 1, "2" → 2 등으로 변환
+					realKey = numKey
 				end
 				
-				result[Serialization.deserialize(k)] = Serialization.deserialize(v)
+				result[realKey] = Serialization.deserialize(v)
 			end
 		end
 		
