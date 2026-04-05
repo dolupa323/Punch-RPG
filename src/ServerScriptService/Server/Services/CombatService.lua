@@ -70,9 +70,14 @@ end
 
 --- 접촉 시 플레이어를 밀어내고 경직 부여
 local staggeredPlayers = {} -- [userId] = true (중복 경직 방지)
+local knockbackImmunity = {} -- [userId][creatureInstanceId] = true (넉백 면역)
 
-local function applyContactKnockback(userId, creaturePos)
+local function applyContactKnockback(userId, creaturePos, creatureInstanceId)
 	if staggeredPlayers[userId] then return end
+	
+	-- ★ [추가] 같은 크리처에 대한 넉백 면역 체크 (0.5초 동안 무적)
+	if knockbackImmunity[userId] and knockbackImmunity[userId][creatureInstanceId] then return end
+	
 	-- ★ 구르기 무적 프레임 존중: 무적 상태면 접촉 밀어내기/경직 무시
 	if CombatService.isPlayerInvulnerable(userId) then return end
 	local player = Players:GetPlayerByUserId(userId)
@@ -90,11 +95,15 @@ local function applyContactKnockback(userId, creaturePos)
 		pushDir = pushDir.Unit
 	end
 
-	-- ★ 서버에서 AssemblyLinearVelocity 직접 조작 제거
-	-- 플레이어 캐릭터는 클라이언트 소유(Network Ownership)이므로
-	-- 서버에서 속도를 바꾸면 클라이언트 이동 입력과 충돌 → Rubberbanding 발생
-	-- 넉백은 클라이언트 이벤트로 전달하여 클라이언트에서 처리
-
+	-- ★ [수정] 먼저 넉백 면역 설정 (FireClient 호출 전)
+	-- 문제: 0.2초 루프에서 FireClient를 여러 번 호출하면
+	--      클라이언트에서 중복 넉백 → 플레이어 비행
+	-- 해결: 면역 설정을 먼저 하면 다음 루프에서 함수 초반에 return
+	if not knockbackImmunity[userId] then
+		knockbackImmunity[userId] = {}
+	end
+	knockbackImmunity[userId][creatureInstanceId] = true
+	
 	-- 짧은 경직 (StaminaService 경유 속도 배율 적용)
 	staggeredPlayers[userId] = true
 	if StaminaService and StaminaService.setStagger then
@@ -115,6 +124,13 @@ local function applyContactKnockback(userId, creaturePos)
 	-- 쿨다운: 경직 해제 후에도 일정 시간 재발동 방지
 	task.delay(CONTACT_STAGGER_DURATION + CONTACT_STAGGER_COOLDOWN, function()
 		staggeredPlayers[userId] = nil
+	end)
+	
+	-- ★ [추가] 0.5초 후 넉백 면역 해제 (다른 크리처로부터는 즉시 피격 가능)
+	task.delay(0.5, function()
+		if knockbackImmunity[userId] then
+			knockbackImmunity[userId][creatureInstanceId] = nil
+		end
 	end)
 end
 
@@ -319,12 +335,74 @@ function CombatService.Init(_NetController, _DataService, _CreatureService, _Inv
 		local uid = player.UserId
 		playerAttackCooldowns[uid] = nil
 		disengageCombat(uid)
+		
+		-- ★ [추가] 새로운 테이블도 정리 (메모리 누수 방지)
+		staggeredPlayers[uid] = nil
+		if knockbackImmunity[uid] then
+			knockbackImmunity[uid] = nil
+		end
 	end)
+	
+	-- ★ [추가] 플레이어 사망 시 전투 상태 정리 (respawn 전)
+	local function setupCharacterCleanup(player)
+		if not player.Character then return end
+		local hum = player.Character:FindFirstChild("Humanoid")
+		if not hum then return end
+		
+		hum.Died:Connect(function()
+			local uid = player.UserId
+			print(string.format("[CombatService] 플레이어 %d 사망 - 전투 상태 정리 시작", uid))
+			
+			-- 사망 시 전투 상태 해제 + 메모리 정리
+			disengageCombat(uid)
+			staggeredPlayers[uid] = nil
+			if knockbackImmunity[uid] then
+				knockbackImmunity[uid] = nil
+			end
+			
+			print(string.format("[CombatService] 플레이어 %d 정리 완료", uid))
+		end)
+	end
+	
+	-- 기존 플레이어들과 신규 플레이어에게 모두 적용
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			setupCharacterCleanup(player)
+		end)
+		-- 이미 있는 character도 처리
+		if player.Character then
+			setupCharacterCleanup(player)
+		end
+	end)
+	
+	-- 현재 접속 중인 플레이어들에게도 적용
+	for _, player in ipairs(Players:GetPlayers()) do
+		player.CharacterAdded:Connect(function()
+			setupCharacterCleanup(player)
+		end)
+		if player.Character then
+			setupCharacterCleanup(player)
+		end
+	end
 	
 	-- 전투 교전 타임아웃 / 거리 이탈 체크 루프
 	task.spawn(function()
 		while true do
 			task.wait(1)
+			
+			-- ★ [디버그] 메모리 상태 로깅 (테스트 중에만 활성화)
+			local staggeredCount = 0
+			for _, _ in pairs(staggeredPlayers) do
+				staggeredCount = staggeredCount + 1
+			end
+			local immunityCount = 0
+			for _, _ in pairs(knockbackImmunity) do
+				immunityCount = immunityCount + 1
+			end
+			if staggeredCount > 0 or immunityCount > 0 then
+				print(string.format("[CombatService] 활성 상태: staggered=%d, immunity_users=%d", staggeredCount, immunityCount))
+			end
+			
 			local now = tick()
 			local toDisengage = {}
 			for uid, instanceId in pairs(playerCombatTarget) do
@@ -370,7 +448,7 @@ function CombatService.Init(_NetController, _DataService, _CreatureService, _Inv
 					if creaturePos then
 						local dist = (playerHrp.Position - creaturePos).Magnitude
 						if dist <= CONTACT_CHECK_DIST then
-							applyContactKnockback(uid, creaturePos)
+							applyContactKnockback(uid, creaturePos, instanceId)
 						end
 					end
 				end
@@ -689,17 +767,15 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 				task.delay(0.05, function()
 					if creature and creature.rootPart and creature.rootPart.Parent then
 						creature.rootPart.Anchored = true
-						-- ★ Anchored 상태에서도 플레이어와 충돌하지 않도록 CanCollide=false
-						-- (플레이어가 공룡을 통과하더라도 튕기지 않음)
-						creature.rootPart.CanCollide = false
 					end
 				end)
 				
 				task.delay(0.3, function()
 					if creature and creature.rootPart and creature.rootPart.Parent and creature.state ~= "STUNNED" then
 						creature.rootPart.Anchored = false
-						-- ★ 복구 시 CanCollide를 다시 true로 (정상 물리 상호작용 복원)
-						creature.rootPart.CanCollide = true
+						-- ★ [FIX] CanCollide=true 복원 제거: Humanoid가 강제 true로 설정하면
+						-- 충돌 그룹과 결합되어 플레이어 물리 발사 유발
+						-- CanCollide=false는 CreatureService에서 설정한 상태 유지
 					end
 				end)
 			end

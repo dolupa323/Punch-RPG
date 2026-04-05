@@ -115,6 +115,14 @@ end
 
 local function updateHealthBar(healthFill, currentHealth, maxHealth)
 	if not healthFill or not healthFill.Parent then return end
+	
+	-- ★ [FIX] 체력이 0 이하면 바를 즉시 0으로 표시
+	if currentHealth <= 0 then
+		healthFill.Size = UDim2.new(0, 0, 1, 0)
+		healthFill.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+		return
+	end
+	
 	local hpRatio = math.clamp(currentHealth / math.max(maxHealth, 1), 0, 1)
 	healthFill.Size = UDim2.new(hpRatio, 0, 1, 0)
 
@@ -135,7 +143,10 @@ local function updateTorporBar(torporFill, currentTorpor, maxTorpor)
 end
 
 local function setupCreature(model)
-	if trackedCreatures[model] then return end
+	-- ★ [FIX] 같은 모델 재사용 시 이전 UI 정리 (채집노드/시체 재사용 대비)
+	if trackedCreatures[model] then
+		cleanupCreature(model)
+	end
 
 	local rootPart = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
 	if not rootPart then return end
@@ -157,6 +168,10 @@ local function setupCreature(model)
 		local hp = model:GetAttribute("CurrentHealth") or 0
 		local maxHp = model:GetAttribute("MaxHealth") or 100
 		updateHealthBar(healthFill, hp, maxHp)
+		-- ★ [FIX] 체력 0일 때 BillboardGui도 즉시 숨김
+		if hp <= 0 then
+			bg.Enabled = false
+		end
 	end))
 
 	table.insert(connections, model:GetAttributeChangedSignal("MaxHealth"):Connect(function()
@@ -180,7 +195,8 @@ local function setupCreature(model)
 	table.insert(connections, model:GetAttributeChangedSignal("LabelVisibleUntil"):Connect(function()
 		local untilTs = model:GetAttribute("LabelVisibleUntil") or 0
 		local hp = model:GetAttribute("CurrentHealth") or 0
-		bg.Enabled = untilTs > tick() and hp > 0
+		-- ★ [FIX] 체력이 0 이하면 즉시 숨김
+		bg.Enabled = (hp > 0) and (untilTs > tick())
 	end))
 
 	trackedCreatures[model] = {

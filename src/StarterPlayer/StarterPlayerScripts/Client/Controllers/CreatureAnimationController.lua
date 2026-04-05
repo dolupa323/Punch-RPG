@@ -327,16 +327,23 @@ function CreatureAnimationController.Init()
 		if now - lastNightCheck > 2 then
 			lastNightCheck = now
 			local clockTime = Lighting.ClockTime
+			-- ★ [FIX] 밤 시간: 18:30 ~ 5:30 (18.5 ~ 5.5)
 			isCurrentlyNight = (clockTime >= 18.5 or clockTime <= 5.5)
+			-- 디버그: 밤낮 전환 시에만 로깅
+			if (clockTime >= 18.4 and clockTime <= 18.6) or (clockTime >= 5.4 and clockTime <= 5.6) then
+				print(string.format("[CreatureAnimationController] ClockTime=%.1f, isNight=%s", clockTime, tostring(isCurrentlyNight)))
+			end
 		end
 
 		for model, info in pairs(activeCreatures) do
 			if not model:IsDescendantOf(Workspace) then continue end
 			local behavior = model:GetAttribute("Behavior")
 			local isDead = model:GetAttribute("IsDead")
+			
+			-- 육식이 아니거나 죽었으면 기존 빛 제거
 			if behavior ~= "AGGRESSIVE" or isDead then
-				-- 육식이 아니거나 죽었으면 기존 빛 제거
-				local head = model:FindFirstChild("Head", true)
+				-- ★ [FIX] Head 파트 찾기 개선 (recursive 옵션 사용하고 모든 파트 확인)
+				local head = model:FindFirstChild("Head") or model:FindFirstChildWhichIsA("BasePart", true)
 				if head then
 					local existing = head:FindFirstChild("NightEyeGlow")
 					if existing then existing:Destroy() end
@@ -344,7 +351,18 @@ function CreatureAnimationController.Init()
 				continue
 			end
 
-			local head = model:FindFirstChild("Head", true) or model:FindFirstChild("Neck", true)
+			-- ★ [FIX] Head 찾기: 먼저 직접 자식 확인, 없으면 recursive 검색
+			local head = model:FindFirstChild("Head")
+			if not head then
+				-- 실제 Head 파트 이름이 다를 수 있음 (예: HeadPart, Head_Part 등)
+				for _, part in ipairs(model:FindFirstChild("Humanoid") and model:GetDescendants() or {}) do
+					if part:IsA("BasePart") and (part.Name:lower():find("head") or (model.PrimaryPart and part == model.PrimaryPart)) then
+						head = part
+						break
+					end
+				end
+			end
+			
 			if not head or not head:IsA("BasePart") then continue end
 
 			local glow = head:FindFirstChild("NightEyeGlow")
@@ -357,6 +375,7 @@ function CreatureAnimationController.Init()
 					glow.Range = EYE_GLOW_RANGE
 					glow.Shadows = false
 					glow.Parent = head
+					print(string.format("[CreatureAnimationController] 눈빛 추가: %s (Part: %s)", model.Name, head.Name))
 				end
 				glow.Enabled = true
 			else
@@ -384,6 +403,9 @@ function CreatureAnimationController.Init()
 			updateNightEyeGlow()
 		end
 	end)
+	
+	-- ★ [FIX] 초기 시작 시에도 한 번 updateNightEyeGlow 호출 (대기 없음)
+	task.defer(updateNightEyeGlow)
 	
 	initialized = true
 	print("[CreatureAnimationController] Initialized")

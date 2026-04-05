@@ -319,6 +319,16 @@ function PlayerLifeService._respawnPlayer(player: Player)
 	local respawnPoint = state.respawnPoint or getDefaultRespawnPos()
 	print(string.format("[PlayerLifeService] _respawnPlayer: calling LoadCharacter for %s (target=%s)", player.Name, tostring(respawnPoint)))
 
+	-- ★ [FIX] Respawn 위치 검증: Y좌표가 비정상이면 강제 보정 (1차 방어)
+	local respawnPosAdjusted = false
+	if typeof(respawnPoint) == "Vector3" then
+		if respawnPoint.Y < 15 then
+			print(string.format("[PlayerLifeService] _respawnPlayer: Y=%.1f is unsafe, enforcing Y+15", respawnPoint.Y))
+			respawnPoint = Vector3.new(respawnPoint.X, respawnPoint.Y + 15, respawnPoint.Z)
+			respawnPosAdjusted = true
+		end
+	end
+
 	-- RespawnLocation 클리어 (SpawnLocation 강제 배치 방지)
 	player.RespawnLocation = nil
 
@@ -327,6 +337,7 @@ function PlayerLifeService._respawnPlayer(player: Player)
 	player:SetAttribute("SpawnPosX", tp.X)
 	player:SetAttribute("SpawnPosY", tp.Y)
 	player:SetAttribute("SpawnPosZ", tp.Z)
+	player:SetAttribute("RespawnAdjusted", respawnPosAdjusted)
 
 	-- playerDeathState는 클리어하지 않음 → CharacterAdded 핸들러가 읽고 클리어
 	player:LoadCharacter()

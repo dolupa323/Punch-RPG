@@ -52,8 +52,12 @@ local DEBUG_FORCE_NODE_IDS = {
 -- Private Functions
 --========================================
 
---- HP 바 생성
+--- HP 바 생성 — [REMOVED] 레거시 흰색 이름+초록 HP바 박스 제거
 local function createHPBar(nodeModel, nodeUID, maxHits)
+	return nil -- 레거시 UI 비활성화: Highlight 힌트 마커만 유지
+end
+
+local function _createHPBar_DISABLED(nodeModel, nodeUID, maxHits)
 	if activeBars[nodeUID] then return activeBars[nodeUID] end
 	
 	local primary = nodeModel.PrimaryPart or nodeModel:FindFirstChildWhichIsA("BasePart")

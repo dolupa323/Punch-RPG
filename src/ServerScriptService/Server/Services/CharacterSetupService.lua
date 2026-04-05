@@ -181,6 +181,12 @@ local function onCharacterAdded(player: Player, character)
 		local targetPos = Vector3.new(spawnX, spawnY, spawnZ)
 		local hrp = character:WaitForChild("HumanoidRootPart", 5)
 		if hrp then
+			-- ★ [FIX] Y좌표 강제 보정: 항상 최소 15 이상 보장 (respawn 팅김 방지)
+			if targetPos.Y < 15 then
+				print(string.format("[CharacterSetupService] Y=%.1f is unsafe, enforcing Y=%.1f", targetPos.Y, targetPos.Y + 20))
+				targetPos = Vector3.new(targetPos.X, targetPos.Y + 20, targetPos.Z)
+			end
+			
 			-- Anchor로 Roblox 엔진의 위치 덮어쓰기를 차단한 뒤 즉시 PivotTo
 			hrp.Anchored = true
 			character:PivotTo(CFrame.new(targetPos))
@@ -201,7 +207,12 @@ local function onCharacterAdded(player: Player, character)
 	if hrpFinal and hrpFinal.Anchored then
 		-- 최종 위치 재확인 후 해제
 		if spawnX and spawnY and spawnZ then
-			character:PivotTo(CFrame.new(spawnX, spawnY, spawnZ))
+			local finalPos = Vector3.new(spawnX, spawnY, spawnZ)
+			-- 최종 보정도 적용
+			if finalPos.Y < 15 then
+				finalPos = Vector3.new(finalPos.X, finalPos.Y + 20, finalPos.Z)
+			end
+			character:PivotTo(CFrame.new(finalPos))
 		end
 		hrpFinal.Anchored = false
 		print(string.format("[CharacterSetupService] Anchor released for %s", player.Name))

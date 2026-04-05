@@ -152,7 +152,7 @@ Balance.DODGE_STAMINA_COST = 25        -- 구르기 1회 스태미나 소모
 Balance.DODGE_COOLDOWN = 0.8           -- 구르기 쿨다운 (초)
 Balance.DODGE_DISTANCE = 12            -- 구르기 이동 거리 (스터드)
 Balance.DODGE_DURATION = 0.4           -- 구르기 소요 시간 (초)
-Balance.DODGE_IFRAMES = 0.25           -- 무적 프레임 지속 시간 (초)
+Balance.DODGE_IFRAMES = 0.35           -- [수정] 무적 프레임 지속 시간 (0.25 → 0.35초, 네트워크 지연 보상)
 --========================================
 -- 수확 및 공격 판정 (Phase 7)
 --========================================

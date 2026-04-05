@@ -177,7 +177,8 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 				knockDir = Vector3.new(0, 0, 1)
 			end
 			local knockForce = (Balance.CREATURE_KNOCKBACK_FORCE or 12) * 1.2
-			creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, 5, 0)
+				-- ★ [FIX] Y축 발사력 제거: 크리처가 위로 튕기면서 플레이어와 충돌 시 발사 유발
+				creature.rootPart.AssemblyLinearVelocity = knockDir * knockForce + Vector3.new(0, math.min(creature.rootPart.AssemblyLinearVelocity.Y, 0), 0)
 		end
 		
 		if NetController then

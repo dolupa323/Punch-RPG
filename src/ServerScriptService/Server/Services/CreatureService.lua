@@ -346,9 +346,9 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 		end
 	end
 	
-	-- ★ 물리 안정화: 고밀도 + 높은 마찰 → 밀림/미끄러짐 방지
+	-- ★ 물리 안정화: 합리적 밀도 + 높은 마찰 → 플레이어 발사 방지
 	rootPart.CustomPhysicalProperties = PhysicalProperties.new(
-		100,  -- Density: 매우 무거움 (기본 0.7)
+		1.0,  -- Density: 합리적 무게 (기본 0.7 대비 미세 추가 안정성)
 		2,    -- Friction: 높은 마찰력
 		0,    -- Elasticity: 반발력 없음 (튕김 방지)
 		1,    -- FrictionWeight
@@ -444,6 +444,14 @@ local function setupModelForCreature(model: Model, position: Vector3, data: any)
 			part.CanCollide = false
 		end
 	end
+	
+	-- ★ [FIX] Humanoid 엔진이 HumanoidRootPart.CanCollide를 매 프레임 true로 강제하므로,
+	-- GetPropertyChangedSignal로 감시하여 즉시 false로 되돌림 (플레이어 발사 방지)
+	rootPart:GetPropertyChangedSignal("CanCollide"):Connect(function()
+		if rootPart.CanCollide then
+			rootPart.CanCollide = false
+		end
+	end)
 	
 	return model, rootPart, humanoid
 end
@@ -583,9 +591,41 @@ function CreatureService.spawn(creatureId, position)
 		rootPart:SetNetworkOwner(nil) -- nil = 서버 소유
 	end)
 	
-	-- ★ 0.5초 후 Anchored 해제: Humanoid가 지면에 안착할 시간 확보
-	task.delay(0.5, function()
-		if rootPart and rootPart.Parent then
+	-- ★ 개선: StreamingEnabled 대응 지형 로딩 감지 → Anchored 해제
+	-- 레이캐스트로 지형을 감지할 때까지 대기, 최대 5초
+	task.spawn(function()
+		local maxWait = 5
+		local elapsedTime = 0
+		local checkInterval = 0.1
+		
+		while elapsedTime < maxWait do
+			if not rootPart or not rootPart.Parent then
+				return  -- 크리처가 삭제됨
+			end
+			
+			-- 레이캐스트로 지형 감지
+			local rayOrigin = rootPart.Position + Vector3.new(0, 2, 0)
+			local rayDirection = Vector3.new(0, -50, 0)
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Whitelist
+			raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+			
+			local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+			
+			if rayResult then
+				-- ✅ 지형 감지됨 → Anchored 해제
+				if rootPart.Anchored then
+					rootPart.Anchored = false
+				end
+				return
+			end
+			
+			task.wait(checkInterval)
+			elapsedTime = elapsedTime + checkInterval
+		end
+		
+		-- ⏱️ 최대 시간 초과 시에도 강제 해제 (폴백)
+		if rootPart and rootPart.Parent and rootPart.Anchored then
 			rootPart.Anchored = false
 		end
 	end)
@@ -825,20 +865,28 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" then
 			-- 기절 상태 진입
 			setCreatureState(creature, "STUNNED")
-			-- ★ WalkSpeed=0 + 즉시 Anchored로 정지 (MoveTo 제거)
-			-- MoveTo는 Humanoid 내부 물리를 작동시켜 지형 뚫림 발생
+			-- ★ [수정] Anchored 대신 속도 제한으로 중력 유지
+			-- 문제: Anchored = true를 점프/낙하 중에 실행하면 공중에 고정됨
+			-- 해결: X, Z 속도만 0으로, Y(중력)는 계속 적용
 			creature.humanoid.WalkSpeed = 0
 			creature.humanoid.JumpPower = 0
 			creature.humanoid.AutoRotate = false
 			if creature.rootPart then
-				-- ★ 속도 0으로 고정
-				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-				-- ★ 즉시 Anchored (물리 엔진 비활성화)
-				creature.rootPart.Anchored = true
-				-- ★ 플레이어와 충돌 비활성화 (기절 중 플레이어가 공룡 통과 가능하지만 튕기지 않음)
+				-- ★ [수정] X, Z만 0으로 설정, Y는 현재 속도 유지 (중력 적용)
+				local currentVelocity = creature.rootPart.AssemblyLinearVelocity
+				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, currentVelocity.Y, 0)
+				
+				-- ★ [제거] Anchored = true 제거 (공중 부양 방지)
+				-- 대신 WalkSpeed = 0으로만 이동 제한
+				-- creature.rootPart.Anchored = false  (명시적으로 해제)
+				if creature.rootPart.Anchored then
+					creature.rootPart.Anchored = false
+				end
+				
+				-- ★ 기절 중 플레이어와 충돌 비활성화 (플레이어가 공룡 통과 가능)
 				creature.rootPart.CanCollide = false
 			end
-			print(string.format("[CreatureService] %s is STUNNED!", instanceId))
+			print(string.format("[CreatureService] %s is STUNNED (속도 제한 방식)", instanceId))
 		elseif creature.state ~= "STUNNED" then
 			-- 피격 시 어그로/도망
 			local oldState = creature.state
@@ -1363,6 +1411,12 @@ function CreatureService._updateAILoop()
 		creature.closestPlayerRoot = nil
 		creature.closestPlayerHum = nil
 		creature.closestPlayerUserId = nil
+		
+		-- ★ [추가] 장애물 끼임 감지 초기화
+		if not creature.stuckCheckPos then
+			creature.stuckCheckPos = creature.rootPart.Position
+			creature.stuckTime = 0
+		end
 	end
 
 	-- 2. 공간 분할 색인(GetPartBoundsInRadius)을 통한 벌크 업데이트
@@ -1583,7 +1637,34 @@ function CreatureService._updateAILoop()
 					if not creature.lastMoveToPos or (creature.lastMoveToPos - wpPos).Magnitude > MOVETO_RETHRESHOLD then
 						humanoid:MoveTo(wpPos)
 						creature.lastMoveToPos = wpPos
+						-- ★ [추가] MoveTo 호출 시 stuck 상태 초기화
+						creature.stuckTime = 0
+						creature.stuckCheckPos = nil
 					end
+					
+					-- ★ [추가] 장애물 끼임 감지 및 점프 극복
+					if humanoid.MoveDirection.Magnitude > 0 then
+						if not creature.stuckCheckPos then
+							creature.stuckCheckPos = hrp.Position
+							creature.stuckTime = 0
+						else
+							local distMoved = (hrp.Position - creature.stuckCheckPos).Magnitude
+							if distMoved < 0.2 then
+								-- 이동 명령이 있지만 움직이지 않음
+								creature.stuckTime = creature.stuckTime + AI_UPDATE_INTERVAL
+								if creature.stuckTime > 0.5 then  -- 0.5초 이상 제자리
+									-- 점프로 장애물 극복 시도
+									humanoid.Jump = true
+									creature.stuckTime = 0
+								end
+							else
+								-- 정상 이동 중
+								creature.stuckTime = 0
+								creature.stuckCheckPos = hrp.Position
+							end
+						end
+					end
+					
 					if (hrp.Position - wpPos).Magnitude < wpReachDist then
 						creature.pathData.currentIndex = creature.pathData.currentIndex + 1
 						-- ★ 목표 도달 확인: 모든 웨이포인트 완료 시 IDLE로 복귀

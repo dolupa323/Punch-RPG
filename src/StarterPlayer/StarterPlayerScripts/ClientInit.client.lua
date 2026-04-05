@@ -75,9 +75,8 @@ if success then
 	local CreatureAnimationController = require(Controllers.CreatureAnimationController)
 	CreatureAnimationController.Init()
 	
-	-- CreatureHealthUIController 초기화 (크리처 HP/Torpor 바 — 클라이언트 로컬 관리)
-	local CreatureHealthUIController = require(Controllers.CreatureHealthUIController)
-	CreatureHealthUIController.Init()
+	-- [REMOVED] CreatureHealthUIController — 레거시 흰색 이름+초록 HP바 박스 제거
+	-- 크리처 HP/Torpor 정보는 별도 UI로 대체됨
 	
 	-- [추가] HitFeedbackController 초기화 (피격 연출 및 물리 보정)
 	local HitFeedbackController = require(Controllers.HitFeedbackController)
