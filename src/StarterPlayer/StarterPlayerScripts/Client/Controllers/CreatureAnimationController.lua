@@ -64,9 +64,9 @@ local function getAnimNameForState(creatureModel, speed, info)
 		animKey = "STUNNED"
 	elseif state == "DEAD" then
 		animKey = "DEATH"
-	elseif state == "CHASE" or state == "FLEE" then
+	elseif state == "CHASE" or state == "FLEE" or state == "COMBAT" then
 		animKey = "RUN"
-	elseif state == "WANDER" then
+	elseif state == "WANDER" or state == "FOLLOW" then
 		animKey = "WALK"
 	elseif speed and speed > 1.5 then
 		animKey = speed > 15 and "RUN" or "WALK"

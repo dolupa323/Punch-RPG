@@ -14,6 +14,15 @@ local CreatureAnimationIds = {
 	-- [공룡별 특수 설정]
 	-- CreatureData.lua의 id와 일치해야 함
 	
+	-- 도도새 (Raptor 계열 애니메이션 공유)
+	DODO = {
+		IDLE = "Raptor_Idle",
+		WALK = "Raptor_Walk",
+		RUN = "Raptor_Run",
+		ATTACK = "Raptor_Attack",
+		DEATH = "Raptor_Death",
+	},
+	
 	-- 랩터
 	RAPTOR = {
 		IDLE = "Raptor_Idle",

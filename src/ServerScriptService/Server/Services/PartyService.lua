@@ -278,17 +278,29 @@ function PartyService.summon(userId: number, partySlot: number): (boolean, strin
 		return false, Enums.ErrorCode.INTERNAL_ERROR
 	end
 	
+	-- 네트워크 소유권을 플레이어에게 설정 (클라이언트 보간으로 부드러운 이동)
+	pcall(function()
+		rootPart:SetNetworkOwner(player)
+	end)
+
 	-- 소환 정보 기록
 	party.summonedSlot = partySlot
+	
+	-- 팰에 고유 InstanceId 부여 (공격 애니메이션 이벤트용)
+	local HttpService = game:GetService("HttpService")
+	local palInstanceId = "pal_" .. HttpService:GenerateGUID(false)
+	model:SetAttribute("InstanceId", palInstanceId)
+	
 	activeSummons[userId] = {
 		model = model,
 		humanoid = humanoid,
 		rootPart = rootPart,
 		palData = pal,
 		palUID = palUID,
-		state = "FOLLOW",
+		state = "IDLE",
 		lastAttackTime = 0,
 		ownerUserId = userId,
+		lastMoveTarget = nil, -- MoveTo 중복 호출 방지
 	}
 	
 	-- 상태 업데이트
@@ -433,16 +445,21 @@ function PartyService._createPalModel(palData, position: Vector3, ownerUserId: n
 			end
 		end
 
-		-- 모든 파트 설정
+		-- 모든 파트 설정 (Anchored=true 먼저 → workspace 배치 후 지면 감지 → unanchor)
 		for _, part in ipairs(model:GetDescendants()) do
 			if part:IsA("BasePart") then
-				part.Anchored = false
+				part.Anchored = true -- workspace 배치 전 고정
 				part.CollisionGroup = "Creatures"
+				part.CanCollide = false
+				if part ~= rootPart then
+					part.Massless = true
+				end
 			end
 		end
 
 		model.PrimaryPart = rootPart
-		model:PivotTo(CFrame.new(position + Vector3.new(0, 3, 0)))
+		-- 임시로 높은 곳에 배치 (이후 raycast로 정확한 지면에 내림)
+		model:PivotTo(CFrame.new(position + Vector3.new(0, 10, 0)))
 
 		-- Humanoid 설정
 		humanoid = model:FindFirstChildOfClass("Humanoid")
@@ -454,11 +471,50 @@ function PartyService._createPalModel(palData, position: Vector3, ownerUserId: n
 		humanoid.MaxHealth = palData.stats and palData.stats.hp or cData.maxHealth or 100
 		humanoid.Health = humanoid.MaxHealth
 		humanoid.MaxSlopeAngle = 89
-		humanoid.AutoJumpEnabled = true
+		humanoid.AutoJumpEnabled = false
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 		humanoid.UseJumpPower = true
-		humanoid.JumpPower = 40
+		humanoid.JumpPower = 5
+
+		-- 물리 안정화: 탄성 0 + 높은 마찰 (튕김/날아감 방지)
+		rootPart.CustomPhysicalProperties = PhysicalProperties.new(1.0, 2, 0, 1, 0)
+		rootPart.RootPriority = 127
+
+		-- HipHeight 계산 (모델 바닥 ~ HRP 바닥 거리)
+		local lowestY = math.huge
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") and part.Transparency < 0.9 then
+				local bottomY = part.Position.Y - part.Size.Y / 2
+				if bottomY < lowestY then lowestY = bottomY end
+			end
+		end
+		if lowestY == math.huge then
+			local modelCF, modelSize = model:GetBoundingBox()
+			lowestY = modelCF.Position.Y - modelSize.Y / 2
+		end
+		local hrpBottom = rootPart.Position.Y - rootPart.Size.Y / 2
+		humanoid.HipHeight = math.max(0, hrpBottom - lowestY)
+
+		-- Humanoid가 CanCollide를 매 프레임 true로 강제하므로 감시하여 되돌림
+		rootPart:GetPropertyChangedSignal("CanCollide"):Connect(function()
+			if rootPart.CanCollide then
+				rootPart.CanCollide = false
+			end
+		end)
+
+		-- 런타임 중 추가되는 파트도 동일 설정 적용
+		model.DescendantAdded:Connect(function(desc)
+			if desc:IsA("BasePart") then
+				desc.CollisionGroup = "Creatures"
+				desc.CanCollide = false
+				if desc ~= rootPart then
+					desc.Massless = true
+				end
+			end
+		end)
 	else
 		-- 폴백: 모델 템플릿 없을 경우 임시 모델
 		warn("[PartyService] Model template not found:", modelName, "- using fallback")
@@ -486,8 +542,8 @@ function PartyService._createPalModel(palData, position: Vector3, ownerUserId: n
 	-- 팰 속성 설정
 	rootPart:SetAttribute("IsPal", true)
 	rootPart:SetAttribute("OwnerUserId", ownerUserId)
-	model:SetAttribute("CreatureId", palData.creatureId)
-	model:SetAttribute("State", "FOLLOW")
+	model:SetAttribute("CreatureId", string.upper(palData.creatureId))
+	model:SetAttribute("State", "IDLE")
 
 	-- 이름표 (팰 닉네임 표시)
 	local bg = Instance.new("BillboardGui")
@@ -522,6 +578,33 @@ function PartyService._createPalModel(palData, position: Vector3, ownerUserId: n
 
 	model.Parent = creatureFolder
 
+	-- Raycast로 정확한 지면 높이를 찾아 배치한 뒤 Anchored 해제
+	do
+		local rayOrigin = rootPart.Position
+		local rayDirection = Vector3.new(0, -100, 0)
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		rayParams.FilterDescendantsInstances = {model}
+		local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
+		if rayResult then
+			local groundY = rayResult.Position.Y
+			local hipHeight = humanoid.HipHeight
+			local hrpHalfHeight = rootPart.Size.Y / 2
+			local targetY = groundY + hrpHalfHeight + hipHeight + 0.5
+			model:PivotTo(CFrame.new(rootPart.Position.X, targetY, rootPart.Position.Z))
+		else
+			-- raycast 실패 시 원래 위치 유지
+			model:PivotTo(CFrame.new(position + Vector3.new(0, 3, 0)))
+		end
+
+		-- 모든 파트 Anchored 해제 (지면에 안전하게 배치된 후)
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+			end
+		end
+	end
+
 	return model, rootPart, humanoid
 end
 
@@ -529,8 +612,44 @@ end
 -- Pal AI Loop
 --========================================
 
+-- MoveTo를 목표가 크게 변했을 때만 호출 (중복 호출로 인한 경로 끊김 방지)
+local MOVE_RETHRESHOLD = 3 -- 이전 목표 대비 3스터드 이상 변해야 재호출
+
+local function smartMoveTo(humanoid, targetPos, summon)
+	if summon.lastMoveTarget then
+		local delta = (targetPos - summon.lastMoveTarget).Magnitude
+		if delta < MOVE_RETHRESHOLD then
+			return -- 목표가 거의 같으면 재호출하지 않음
+		end
+	end
+	summon.lastMoveTarget = targetPos
+	humanoid:MoveTo(targetPos)
+end
+
+-- 팰 상태 변경 + 클라이언트 동기화 (애니메이션 트리거)
+local function setPalState(summon, newState)
+	if summon.state == newState then return end
+	summon.state = newState
+	if summon.model then
+		summon.model:SetAttribute("State", newState)
+	end
+end
+
+-- 팰 공격 애니메이션 이벤트 전송
+local function firePalAttackAnim(summon)
+	if not summon.model then return end
+	-- model에 InstanceId가 없으므로 모든 클라이언트에게 모델 기반으로 전달
+	-- CreatureAnimationController는 InstanceId로 모델을 찾으므로, 임시 InstanceId 설정
+	local instanceId = summon.model:GetAttribute("InstanceId")
+	if instanceId and NetController then
+		NetController.FireAllClients("Creature.Attack.Play", {
+			instanceId = instanceId, 
+		})
+	end
+end
+
 function PartyService._updateSummonedPalAI()
-	local now = os.time()
+	local now = os.clock()
 	
 	for userId, summon in pairs(activeSummons) do
 		if not summon.model or not summon.model.Parent or (summon.humanoid and summon.humanoid.Health <= 0) then
@@ -595,7 +714,7 @@ function PartyService._updateSummonedPalAI()
 		if not ownerHrp or not ownerIsAlive then
 			if closestEnemy and enemyDist <= PAL_COMBAT_RANGE then
 				-- 주인은 없지만 근처에 적이 있으면 자기방어 수행
-				summon.state = "COMBAT"
+				setPalState(summon, "COMBAT")
 				humanoid:MoveTo(closestEnemy.Position)
 				humanoid.WalkSpeed = (summon.palData.stats.speed or 16) * 1.2
 				
@@ -603,6 +722,7 @@ function PartyService._updateSummonedPalAI()
 				if enemyDist <= PAL_ATTACK_RANGE then
 					if not summon.lastAttackTime or (now - summon.lastAttackTime >= PAL_ATTACK_COOLDOWN) then
 						summon.lastAttackTime = now
+						firePalAttackAnim(summon)
 						local targetModel = closestEnemy.Parent
 						if targetModel and targetModel:GetAttribute("InstanceId") and CreatureService.processAttack then
 							local damage = summon.palData.stats.attack or 10
@@ -621,45 +741,66 @@ function PartyService._updateSummonedPalAI()
 		
 		-- 3. 정상 상태 (주인이 살아있을 때)
 		local distToOwner = (palHrp.Position - ownerHrp.Position).Magnitude
+		local baseSpeed = summon.palData.stats.speed or 16
 		
-		-- 주인이 너무 멀리 가면 텔레포트
-		if distToOwner > 60 then
-			palHrp.CFrame = CFrame.new(ownerHrp.Position + ownerHrp.CFrame.LookVector * -PAL_FOLLOW_DIST)
-			summon.state = "FOLLOW"
+		-- 주인 이동 중인지 감지
+		local ownerVelocity = ownerHrp.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+		local ownerMoving = ownerVelocity.Magnitude > 2
+		
+		-- 히스테리시스 거리 (상태에 따라 다른 임계값으로 진동 방지)
+		local followStartDist = PAL_FOLLOW_DIST + 4  -- 8스터드: 따라가기 시작
+		local followStopDist = PAL_FOLLOW_DIST + 1   -- 5스터드: 따라가기 중지
+		
+		-- 주인이 너무 멀리 가면 텔레포트 (부드러운 재배치)
+		if distToOwner > 50 then
+			local teleportTarget = ownerHrp.Position - ownerHrp.CFrame.LookVector * PAL_FOLLOW_DIST
+			palHrp.CFrame = CFrame.new(teleportTarget + Vector3.new(0, 2, 0))
+			setPalState(summon, "FOLLOW")
+			summon.lastMoveTarget = nil
 		-- 적이 전투 범위 내에 있으면 전투
 		elseif closestEnemy and enemyDist <= PAL_COMBAT_RANGE then
-			summon.state = "COMBAT"
-			humanoid:MoveTo(closestEnemy.Position)
-			humanoid.WalkSpeed = (summon.palData.stats.speed or 16) * 1.2
+			setPalState(summon, "COMBAT")
+			humanoid.WalkSpeed = baseSpeed * 1.2
+			smartMoveTo(humanoid, closestEnemy.Position, summon)
 			
 			-- 공격 범위 내면 공격
 			if enemyDist <= PAL_ATTACK_RANGE then
 				if not summon.lastAttackTime or (now - summon.lastAttackTime >= PAL_ATTACK_COOLDOWN) then
 					summon.lastAttackTime = now
+					firePalAttackAnim(summon)
 					
 					local targetModel = closestEnemy.Parent
 					if targetModel then
 						local targetId = targetModel:GetAttribute("InstanceId")
 						if targetId and CreatureService.processAttack then
 							local damage = summon.palData.stats.attack or 10
-							local killed = CreatureService.processAttack(targetId, damage, 0, player)
-							
-							print(string.format("[PartyService] Pal %s attacked %s for %d dmg (Killed: %s)", 
-								summon.palData.nickname, targetModel.Name, damage, tostring(killed)))
+							CreatureService.processAttack(targetId, damage, 0, player)
 						end
 					end
 				end
 			end
-		-- 주인 따라가기
-		elseif distToOwner > PAL_FOLLOW_DIST + 2 then
-			summon.state = "FOLLOW"
-			local behindOwner = ownerHrp.Position - ownerHrp.CFrame.LookVector * PAL_FOLLOW_DIST
-			humanoid:MoveTo(behindOwner)
-			humanoid.WalkSpeed = summon.palData.stats.speed or 16
+		-- 주인 따라가기 (히스테리시스 적용)
+		elseif distToOwner > followStartDist or (summon.state == "FOLLOW" and distToOwner > followStopDist) then
+			setPalState(summon, "FOLLOW")
+			-- 주인 뒤쪽 + 이동 방향 예측
+			local followTarget
+			if ownerMoving then
+				followTarget = ownerHrp.Position - ownerHrp.CFrame.LookVector * PAL_FOLLOW_DIST
+			else
+				followTarget = ownerHrp.Position - ownerHrp.CFrame.LookVector * PAL_FOLLOW_DIST
+			end
+			-- 주인과의 거리에 비례한 속도 (멀수록 빠르게)
+			local speedMult = math.clamp(distToOwner / followStartDist, 1, 1.8)
+			humanoid.WalkSpeed = baseSpeed * speedMult
+			smartMoveTo(humanoid, followTarget, summon)
 		else
-			-- 주인 근처 → IDLE
-			summon.state = "IDLE"
-			humanoid:MoveTo(palHrp.Position)
+			-- 주인 근처 → IDLE (한 번만 정지 명령)
+			if summon.state ~= "IDLE" then
+				setPalState(summon, "IDLE")
+				humanoid.WalkSpeed = baseSpeed
+				summon.lastMoveTarget = nil
+			end
+			-- IDLE 상태에서는 MoveTo를 호출하지 않음 (자연스러운 정지)
 		end
 	end
 end
