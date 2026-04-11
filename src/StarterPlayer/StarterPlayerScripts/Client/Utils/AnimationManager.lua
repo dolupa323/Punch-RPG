@@ -66,7 +66,11 @@ function AnimationManager.load(humanoid: Humanoid, animName: string): AnimationT
 		animator.Parent = humanoid
 	end
 	
-	-- [추가] PrimaryPart가 없으면 물리 엔진이 애니메이션을 재생하지 못함 (전파 시도)
+	-- [추가] Parent가 nil이면 이미 월드에서 제거된 상태 → 로드 불가
+	if not humanoid.Parent then
+		return nil
+	end
+	-- PrimaryPart가 없으면 물리 엔진이 애니메이션을 재생하지 못함 (전파 시도)
 	if not humanoid.Parent.PrimaryPart then
 		humanoid.Parent.PrimaryPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
 	end

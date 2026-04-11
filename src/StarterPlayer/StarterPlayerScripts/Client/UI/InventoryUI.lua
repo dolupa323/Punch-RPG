@@ -1344,9 +1344,16 @@ function InventoryUI.ShowAnimalDetail(palData)
 		end
 
 		local order = 0
-		-- 생명: palData.stats.hp (속성 반영) vs baseStats.hp
-		local hpVal = stats.hp or creatureData.petHealth or creatureData.maxHealth or 0
-		order = order + 1; createAnimalStatCell(sf, "생명", tostring(hpVal), order, getStatColor("hp"))
+		-- 생명: 현재HP / 최대HP (currentHp가 있으면 사용, 없으면 풀HP)
+		local maxHp = stats.hp or creatureData.petHealth or creatureData.maxHealth or 0
+		local currentHp = stats.currentHp or maxHp
+		local hpDisplay = string.format("%d / %d", currentHp, maxHp)
+		local hpColor = getStatColor("hp")
+		if currentHp < maxHp then
+			-- 현재 HP가 최대보다 낮으면 노란색 표시
+			hpColor = hpColor or Color3.fromHex("#FFCC00")
+		end
+		order = order + 1; createAnimalStatCell(sf, "생명", hpDisplay, order, hpColor)
 
 		-- 이동속도: palData.stats.speed (속성 반영)
 		local spdVal = stats.speed or creatureData.runSpeed or 0
@@ -1377,8 +1384,13 @@ function InventoryUI.ShowAnimalDetail(palData)
 			for _, traitInfo in ipairs(traits) do
 				local badgeColor = traitInfo.positive and Color3.fromHex("#4CAF50") or Color3.fromHex("#F44336")
 				local arrow = traitInfo.positive and "▲" or "▼"
-				local traitLabel = string.format("%s %s", traitInfo.icon or "", traitInfo.name)
-				local traitValue = string.format("Lv.%d %s", traitInfo.level or 1, arrow)
+				-- 스탯 한글 매핑: attack=공격, defense=방어, speed=속도, hp=생명
+				local statNameMap = { attack = "공격", defense = "방어", speed = "속도", hp = "생명" }
+				local statLabel = statNameMap[traitInfo.stat] or traitInfo.stat
+				local traitLabel = string.format("%s (%s)", traitInfo.name, statLabel)
+				local lvl = traitInfo.level or 1
+				local pct = math.floor((traitInfo.perLevel or 0.08) * lvl * 100)
+				local traitValue = string.format("%s%d%% (Lv.%d)", arrow, pct, lvl)
 
 				order = order + 1
 				createAnimalStatCell(sf, traitLabel, traitValue, order, badgeColor)

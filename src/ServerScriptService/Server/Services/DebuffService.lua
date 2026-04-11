@@ -357,6 +357,16 @@ function DebuffService._environmentCheck()
 	
 	for _, player in ipairs(Players:GetPlayers()) do
 		local userId = player.UserId
+
+		-- ★ ForceField(포탈 무적) 중에는 환경 디버프 스킵
+		local char = player.Character
+		if char and char:FindFirstChildOfClass("ForceField") then
+			DebuffService.removeDebuff(userId, "CHILLY")
+			DebuffService.removeDebuff(userId, "WARMTH")
+			DebuffService.removeDebuff(userId, "FREEZING")
+			continue
+		end
+
 		local env = getChillyEnvironmentState(player)
 		if not env then
 			DebuffService.removeDebuff(userId, "CHILLY")

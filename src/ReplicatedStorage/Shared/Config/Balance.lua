@@ -88,7 +88,8 @@ Balance.CRAFT_CANCEL_REFUND = 1.0      -- 취소 시 재료 환불 비율 (1.0 =
 --========================================
 Balance.MAX_PALBOX = 30                -- 팰 보관함 최대 수
 Balance.MAX_PARTY = 5                  -- 파티 최대 슬롯
-Balance.PAL_FOLLOW_DIST = 4            -- 팰이 주인과 유지하는 거리 (스터드)
+Balance.PAL_FOLLOW_DIST = 12           -- 팰이 주인과 유지하는 거리 (스터드)
+Balance.PAL_MIN_DIST = 8               -- 팰이 주인에게 이보다 가까이 접근 불가 (스터드)
 Balance.PAL_COMBAT_RANGE = 15          -- 팰이 전투를 시작하는 감지 범위 (스터드)
 Balance.CAPTURE_RANGE = 30             -- 기본 포획 사거리 (스터드)
 

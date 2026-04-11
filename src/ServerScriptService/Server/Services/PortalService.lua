@@ -353,21 +353,8 @@ local function _requestPortalTeleport(player, payload)
 		return { success = false, errorCode = "INVALID_STATE" }
 	end
 
-	-- 도착 포탈 위치 결정: 출발→귀환포탈, 귀환→출발포탈
+	-- 도착 포탈 이름 (실제 좌표는 SpawnZone 완료 후 계산)
 	local arrivalPortalName = isReturn and def.portalName or def.returnPortalName
-	local arrivalPortal = _getPortalObject(arrivalPortalName)
-	local arrivalPos
-	if arrivalPortal then
-		if arrivalPortal:IsA("Model") then
-			arrivalPos = arrivalPortal:GetPivot().Position + Vector3.new(0, 5, 0)
-		elseif arrivalPortal:IsA("BasePart") then
-			arrivalPos = arrivalPortal.Position + Vector3.new(0, 5, 0)
-		end
-	end
-	if not arrivalPos then
-		warn("[PortalService] Arrival portal not found:", arrivalPortalName, "— using zone spawnPoint")
-		arrivalPos = zoneInfo.spawnPoint + Vector3.new(0, 5, 0)
-	end
 
 	local destName = isReturn and "초원섬" or def.destinationName
 	NetController.FireClient(player, "Portal.Teleporting", {
@@ -400,7 +387,43 @@ local function _requestPortalTeleport(player, payload)
 			return
 		end
 
+		-- ★ 도착 좌표: zone spawnPoint를 기본으로 사용 (안전 보장)
+		-- 포탈 오브젝트 위치는 주변 지형(물 등)이 위험할 수 있으므로 spawnPoint 우선
+		local arrivalPos = zoneInfo.spawnPoint + Vector3.new(0, 5, 0)
+		local arrivalPortal = _getPortalObject(arrivalPortalName)
+
+		-- Raycast 제외 목록: 캐릭터 + 도착 포탈 (포탈 표면이 아닌 실제 지면을 감지)
+		local excludeList = { character }
+		if arrivalPortal then
+			table.insert(excludeList, arrivalPortal)
+		end
+
+		-- spawnPoint 기준으로 지면 안전 확인
+		local rayOrigin = arrivalPos + Vector3.new(0, 50, 0)
+		local rayDir = Vector3.new(0, -250, 0)
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		rayParams.FilterDescendantsInstances = excludeList
+		local rayResult = workspace:Raycast(rayOrigin, rayDir, rayParams)
+		if rayResult and rayResult.Material ~= Enum.Material.Water then
+			-- 안전한 지면 발견 → 지면 위 5스터드에 착지
+			arrivalPos = rayResult.Position + Vector3.new(0, 5, 0)
+		else
+			-- 지면 없음 또는 Water → spawnPoint 높이 그대로 사용
+			if rayResult then
+				warn("[PortalService] Water detected at spawnPoint, using raw spawnPoint")
+			end
+		end
+
 		character:PivotTo(CFrame.new(arrivalPos))
+
+		-- ★ 텔레포트 직후 무적 (ForceField) — 주변 크리처 인식 시간 확보
+		local ff = Instance.new("ForceField")
+		ff.Visible = false
+		ff.Parent = character
+		task.delay(5, function()
+			if ff and ff.Parent then ff:Destroy() end
+		end)
 
 		NetController.FireClient(player, "Portal.Arrived", { zone = targetZoneName, portalId = portalId })
 		print(string.format("[PortalService] %s warped to '%s' via portal '%s'%s (pos=%.0f,%.0f,%.0f)",

@@ -829,7 +829,11 @@ function BuildController.requestPlace(facilityId: string, position: Vector3, rot
 			MISSING_REQUIREMENTS = "재료가 부족합니다.",
 			STRUCTURE_CAP = "구조물 한도에 도달했습니다.",
 		}
-		return map[tostring(code)] or ("건설 실패: " .. tostring(code))
+		if map[tostring(code)] then
+			return map[tostring(code)]
+		end
+		warn("[BuildController] Unmapped build error code:", code)
+		return "건설에 실패했습니다. 잠시 후 다시 시도해주세요."
 	end
 	
 	local success, data = NetClient.Request("Build.Place.Request", {

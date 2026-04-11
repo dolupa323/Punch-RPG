@@ -35,7 +35,7 @@ local PVP_ENABLED = false       -- PvP 비활성화
 
 -- Combat Engagement Constants
 local COMBAT_DISENGAGE_TIMEOUT = 8   -- 교전 없이 8초 경과 → 전투 해제
-local COMBAT_DISENGAGE_DISTANCE = 50 -- 50스터드 이상 벗어나면 즉시 전투 해제
+local COMBAT_DISENGAGE_DISTANCE = 130 -- 130스터드 이상 벗어나면 즉시 전투 해제 (활 사거리 120 대응)
 local CONTACT_KNOCKBACK_FORCE = 10   -- 전투 중 접촉 시 밀어내기 힘 (18 → 10, 플레이어 튕김 방지)
 local CONTACT_STAGGER_DURATION = 0.3 -- 접촉 경직 시간 (초)
 local CONTACT_STAGGER_COOLDOWN = 2.0 -- 접촉 경직 쿨다운 (경직 해제 후 재발동까지)
@@ -181,6 +181,12 @@ local function engageCombat(userId, instanceId)
 		-- 전투 중 크리처 → 플레이어와 충돌 활성화
 		setCreatureCollisionGroup(instanceId, "CombatCreatures")
 	end
+
+	-- ★ 소환 팰에게 전투 대상 공유 (활 원거리 전투 대응)
+	local okPcall, PartyService = pcall(require, game:GetService("ServerScriptService").Server.Services.PartyService)
+	if okPcall and PartyService and PartyService.setOwnerCombatTarget then
+		PartyService.setOwnerCombatTarget(userId, instanceId)
+	end
 end
 
 --- 전투 상태 해제 (플레이어)
@@ -190,6 +196,12 @@ local function disengageCombat(userId)
 
 	playerCombatTarget[userId] = nil
 	playerCombatLastHit[userId] = nil
+
+	-- ★ 팰 전투 대상 해제
+	local okPcall, PartyService = pcall(require, game:GetService("ServerScriptService").Server.Services.PartyService)
+	if okPcall and PartyService and PartyService.setOwnerCombatTarget then
+		PartyService.setOwnerCombatTarget(userId, nil)
+	end
 
 	if creatureCombatants[instanceId] then
 		creatureCombatants[instanceId][userId] = nil

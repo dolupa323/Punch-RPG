@@ -40,7 +40,7 @@ function StorageController.openStorage(storageId: string)
 		if tostring(data) == "NO_PERMISSION" then
 			UIManager.notify("토템 보호가 활성화된 거점 보관함입니다. 유지비 만료 후 약탈 가능합니다.", Color3.fromRGB(255, 120, 120))
 		else
-			UIManager.notify("보관함 열기 실패: " .. tostring(data), Color3.fromRGB(255, 120, 120))
+			UIManager.notify("보관함을 열 수 없습니다. 다시 시도해주세요.", Color3.fromRGB(255, 120, 120))
 		end
 		warn("[StorageController] Failed to open storage:", storageId, data)
 	end

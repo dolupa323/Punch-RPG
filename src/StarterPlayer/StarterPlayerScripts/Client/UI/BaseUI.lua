@@ -108,7 +108,8 @@ function BaseUI.Init(parent, UIManager, isMobile)
 			if success then
 				UIManager.notify("거점 이름이 변경되었습니다.")
 			else
-				UIManager.notify("이름 변경 실패: " .. tostring(err))
+				UIManager.notify("이름을 변경할 수 없습니다. 다시 시도해주세요.")
+				warn("[BaseUI] Rename failed:", err)
 			end
 		end
 	end)
@@ -162,7 +163,8 @@ function BaseUI.Init(parent, UIManager, isMobile)
 				local info = BaseController.getBaseInfo()
 				if info then BaseUI.Refresh(info) end
 			else
-				UIManager.notify("확장 불가: " .. tostring(err))
+				UIManager.notify("거점을 확장할 수 없습니다. 조건을 확인해주세요.")
+				warn("[BaseUI] Expand failed:", err)
 			end
 		end,
 		parent = content

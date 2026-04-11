@@ -59,6 +59,86 @@ function PalboxService.Init(_NetController, _DataService, _SaveService)
 		end)
 	end
 	
+	-- ★ HP 자동 회복 루프 (미소환/보관 중인 팰)
+	-- STORED / IN_PARTY: 10초마다 최대HP의 5% 회복
+	-- FAINTED: 60초 후 HP 20%로 회복 → IN_PARTY로 전환
+	local PAL_REGEN_INTERVAL = 10   -- 초
+	local PAL_REGEN_PERCENT = 0.05  -- 10초당 최대HP의 5%
+	local FAINT_RECOVER_TIME = 60   -- 기절 후 회복까지 60초
+	
+	task.spawn(function()
+		-- faintTimers[userId][palUID] = os.clock() (기절 시작 시각)
+		local faintTimers: {[number]: {[string]: number}} = {}
+		
+		while true do
+			task.wait(PAL_REGEN_INTERVAL)
+			
+			for _, player in ipairs(Players:GetPlayers()) do
+				local userId = player.UserId
+				local palbox = playerPalboxes[userId]
+				if not palbox then continue end
+				
+				for uid, pal in pairs(palbox) do
+					if not pal.stats then continue end
+					
+					-- 최대 HP 계산 (stats.hp = 속성 반영 최대값)
+					local maxHp = pal.stats.hp or 100
+					if pal.baseStats and pal.baseStats.hp then
+						local PalTraitData = require(game:GetService("ReplicatedStorage").Data.PalTraitData)
+						local mult = PalTraitData.GetStatMultiplier(pal.traits, "hp")
+						maxHp = math.floor(pal.baseStats.hp * mult)
+					end
+					local currentHp = pal.stats.currentHp
+					
+					if pal.state == "FAINTED" then
+						-- 기절 타이머 관리
+						if not faintTimers[userId] then faintTimers[userId] = {} end
+						if not faintTimers[userId][uid] then
+							faintTimers[userId][uid] = os.clock()
+						end
+						
+						local elapsed = os.clock() - faintTimers[userId][uid]
+						if elapsed >= FAINT_RECOVER_TIME then
+							-- 기절 해제 → HP 20%로 회복
+							pal.stats.currentHp = math.floor(maxHp * 0.2)
+							pal.state = "IN_PARTY"
+							faintTimers[userId][uid] = nil
+							
+							-- 클라이언트 알림
+							if NetController then
+								NetController.FireClient(player, "Palbox.Updated", {
+									action = "UPDATE_STATS",
+									palUID = uid,
+									stats = pal.stats,
+								})
+								NetController.FireClient(player, "Notify.Message", {
+									text = (pal.nickname or pal.creatureId) .. " 기절에서 회복되었습니다!",
+								})
+							end
+						end
+						
+					elseif pal.state == "STORED" or pal.state == "IN_PARTY" then
+						-- 기절 타이머 정리
+						if faintTimers[userId] then faintTimers[userId][uid] = nil end
+						
+						-- currentHp가 nil이면 풀HP 취급
+						if currentHp == nil then continue end
+						if currentHp >= maxHp then continue end
+						
+						-- HP 회복
+						local healAmount = math.max(1, math.floor(maxHp * PAL_REGEN_PERCENT))
+						pal.stats.currentHp = math.min(currentHp + healAmount, maxHp)
+						
+						-- 풀HP 도달 시 currentHp 제거 (소환 시 maxHP 사용)
+						if pal.stats.currentHp >= maxHp then
+							pal.stats.currentHp = nil
+						end
+					end
+				end
+			end
+		end
+	end)
+	
 	print("[PalboxService] Initialized")
 end
 
@@ -185,8 +265,15 @@ function PalboxService.modifyPalStats(userId: number, palUID: string, statChange
 		local current = pal.stats[statName] or 0
 		local maxVal = 100
 		if statName == "hp" then
-			local creatureData = DataService and DataService.getCreature(pal.creatureId)
-			maxVal = (creatureData and creatureData.maxHealth) or 100
+			-- 속성 반영된 baseStats.hp (= 최대 HP)
+			local baseHp = pal.baseStats and pal.baseStats.hp
+			if baseHp then
+				local PalTraitData = require(game:GetService("ReplicatedStorage").Data.PalTraitData)
+				local mult = PalTraitData.GetStatMultiplier(pal.traits, "hp")
+				maxVal = math.floor(baseHp * mult)
+			else
+				maxVal = pal.stats.hp or 100
+			end
 		end
 		if statName == "hunger" then maxVal = Balance.PAL_HUNGER_MAX or 100 end
 		if statName == "san" then maxVal = Balance.PAL_SAN_MAX or 100 end
@@ -336,6 +423,8 @@ local function handleListRequest(player: Player, _payload)
 			nickname = pal.nickname,
 			level = pal.level,
 			stats = pal.stats,
+			baseStats = pal.baseStats,
+			traits = pal.traits,
 			workTypes = pal.workTypes,
 			combatPower = pal.combatPower,
 			state = pal.state,

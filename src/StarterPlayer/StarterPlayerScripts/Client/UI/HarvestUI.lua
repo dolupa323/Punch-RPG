@@ -673,7 +673,8 @@ function HarvestUI._runSingleGather(slotIndex)
 			setHexBorderColor(slot, UITheme.Colors.BORDER_DIM)
 			syncAnimation()
 			if UIManager then
-				UIManager.notify("채집 실패: " .. tostring(result), Color3.fromRGB(255, 120, 120))
+				UIManager.notify("채집에 실패했습니다. 다시 시도해주세요.", Color3.fromRGB(255, 120, 120))
+				warn("[HarvestUI] Gather failed:", tostring(result))
 			end
 			-- 현재 시도 배지 제거 + 남은 큐 처리
 			removeBadge(slot)
@@ -816,7 +817,8 @@ function HarvestUI._runSingleGather(slotIndex)
 			slot.progressBarFill.Size = UDim2.new(0, 0, 1, 0)
 			slot.progressBarBg.Visible = false
 			if UIManager then
-				UIManager.notify("채집 실패: " .. tostring(result2), Color3.fromRGB(255, 120, 120))
+				UIManager.notify("채집에 실패했습니다. 다시 시도해주세요.", Color3.fromRGB(255, 120, 120))
+				warn("[HarvestUI] Gather failed:", tostring(result2))
 			end
 		end
 

@@ -44,7 +44,7 @@ function FacilityController.openFacility(structureId: string)
 		elseif code == "OUT_OF_RANGE" then
 			getUIManager().notify("시설과 거리가 멉니다. 조금 더 가까이 이동하세요.", Color3.fromRGB(255, 170, 120))
 		else
-			getUIManager().notify("시설 접근 실패: " .. code, Color3.fromRGB(255, 120, 120))
+			getUIManager().notify("시설에 접근할 수 없습니다. 다시 시도해주세요.", Color3.fromRGB(255, 120, 120))
 			warn("[FacilityController] Failed to get facility info:", structureId, data)
 		end
 	end

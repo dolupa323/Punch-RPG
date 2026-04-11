@@ -58,6 +58,81 @@ local WindowManager = require(Client.Utils.WindowManager)
 local UIManager = {}
 
 ----------------------------------------------------------------
+-- ★ 에러코드 → 사용자 친화적 한글 메시지 변환
+-- 이 테이블에 없는 코드는 일반 메시지로 표시 (코드 노출 금지)
+----------------------------------------------------------------
+local ERROR_MESSAGES = {
+	-- 팰/동물 관련
+	PARTY_FULL = "파티가 가득 찼습니다. 먼저 다른 동물을 회수하세요.",
+	FAINTED = "기절한 동물은 소환할 수 없습니다.",
+	PALBOX_FULL = "동물 보관함이 가득 찼습니다.",
+	PAL_IN_PARTY = "이미 파티에 포함된 동물입니다.",
+	PAL_ALREADY_ASSIGNED = "이미 다른 곳에 배치된 동물입니다.",
+	PARTY_ADD_FAILED = "파티에 추가할 수 없습니다.",
+	NO_PARTY = "파티 정보를 찾을 수 없습니다.",
+	NOT_IN_PARTY = "파티에 포함되지 않은 동물입니다.",
+	SUMMON_FAILED = "소환에 실패했습니다. 잠시 후 다시 시도하세요.",
+	
+	-- 공통
+	BAD_REQUEST = "잘못된 요청입니다.",
+	NOT_FOUND = "대상을 찾을 수 없습니다.",
+	INVALID_STATE = "현재 상태에서는 수행할 수 없습니다.",
+	OUT_OF_RANGE = "대상과 거리가 너무 멉니다. 더 가까이 이동하세요.",
+	COOLDOWN = "재사용 대기 중입니다.",
+	UNKNOWN = "알 수 없는 오류가 발생했습니다.",
+	
+	-- 전투/스킬
+	WEAPON_MISMATCH = "해당 스킬에 맞는 무기를 장착해주세요.",
+	SKILL_NOT_IN_SLOT = "스킬이 슬롯에 장착되어 있지 않습니다.",
+	SKILL_NOT_UNLOCKED = "스킬이 해금되지 않았습니다.",
+	NOT_ENOUGH_STAMINA = "스태미나가 부족합니다.",
+	PLAYER_DEAD = "사용할 수 없는 상태입니다.",
+	SKILL_NOT_FOUND = "스킬을 찾을 수 없습니다.",
+	
+	-- 인벤토리/제작
+	INV_FULL = "인벤토리가 가득 찼습니다.",
+	INVENTORY_FULL = "인벤토리가 가득 찼습니다.",
+	NO_ITEM = "재료가 부족합니다.",
+	CRAFT_NOT_FOUND = "제작법을 찾을 수 없습니다.",
+	
+	-- 채집
+	NODE_NOT_FOUND = "채집 대상을 찾을 수 없습니다.",
+	
+	-- 거점/시설
+	NO_PERMISSION = "토템 보호가 활성화된 시설입니다.",
+	INSUFFICIENT_GOLD = "골드가 부족합니다.",
+	TOTEM_NOT_OWNER = "소유한 토템에서만 유지비를 결제할 수 있습니다.",
+	TOTEM_NOT_FOUND = "토템을 찾을 수 없습니다.",
+	INVALID_COUNT = "결제 기간이 올바르지 않습니다.",
+	
+	-- 포획
+	INVALID_TARGET = "포획할 수 없는 대상입니다.",
+	CREATURE_NOT_FOUND = "크리처를 찾을 수 없습니다.",
+	NOT_COLLAPSED = "먼저 크리처를 쓰러뜨려야 합니다.",
+	ALREADY_DEAD = "이미 죽은 크리처입니다.",
+	ALREADY_ATTEMPTED = "이미 포획을 시도한 크리처입니다.",
+	SKILL_LOCKED = "포획 스킬이 해금되지 않았습니다.",
+	NO_BOX_ITEM = "포획 상자가 없습니다.",
+	
+	-- 기타
+	NOTHING_TO_RESET = "초기화할 항목이 없습니다.",
+}
+
+--- 에러코드를 사용자 친화적 한글 메시지로 변환
+--- @param errCode any 서버로부터 받은 에러코드
+--- @param fallbackAction string? 행동 설명 (예: "소환", "제작")
+--- @return string 사용자에게 보여줄 한글 메시지
+local function friendlyError(errCode, fallbackAction)
+	local code = tostring(errCode or "UNKNOWN")
+	local msg = ERROR_MESSAGES[code]
+	if msg then return msg end
+	-- 매핑에 없는 코드 → 일반 메시지 (코드 노출 금지, Output에만 출력)
+	warn("[UIManager] Unmapped error code:", code)
+	if fallbackAction then
+		return fallbackAction .. "에 실패했습니다. 잠시 후 다시 시도하세요."
+	end
+	return "요청을 처리할 수 없습니다. 잠시 후 다시 시도하세요."
+end
 
 
 
@@ -235,7 +310,7 @@ function UIManager.confirmPendingStats()
 			UIManager.refreshStats()
 			-- cachedStats는 Player.Stats.Changed 이벤트로 업데이트됨
 		else
-			UIManager.notify("강화 실패: " .. tostring(data), C.RED)
+			UIManager.notify(friendlyError(data, "강화"), C.RED)
 		end
 	end)
 end
@@ -269,7 +344,7 @@ function UIManager.resetAllStats()
 			UIManager.refreshStats()
 			UIManager.refreshInventory()
 		else
-			UIManager.notify("스탯 초기화 실패: " .. tostring(data), C.RED)
+			UIManager.notify(friendlyError(data, "스탯 초기화"), C.RED)
 		end
 	end)
 end
@@ -1202,7 +1277,7 @@ function UIManager._doCraft()
 				end
 			else
 				UIManager.stopCraftingProgress()
-				UIManager.notify("제작 실패: " .. tostring(response), C.RED)
+				UIManager.notify(friendlyError(response, "제작"), C.RED)
 			end
 		end)
 		return
@@ -1251,7 +1326,7 @@ function UIManager._doCraft()
 				end
 			else
 				UIManager.stopCraftingProgress()
-				UIManager.notify("제작 실패: " .. tostring(response), C.RED)
+				UIManager.notify(friendlyError(response, "제작"), C.RED)
 			end
 		end)
 	end
@@ -1301,7 +1376,7 @@ function UIManager.requestBuy(itemId, count)
 			UIManager.notify("구매 완료!", C.GOLD)
 			UIManager.refreshShop()
 		else
-			UIManager.notify("구매 실패: "..(err or "잔액 부족"), C.RED)
+			UIManager.notify(friendlyError(err, "구매"), C.RED)
 		end
 	end)
 end
@@ -1532,14 +1607,7 @@ function UIManager.requestTotemPay(days)
 			UIManager.notify(string.format("유지비 결제 완료: %d일 연장", days), C.GOLD)
 		else
 			local code = tostring(data)
-			local map = {
-				INSUFFICIENT_GOLD = "골드가 부족합니다.",
-				TOTEM_NOT_OWNER = "소유한 토템에서만 유지비를 결제할 수 있습니다.",
-				TOTEM_NOT_FOUND = "토템을 찾을 수 없습니다.",
-				BAD_REQUEST = "요청 정보가 올바르지 않습니다.",
-				INVALID_COUNT = "결제 기간이 올바르지 않습니다.",
-			}
-			UIManager.notify(map[code] or ("유지비 결제 실패: " .. code), C.RED)
+			UIManager.notify(friendlyError(code, "유지비 결제"), C.RED)
 		end
 	end)
 end
@@ -1589,7 +1657,8 @@ function UIManager.requestPortalDeposit(itemId, remaining)
 		elseif dataOrErr == "OUT_OF_RANGE" then
 			UIManager.sideNotify("❌ 포탈에 더 가까이 접근해야 합니다.", C.RED)
 		else
-			UIManager.sideNotify("❌ 투입 실패: " .. tostring(dataOrErr), C.RED)
+			warn("[UIManager] Portal deposit failed:", dataOrErr)
+			UIManager.sideNotify("❌ 재료를 투입할 수 없습니다. 다시 시도해주세요.", C.RED)
 		end
 		return
 	end
@@ -1610,7 +1679,8 @@ function UIManager.requestPortalTeleport()
 		if err == "OUT_OF_RANGE" then
 			UIManager.sideNotify("❌ 포탈에 더 가까이 접근해야 합니다.", C.RED)
 		else
-			UIManager.sideNotify("❌ 포탈 이용 실패: " .. tostring(err), C.RED)
+			warn("[UIManager] Portal teleport failed:", err)
+			UIManager.sideNotify("❌ 포탈을 이용할 수 없습니다. 다시 시도해주세요.", C.RED)
 		end
 	end
 end
@@ -1765,7 +1835,7 @@ function UIManager._onStartFacilityCraft(recipe, count)
 				UIManager.notify(string.format("제작 의뢰 완료! x%d", batchCount), C.GOLD)
 				UIManager.refreshFacility()
 			else
-				UIManager.notify("제작 실패: " .. (response or "알 수 없는 오류"), C.RED)
+				UIManager.notify(friendlyError(response, "제작"), C.RED)
 			end
 		end)
 	end)
@@ -1785,7 +1855,7 @@ function UIManager._onCollectFacilityCraft(craftId, collectCount)
 			UIManager.refreshFacility()
 			UIManager.refreshInventory()
 		else
-			UIManager.notify("수령 실패: " .. (response or "알 수 없는 오류"), C.RED)
+			UIManager.notify(friendlyError(response, "수령"), C.RED)
 		end
 	end)
 end
@@ -2831,11 +2901,7 @@ function UIManager.onSummonPal()
 		end
 	else
 		local errCode = (type(data) == "table" and data.errorCode) or tostring(data or "UNKNOWN")
-		if errCode == "FAINTED" then
-			UIManager.notify("기절한 동물은 소환할 수 없습니다.", Color3.fromRGB(255, 100, 100))
-		else
-			UIManager.notify("소환에 실패했습니다: " .. errCode, Color3.fromRGB(255, 100, 100))
-		end
+		UIManager.notify(friendlyError(errCode, "소환"), Color3.fromRGB(255, 100, 100))
 	end
 
 	UIManager.refreshAnimalManagement()
@@ -2853,7 +2919,7 @@ function UIManager.onReleasePal()
 		UIManager.notify("동물을 풀어주었습니다.", Color3.fromRGB(180, 180, 180))
 		UIManager.refreshAnimalManagement()
 	else
-		UIManager.notify("풀어주기에 실패했습니다: " .. tostring(data or "UNKNOWN"), Color3.fromRGB(255, 100, 100))
+		UIManager.notify(friendlyError(data, "풀어주기"), Color3.fromRGB(255, 100, 100))
 	end
 end
 

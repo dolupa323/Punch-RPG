@@ -1889,7 +1889,13 @@ function CreatureService._updateAILoop()
 		local elapsed = now - creature.lastStateChange
 		
 		if behavior == "AGGRESSIVE" then
-			if creature.state == "CHASE" then
+			-- ATTACK 상태에서 공격 완료 후 CHASE로 자동 복귀
+			if creature.state == "ATTACK" then
+				local isStillAttacking = creature.attackingUntil and now < creature.attackingUntil
+				if not isStillAttacking then
+					newState = "CHASE"
+				end
+			elseif creature.state == "CHASE" then
 				if chaseDuration >= AGGRO_TIMEOUT or minDist > MAX_CHASE_DISTANCE then
 					newState = "WANDER"
 					creature.chaseStartTime = nil
@@ -1931,7 +1937,12 @@ function CreatureService._updateAILoop()
 				newState = "IDLE"
 			end
 		else -- NEUTRAL, PASSIVE
-			if creature.state == "CHASE" then
+			if creature.state == "ATTACK" then
+				local isStillAttacking = creature.attackingUntil and now < creature.attackingUntil
+				if not isStillAttacking then
+					newState = "CHASE"
+				end
+			elseif creature.state == "CHASE" then
 				if chaseDuration >= AGGRO_TIMEOUT or minDist > MAX_CHASE_DISTANCE then
 					newState = "WANDER"
 					creature.chaseStartTime = nil
@@ -2150,7 +2161,7 @@ function CreatureService._updateAILoop()
 				local isInCooldown = creature.lastAttackTime and (now - creature.lastAttackTime < (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN))
 				local shouldStop = (headDist <= stopRange) or (creature.attackingUntil and now < creature.attackingUntil) or (isInCooldown and headDist <= stopRange * 2)
 				local isAttacking = creature.attackingUntil and now < creature.attackingUntil
-				if creature.state == "CHASE" and shouldStop then
+				if (creature.state == "CHASE" or creature.state == "ATTACK") and shouldStop then
 					-- ★ 공격 중 WalkSpeed=0: Humanoid 내부 물리가 이동력을 재적용하는 것을 원천 차단
 					humanoid.WalkSpeed = 0
 					humanoid:MoveTo(hrp.Position)
@@ -2329,8 +2340,7 @@ function CreatureService._updateAILoop()
 			end
 
 			-- 3. 속도 설정
-			if creature.state == "CHASE" then
-				-- 공격 사거리 내 또는 공격 애니메이션 중이면 정지
+			if creature.state == "CHASE" or creature.state == "ATTACK" then
 				local stopRange2 = attackRange * 1.3
 				local isInCooldown2 = creature.lastAttackTime and (now - creature.lastAttackTime < (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN))
 				if (headDist <= stopRange2) or (creature.attackingUntil and now < creature.attackingUntil) or (isInCooldown2 and headDist <= stopRange2 * 2) then
@@ -2473,10 +2483,8 @@ function CreatureService._updateAILoop()
 						local totalTime = windupTime + attackTime
 						creature.attackingUntil = now + totalTime + NETWORK_ANIM_BUFFER
 
-						-- 직접 공격 후 CHASE 상태로 전환 (후속 추격 행동을 위해)
-						if creature.state ~= "CHASE" then
-							setCreatureState(creature, "CHASE")
-						end
+						-- 텔레그래프 공격 시작 → ATTACK 상태로 전환 (클라이언트에서 RUN 재생 방지)
+						setCreatureState(creature, "ATTACK")
 
 						-- ★ 텔레그래프 시작 즉시 이동 정지 (인디케이터 위치 고정)
 						humanoid.WalkSpeed = 0

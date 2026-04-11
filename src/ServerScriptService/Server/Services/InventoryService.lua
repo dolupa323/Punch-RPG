@@ -1657,6 +1657,17 @@ local function handleUse(player: Player, payload: any)
 			return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
 		end
 
+		-- ★ 파티 풀 체크: 파티가 가득 찬 상태에서는 길들이기 불가
+		local PartyServiceRef = require(game:GetService("ServerScriptService").Server.Services.PartyService)
+		if PartyServiceRef.isPartyFull and PartyServiceRef.isPartyFull(userId) then
+			if NetController then
+				NetController.FireClient(player, "Notify.Message", {
+					text = "파티가 가득 찼습니다! 팰을 해제한 후 다시 시도하세요. (최대 " .. Balance.MAX_PARTY .. "마리)",
+				})
+			end
+			return { success = false, errorCode = Enums.ErrorCode.PARTY_FULL }
+		end
+
 		-- 크리처 데이터에서 레벨 가져오기 → 길들이기 확률 계산
 		local CreatureDataModule = require(game:GetService("ReplicatedStorage").Data.CreatureData)
 		local SkillTreeDataModule = require(game:GetService("ReplicatedStorage").Data.SkillTreeData)
@@ -1779,15 +1790,25 @@ local function handleUse(player: Player, payload: any)
 		-- 팰 등록 성공 → 아이템 소모
 		InventoryService.removeItemFromSlot(userId, slot, 1)
 
+		-- ★ 자동 파티 편성: 파티에 빈 슬롯이 있으면 즉시 편성
+		local autoPartyMsg = ""
+		local partyAdded, partyErr = PartyServiceRef.addToParty(userId, palUID)
+		if partyAdded then
+			autoPartyMsg = " 파티에 편성되었습니다!"
+		else
+			autoPartyMsg = " 팰 보관함에 등록되었습니다."
+			warn(string.format("[InventoryService] Auto-party failed for pal %s: %s", palUID, tostring(partyErr)))
+		end
+
 		-- 성공 알림 (속성 정보 포함)
 		local traitNames = {}
 		for _, t in ipairs(rolledTraits) do
-			table.insert(traitNames, t.icon .. " " .. t.name)
+			table.insert(traitNames, t.name)
 		end
 		local traitMsg = #traitNames > 0 and (" [속성: " .. table.concat(traitNames, ", ") .. "]") or ""
 		if NetController then
 			NetController.FireClient(player, "Notify.Message", {
-				text = creatureName .. " 길들이기 성공! 팰 보관함에 등록되었습니다." .. traitMsg,
+				text = creatureName .. " 길들이기 성공!" .. autoPartyMsg .. traitMsg,
 			})
 		end
 

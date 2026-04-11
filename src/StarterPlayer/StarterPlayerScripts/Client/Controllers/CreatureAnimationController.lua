@@ -64,6 +64,9 @@ local function getAnimNameForState(creatureModel, speed, info)
 		animKey = "STUNNED"
 	elseif state == "DEAD" then
 		animKey = "DEATH"
+	elseif state == "ATTACK" then
+		-- 텔레그래프 공격 중: isAttacking 플래그가 곧 도착하므로 현재 애니메이션 유지
+		return info.lastAnim or (animSet and animSet["RUN"])
 	elseif state == "CHASE" or state == "FLEE" or state == "COMBAT" then
 		animKey = "RUN"
 	elseif state == "WANDER" or state == "FOLLOW" then

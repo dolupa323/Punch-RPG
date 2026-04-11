@@ -246,7 +246,11 @@ function SkillController.useSkill(skillId: string, targetId: string?)
 					PLAYER_DEAD = "사용할 수 없는 상태입니다.",
 					COOLDOWN = "스킬이 재사용 대기 중입니다.",
 				}
-				local msg = SKILL_ERROR_MESSAGES[errorCode] or ("스킬 사용 실패: " .. tostring(errorCode))
+				local msg = SKILL_ERROR_MESSAGES[errorCode]
+				if not msg then
+					msg = "스킬을 사용할 수 없습니다."
+					warn("[SkillController] Unknown skill error:", errorCode)
+				end
 				UIManager.notify(msg, Color3.fromRGB(255, 140, 140))
 			end
 		end

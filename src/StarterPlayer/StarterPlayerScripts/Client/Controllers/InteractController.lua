@@ -519,7 +519,8 @@ local function removeFacility(target: Instance)
 			if code == "NO_PERMISSION" then
 				UIManager.notify("토템 보호가 활성화되어 해체할 수 없습니다. 유지비 만료 후 약탈 가능합니다.", Color3.fromRGB(255, 120, 120))
 			else
-				UIManager.notify("해체 실패: " .. code, Color3.fromRGB(255, 120, 120))
+				UIManager.notify("해체할 수 없습니다. 다시 시도해주세요.", Color3.fromRGB(255, 120, 120))
+				warn("[InteractController] Remove failed:", code)
 			end
 		end
 	end

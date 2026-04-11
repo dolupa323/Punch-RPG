@@ -21,13 +21,17 @@ local playerParties = {}
 
 -- AI Constants
 local PAL_AI_UPDATE_INTERVAL = 0.5
-local PAL_FOLLOW_DIST = Balance.PAL_FOLLOW_DIST or 4
+local PAL_FOLLOW_DIST = Balance.PAL_FOLLOW_DIST or 8
+local PAL_MIN_DIST = Balance.PAL_MIN_DIST or 5
 local PAL_COMBAT_RANGE = Balance.PAL_COMBAT_RANGE or 15
 local PAL_ATTACK_RANGE = 5
 local PAL_ATTACK_COOLDOWN = 2
 
 -- 소환된 팰 목록 (모델 관리)
 local activeSummons = {} -- [userId] = { model, humanoid, rootPart, palData, state, lastAttackTime }
+
+-- ★ 주인의 전투 대상 (활 원거리 전투 시 팰에게 적 위치 공유)
+local ownerCombatTargets = {} -- [userId] = instanceId (CreatureService의 크리처 ID)
 
 --========================================
 -- Internal Helpers
@@ -47,6 +51,17 @@ local function getPartySize(party): number
 	local count = 0
 	for _ in pairs(party.slots) do count = count + 1 end
 	return count
+end
+
+--- 외부에서 파티 풀 여부 확인 (길들이기 차단용)
+function PartyService.isPartyFull(userId: number): boolean
+	local party = getOrCreateParty(userId)
+	return getPartySize(party) >= Balance.MAX_PARTY
+end
+
+--- ★ 주인의 전투 대상 설정 (CombatService에서 호출)
+function PartyService.setOwnerCombatTarget(userId: number, instanceId: string?)
+	ownerCombatTargets[userId] = instanceId
 end
 
 --========================================
@@ -94,12 +109,21 @@ function PartyService._loadPlayerParty(player: Player)
 	
 	local state = SaveService.getPlayerState(userId)
 	if state and state.party then
-		-- 저장된 데이터가 있으면 캐시로 복사 (slots가 array/map 섞일 수 있으므로 주의)
+		-- 저장된 데이터가 있으면 캐시로 복사
 		local party = getOrCreateParty(userId)
-		party.slots = state.party.slots or {}
+		-- ★ DataStore에서 로드 시 숫자 키가 문자열로 변환되므로 정규화
+		local rawSlots = state.party.slots or {}
+		local normalizedSlots = {}
+		for k, v in pairs(rawSlots) do
+			local numKey = tonumber(k)
+			if numKey and v then
+				normalizedSlots[numKey] = v
+			end
+		end
+		party.slots = normalizedSlots
 		party.summonedSlot = nil -- 접속 시엔 무조건 미소환 상태로 초기화
 		
-		print(string.format("[PartyService] Loaded party for player %d", userId))
+		print(string.format("[PartyService] Loaded party for player %d (%d pals in party)", userId, getPartySize(party)))
 	end
 end
 
@@ -347,6 +371,17 @@ function PartyService._recallPal(userId: number)
 	
 	if not summon then return end
 	
+	-- ★ 회수 시 현재 HP 저장
+	if summon.palUID then
+		local palData = PalboxService.getPal(userId, summon.palUID)
+		if palData and palData.stats and summon.model then
+			local humanoid = summon.model:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				palData.stats.currentHp = math.floor(humanoid.Health)
+			end
+		end
+	end
+
 	-- 모델 제거
 	if summon.model then
 		summon.model:Destroy()
@@ -907,6 +942,20 @@ function PartyService._updateSummonedPalAI()
 				end
 			end
 		end
+
+		-- ★ 주인의 전투 대상이 있으면 팰 근처 적보다 우선 타겟팅 (활 원거리 전투 지원)
+		local ownerTargetId = ownerCombatTargets[userId]
+		if ownerTargetId and CreatureService and CreatureService.getCreatureRuntime then
+			local targetCreature = CreatureService.getCreatureRuntime(ownerTargetId)
+			if targetCreature and targetCreature.rootPart and targetCreature.rootPart.Parent then
+				local isDead = targetCreature.model and (targetCreature.model:GetAttribute("IsDead") or targetCreature.model:GetAttribute("HasCollapsed"))
+				if not isDead and targetCreature.currentHealth and targetCreature.currentHealth > 0 then
+					closestEnemy = targetCreature.rootPart
+					local delta = palHrp.Position - targetCreature.rootPart.Position
+					enemyDist = Vector3.new(delta.X, 0, delta.Z).Magnitude
+				end
+			end
+		end
 		
 		-- 2. 주인 부재/사망 시 대응
 		if not ownerHrp or not ownerIsAlive then
@@ -961,14 +1010,20 @@ function PartyService._updateSummonedPalAI()
 		local followStartDist = PAL_FOLLOW_DIST + 4  -- 8스터드: 따라가기 시작
 		local followStopDist = PAL_FOLLOW_DIST + 1   -- 5스터드: 따라가기 중지
 		
+		-- ★ 주인의 전투 대상이면 원거리까지 추적 (최대 텔레포트 거리 직전)
+		local isOwnerTarget = ownerTargetId and closestEnemy and closestEnemy.Parent and closestEnemy.Parent:GetAttribute("InstanceId") == ownerTargetId
+		local effectiveCombatRange = isOwnerTarget and 45 or PAL_COMBAT_RANGE
+
 		-- 주인이 너무 멀리 가면 텔레포트 (부드러운 재배치)
-		if distToOwner > 50 then
+		-- ★ 전투 중이면 텔레포트 거리를 넓게 (주인 전투 대상 추적 중 텔레포트 진동 방지)
+		local teleportDist = (isOwnerTarget and summon.state == "COMBAT") and 80 or 50
+		if distToOwner > teleportDist then
 			local teleportTarget = ownerHrp.Position - ownerHrp.CFrame.LookVector * PAL_FOLLOW_DIST
 			palHrp.CFrame = CFrame.new(teleportTarget + Vector3.new(0, 2, 0))
 			setPalState(summon, "FOLLOW")
 			summon.lastMoveTarget = nil
 		-- 적이 전투 범위 내에 있으면 전투
-		elseif closestEnemy and enemyDist <= PAL_COMBAT_RANGE then
+		elseif closestEnemy and enemyDist <= effectiveCombatRange then
 			setPalState(summon, "COMBAT")
 			humanoid.WalkSpeed = baseSpeed * 1.2
 			smartMoveTo(humanoid, closestEnemy.Position, summon)
@@ -1014,6 +1069,18 @@ function PartyService._updateSummonedPalAI()
 			local speedMult = math.clamp(distToOwner / followStartDist, 1, 1.8)
 			humanoid.WalkSpeed = baseSpeed * speedMult
 			smartMoveTo(humanoid, followTarget, summon)
+		-- 주인에게 너무 가까우면 뒤로 밀어냄
+		elseif distToOwner < PAL_MIN_DIST then
+			setPalState(summon, "BACK_OFF")
+			local awayDir = (palHrp.Position - ownerHrp.Position)
+			awayDir = (awayDir * Vector3.new(1, 0, 1))
+			if awayDir.Magnitude < 0.1 then
+				awayDir = -ownerHrp.CFrame.LookVector
+			end
+			awayDir = awayDir.Unit
+			local retreatTarget = ownerHrp.Position + awayDir * PAL_FOLLOW_DIST
+			humanoid.WalkSpeed = baseSpeed * 1.3
+			smartMoveTo(humanoid, retreatTarget, summon)
 		else
 			-- 주인 근처 → IDLE (한 번만 정지 명령)
 			if summon.state ~= "IDLE" then

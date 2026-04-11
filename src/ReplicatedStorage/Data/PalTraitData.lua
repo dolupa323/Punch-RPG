@@ -15,26 +15,34 @@ local PalTraitData = {}
 -- icon: UI 표시용 이모지
 
 PalTraitData.Traits = {
-	-- ⚔️ 공격 카테고리
+	-- 공격 카테고리
 	ATTACK = {
-		{ id = "BOLD",    name = "과감함", positive = true,  weight = 10, stat = "attack",  perLevel = 0.08, icon = "⚔️", effect = "공격력 증가" },
-		{ id = "TIMID",   name = "소심함", positive = false, weight = 12, stat = "attack",  perLevel = 0.06, icon = "⚔️", effect = "공격력 감소" },
+		{ id = "BOLD",    name = "과감함", positive = true,  weight = 10, stat = "attack",  perLevel = 0.08, effect = "공격력 증가" },
+		{ id = "TIMID",   name = "소심함", positive = false, weight = 12, stat = "attack",  perLevel = 0.06, effect = "공격력 감소" },
 	},
-	-- 🛡 방어 카테고리
+	-- 방어 카테고리
 	DEFENSE = {
-		{ id = "CAREFUL",  name = "신중함", positive = true,  weight = 10, stat = "defense", perLevel = 0.08, icon = "🛡", effect = "방어력 증가" },
-		{ id = "RECKLESS", name = "경솔함", positive = false, weight = 12, stat = "defense", perLevel = 0.06, icon = "🛡", effect = "방어력 감소" },
+		{ id = "CAREFUL",  name = "신중함", positive = true,  weight = 10, stat = "defense", perLevel = 0.08, effect = "방어력 증가" },
+		{ id = "RECKLESS", name = "경솔함", positive = false, weight = 12, stat = "defense", perLevel = 0.06, effect = "방어력 감소" },
 	},
-	-- 🏃 속도 카테고리
+	-- 속도 카테고리
 	SPEED = {
-		{ id = "AGILE",    name = "민첩함", positive = true,  weight = 10, stat = "speed",   perLevel = 0.08, icon = "🏃", effect = "이동속도 증가" },
-		{ id = "SLUGGISH", name = "둔감함", positive = false, weight = 12, stat = "speed",   perLevel = 0.06, icon = "🏃", effect = "이동속도 감소" },
+		{ id = "AGILE",    name = "민첩함", positive = true,  weight = 10, stat = "speed",   perLevel = 0.08, effect = "이동속도 증가" },
+		{ id = "SLUGGISH", name = "둔감함", positive = false, weight = 12, stat = "speed",   perLevel = 0.06, effect = "이동속도 감소" },
 	},
-	-- ❤️ 생명 카테고리
+	-- 생명 카테고리
 	HEALTH = {
-		{ id = "HARDY",  name = "강인함", positive = true,  weight = 10, stat = "hp",      perLevel = 0.08, icon = "❤️", effect = "생명력 증가" },
-		{ id = "FRAIL",  name = "나약함", positive = false, weight = 12, stat = "hp",      perLevel = 0.06, icon = "❤️", effect = "생명력 감소" },
+		{ id = "HARDY",  name = "강인함", positive = true,  weight = 10, stat = "hp",      perLevel = 0.08, effect = "생명력 증가" },
+		{ id = "FRAIL",  name = "나약함", positive = false, weight = 12, stat = "hp",      perLevel = 0.06, effect = "생명력 감소" },
 	},
+}
+
+-- stat 한글 매핑 (UI 표시용)
+PalTraitData.StatNames = {
+	attack = "공격",
+	defense = "방어",
+	speed = "속도",
+	hp = "생명",
 }
 
 -- 카테고리 순서 (UI 표시용)
@@ -104,7 +112,6 @@ function PalTraitData.RollTraits(creatureLevel: number)
 				positive = picked.positive,
 				stat = picked.stat,
 				level = traitLevel,
-				icon = picked.icon,
 				category = category,
 				perLevel = picked.perLevel,
 			})

@@ -470,10 +470,10 @@ local function _renderPetTab()
 	slotHeader.Parent = scroll
 	y = y + 35
 	
-	-- 3개 슬롯 렌더링
+	-- 슬롯 렌더링 (Balance.MAX_PARTY 기준)
 	local SLOT_W = 140
 	local SLOT_H = 150
-	for i = 1, 3 do
+	for i = 1, maxSlots do
 		local isUnlocked = (i <= maxSlots)
 		local creatureId = slots[i] or slots[tostring(i)]
 		local xPos = 10 + (i - 1) * (SLOT_W + 12)
