@@ -116,6 +116,9 @@ local ERROR_MESSAGES = {
 	
 	-- 기타
 	NOTHING_TO_RESET = "초기화할 항목이 없습니다.",
+	MAX_SLOTS_REACHED = "인벤토리 칸 스탯이 최대치에 도달했습니다.",
+	MAX_WORKSPEED_REACHED = "작업속도 스탯이 최대치에 도달했습니다.",
+	INSUFFICIENT_STAT_POINTS = "스탯 포인트가 부족합니다.",
 }
 
 --- 에러코드를 사용자 친화적 한글 메시지로 변환
@@ -201,6 +204,11 @@ local function updateUIMode()
 	local anyOpen = WindowManager.isAnyOpen()
 	InputManager.setUIOpen(anyOpen)
 	UIManager._setMainHUDVisible(not anyOpen)
+	
+	-- 액티브 스킬바도 UI가 열릴 때 숨김 (겹침 방지)
+	if ActiveSkillBarUI and ActiveSkillBarUI.SetVisible then
+		ActiveSkillBarUI.SetVisible(not anyOpen)
+	end
 end
 
 local function closeAllWindows(except)
@@ -2512,10 +2520,18 @@ local function setupEventListeners()
 	-- [Phase 5] UI Toggle Key Bindings are handled in ClientInit.client.lua
 	-- (Redundant bindings removed to avoid conflicts)
 
-	-- Hotbar number keys
+	-- Hotbar number keys / Touch selection
 	local hotbarKeys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight}
 	for i = 1, 8 do
 		InputManager.bindKey(hotbarKeys[i], "HB"..i, function() UIManager.selectHotbarSlot(i) end)
+		
+		-- [추가] 모바일 터치 및 마우스 클릭 선택 지원
+		local s = hotbarSlots[i]
+		if s and s.click then
+			s.click.MouseButton1Click:Connect(function()
+				UIManager.selectHotbarSlot(i)
+			end)
+		end
 	end
 
 	-- Mouse Wheel (Hotbar scroll) - DISABLED as per user request to allow zoom only

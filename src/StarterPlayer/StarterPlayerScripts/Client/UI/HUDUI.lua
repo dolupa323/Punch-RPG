@@ -1383,11 +1383,12 @@ function HUDUI.UpdateStatusEffects(debuffList)
 		BURNING     = getIcon("BURNING"),
 		CHILLY      = getIcon("CHILLY"),
 		WARMTH      = getIcon("WARMTH"),
+		SHELTER     = getIcon("WARMTH"), -- 요청에 따라 따뜻함과 동일한 아이콘 사용
 	}
 	
 	for _, debuff in ipairs(debuffList) do
 		local iconId = IconMap[debuff.id] or "rbxassetid://6034346917"
-		local isBuff = (debuff.id == "WARMTH") -- 굳이 복잡하게 안하고 하드코딩
+		local isBuff = (debuff.id == "WARMTH" or debuff.id == "SHELTER")
 
 		local slot = Utils.mkFrame({
 			name = debuff.id,

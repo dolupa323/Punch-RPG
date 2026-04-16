@@ -32,11 +32,12 @@ local function createStudioAdminGoldPanel()
 
 	local frame = Instance.new("Frame")
 	frame.AnchorPoint = Vector2.new(1, 0)
-	frame.Position = UDim2.new(1, -12, 0, 12)
+	frame.Position = UDim2.new(1, -34, 0, 12)
 	frame.Size = UDim2.new(0, 220, 0, 122)
 	frame.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
 	frame.BackgroundTransparency = 0.18
 	frame.BorderSizePixel = 0
+	frame.Visible = false
 	frame.Parent = gui
 	local frameCorner = Instance.new("UICorner")
 	frameCorner.CornerRadius = UDim.new(0, 10)
@@ -45,6 +46,31 @@ local function createStudioAdminGoldPanel()
 	frameStroke.Color = Color3.fromRGB(185, 155, 80)
 	frameStroke.Thickness = 1
 	frameStroke.Parent = frame
+
+	local toggleBtn = Instance.new("TextButton")
+	toggleBtn.Name = "AdminToggleBtn"
+	toggleBtn.Size = UDim2.new(0, 32, 0, 60)
+	toggleBtn.Position = UDim2.new(1, 0, 0, 12)
+	toggleBtn.AnchorPoint = Vector2.new(1, 0)
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
+	toggleBtn.BackgroundTransparency = 0.18
+	toggleBtn.BorderSizePixel = 0
+	toggleBtn.Text = "ADM"
+	toggleBtn.TextColor3 = Color3.fromRGB(255, 220, 120)
+	toggleBtn.TextSize = 13
+	toggleBtn.Font = Enum.Font.GothamBold
+	toggleBtn.Parent = gui
+	local toggleCorner = Instance.new("UICorner")
+	toggleCorner.CornerRadius = UDim.new(0, 6)
+	toggleCorner.Parent = toggleBtn
+	local toggleStroke = Instance.new("UIStroke")
+	toggleStroke.Color = Color3.fromRGB(185, 155, 80)
+	toggleStroke.Thickness = 1
+	toggleStroke.Parent = toggleBtn
+
+	toggleBtn.MouseButton1Click:Connect(function()
+		frame.Visible = not frame.Visible
+	end)
 
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, -16, 0, 22)

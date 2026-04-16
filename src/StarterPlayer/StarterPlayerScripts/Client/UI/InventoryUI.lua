@@ -490,7 +490,22 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 
 	-- 스탯 프레임 (뷰포트 아래)
 	local statsY = (isSmall and 52 or 60) + vpSize + 8
-	local statsFrame = Utils.mkFrame({name="AnimalStats", size=UDim2.new(1, -16, 1, -(statsY + 8)), pos=UDim2.new(0, 8, 0, statsY), bg=C.BG_DARK, bgT=0.6, r=6, parent=animalLeft})
+	local statsFrame = Instance.new("ScrollingFrame")
+	statsFrame.Name = "AnimalStats"
+	statsFrame.Size = UDim2.new(1, -16, 1, -(statsY + 8))
+	statsFrame.Position = UDim2.new(0, 8, 0, statsY)
+	statsFrame.BackgroundColor3 = C.BG_DARK
+	statsFrame.BackgroundTransparency = 0.6
+	statsFrame.BorderSizePixel = 0
+	statsFrame.ScrollBarThickness = 3
+	statsFrame.ScrollBarImageColor3 = C.GOLD
+	statsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	statsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	statsFrame.Parent = animalLeft
+	local statsCorner = Instance.new("UICorner")
+	statsCorner.CornerRadius = UDim.new(0, 6)
+	statsCorner.Parent = statsFrame
+
 	local statsPad = Instance.new("UIPadding"); statsPad.PaddingTop=UDim.new(0,6); statsPad.PaddingLeft=UDim.new(0,8); statsPad.PaddingRight=UDim.new(0,8); statsPad.Parent=statsFrame
 	local statsLayout = Instance.new("UIGridLayout")
 	statsLayout.CellSize = UDim2.new(0.5, -6, 0, isSmall and 20 or 24)

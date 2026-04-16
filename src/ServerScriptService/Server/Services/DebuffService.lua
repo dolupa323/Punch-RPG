@@ -70,6 +70,15 @@ local DEBUFF_DEFS = {
 		tickDamage = 0,
 		isBuff = true,
 	},
+	SHELTER = {
+		id = "SHELTER",
+		name = "포근함",
+		description = "실내라서 포근합니다.",
+		duration = -1, -- 실내에 있는 동안만
+		tickInterval = 0,
+		tickDamage = 0,
+		isBuff = true,
+	},
 }
 
 --========================================
@@ -97,6 +106,60 @@ local function isPlayerNearCampfire(hrp: BasePart): boolean
 		local model = part:FindFirstAncestorOfClass("Model")
 		local facilityId = string.upper(tostring(part:GetAttribute("FacilityId") or (model and model:GetAttribute("FacilityId")) or ""))
 		if facilityId == "CAMPFIRE" then
+			return true
+		end
+	end
+
+	return false
+end
+
+--- 플레이어 머리 위에 천장 블록이 있는지 체크 (실내 판정)
+local function isPlayerUnderCeiling(hrp: BasePart): boolean
+	local facilitiesFolder = workspace:FindFirstChild("Facilities")
+	local blocksFolder = workspace:FindFirstChild("BlockStructures") -- [추가] 블록 구조물 폴더 지원
+
+	-- 감지 대상 리스트 구성
+	local filterList = {}
+	if facilitiesFolder then table.insert(filterList, facilitiesFolder) end
+	if blocksFolder then table.insert(filterList, blocksFolder) end
+
+	if #filterList == 0 then
+		return false
+	end
+
+	-- 레이캐스트 파라미터 설정
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = filterList
+	params.FilterType = Enum.RaycastFilterType.Include
+
+	-- 머리 위로 25스터드까지 레이캐스트 (블록이나 지붕 감지용)
+	-- HRP에서 3스터드 위에서 시작하여 바닥 블록이나 자신의 내부 판정을 피함
+	local rayResult = workspace:Raycast(hrp.Position + Vector3.new(0, 3, 0), Vector3.new(0, 25, 0), params)
+
+	if rayResult and rayResult.Instance then
+		local hit = rayResult.Instance
+		local model = hit:FindFirstAncestorOfClass("Model")
+		
+		-- 속성으로 StructureId, FacilityId, BlockId 확인
+		local fId = hit:GetAttribute("FacilityId") or (model and model:GetAttribute("FacilityId"))
+		local bId = hit:GetAttribute("BlockTypeId") or hit:GetAttribute("BlockId") -- [추가] 블록 속성 지원
+		
+		if fId then
+			fId = string.upper(tostring(fId))
+			-- ROOF(지붕), BLOCK(작업대 생산 블록), FOUNDATION(기초), FLOOR(바닥) 등 구조물 판정
+			if string.find(fId, "ROOF") or string.find(fId, "BLOCK") or fId:find("STRUC") then
+				return true
+			end
+		end
+
+		if bId then
+			-- 블록 데이터(BlockBuildService)로 생성된 파트인 경우 즉시 실내 판정
+			return true
+		end
+
+		-- 속성이 없더라도 이름으로 유추 (하위 호환성)
+		local name = string.upper(hit.Name)
+		if string.find(name, "ROOF") or string.find(name, "BLOCK") or string.find(name, "CEILING") then
 			return true
 		end
 	end
@@ -139,7 +202,7 @@ local function isPlayerInWater(hrp: BasePart): boolean
 	return false
 end
 
-local function getChillyEnvironmentState(player: Player)
+local function getEnvironmentState(player: Player)
 	if not player then
 		return nil
 	end
@@ -154,20 +217,16 @@ local function getChillyEnvironmentState(player: Player)
 
 	local isNight = TimeService and TimeService.getPhase and TimeService.getPhase() == "NIGHT"
 	local nearFire = isPlayerNearCampfire(hrp)
+	local indoors = isPlayerUnderCeiling(hrp)
 	local holdingTorch = isPlayerHoldingTorch(player.UserId)
 	local inWater = isPlayerInWater(hrp)
-
-	-- 물에 있으면 불/횃불 관계없이 무조건 쌀쌀함
-	local shouldBeChilly = inWater or (isNight and (not nearFire) and (not holdingTorch))
-	local shouldBeWarm = (not shouldBeChilly) and (nearFire or holdingTorch)
 
 	return {
 		isNight = isNight,
 		nearFire = nearFire,
+		indoors = indoors,
 		holdingTorch = holdingTorch,
 		inWater = inWater,
-		shouldBeChilly = shouldBeChilly,
-		shouldBeWarm = shouldBeWarm,
 	}
 end
 
@@ -321,11 +380,7 @@ function DebuffService._tickLoop()
 					table.insert(toRemove, debuffId)
 					continue
 				end
-				local env = getChillyEnvironmentState(player)
-				if env and not env.shouldBeChilly then
-					table.insert(toRemove, debuffId)
-					continue
-				end
+				-- 쌀쌀함은 더이상 틱 루프에서 환경 체크를 하지 않고 _environmentCheck에 의존함
 			end
 
 			if debuffId == "FREEZING" and hasPortalSafeWindow(player) then
@@ -369,7 +424,7 @@ function DebuffService._tickLoop()
 	end
 end
 
---- 환경 체크 (밤 추위, 불 근처 해제) - Phase 4-5
+--- 환경 체크 (밤 추위, 불 근처 해제, 실내 판정 등)
 function DebuffService._environmentCheck()
 	if not TimeService then return end
 	
@@ -382,39 +437,62 @@ function DebuffService._environmentCheck()
 			DebuffService.removeDebuff(userId, "CHILLY")
 			DebuffService.removeDebuff(userId, "WARMTH")
 			DebuffService.removeDebuff(userId, "FREEZING")
+			DebuffService.removeDebuff(userId, "SHELTER")
 			continue
 		end
 
-		local env = getChillyEnvironmentState(player)
+		local env = getEnvironmentState(player)
 		if not env then
 			DebuffService.removeDebuff(userId, "CHILLY")
 			DebuffService.removeDebuff(userId, "WARMTH")
 			DebuffService.removeDebuff(userId, "FREEZING")
+			DebuffService.removeDebuff(userId, "SHELTER")
 			continue
 		end
 
-		local shouldBeChilly = env.shouldBeChilly
-		local shouldBeWarm = env.shouldBeWarm
+		local indoors = env.indoors
+		local nearHeat = env.nearFire or env.holdingTorch
+		local inWater = env.inWater
+		local isNight = env.isNight
 
-		-- 적용/해제 처리
-		if shouldBeChilly then
-			if not DebuffService.hasDebuff(userId, "CHILLY") then
-				DebuffService.applyDebuff(userId, "CHILLY")
+		-- 1. 실내 판정 (낮/밤 관계없이 실내면 '포근함' 부여)
+		if indoors and not inWater then
+			if not DebuffService.hasDebuff(userId, "SHELTER") then
+				DebuffService.applyDebuff(userId, "SHELTER")
 			end
-			DebuffService.removeDebuff(userId, "WARMTH")
-		elseif shouldBeWarm then
+		else
+			DebuffService.removeDebuff(userId, "SHELTER")
+		end
+
+		-- 2. 온기 판정 (낮/밤 관계없이 불 근처면 '따뜻함' 부여)
+		if nearHeat and not inWater then
 			if not DebuffService.hasDebuff(userId, "WARMTH") then
 				DebuffService.applyDebuff(userId, "WARMTH")
 			end
-			DebuffService.removeDebuff(userId, "CHILLY")
 		else
-			-- 낮이거나 온기 수단이 있을 때 쌀쌀함/따뜻함 동시 정리
-			DebuffService.removeDebuff(userId, "CHILLY")
 			DebuffService.removeDebuff(userId, "WARMTH")
 		end
+
+		-- 3. 추위 판정 (조건부)
+		-- 물에 있거나, 밤인데 실내가 아니고 온기 수단도 없을 때
+		local reallyChilly = inWater or (isNight and not indoors and not nearHeat)
 		
-		-- 극한 추위(FREEZING)는 온기 수단이 있거나 낮이면 해제
-		if (not env.isNight) or env.nearFire or env.holdingTorch then
+		if reallyChilly then
+			if not DebuffService.hasDebuff(userId, "CHILLY") then
+				DebuffService.applyDebuff(userId, "CHILLY")
+			end
+			-- 추위 상태가 되면 '포근함'이나 '따뜻함' 보너스는 무력화 (물 속 등)
+			if inWater then
+				DebuffService.removeDebuff(userId, "WARMTH")
+				DebuffService.removeDebuff(userId, "SHELTER")
+			end
+		else
+			DebuffService.removeDebuff(userId, "CHILLY")
+		end
+		
+		-- 4. 극한 추위(FREEZING) 해제 조건
+		-- 낮이거나, 실내거나, 온기 수단이 있으면 해제
+		if (not isNight) or indoors or nearHeat then
 			DebuffService.removeDebuff(userId, "FREEZING")
 		end
 	end

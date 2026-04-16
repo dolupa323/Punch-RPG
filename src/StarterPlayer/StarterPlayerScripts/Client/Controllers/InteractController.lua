@@ -134,7 +134,7 @@ local function showSleepConfirm(structureId: string)
 	subtext.Size = UDim2.new(1, 0, 0, 24)
 	subtext.Position = UDim2.new(0, 0, 0, 58)
 	subtext.BackgroundTransparency = 1
-	subtext.Text = "체력/스태미나 회복, 시간 경과 (정오)"
+	subtext.Text = "체력 회복 및 부활 지점 설정"
 	subtext.TextColor3 = Color3.fromRGB(180, 180, 160)
 	subtext.TextSize = 13
 	subtext.Font = Enum.Font.Gotham
@@ -239,7 +239,7 @@ playSleepTransitionAndRequest = function(structureId: string)
 
 	if ok then
 		if UIManager then
-			UIManager.notify("침대에서 휴식했습니다. 상쾌한 아침입니다.")
+			UIManager.notify("침대에서 휴식했습니다.")
 		end
 	else
 		if UIManager then

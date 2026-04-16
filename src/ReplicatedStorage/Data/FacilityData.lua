@@ -30,7 +30,7 @@ local FacilityData = {
 		description = "해당 지역을 플레이어의 거점으로 선언합니다.",
 		modelName = "CampTotem",
 		iconName = "CAMP_TOTEM",
-		requirements = { { itemId = "PLANK", amount = 3 }, { itemId = "STONE", amount = 3 } },
+		requirements = { { itemId = "LOG", amount = 3 }, { itemId = "STONE", amount = 3 } },
 		maxHealth = 500,
 		techLevel = 1,
 		buildTier = "BUILD_T0",

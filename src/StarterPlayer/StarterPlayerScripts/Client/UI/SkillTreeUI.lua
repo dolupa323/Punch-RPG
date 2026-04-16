@@ -250,13 +250,13 @@ local function _createDiamondNode(parent, skill, cx, cy, nodeSize, isUnlocked, c
 	local halfDiag = nodeSize * 0.71
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Name = "Name_" .. skill.id
-	nameLabel.Size = UDim2.new(0, nodeSize * 2.0, 0, math.floor(math.clamp(nodeSize * 0.26, 14, 28)))
-	nameLabel.Position = UDim2.new(0, cx, 0, cy + halfDiag + math.floor(math.clamp(nodeSize * 0.1, 4, 14)))
+	nameLabel.Size = UDim2.new(0, nodeSize * 1.8, 0, math.floor(math.clamp(nodeSize * 0.24, 12, 24)))
+	nameLabel.Position = UDim2.new(0, cx, 0, cy + halfDiag + math.floor(math.clamp(nodeSize * 0.08, 4, 12)))
 	nameLabel.AnchorPoint = Vector2.new(0.5, 0)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = skill.name
 	nameLabel.TextColor3 = isUnlocked and C.WHITE or (isTreeLocked and C.DIM or (canUnlockResult and C.GOLD or C.GRAY))
-	nameLabel.TextSize = math.floor(math.clamp(nodeSize * 0.22, 13, 30))
+	nameLabel.TextSize = math.floor(math.clamp(nodeSize * 0.18, 11, 14)) -- 축소
 	nameLabel.Font = Enum.Font.GothamMedium
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.ZIndex = 3
@@ -534,12 +534,14 @@ _layoutDetailPanel = function()
 	local ph = panel.AbsoluteSize.Y
 	if pw < 50 or ph < 30 then return end
 
-	-- ★ 패널 높이(ph) 기준으로만 스케일 계산 — 패널 밖 넘침 방지
-	local s = math.clamp(ph / 160, 0.55, 1.3)
-	local iconSz = math.floor(math.clamp(ph * 0.52, 36, 120))
-	local nameX = iconSz + math.floor(12 * s)
-	local rightAreaW = math.floor(math.clamp(pw * 0.32, 120, 280))
-	local textAreaW = pw - nameX - rightAreaW - math.floor(8 * s)
+	local s = math.clamp(ph / 170, 0.6, 1.25)
+	local iconSz = math.floor(math.clamp(ph * 0.55, 40, 110))
+	local nameX = iconSz + math.floor(20 * s)
+	
+	-- 우측 영역폭 (해금 버튼 전용)
+	local rightAreaW = math.floor(math.clamp(pw * 0.2, 100, 180))
+	-- 텍스트 영역폭 (이름, 설명, 슬롯 버튼)
+	local textAreaW = pw - nameX - rightAreaW - math.floor(20 * s)
 
 	local icon = panel:FindFirstChild("DetailIcon")
 	if icon then
@@ -560,7 +562,7 @@ _layoutDetailPanel = function()
 	if name then
 		name.Size = UDim2.new(0, textAreaW, 0, nameH)
 		name.Position = UDim2.new(0, nameX, 0, topPad)
-		name.TextSize = math.floor(math.clamp(ph * 0.155, 14, 32))
+		name.TextSize = math.floor(math.clamp(ph * 0.13, 13, 26)) -- 축소
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 
@@ -568,25 +570,45 @@ _layoutDetailPanel = function()
 	if info then
 		info.Size = UDim2.new(0, textAreaW, 0, infoH)
 		info.Position = UDim2.new(0, nameX, 0, topPad + nameH + gap)
-		info.TextSize = math.floor(math.clamp(ph * 0.11, 11, 22))
+		info.TextSize = math.floor(math.clamp(ph * 0.09, 10, 18)) -- 축소
 		info.TextTruncate = Enum.TextTruncate.AtEnd
+	end
+
+	-- Q/F/V 슬롯 버튼 레이아웃 (왼쪽 설명 영역 상단에 배치)
+	local slotBtnW = math.floor(math.clamp(ph * 0.22, 30, 48))
+	local slotBtnH = math.floor(math.clamp(ph * 0.18, 24, 40))
+	local slotGap = math.floor(4 * s)
+	local slotY = topPad + nameH + infoH + gap * 2
+	
+	for si = 1, 3 do
+		local slotBtn = panel:FindFirstChild("SlotBtn" .. si)
+		if slotBtn then
+			slotBtn.Size = UDim2.new(0, slotBtnW, 0, slotBtnH)
+			slotBtn.Position = UDim2.new(0, nameX + (si - 1) * (slotBtnW + slotGap), 0, slotY)
+			slotBtn.AnchorPoint = Vector2.new(0, 0)
+			slotBtn.TextSize = math.floor(math.clamp(ph * 0.08, 10, 18)) -- 축소
+		end
 	end
 
 	local desc = panel:FindFirstChild("DetailDesc")
 	if desc then
-		desc.Size = UDim2.new(0, textAreaW, 0, descH)
-		desc.Position = UDim2.new(0, nameX, 0, topPad + nameH + infoH + gap * 2)
-		desc.TextSize = math.floor(math.clamp(ph * 0.1, 11, 20))
+		local descOffset = slotBtnH + gap * 2
+		desc.Size = UDim2.new(0, textAreaW, 0, descH - 10)
+		desc.Position = UDim2.new(0, nameX, 0, slotY + descOffset)
+		desc.TextSize = math.floor(math.clamp(ph * 0.085, 10, 16)) -- 축소
 		desc.TextWrapped = true
 		desc.TextTruncate = Enum.TextTruncate.AtEnd
+		desc.ClipsDescendants = true
+		desc.TextYAlignment = Enum.TextYAlignment.Top
 	end
 
 	local effects = panel:FindFirstChild("DetailEffects")
 	if effects then
 		effects.Size = UDim2.new(0, textAreaW, 0, effectsH)
-		effects.Position = UDim2.new(0, nameX, 1, -(effectsH + math.floor(ph * 0.04)))
-		effects.TextSize = math.floor(math.clamp(ph * 0.095, 10, 20))
+		effects.Position = UDim2.new(0, nameX, 1, -(effectsH + gap + 4))
+		effects.TextSize = math.floor(math.clamp(ph * 0.085, 9, 16)) -- 축소
 		effects.TextTruncate = Enum.TextTruncate.AtEnd
+		effects.TextYAlignment = Enum.TextYAlignment.Bottom
 	end
 
 	-- 우측 영역: 상태 + 해금버튼 + 슬롯 (패널 우측에 수직 중앙 정렬)
@@ -595,38 +617,22 @@ _layoutDetailPanel = function()
 	local status = panel:FindFirstChild("DetailStatus")
 	if status then
 		local stW = math.floor(rightAreaW * 0.95)
-		local stH = math.floor(ph * 0.2)
-		status.Size = UDim2.new(0, stW, 0, stH)
-		status.Position = UDim2.new(0, rightX, 0, topPad)
-		status.TextSize = math.floor(math.clamp(ph * 0.11, 11, 22))
+		status.Size = UDim2.new(0, stW, 0, 24)
+		status.Position = UDim2.new(0, rightX + (rightAreaW - stW)/2, 0, topPad + 4)
+		status.TextSize = math.floor(math.clamp(ph * 0.08, 11, 16)) -- 축소
 		status.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 
 	local btn = panel:FindFirstChild("DetailUnlockBtn")
 	if btn then
-		local bW = math.floor(math.clamp(rightAreaW * 0.7, 70, 160))
-		local bH = math.floor(math.clamp(ph * 0.28, 26, 50))
+		local bW = math.floor(math.clamp(rightAreaW * 0.8, 80, 140))
+		local bH = math.floor(math.clamp(ph * 0.22, 28, 44))
 		btn.Size = UDim2.new(0, bW, 0, bH)
-		btn.Position = UDim2.new(0, rightX + math.floor((rightAreaW - bW) / 2), 0.5, math.floor(ph * 0.02))
-		btn.TextSize = math.floor(math.clamp(ph * 0.13, 13, 28))
+		btn.Position = UDim2.new(0, rightX + math.floor((rightAreaW - bW) / 2), 0.5, 0)
+		btn.TextSize = math.floor(math.clamp(ph * 0.1, 13, 20)) -- 축소
 	end
 
-	-- 슬롯 할당 버튼 (Q/F/V) 레이아웃
-	local slotBtnW = math.floor(math.clamp(rightAreaW * 0.28, 30, 60))
-	local slotBtnH = math.floor(math.clamp(ph * 0.24, 24, 48))
-	local slotGap = math.floor(math.clamp(4 * s, 2, 8))
-	local totalSlotW = slotBtnW * 3 + slotGap * 2
-	local slotStartX = rightX + math.floor((rightAreaW - totalSlotW) / 2)
-	local slotY = ph - slotBtnH - math.floor(ph * 0.06)
-	for si = 1, 3 do
-		local slotBtn = panel:FindFirstChild("SlotBtn" .. si)
-		if slotBtn then
-			slotBtn.Size = UDim2.new(0, slotBtnW, 0, slotBtnH)
-			slotBtn.Position = UDim2.new(0, slotStartX + (si - 1) * (slotBtnW + slotGap), 0, slotY)
-			slotBtn.AnchorPoint = Vector2.new(0, 0)
-			slotBtn.TextSize = math.floor(math.clamp(ph * 0.1, 11, 22))
-		end
-	end
+	-- (슬롯 할당 버튼은 TextArea 내에 배치됨 - 위에서 처리)
 end
 
 ----------------------------------------------------------------
@@ -900,9 +906,9 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	currentUIManager = UIManager
 	isSmall = isMobile
 
-	local TS_TITLE = isSmall and 24 or 28
-	local TS_TAB = isSmall and 16 or 19
-	local TS_HEADER = isSmall and 18 or 22
+	local TS_TITLE = isSmall and 20 or 24 -- 축소
+	local TS_TAB = isSmall and 14 or 16 -- 축소
+	local TS_HEADER = isSmall and 16 or 18 -- 축소
 
 	-- 전체 화면 오버레이
 	SkillTreeUI.Refs.Frame = Utils.mkFrame({
@@ -1178,7 +1184,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	local detailHeight = isSmall and 140 or 180
 	local nodeArea = Instance.new("ScrollingFrame")
 	nodeArea.Name = "NodeArea"
-	nodeArea.Size = UDim2.new(1, -16, 1, -(levelBarY + detailHeight + 16))
+	nodeArea.Size = UDim2.new(1, -16, 1, -(levelBarY + detailHeight + 28))
 	nodeArea.Position = UDim2.new(0, 8, 0, levelBarY + 6)
 	nodeArea.BackgroundTransparency = 1
 	nodeArea.BorderSizePixel = 0
@@ -1196,7 +1202,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	local detailPanel = Utils.mkFrame({
 		name = "DetailPanel",
 		size = UDim2.new(1, -16, 0, detailHeight + 10),  -- 약간 여유
-		pos = UDim2.new(0, 8, 1, -(detailHeight + 4)),
+		pos = UDim2.new(0, 8, 1, -(detailHeight + 18)),
 		bg = C.BG_PANEL_L,
 		bgT = 0.4,
 		r = 6,
@@ -1223,10 +1229,10 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	Utils.mkLabel({
 		name = "DetailName",
 		text = "",
-		size = UDim2.new(0.5, -dNameX, 0, isSmall and 24 or 28),
+		size = UDim2.new(0.5, -dNameX, 0, isSmall and 22 or 26),
 		pos = UDim2.new(0, dNameX, 0, isSmall and 8 or 10),
 		ax = Enum.TextXAlignment.Left,
-		ts = isSmall and 17 or 21,
+		ts = isSmall and 15 or 18, -- 축소
 		font = F.TITLE,
 		color = C.WHITE,
 		parent = detailPanel,
@@ -1236,10 +1242,10 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	Utils.mkLabel({
 		name = "DetailInfo",
 		text = "",
-		size = UDim2.new(0.55, -dNameX, 0, isSmall and 18 or 20),
-		pos = UDim2.new(0, dNameX, 0, isSmall and 33 or 40),
+		size = UDim2.new(0.55, -dNameX, 0, isSmall and 16 or 18),
+		pos = UDim2.new(0, dNameX, 0, isSmall and 30 or 36),
 		ax = Enum.TextXAlignment.Left,
-		ts = isSmall and 13 or 15,
+		ts = isSmall and 11 or 13, -- 축소
 		font = F.NUM,
 		color = C.GOLD,
 		parent = detailPanel,
@@ -1250,9 +1256,9 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		name = "DetailDesc",
 		text = "",
 		size = UDim2.new(0.55, -dNameX, 0, isSmall and 36 or 48),
-		pos = UDim2.new(0, dNameX, 0, isSmall and 54 or 64),
+		pos = UDim2.new(0, dNameX, 0, isSmall and 50 or 60),
 		ax = Enum.TextXAlignment.Left,
-		ts = isSmall and 13 or 15,
+		ts = isSmall and 11 or 12, -- 축소
 		font = F.NORMAL,
 		color = C.GRAY,
 		wrap = true,
@@ -1264,9 +1270,9 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		name = "DetailEffects",
 		text = "",
 		size = UDim2.new(0.55, -dNameX, 0, isSmall and 18 or 20),
-		pos = UDim2.new(0, dNameX, 1, -(isSmall and 22 or 26)),
+		pos = UDim2.new(0, dNameX, 1, -(isSmall and 20 or 24)),
 		ax = Enum.TextXAlignment.Left,
-		ts = isSmall and 12 or 14,
+		ts = isSmall and 10 or 12, -- 축소
 		font = F.NORMAL,
 		color = C.UNCOMMON,
 		parent = detailPanel,
@@ -1276,10 +1282,10 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	Utils.mkLabel({
 		name = "DetailStatus",
 		text = "",
-		size = UDim2.new(0, isSmall and 140 or 170, 0, isSmall and 24 or 28),
-		pos = UDim2.new(1, -(isSmall and 150 or 182), 0.5, -(isSmall and 28 or 32)),
+		size = UDim2.new(0, isSmall and 140 or 160, 0, isSmall and 22 or 24),
+		pos = UDim2.new(1, -(isSmall and 150 or 172), 0.5, -(isSmall and 22 or 28)),
 		ax = Enum.TextXAlignment.Center,
-		ts = isSmall and 13 or 15,
+		ts = isSmall and 11 or 13, -- 축소
 		font = F.NORMAL,
 		color = C.DIM,
 		parent = detailPanel,
@@ -1293,7 +1299,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(1, -(isSmall and 105 or 132), 0.5, (isSmall and 2 or 4)),
 		bg = Color3.fromRGB(55, 50, 35),
 		bgT = 0.1,
-		ts = isSmall and 17 or 21,
+		ts = isSmall and 14 or 16, -- 축소
 		font = F.TITLE,
 		color = C.WHITE,
 		r = 6,
@@ -1319,10 +1325,10 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 			name = "SlotBtn" .. si,
 			text = SLOT_KEYS[si],
 			size = UDim2.new(0, isSmall and 44 or 52, 0, isSmall and 36 or 42),
-			pos = UDim2.new(1, -(isSmall and 150 or 185) + (si - 1) * (isSmall and 48 or 58), 0.5, isSmall and 2 or 4),
+			pos = UDim2.new(0, dNameX + (si - 1) * (isSmall and 48 or 58), 0, isSmall and 60 or 75), -- 위치 초기값 조정
 			bg = Color3.fromRGB(45, 42, 35),
 			bgT = 0.15,
-			ts = isSmall and 16 or 19,
+			ts = isSmall and 13 or 15, -- 축소
 			font = F.TITLE,
 			color = C.WHITE,
 			r = 6,
@@ -1379,7 +1385,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		text = "⚠ 전투 계열 선택",
 		size = UDim2.new(1, 0, 0, 30),
 		pos = UDim2.new(0, 0, 0, 10),
-		ts = isSmall and 16 or 18,
+		ts = isSmall and 14 or 16, -- 축소
 		font = F.TITLE,
 		color = C.ORANGE,
 		z = 12,
@@ -1391,7 +1397,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		text = "",
 		size = UDim2.new(1, -24, 0, isSmall and 70 or 80),
 		pos = UDim2.new(0, 12, 0, 42),
-		ts = isSmall and 11 or 13,
+		ts = isSmall and 10 or 12, -- 축소
 		font = F.NORMAL,
 		color = C.WHITE,
 		wrap = true,

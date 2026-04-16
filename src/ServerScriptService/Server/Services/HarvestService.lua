@@ -931,34 +931,55 @@ function HarvestService._spawnLoop()
 	
 	if totalActiveNodes >= NODE_CAP then return end
 	
-	for _, player in ipairs(Players:GetPlayers()) do
+	-- [수정] 플레이어 밀집도 기반 스폰 제한 로직
+	local players = Players:GetPlayers()
+	local spawnRepresentativeParts = {}
+	local GROUP_RADIUS = 120 -- 이 반경 내 플레이어들은 하나의 그룹으로 간주
+	
+	for _, player in ipairs(players) do
 		local char = player.Character
-		if char and char:FindFirstChild("HumanoidRootPart") then
-			-- 스폰 확률: 50%
-			if math.random() <= 0.5 then
-				local pos, material = HarvestService._findSpawnPosition(char.HumanoidRootPart)
-				if pos and material then
-					-- [수정] 플레이어 위치의 Zone에 맞는 바닥 자원 스폰
-					local zoneName = SpawnConfig.GetZoneAtPosition(char.HumanoidRootPart.Position)
-					local nodeId
-					if zoneName then
-						nodeId = SpawnConfig.GetRandomGroundHarvestForZone(zoneName)
-					else
-						nodeId = SpawnConfig.GetRandomGroundHarvest()
-					end
-					if nodeId then
-						HarvestService._spawnAutoNode(nodeId, pos)
-						
-						totalActiveNodes = totalActiveNodes + 1
-						if totalActiveNodes >= NODE_CAP then break end
-					end
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local isNearGroup = false
+			for _, repPart in ipairs(spawnRepresentativeParts) do
+				if (hrp.Position - repPart.Position).Magnitude < GROUP_RADIUS then
+					isNearGroup = true
+					break
+				end
+			end
+			
+			if not isNearGroup then
+				table.insert(spawnRepresentativeParts, hrp)
+			end
+		end
+	end
+	
+	-- 그룹화된 대표 플레이어 걸처에서만 스폰 시도
+	for _, repHRP in ipairs(spawnRepresentativeParts) do
+		-- [수정] 스폰 확률 하향 (20%%)
+		if math.random() <= 0.2 then
+			local pos, material = HarvestService._findSpawnPosition(repHRP)
+			if pos and material then
+				local zoneName = SpawnConfig.GetZoneAtPosition(repHRP.Position)
+				local nodeId
+				if zoneName then
+					nodeId = SpawnConfig.GetRandomGroundHarvestForZone(zoneName)
+				else
+					nodeId = SpawnConfig.GetRandomGroundHarvest()
+				end
+				if nodeId then
+					HarvestService._spawnAutoNode(nodeId, pos)
+					
+					totalActiveNodes = totalActiveNodes + 1
+					if totalActiveNodes >= NODE_CAP then break end
 				end
 			end
 		end
 	end
 end
 
---- 디스폰 체크 (플레이어와 너무 멀면 제거)
+
+
 function HarvestService._despawnCheck()
 	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
 	if not nodeFolder then return end
@@ -2386,20 +2407,39 @@ function HarvestService._replenishLoop()
 	local deficit = NODE_CAP - totalActiveNodes
 	local toSpawn = math.min(deficit, 3) -- 한 번에 최대 3개씩 보충 (급격한 변화 방지)
 	
-	for _, player in ipairs(Players:GetPlayers()) do
+		-- [수정] 그룹화 기반 보충 로직
+	local players = Players:GetPlayers()
+	local spawnRepresentativeParts = {}
+	local GROUP_RADIUS = 120
+	
+	for _, player in ipairs(players) do
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local isNearGroup = false
+			for _, repPart in ipairs(spawnRepresentativeParts) do
+				if (hrp.Position - repPart.Position).Magnitude < GROUP_RADIUS then
+					isNearGroup = true
+					break
+				end
+			end
+			if not isNearGroup then
+				table.insert(spawnRepresentativeParts, hrp)
+			end
+		end
+	end
+	
+	for _, repHRP in ipairs(spawnRepresentativeParts) do
 		if toSpawn <= 0 then break end
 		
-		local char = player.Character
-		if char and char:FindFirstChild("HumanoidRootPart") then
-			local pos, material = HarvestService._findSpawnPosition(char.HumanoidRootPart)
-			if pos and material then
-				local nodeId = selectNodeForTerrain(material)
-				if nodeId then
-					local uid = HarvestService._spawnAutoNode(nodeId, pos)
-					if uid then
-						toSpawn = toSpawn - 1
+		local pos, material = HarvestService._findSpawnPosition(repHRP)
+		if pos and material then
+			local nodeId = selectNodeForTerrain(material)
+			if nodeId then
+				local uid = HarvestService._spawnAutoNode(nodeId, pos)
+				if uid then
+					toSpawn = toSpawn - 1
 					end
-				end
 			end
 		end
 	end
@@ -2429,12 +2469,14 @@ local function calculateGatherTime(player: Player, nodeData: any): number
 		baseTime = GATHER_TIME_WRONG
 	end
 
-	-- Work Speed 보너스 (10점당 -5% 시간)
+	-- Work Speed 보너스 (스탯 1포인트당 고정 시간 차감)
 	if PlayerStatService then
 		local stats = PlayerStatService.getStats(player.UserId)
-		local workSpeedStat = (stats and stats.statInvested and stats.statInvested[Enums.StatId.WORK_SPEED]) or 0
-		local speedBonus = math.floor(workSpeedStat / 10) * 0.05
-		baseTime = baseTime * math.max(0.3, 1 - speedBonus)
+		local workSpeedPoints = (stats and stats.statInvested and stats.statInvested[Enums.StatId.WORK_SPEED]) or 0
+		
+		-- 최종 시간 = 기본 시간 - (투자 포인트 * 포인트당 단축 시간)
+		local reduction = workSpeedPoints * (Balance.WORKSPEED_REDUCTION_PER_POINT or 0.05)
+		baseTime = math.max(0.2, baseTime - reduction) -- 최소 0.2초 캡
 	end
 
 	return baseTime

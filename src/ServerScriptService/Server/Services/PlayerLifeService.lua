@@ -148,41 +148,63 @@ local function findBedRespawnPoint(userId: number): Vector3?
 	return nil
 end
 
---- 인벤토리 아이템 랜덤 손실 처리
+--- 인벤토리 및 장비 아이템 랜덤 손실 처리
 local function applyItemLoss(userId: number)
 	local inv = InventoryService.getOrCreateInventory(userId)
 	if not inv then return end
 
-	-- [UX 개선] 1~8번 슬롯(단축키)은 보호하고 9번 이후(가방)만 손실 대상으로 분류
-	local lossCandidateSlots = {}
+	-- [수정] 아이템 종류에 상관없이 모든 슬롯(1~120) 및 장비(HEAD, SUIT, HAND)를 손실 후보로 분류
+	local lossCandidateItems = {}
+	
+	-- 1. 인벤토리 슬롯 (1~8번 단축키 포함 모든 슬롯)
 	for slot, slotData in pairs(inv.slots) do
-		if slotData and slotData.itemId and slot > 8 then
-			table.insert(lossCandidateSlots, {
+		if slotData and slotData.itemId then
+			table.insert(lossCandidateItems, {
+				type = "SLOT",
 				slot = slot,
 				itemId = slotData.itemId,
 				count = slotData.count,
 			})
 		end
 	end
-
-	if #lossCandidateSlots == 0 then return end
-
-	-- 손실 아이템 수 계산 (가방 아이템의 최대 30%)
-	local lossCount = math.max(1, math.floor(#lossCandidateSlots * ITEM_LOSS_PERCENT))
-	lossCount = math.min(lossCount, #lossCandidateSlots)
-
-	-- 랜덤 셔플
-	for i = #lossCandidateSlots, 2, -1 do
-		local j = math.random(1, i)
-		lossCandidateSlots[i], lossCandidateSlots[j] = lossCandidateSlots[j], lossCandidateSlots[i]
+	
+	-- 2. 장착 중인 장비 슬롯
+	if inv.equipment then
+		for slotName, slotData in pairs(inv.equipment) do
+			if slotData and slotData.itemId then
+				table.insert(lossCandidateItems, {
+					type = "EQUIP",
+					slot = slotName,
+					itemId = slotData.itemId,
+					count = 1,
+				})
+			end
+		end
 	end
 
+	if #lossCandidateItems == 0 then return end
+
+	-- 손실 아이템 수 계산 (전체 아이템의 30%)
+	local lossCount = math.max(1, math.floor(#lossCandidateItems * ITEM_LOSS_PERCENT))
+	lossCount = math.min(lossCount, #lossCandidateItems)
+
+	-- 랜덤 셔플
+	for i = #lossCandidateItems, 2, -1 do
+		local j = math.random(1, i)
+		lossCandidateItems[i], lossCandidateItems[j] = lossCandidateItems[j], lossCandidateItems[i]
+	end
+
+	-- 랜덤하게 선택된 아이템 제거
 	for i = 1, lossCount do
-		local info = lossCandidateSlots[i]
-		if info then
+		local info = lossCandidateItems[i]
+		if info.type == "SLOT" then
 			InventoryService.removeItemFromSlot(userId, info.slot, info.count)
-			print(string.format("[PlayerLifeService] Death Loss: Player %d lost %s x%d from slot %d",
+			print(string.format("[PlayerLifeService] Death Loss (Slot): Player %d lost %s x%d from slot %d",
 				userId, info.itemId, info.count, info.slot))
+		elseif info.type == "EQUIP" then
+			InventoryService.removeItemFromEquipment(userId, info.slot)
+			print(string.format("[PlayerLifeService] Death Loss (Equip): Player %d lost equipped %s from %s",
+				userId, info.itemId, info.slot))
 		end
 	end
 end

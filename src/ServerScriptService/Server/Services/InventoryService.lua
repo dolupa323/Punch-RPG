@@ -1477,7 +1477,7 @@ function InventoryService.decreaseEquipmentDurability(userId: number, equipmentS
 			end
 		end
 		
-		-- ?�탯 ?�계??(방어??공격????변�??�??
+		-- 스탯 재계산 (방어구/공격력 변화 수치 반영)
 		if PlayerStatService then
 			PlayerStatService.recalculateStats(userId)
 		end
@@ -1486,7 +1486,47 @@ function InventoryService.decreaseEquipmentDurability(userId: number, equipmentS
 	return true, nil, current
 end
 
---- ?�구???�정 (?�리 ?�에 ?�용)
+--- 장비 슬롯에서 아이템 강제 제거 (사망 손실 등)
+function InventoryService.removeItemFromEquipment(userId: number, equipmentSlotName: string)
+	local inv = playerInventories[userId]
+	if not inv or not inv.equipment then return false end
+	
+	local slotData = inv.equipment[equipmentSlotName]
+	if not slotData then return false end
+	
+	inv.equipment[equipmentSlotName] = nil
+	
+	-- SaveService 동기화
+	if SaveService then
+		SaveService.updatePlayerState(userId, function(state)
+			state.equipment = inv.equipment
+			return state
+		end)
+	end
+	
+	-- 클라이언트 알림 및 파기 효과 처리
+	local player = game:GetService("Players"):GetPlayerByUserId(userId)
+	if player then
+		NetController.FireClient(player, "Inventory.Equipment.Changed", { equipment = inv.equipment })
+		
+		-- 장착 외형 및 스탯 갱신
+		if EquipService then
+			EquipService.updateAppearance(player)
+			if equipmentSlotName == "HAND" then
+				EquipService.equipItem(player, nil)
+			end
+		end
+		
+		if PlayerStatService then
+			PlayerStatService.recalculateStats(userId)
+		end
+	end
+	
+	return true
+end
+
+
+--- 내구도 설정 (수리 등에 사용)
 function InventoryService.setDurability(userId: number, slot: number, amount: number)
 	local inv = playerInventories[userId]
 	if not inv then return false, Enums.ErrorCode.NOT_FOUND end
@@ -1496,7 +1536,7 @@ function InventoryService.setDurability(userId: number, slot: number, amount: nu
 	
 	slotData.durability = amount
 	
-	-- ?�벤??
+	-- 이벤트 발생
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		_emitChanged(player, {_makeChange(inv, slot)})
@@ -1505,12 +1545,12 @@ function InventoryService.setDurability(userId: number, slot: number, amount: nu
 	return true
 end
 
---- ?�재 ?�착 중인(?�택???�바) ?�이??조회
+--- 현재 장착 중인(선택된 핫바) 아이템 조회
 function InventoryService.getEquippedItem(userId: number): any?
 	local inv = playerInventories[userId]
 	if not inv then return nil end
 	
-	-- ?�버 권위(Active Slot) 기반?�로 ?�재 ?�착 ?�이??조회
+	-- 서버 권위(Active Slot) 기반으로 현재 장착 아이템 조회
 	local active = InventoryService.getActiveSlot(userId)
 	return InventoryService.getSlot(userId, active)
 end
@@ -1571,7 +1611,7 @@ local function handleDrop(player: Player, payload: any)
 	if not success then
 		return { success = false, errorCode = errorCode }
 	end
-	return { success = true, data = data }  -- data.dropped ?�함
+	return { success = true, data = data }  -- data.dropped 포함
 end
 
 local function handleDropGold(player: Player, payload: any)
@@ -1636,17 +1676,17 @@ local function handleUse(player: Player, payload: any)
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM } end
 	
-	-- 1. ?�착 가???�이??(무기, ?�구 ??
+	-- 1. ?착 가???이??(무기, ?구 ??
 	if itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL or itemData.type == Enums.ItemType.ARMOR then
-		-- ?��? ?�바(1-8)???�는 경우 -> ?�성 ?�롯?�로 ?�정
+		-- ?? ?바(1-8)???는 경우 -> ?성 ?롯?로 ?정
 		if slot >= 1 and slot <= 8 then
 			InventoryService.setActiveSlot(userId, slot)
 			NetController.FireClient(player, "Inventory.ActiveSlot.Changed", { slot = slot })
 			return { success = true, data = { action = "SELECT", slot = slot } }
 		else
-			-- 가방에 ?�는 경우
+			-- 가방에 ?는 경우
 			
-			-- [추�?] 방어�??�?�이�??�용 ?�롯(BODY ?? ?�보가 ?�는 경우 바로 ?�착
+			-- [추?] 방어???이??용 ?롯(BODY ?? ?보가 ?는 경우 바로 ?착
 			if itemData.type == Enums.ItemType.ARMOR and itemData.slot then
 				local success, err = InventoryService.equipItem(player, slot, itemData.slot:upper())
 				if success then

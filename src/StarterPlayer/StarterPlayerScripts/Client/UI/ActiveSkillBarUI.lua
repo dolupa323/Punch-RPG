@@ -26,9 +26,7 @@ local SkillController = require(Controllers.SkillController)
 
 local C = Theme.Colors
 local F = Theme.Fonts
-
-local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-
+local isMobile = UserInputService.TouchEnabled or (game:GetService("RunService"):IsStudio() and (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X <= 1024))
 local ActiveSkillBarUI = {}
 
 --========================================
@@ -46,8 +44,8 @@ local CAPTURE_SCAN_RANGE = Balance and Balance.CAPTURE_RANGE or 30
 local CAPTURE_DISABLED_TRANSPARENCY = 0.7
 local CAPTURE_ACTIVE_COLOR = Color3.fromRGB(255, 200, 40) -- 활성화 시 보더 색 (노란색)
 
--- 3-bar 합성 6각형 상수 (HarvestUI와 동일 방식)
-local HEX_BAR_ROTATIONS = { 30, 90, 150 }
+-- 3-bar 합성 6각형 상수 (Pointy-Topped 형태로 수정)
+local HEX_BAR_ROTATIONS = { 0, 60, 120 }
 local HEX_BAR_W_RATIO = 0.88
 local HEX_BAR_H_RATIO = 0.50
 
@@ -142,24 +140,39 @@ end
 -- Create Hexagonal Skill Cluster
 --========================================
 local function createBar(parent)
-	local areaSize = HEX_SIZE * 2 + HEX_GAP + 40
-	local offset = (HEX_SIZE + HEX_GAP) / 2
-	local cx, cy = areaSize / 2, areaSize / 2
+	local isMobile = UserInputService.TouchEnabled or (game:GetService("RunService"):IsStudio() and (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X <= 1024))
+	
+	-- 조화로운 육각형 맞물림을 위해 크기와 갭 조절
+	local HEX_SIZE = isMobile and 84 or 76
+	local HEX_GAP = 4 -- 전방향 동일한 두께의 틈새를 위해 양수 갭 사용
+
+	-- 정육각형의 실제 가로세로 비율(Width 0.88 : Height 1.01)에 기반한 완벽한 1:1 간격 공식
+	local hexBase = HEX_SIZE + HEX_GAP
+	local dx = hexBase * 0.44 -- 가로 간격
+	local dy = hexBase * 0.76 -- 세로 간격
+
+	-- 컴포넌트들의 바운딩 박스 (Q,F 상단 / Cap, V 하단)
+	-- 가로: capX (cx-2*dx) ~ F (cx+dx) => 폭 3*dx + HEX_SIZE
+	-- 세로: Q (cy-dy/2) ~ V (cy+dy/2) => 높이 dy + HEX_SIZE
+	local areaW = 3 * dx + HEX_SIZE + 20
+	local areaH = dy + HEX_SIZE + 20
+	local cx = 2 * dx + HEX_SIZE / 2 + 10
+	local cy = areaH / 2
 
 	barFrame = Utils.mkFrame({
 		name = "ActiveSkillBar",
-		size = UDim2.new(0, areaSize, 0, areaSize),
-		pos = UDim2.new(1, isMobile and -10 or -8, 1, isMobile and -30 or -25),
+		size = UDim2.new(0, areaW, 0, areaH),
+		pos = UDim2.new(1, isMobile and -10 or -8, 1, isMobile and -95 or -160), -- PC 모드 높이 추가 상향
 		anchor = Vector2.new(1, 1),
 		bgT = 1,
 		parent = parent,
 	})
 
-	-- 역삼각형 배치: 좌상, 우상, 하중
+	-- 기존 스킬 역삼각형 배치 (Cap은 Q자리 좌하단)
 	local positions = {
-		{x = cx - offset, y = cy - offset * 0.5},
-		{x = cx + offset, y = cy - offset * 0.5},
-		{x = cx,           y = cy + offset * 0.5},
+		{x = cx - dx, y = cy - dy / 2}, -- Q (좌상)
+		{x = cx + dx, y = cy - dy / 2}, -- F (우상)
+		{x = cx,      y = cy + dy / 2}, -- V (우하)
 	}
 
 	for i = 1, SLOT_COUNT do
@@ -264,12 +277,11 @@ local function createBar(parent)
 	end
 
 	--========================================
-	-- 포획 버튼 (스킬 클러스터 좌측)
+	-- 포획 버튼 (Q스킬 좌측 하단 대각선)
 	--========================================
 	do
-		local capturePos = positions[1] -- 좌상 슬롯 기준
-		local capX = capturePos.x - (HEX_SIZE + HEX_GAP) -- 좌측으로 한 칸
-		local capY = capturePos.y
+		local capX = cx - 2 * dx
+		local capY = cy + dy / 2
 
 		local capFrame = Instance.new("TextButton")
 		capFrame.Name = "CaptureButton"

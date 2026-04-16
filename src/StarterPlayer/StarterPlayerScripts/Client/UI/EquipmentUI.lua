@@ -247,9 +247,12 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		tooltipMoveConn = nil
 	end
 	tooltipMoveConn = game:GetService("RunService").RenderStepped:Connect(function()
-		if EquipmentUI.Refs.Tooltip and EquipmentUI.Refs.Tooltip.Visible then
+		local tt = EquipmentUI.Refs.Tooltip
+		if tt and tt.Visible then
 			local mousePos = game:GetService("UserInputService"):GetMouseLocation()
-			EquipmentUI.Refs.Tooltip.Position = UDim2.new(0, mousePos.X + 20, 0, mousePos.Y + 20)
+			local ttHeight = tt.AbsoluteSize.Y
+			-- 마우스 커서 위쪽으로 띄우기 (커서 Y - 툴팁 높이 - 여유 공간)
+			EquipmentUI.Refs.Tooltip.Position = UDim2.new(0, mousePos.X + 15, 0, mousePos.Y - ttHeight - 15)
 		end
 	end)
 end

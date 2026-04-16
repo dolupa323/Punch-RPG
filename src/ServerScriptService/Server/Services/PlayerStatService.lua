@@ -339,6 +339,14 @@ function PlayerStatService.upgradeStat(userId: number, statId: string): (boolean
 			return false, "MAX_SLOTS_REACHED"
 		end
 	end
+
+	-- 작업 속도 스탯: 상한 검사 (평균 50포인트)
+	if statId == Enums.StatId.WORK_SPEED then
+		local currentInvested = stats.statInvested[Enums.StatId.WORK_SPEED] or 0
+		if currentInvested >= (Balance.MAX_WORKSPEED_POINTS or 50) then
+			return false, "MAX_WORKSPEED_REACHED"
+		end
+	end
 	
 	stats.statInvested[statId] = (stats.statInvested[statId] or 0) + 1
 	_savePlayerStats(userId)

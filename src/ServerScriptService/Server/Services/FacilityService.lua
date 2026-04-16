@@ -932,28 +932,6 @@ function FacilityService.sleep(player: Player, structureId: string): (boolean, s
 		end
 	end
 
-	local okStamina, StaminaService = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.Services.StaminaService)
-	end)
-	if okStamina and StaminaService and StaminaService.restoreFull then
-		StaminaService.restoreFull(player.UserId)
-	end
-
-	local okHunger, HungerService = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.Services.HungerService)
-	end)
-	if okHunger and HungerService and HungerService.restoreFull then
-		HungerService.restoreFull(player.UserId)
-	end
-
-	local okDebuff, DebuffService = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.Services.DebuffService)
-	end)
-	if okDebuff and DebuffService and DebuffService.removeDebuff then
-		DebuffService.removeDebuff(player.UserId, "CHILLY")
-		DebuffService.removeDebuff(player.UserId, "FREEZING")
-	end
-
 	local okLife, PlayerLifeService = pcall(function()
 		return require(game:GetService("ServerScriptService").Server.Services.PlayerLifeService)
 	end)
@@ -981,31 +959,11 @@ function FacilityService.sleep(player: Player, structureId: string): (boolean, s
 		print(string.format("[FacilityService.sleep] lastPosition saved (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z))
 	end
 
-	local okTime, TimeService = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.Services.TimeService)
-	end)
-	if okTime and TimeService and TimeService.getTime and TimeService.warp then
-		-- 기상 직후는 완전히 밝은 상태가 되도록 "정오" 시점으로 이동.
-		local dayLength = math.max(1, Balance.DAY_LENGTH or 2400)
-		local target = math.floor((Balance.DAY_DURATION or 1800) * 0.5)
-		local cur = TimeService.getTime()
-		local dayTime = (cur and cur.dayTime) or 0
-		local delta = target - dayTime
-		if delta < 0 then
-			delta += dayLength
-		end
-		TimeService.warp(delta)
-		if TimeService.sync then
-			TimeService.sync()
-		end
-	end
-
 	sleepCooldownByUser[player.UserId] = nowUnix + math.max(1, Balance.SLEEP_COOLDOWN or 20)
 
 	return true, nil, {
 		respawnSet = true,
 		restored = true,
-		phase = "DAY",
 		nextSleepAt = sleepCooldownByUser[player.UserId],
 	}
 end

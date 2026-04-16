@@ -23,8 +23,10 @@ local playerSkillCache = {}
 -- Internal Helpers
 --========================================
 
+local _initPlayerSkills, _autoUnlockFreeSkills, _getAvailableSP, _findSkill, _getTreeIdForSkill, _isCombatTreeId, _arePrereqsMet, _syncToSave
+
 --- 플레이어 스킬 캐시 초기화 (SaveService 데이터 로드)
-local function _initPlayerSkills(userId: number)
+function _initPlayerSkills(userId: number)
 	if playerSkillCache[userId] then return end
 
 	local state = SaveService.getPlayerState(userId)
@@ -44,10 +46,13 @@ local function _initPlayerSkills(userId: number)
 		skillPointsSpent = state.skillPointsSpent or 0,
 		activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil },
 	}
+	
+	-- 건축 등 자동 해금 스킬 처리
+	_autoUnlockFreeSkills(userId)
 end
 
 --- SP 잔여량 계산 (총 획득 - 소모)
-local function _getAvailableSP(userId: number): number
+function _getAvailableSP(userId: number): number
 	_initPlayerSkills(userId)
 	local level = PlayerStatService.getLevel(userId) or 1
 	local totalEarned = math.max(0, (level - 1) * Balance.SKILL_POINTS_PER_LEVEL)
@@ -55,17 +60,17 @@ local function _getAvailableSP(userId: number): number
 end
 
 --- 스킬 데이터 조회 (모든 트리 탐색)
-local function _findSkill(skillId: string)
+function _findSkill(skillId: string)
 	return SkillTreeData.GetSkill(skillId)
 end
 
 --- 스킬이 속한 트리 ID 반환
-local function _getTreeIdForSkill(skillId: string): string?
+function _getTreeIdForSkill(skillId: string): string?
 	return SkillTreeData.GetTreeIdForSkill(skillId)
 end
 
 --- 전투 계열인지 체크
-local function _isCombatTreeId(treeId: string): boolean
+function _isCombatTreeId(treeId: string): boolean
 	for _, id in ipairs(SkillTreeData.COMBAT_TREE_IDS) do
 		if id == treeId then return true end
 	end
@@ -73,7 +78,7 @@ local function _isCombatTreeId(treeId: string): boolean
 end
 
 --- 선행 스킬 해금 여부 체크
-local function _arePrereqsMet(userId: number, skill): boolean
+function _arePrereqsMet(userId: number, skill): boolean
 	if not skill.prereqs or #skill.prereqs == 0 then return true end
 	local cache = playerSkillCache[userId]
 	for _, prereqId in ipairs(skill.prereqs) do
@@ -85,7 +90,7 @@ local function _arePrereqsMet(userId: number, skill): boolean
 end
 
 --- SaveService에 스킬 데이터 즉시 반영
-local function _syncToSave(userId: number)
+function _syncToSave(userId: number)
 	local cache = playerSkillCache[userId]
 	if not cache then return end
 
@@ -96,6 +101,36 @@ local function _syncToSave(userId: number)
 	state.combatTreeId = cache.combatTreeId
 	state.skillPointsSpent = cache.skillPointsSpent
 	state.activeSkillSlots = cache.activeSkillSlots
+end
+
+--- 미해금 스킬 중 SP가 0이고 레벨 조건이 충족된 스킬 자동 해금 (건축 등)
+function _autoUnlockFreeSkills(userId: number)
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local level = PlayerStatService.getLevel(userId) or 1
+	
+	local changed = false
+	-- 모든 트리 순회하며 자동 해금 대상 검색 (BUILD 트리 등 spCost가 0인 것)
+	for _, treeId in ipairs({ "BUILD", "TAMING" }) do
+		local tree = SkillTreeData[treeId]
+		if tree then
+			for _, skill in ipairs(tree) do
+				if (skill.spCost == 0 or skill.type == "BUILD_TIER") and not cache.unlockedSkills[skill.id] then
+					if level >= (skill.reqLevel or 1) then
+						-- 선행 조건 체크
+						if _arePrereqsMet(userId, skill) then
+							cache.unlockedSkills[skill.id] = true
+							changed = true
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	if changed then
+		_syncToSave(userId)
+	end
 end
 
 --========================================
@@ -255,6 +290,10 @@ end
 local function handleGetData(player: Player, _payload: any)
 	local userId = player.UserId
 	_initPlayerSkills(userId)
+	
+	-- 레벨 업 등에 따른 자동 해금 여부 다시 체크
+	_autoUnlockFreeSkills(userId)
+	
 	local cache = playerSkillCache[userId]
 
 	return {
@@ -362,9 +401,32 @@ function SkillService.Init(_NetController, _PlayerStatService, _SaveService)
 	SaveService = _SaveService
 
 	local Players = game:GetService("Players")
+	
+	-- 플레이어 접속 시 데이터 대기 및 초기화 (기초 스킬 자동 습득 포함)
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(function()
+			-- SaveService에 의해 데이터가 로드될 때까지 대기
+			local startAt = tick()
+			while not player:GetAttribute("DataLoaded") and (tick() - startAt) < 15 and player.Parent do
+				task.wait(0.5)
+			end
+			
+			if player.Parent then
+				_initPlayerSkills(player.UserId)
+			end
+		end)
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		SkillService.onPlayerRemoving(player.UserId)
 	end)
+
+	-- 이미 접속한 플레이어 처리
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player:GetAttribute("DataLoaded") then
+			_initPlayerSkills(player.UserId)
+		end
+	end
 
 	print("[SkillService] Initialized")
 end

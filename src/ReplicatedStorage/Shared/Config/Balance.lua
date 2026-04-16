@@ -50,7 +50,7 @@ Balance.CREATURE_REPLENISH_INTERVAL = 60 -- 보충 스폰 간격 (초) (45 -> 60
 -- 자원 노드 (Resource Nodes)
 --========================================
 Balance.RESOURCE_NODE_CAP = 600    -- 서버 전체 자원 노드 최대 수
-Balance.NODE_SPAWN_INTERVAL = 5   -- 자원 노드 보충 스폰 간격 (초)
+Balance.NODE_SPAWN_INTERVAL = 12   -- 자원 노드 보충 스폰 간격 (초)
 Balance.NODE_DESPAWN_DIST = 500    -- 자원 노드 디스폰 거리 (멀리서도 유지)
 Balance.INITIAL_NODE_COUNT = 400   -- 서버 시작 시 초기 스폰 노드 수
 
@@ -136,7 +136,9 @@ Balance.STAMINA_PER_POINT = 10         -- 포인트당 스태미너 증가
 Balance.SLOTS_PER_POINT = 5            -- 포인트당 인벤토리 칸 증가
 Balance.BASE_INV_SLOTS = 60            -- 기본 인벤토리 칸 수
 Balance.MAX_INV_SLOTS = 120            -- 최대 인벤토리 칸 수 (120 이상 불가)
-Balance.WORKSPEED_PER_POINT = 10       -- 포인트당 작업 속도 증가
+Balance.WORKSPEED_PER_POINT = 10       -- 포인트당 작업 속도 수치 (UI 표시용)
+Balance.WORKSPEED_REDUCTION_PER_POINT = 0.05 -- 포인트당 실제 채집 단축 시간 (초)
+Balance.MAX_WORKSPEED_POINTS = 50      -- 작업속도 스탯 최대 투자 가능 포인트
 Balance.ATTACK_PER_POINT = 0.05        -- 포인트당 공격력 증가 (5%)
 
 Balance.STAT_BONUS_PER_LEVEL = 0       -- 레벨당 자동 보너스 (배제됨, 포인트제로 통합)
