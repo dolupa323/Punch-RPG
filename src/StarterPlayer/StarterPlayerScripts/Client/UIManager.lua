@@ -153,7 +153,7 @@ local EquipmentUI = require(UI.EquipmentUI)
 local StorageUI = require(UI.StorageUI)
 local FacilityUI = require(UI.FacilityUI)
 local MaterialSelectUI = require(UI.MaterialSelectUI)
-local CollectionUI = require(UI.CollectionUI)
+
 local PromptUI = require(UI.PromptUI)
 local TotemUI = require(UI.TotemUI)
 local PortalUI = require(UI.PortalUI)
@@ -162,7 +162,7 @@ local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
 local HarvestUI = require(UI.HarvestUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
 
-local CollectionController = require(Controllers.CollectionController)
+
 local SkillController = require(Controllers.SkillController)
 
 local C = Theme.Colors
@@ -1869,34 +1869,7 @@ function UIManager.requestPortalTeleport()
 	end
 end
 
-----------------------------------------------------------------
--- Collection UI
-----------------------------------------------------------------
 
-function UIManager.openCollection()
-	WindowManager.open("COLLECTION")
-end
-
-function UIManager._onOpenCollection()
-	if not blurEffect and not WindowManager.isOpen("INV") then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-	
-	CollectionUI.Show()
-end
-
-function UIManager.closeCollection()
-	WindowManager.close("COLLECTION")
-end
-
-function UIManager._onCloseCollection()
-	if blurEffect and not WindowManager.isAnyOpen() then blurEffect:Destroy(); blurEffect = nil end
-	CollectionUI.Hide()
-end
-
-function UIManager.toggleCollection()
-	WindowManager.toggle("COLLECTION")
-end
 
 -- ============ Skill Tree ============
 function UIManager._onOpenSkillTree()
@@ -3047,7 +3020,7 @@ function UIManager.Init()
 	StorageUI.Init(mainGui, UIManager, isMobile)
 	FacilityUI.Init(mainGui, UIManager, isMobile)
 	MaterialSelectUI.Init(mainGui, UIManager)
-	CollectionUI.Init(mainGui, UIManager, isMobile)
+
 	TotemUI.Init(mainGui, UIManager, isMobile)
 	PortalUI.Init(mainGui, UIManager, isMobile)
 	PortalRadialUI:Init(UIManager)
@@ -3060,7 +3033,7 @@ function UIManager.Init()
 
 	StorageController.Init()
 	FacilityController.Init()
-	CollectionController.Init()
+
 
 	-- 슬롯 참조만 유지 (드래그 앤 드롭 및 리프레시 로직용)
 	hotbarSlots = HUDUI.Refs.hotbarSlots
@@ -3092,7 +3065,7 @@ function UIManager.Init()
 	WindowManager.register("BUILD", UIManager._onOpenBuild, UIManager._onCloseBuild)
 	WindowManager.register("STORAGE", UIManager._onOpenStorage, UIManager._onCloseStorage)
 	WindowManager.register("FACILITY", UIManager._onOpenFacility, UIManager._onCloseFacility)
-	WindowManager.register("COLLECTION", UIManager._onOpenCollection, UIManager._onCloseCollection)
+
 	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
@@ -3119,7 +3092,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("BUILD", findMainPanel(BuildUI.Refs.Frame))
 		WindowManager.registerFrame("STORAGE", findMainPanel(StorageUI.Refs.Frame))
 		WindowManager.registerFrame("FACILITY", findMainPanel(FacilityUI.Refs.Frame))
-		WindowManager.registerFrame("COLLECTION", findMainPanel(CollectionUI.Refs.Frame))
+
 		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
 
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)

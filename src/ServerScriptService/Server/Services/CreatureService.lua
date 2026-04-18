@@ -1098,16 +1098,13 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 			})
 		end
 		
-		-- 경험치 보상 및 도감 등록
+		-- 경험치 보상
 		if PlayerStatService and attacker then
 			local xpAmount = creature.data.xpReward or 25
 			PlayerStatService.grantActionXP(attacker.UserId, xpAmount, {
 				source = Enums.XPSource.CREATURE_KILL,
 				actionKey = "CREATURE:" .. tostring(creature.creatureId),
 			})
-			
-			-- 개별 도감 누적 (DNA 획득)
-			PlayerStatService.addCollectionDna(attacker.UserId, creature.creatureId, 1)
 		end
 		
 		-- 즉시 제거 대신 자연스러운 사망 연출(페이드 + 하강) 적용

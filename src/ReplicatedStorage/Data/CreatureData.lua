@@ -24,13 +24,7 @@ local CreatureData = {
 		behavior = "NEUTRAL",
 		modelName = "DODO",
 		xpReward = 5,
-		-- 도감 시스템
-		dnaRequired = 3,
-		passiveEffect = { stat = "workSpeed", value = 5 },       -- 작업 속도 +5
-		petScale = 5.0,     -- 목표 크기 (스터드)
-		petDamage = 3,
-		petDefense = 5,
-		petHealth = 20,
+		-- 도감 시스템       -- 작업 속도 +5     -- 목표 크기 (스터드)
 		palBagSlots = 1,
 	},
 	{
@@ -51,13 +45,7 @@ local CreatureData = {
 		modelName = "COMPY",
 		groupSize = 2,
 		xpReward = 3,
-		-- 도감 시스템
-		dnaRequired = 3,
-		passiveEffect = { stat = "attackMult", value = 0.03 },   -- 공격력 +3%
-		petScale = 4.0,     -- 목표 크기 (스터드)
-		petDamage = 6,
-		petDefense = 8,
-		petHealth = 15,
+		-- 도감 시스템   -- 공격력 +3%     -- 목표 크기 (스터드)
 		palBagSlots = 1,
 	},
 	{
@@ -81,13 +69,7 @@ local CreatureData = {
 			{ name = "침뼉기", pattern = "CONE", angle = 90, range = 25, damage = 20, windupTime = 3.6, attackTime = 0.5, anim = "SPIT" },
 			{ name = "꼬리치기", pattern = "CIRCLE", radius = 16, damage = 15, windupTime = 5.4, attackTime = 0.5, anim = "ATTACK" },
 		},
-		-- 도감 시스템
-		dnaRequired = 5,
-		passiveEffect = { stat = "maxStamina", value = 15 },     -- 최대 기력 +15
-		petScale = 7.0,     -- 목표 크기 (스터드)
-		petDamage = 10,
-		petDefense = 15,
-		petHealth = 80,
+		-- 도감 시스템     -- 최대 기력 +15     -- 목표 크기 (스터드)
 		mountable = true,
 		mountSeatOffset = Vector3.new(0, 4.5, -7.8),
 		mountSpeedMultiplier = 1.0,
@@ -119,13 +101,7 @@ local CreatureData = {
 			{ name = "박치기", pattern = "CONE", angle = 90, range = 25, damage = 35, windupTime = 3.6, attackTime = 0.7, anim = "ATTACK" },
 			{ name = "앞발찍기", pattern = "CIRCLE", radius = 18, damage = 25, windupTime = 6.0, attackTime = 0.5, anim = "STOMP" },
 		},
-		-- 도감 시스템
-		dnaRequired = 5,
-		passiveEffect = { stat = "defense", value = 5 },         -- 방어력 +5
-		petScale = 7.0,     -- 목표 크기 (스터드)
-		petDamage = 20,
-		petDefense = 30,
-		petHealth = 200,
+		-- 도감 시스템         -- 방어력 +5     -- 목표 크기 (스터드)
 		palBagSlots = 24,
 	},
 	{
@@ -146,13 +122,7 @@ local CreatureData = {
 		modelName = "BABY_TRICERATOPS",
 		scale = 1,
 		xpReward = 15,
-		-- 도감 시스템
-		dnaRequired = 3,
-		passiveEffect = { stat = "maxHealth", value = 10 },      -- 최대 체력 +10
-		petScale = 5.0,     -- 목표 크기 (스터드)
-		petDamage = 5,
-		petDefense = 10,
-		petHealth = 50,
+		-- 도감 시스템      -- 최대 체력 +10     -- 목표 크기 (스터드)
 		palBagSlots = 4,
 	},
 	{
@@ -175,13 +145,7 @@ local CreatureData = {
 		attacks = {
 			{ name = "꼬리치기", pattern = "CIRCLE", radius = 18, damage = 20, windupTime = 5.4, attackTime = 0.5, anim = "ATTACK" },
 		},
-		-- 도감 시스템
-		dnaRequired = 5,
-		passiveEffect = { stat = "maxHealth", value = 20 },      -- 최대 체력 +20
-		petScale = 7.0,     -- 목표 크기 (스터드)
-		petDamage = 18,
-		petDefense = 25,
-		petHealth = 180,
+		-- 도감 시스템      -- 최대 체력 +20     -- 목표 크기 (스터드)
 		palBagSlots = 12,
 	},
 	{
@@ -201,13 +165,7 @@ local CreatureData = {
 		behavior = "NEUTRAL",
 		modelName = "Ankylosaurus",
 		xpReward = 50,
-		-- 도감 시스템
-		dnaRequired = 5,
-		passiveEffect = { stat = "defense", value = 8 },         -- 방어력 +8
-		petScale = 7.0,     -- 목표 크기 (스터드)
-		petDamage = 18,
-		petDefense = 40,
-		petHealth = 250,
+		-- 도감 시스템         -- 방어력 +8     -- 목표 크기 (스터드)
 	},
 
 	--========================================
@@ -233,13 +191,7 @@ local CreatureData = {
 		attacks = {
 			{ name = "깨물기", pattern = "CONE", angle = 80, range = 16, damage = 35, windupTime = 2.4, attackTime = 0.45, anim = "ATTACK" },
 		},
-		-- 도감 시스템
-		dnaRequired = 5,
-		passiveEffect = { stat = "attackMult", value = 0.05 },   -- 공격력 +5%
-		petScale = 6.0,     -- 목표 크기 (스터드)
-		petDamage = 12,
-		petDefense = 15,
-		petHealth = 60,
+		-- 도감 시스템   -- 공격력 +5%     -- 목표 크기 (스터드)
 		mountable = true,
 		mountSeatOffset = Vector3.new(0, 3.0, -4.2),
 		mountSpeedMultiplier = 1.65,
@@ -263,13 +215,7 @@ local CreatureData = {
 		behavior = "AGGRESSIVE",
 		modelName = "TRex",
 		xpReward = 120,
-		-- 도감 시스템
-		dnaRequired = 3,
-		passiveEffect = { stat = "attackMult", value = 0.08 },   -- 공격력 +8%
-		petScale = 8.0,     -- 목표 크기 (스터드)
-		petDamage = 40,
-		petDefense = 50,
-		petHealth = 400,
+		-- 도감 시스템   -- 공격력 +8%     -- 목표 크기 (스터드)
 	},
 }
 

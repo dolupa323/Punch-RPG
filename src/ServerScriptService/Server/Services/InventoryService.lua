@@ -1713,30 +1713,13 @@ local function handleUse(player: Player, payload: any)
 	end
 	
 	-- 2. DNA ?�이??(?�용 ???�감 ?�록)
-	if itemData.type == "DNA" then
-		local creatureId = itemData.creatureId
-		if not creatureId then
-			return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
-		end
-		
-		-- ?�감??DNA ?�록
-		if PlayerStatService and PlayerStatService.addCollectionDna then
-			PlayerStatService.addCollectionDna(userId, creatureId, 1)
-		end
-		
-		-- ?�벤?�리?�서 1�??�모 (?�롯 기반 ?�거)
-		InventoryService.removeItemFromSlot(userId, slot, 1)
-		
-		-- ?�라?�언?�에 ?�감 ?�록 ?�공 ?�림
-		if NetController then
-			NetController.FireClient(player, "DNA.Registered", {
-				creatureId = creatureId,
-				itemId = slotData.itemId,
-			})
-		end
 
-		return { success = true, data = { action = "DNA_REGISTER", creatureId = creatureId, itemId = slotData.itemId } }
-	end
+		-- ?�감??DNA ?�록
+
+		-- ?�벤?�리?�서 1�??�모 (?�롯 기반 ?�거)
+
+		-- ?�라?�언?�에 ?�감 ?�록 ?�공 ?�림
+
 	
 	-- 2.5 포획 상자 (CAPTURE_BOX) → 길들이기 확률 굴림
 	if itemData.type == Enums.ItemType.CAPTURE_BOX then

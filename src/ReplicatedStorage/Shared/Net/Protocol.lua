@@ -166,10 +166,6 @@ Protocol.Commands = {
 	["Tutorial.Admin.Reset.Request"] = true,
 	["Tutorial.Admin.SetStep.Request"] = true,
 
-	-- Pet 명령어 (도감 펫 시스템)
-	["Pet.Slots.Request"] = true,
-	["Pet.Equip.Request"] = true,
-	["Pet.Unequip.Request"] = true,
 
 	-- Recall 명령어 (귀환 텔레포트)
 	["Recall.Request"] = true,

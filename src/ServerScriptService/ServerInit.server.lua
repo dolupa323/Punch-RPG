@@ -496,15 +496,6 @@ end
 -- CombatService에 StaminaService 연동 (무적 프레임 체크용)
 CombatService.SetStaminaService(StaminaService)
 
--- PetService 초기화 (도감 펫 시스템)
-local PetService = require(Services.PetService)
-PetService.Init(NetController, DataService, PlayerStatService, SaveService, CreatureService, CombatService)
-
-
--- PetService 핸들러 등록
-for command, handler in pairs(PetService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
 
 -- CharacterSetupService 초기화 (선사시대 캐릭터 스타일)
 local CharacterSetupService = require(Services.CharacterSetupService)

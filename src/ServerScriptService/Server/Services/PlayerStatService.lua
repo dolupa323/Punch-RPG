@@ -113,13 +113,6 @@ local function _initPlayerStats(userId: number)
 			[Enums.StatId.WORK_SPEED] = 0,
 			[Enums.StatId.ATTACK] = 0,
 		},
-		-- 연구 도감 (DNA 데이터 - Phase 11+)
-		dnaData = savedStats and savedStats.dnaData or {
-			COMPY = savedStats and savedStats.dnaCompy or 0,
-			DODO = 0,
-			BABY_TRICERATOPS = 0,
-		},
-		dnaCompy = savedStats and savedStats.dnaCompy or 0, -- 하위 호환 유지
 	}
 	
 	-- 레거시 마이그레이션: 기존 WEIGHT 스탯을 INV_SLOTS로 변환
@@ -143,8 +136,6 @@ local function _savePlayerStats(userId: number)
 			state.stats.totalXP = stats.totalXP
 			state.stats.techPointsSpent = stats.techPointsSpent
 			state.stats.statInvested = stats.statInvested
-			state.stats.dnaData = stats.dnaData
-			state.stats.dnaCompy = stats.dnaCompy
 			return state
 		end)
 	end
@@ -399,30 +390,7 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		if setBonuses.attackMult then finalAtk = finalAtk + setBonuses.attackMult end
 	end
 	
-	-- 도감 완성 패시브 효과 적용
-	local dnaBonuses = { attackMult = 0, maxHealth = 0, maxStamina = 0, defense = 0, workSpeed = 0 }
-	local pStats = playerStats[userId]
-	if pStats and pStats.dnaData then
-		local creatureTbl = DataHelper.GetTable("CreatureData") or {}
-		for _, cData in pairs(creatureTbl) do
-			local cid = string.upper(cData.id or "")
-			local required = cData.dnaRequired or 5
-			local current = pStats.dnaData[cid] or 0
-			if current >= required and cData.passiveEffect then
-				local eff = cData.passiveEffect
-				if eff.stat and eff.value then
-					if dnaBonuses[eff.stat] ~= nil then
-						dnaBonuses[eff.stat] = dnaBonuses[eff.stat] + eff.value
-					end
-				end
-			end
-		end
-	end
-	
-	finalHp = finalHp + dnaBonuses.maxHealth
-	finalSta = finalSta + dnaBonuses.maxStamina
-	finalAtk = finalAtk + dnaBonuses.attackMult
-	local finalWork = 100 + ((stats[Enums.StatId.WORK_SPEED] or 0) * Balance.WORKSPEED_PER_POINT) + dnaBonuses.workSpeed
+	local finalWork = 100 + ((stats[Enums.StatId.WORK_SPEED] or 0) * Balance.WORKSPEED_PER_POINT)
 
 	-- 이동 속도 보너스 (방어구 세트 등)
 	local speedMult = 0
@@ -439,9 +407,8 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		),
 		workSpeed = finalWork,
 		attackMult = finalAtk,
-		defense = defense + dnaBonuses.defense,
+		defense = defense,
 		speedMult = speedMult, -- StaminaService 안티치트에서 참조
-		dnaBonuses = dnaBonuses, -- 클라이언트 UI용 정보 포함
 	}
 end
 
@@ -506,8 +473,6 @@ function PlayerStatService.getStats(userId: number): { [string]: any }
 		statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		statInvested = stats.statInvested,
 		calculated = PlayerStatService.GetCalculatedStats(userId),
-		dnaData = stats.dnaData,
-		dnaCompy = stats.dnaCompy,
 	}
 end
 
@@ -549,37 +514,6 @@ function PlayerStatService.refundTechPoints(userId: number, amount: number)
 end
 
 --========================================
--- Public API: DNA / Collections
---========================================
-
---- 콤피 DNA 수량 조회
-function PlayerStatService.getDnaCompy(userId: number): number
-	_initPlayerStats(userId)
-	return playerStats[userId].dnaCompy or 0
-end
-
---- 콤피 DNA 누적
-function PlayerStatService.addCollectionDna(userId: number, creatureId: string, amount: number)
-	_initPlayerStats(userId)
-	local stats = playerStats[userId]
-	if not stats.dnaData then stats.dnaData = {} end
-	
-	local cid = string.upper(creatureId)
-	stats.dnaData[cid] = (stats.dnaData[cid] or 0) + amount
-	
-	-- 이전 dnaCompy 필드와 동기화 (하위 호환)
-	if cid == "COMPY" then
-		stats.dnaCompy = stats.dnaData[cid]
-	end
-	
-	_savePlayerStats(userId)
-	
-	-- 클라이언트 동기화
-	local player = game:GetService("Players"):GetPlayerByUserId(userId)
-	if player and NetController then
-		NetController.FireClient(player, "Player.Stats.Changed", PlayerStatService.getStats(userId))
-	end
-end
 
 --========================================
 -- Public API: Reset All Stats

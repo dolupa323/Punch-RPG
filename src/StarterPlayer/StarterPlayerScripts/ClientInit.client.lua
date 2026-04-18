@@ -305,7 +305,7 @@ if success then
 	InputManager.bindKey(Enum.KeyCode.Tab, "ToggleInventory_Tab", function() UIManager.toggleInventory() end)
 	InputManager.bindKey(Enum.KeyCode.C, "ToggleBuilding", function() UIManager.toggleBuild() end)
 	InputManager.bindKey(Enum.KeyCode.E, "ToggleEquipment", function() UIManager.toggleEquipment() end)
-	InputManager.bindKey(Enum.KeyCode.P, "ToggleCollection", function() UIManager.toggleCollection() end)
+
 	InputManager.bindKey(Enum.KeyCode.K, "ToggleSkillTree", function() UIManager.toggleSkillTree() end)
 
 	-- [Active Skills] Q / F / V = 액티브 스킬 슬롯 1/2/3
@@ -577,7 +577,7 @@ if success then
 		UIManager.closeCrafting()
 		UIManager.closeEquipment()
 		UIManager.closeBuild()
-		UIManager.closeCollection()
+
 		UIManager.closeShop()
 		if UIManager.closeTotem then
 			UIManager.closeTotem()
