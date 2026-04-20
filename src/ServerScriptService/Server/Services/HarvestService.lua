@@ -1287,13 +1287,15 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 
 	-- 크리처별 지면 오프셋 (체형에 따라 다름)
 	local CORPSE_GROUND_OFFSETS = {
-		COMPY = 2.5,
-		BABY_TRICERATOPS = 2,
-		DODO = 0,
-		PARASAUR = 10,
-		STEGOSAURUS = 7,
-		TRICERATOPS = 7.5,
+		TROODON = -1.5,
+		OLOROTITAN = -6,
+		ARCHAEOPTERYX = 0.5,
+		PARASAUR = 0,
+		STEGOSAURUS = -3,
+		TRICERATOPS = 0,
 		RAPTOR = 4,
+		KELENKEN = 2.0,
+		DEINOCHEIRUS = 8.0,
 	}
 	local groundOffset = CORPSE_GROUND_OFFSETS[creatureId] or 2
 
@@ -1315,8 +1317,8 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 		local rayParams = RaycastParams.new()
 		rayParams.FilterType = Enum.RaycastFilterType.Include
 		rayParams.FilterDescendantsInstances = {workspace.Terrain}
-		local rayOrigin = Vector3.new(rootPart.Position.X, rootPart.Position.Y + 10, rootPart.Position.Z)
-		local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -60, 0), rayParams)
+		local rayOrigin = rootPart.CFrame.Position + Vector3.new(0, 250, 0)
+		local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
 		if rayResult then
 			local groundY = rayResult.Position.Y
 			-- 최하단보다 추가로 내려서 지면에 확실히 밀착
@@ -1327,15 +1329,23 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 		end
 	end
 
-	-- ★ 위치 먼저 잡기: 지면 스냅 (애니메이션 전)
-	snapToGround()
-
-	-- 데스 애니메이션: 재생 → 프리즈
-	if hasCollapsed and deathTrack then
-		-- ★ 쓰러진 크리처: 이미 95%에서 프리즈 완료 → 포즈 반영 후 지면 재스냅만 수행
-		task.wait(0.1) -- Motor6D 위치 반영 대기
-		snapToGround()
+	-- ★ 위치 잡기 및 애니메이션 프리즈
+	if hasCollapsed then
+		-- ★ 이미 CreatureService에서 쓰러짐(Collapse) 처리가 완료된 경우:
+		-- 추가적인 스냅이나 애니메이션 재생 없이 현재 상태(포즈/위치)를 그대로 유지합니다.
+		-- (여기서 다시 스냅하면 미세한 오차가 발생하여 시체가 튀어 보일 수 있음)
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = true
+				part.CanCollide = false
+				part.CanQuery = true
+				part.CanTouch = true
+			end
+		end
 	elseif deathTrack then
+		-- 위치 초기 스냅 (서있는 자세 기준)
+		snapToGround()
+		
 		task.spawn(function()
 			-- Length가 비동기 로딩일 수 있으므로 0이면 대기
 			local waited = 0
@@ -1345,24 +1355,38 @@ function HarvestService.registerCorpseNode(creatureId: string, position: Vector3
 			end
 			local trackLength = deathTrack.Length
 
-			-- Heartbeat 폴링으로 정확하게 95% 지점 감지
+			-- 반복 폴링이 트랙 종료를 놓치는 현상(특히 짧은 애니메이션)을 방지
 			if trackLength > 0 then
-				local targetTime = trackLength * 0.95
-				while deathTrack.IsPlaying and deathTrack.TimePosition < targetTime do
-					task.wait()
-				end
+				local safeWait = math.max(0, trackLength - 0.05)
+				task.wait(safeWait)
 			else
 				task.wait(2.0)
 			end
 
 			if not model or not model.Parent then return end
-			if deathTrack.IsPlaying then
-				deathTrack:AdjustSpeed(0) -- 마지막 프레임에서 프리즈
+			
+			-- 이미 종료되어 기본 포즈로 돌아간 경우라도 다시 Play() 하여 끝 프레임으로 박제
+			if trackLength > 0 then
+				if not deathTrack.IsPlaying then
+					deathTrack:Play()
+				end
+				deathTrack.TimePosition = trackLength * 0.98
 			end
+			deathTrack:AdjustSpeed(0) -- 마지막 프레임에서 완벽히 박제
 
 			-- ★ 사망 애니메이션 완료 후 지면 재스냅 (포즈 변환 후 정확한 위치)
 			task.wait(0.1) -- Motor6D 위치 반영 대기
 			snapToGround()
+
+			-- ★ 포즈 영구 고정: 애니메이션 종료 시점에 모든 파트를 Anchor 하여 벌떡 일어남(Reset) 방지
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = true
+					part.CanCollide = false
+					part.CanQuery = true
+					part.CanTouch = true
+				end
+			end
 
 			-- Humanoid 비활성화 (파괴하지 않아 포즈 유지)
 			if humanoid and humanoid.Parent then
@@ -2071,6 +2095,7 @@ function HarvestService._cacheTemplatesFromFolders()
 		for nodeId, nodeData in pairs(resourceTable) do
 			local nodeIdNorm = tostring(nodeId):lower():gsub("[%s_%-]", "")
 			local modelNameNorm = tostring(nodeData.modelName or ""):lower():gsub("[%s_%-]", "")
+			
 			if norm == nodeIdNorm or norm == modelNameNorm then
 				return nodeId
 			end
@@ -2079,6 +2104,7 @@ function HarvestService._cacheTemplatesFromFolders()
 		for nodeId, nodeData in pairs(resourceTable) do
 			local nodeIdNorm = tostring(nodeId):lower():gsub("[%s_%-]", "")
 			local modelNameNorm = tostring(nodeData.modelName or ""):lower():gsub("[%s_%-]", "")
+			
 			if #norm >= 3 and (nodeIdNorm:find(norm, 1, true) or modelNameNorm:find(norm, 1, true)) then
 				return nodeId
 			end
@@ -2141,14 +2167,11 @@ function HarvestService._setupPrePlacedNodes()
 	local processedRoots = {}
 
 	local function getTopLevelNodeRoot(inst: Instance): Model?
-		if not inst then
-			return nil
-		end
+		if not inst then return nil end
 
+		-- [수정] 자원 노드는 항상 Model이어야 함. Folder는 카테고리(TROPICAL 등)로 간주하고 건너뜀.
 		local model = inst:IsA("Model") and inst or inst:FindFirstAncestorOfClass("Model")
-		if not model then
-			return nil
-		end
+		if not model then return nil end
 
 		local current = model
 		while current do
@@ -2156,6 +2179,12 @@ function HarvestService._setupPrePlacedNodes()
 			if not parent or parent == nodeFolder then
 				break
 			end
+			
+			-- 부모가 Folder면 현재(Model)가 최상위 노드라고 판단하고 멈춤 (카테고리 폴더 대응)
+			if parent:IsA("Folder") then
+				break
+			end
+
 			if parent:IsA("Model") then
 				current = parent
 			else

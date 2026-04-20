@@ -466,8 +466,8 @@ SkillTreeData.TAMING = {
 		effects = {
 			{ stat = "TAMING_RATE_BONUS", value = 0.02 },
 		},
-		unlockCreatures = { "DODO", "COMPY" },
-		description = "포획 확률 +2%\n도도새, 콤프소그나투스 포획 해금",
+		unlockCreatures = { "DODO", "COMPY", "ARCHAEOPTERYX", "TROODON", "OLOROTITAN" },
+		description = "포획 확률 +2%\n초원 소형/중형 크리처 포획 해금",
 	},
 	{
 		id = "TAMING_T2",
@@ -480,8 +480,8 @@ SkillTreeData.TAMING = {
 		effects = {
 			{ stat = "TAMING_RATE_BONUS", value = 0.03 },
 		},
-		unlockCreatures = { "RAPTOR" },
-		description = "포획 확률 +3%\n랩터 포획 해금",
+		unlockCreatures = { "KELENKEN" },
+		description = "포획 확률 +3%\n켈렌켄 포획 해금",
 	},
 	{
 		id = "TAMING_T3",
@@ -494,8 +494,8 @@ SkillTreeData.TAMING = {
 		effects = {
 			{ stat = "TAMING_RATE_BONUS", value = 0.04 },
 		},
-		unlockCreatures = { "PARASAUR", "TRICERATOPS" },
-		description = "포획 확률 +4%\n파라사우롤로푸스, 트리케라톱스 포획 해금",
+		unlockCreatures = { "PARASAUR", "TRICERATOPS", "DEINOCHEIRUS", "STEGOSAURUS" },
+		description = "포획 확률 +4%\n파라사우롤로푸스, 트리케라톱스, 데이노키루스, 스테고사우루스 포획 해금",
 	},
 	{
 		id = "TAMING_T4",

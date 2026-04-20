@@ -298,10 +298,7 @@ function PortalRadialUI:Open(portalData)
 	local closeBtn = createActionSlot(container, "Close", "닫기", 0, 150, CLOSE_HEX_SIZE)
 	closeBtn.MouseButton1Click:Connect(function() PortalRadialUI.Close() end)
 
-	-- R키 토글 닫기 지원
-	InputManager.bindKey(Enum.KeyCode.R, "PortalRadialToggle", function()
-		PortalRadialUI.Close()
-	end)
+	-- R키 토글 닫기 지원 (InteractController에서 통합 처리하므로 제거)
 
 	-- 거리 체크
 	updateConn = RunService.Heartbeat:Connect(function()
@@ -315,18 +312,34 @@ function PortalRadialUI:Open(portalData)
 	end)
 end
 
+function PortalRadialUI.IsOpen()
+	return isOpen
+end
+
 function PortalRadialUI.Close()
 	if not isOpen then return end
 	isOpen = false
 	lastCloseTime = tick()
 
-	InputManager.unbindKey(Enum.KeyCode.R)
-
-	if billboardGui then billboardGui:Destroy(); billboardGui = nil end
-	if updateConn then updateConn:Disconnect(); updateConn = nil end
+	if billboardGui then 
+		billboardGui:Destroy()
+		billboardGui = nil 
+	end
+	if updateConn then 
+		updateConn:Disconnect()
+		updateConn = nil 
+	end
 
 	currentPortalId = nil
 	InputManager.setUIOpen(false)
+	
+	-- 상호작용 키 권한 반환 (순환 참조 방지를 위해 task.defer 사용 고려)
+	task.defer(function()
+		local InteractController = require(Client.Controllers.InteractController)
+		if InteractController and InteractController.rebindDefaultKeys then
+			InteractController.rebindDefaultKeys()
+		end
+	end)
 end
 
 return PortalRadialUI

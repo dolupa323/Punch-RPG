@@ -795,20 +795,15 @@ function BuildController.cancelPlacement()
 	if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
 	if currentGhost then currentGhost:Destroy(); currentGhost = nil end
 	
-	InputManager.unbindKey(Enum.KeyCode.R)
+	-- 키 입력 해제 (공유 키인 R, Escape는 전역 핸들러 보존을 위해 무분별한 unbindKey 지양)
 	InputManager.unbindKey(Enum.KeyCode.X)
-	InputManager.unbindKey(Enum.KeyCode.Escape)
 	InputManager.unbindLeftClick("BuildPlace")
 	InputManager.unbindRightClick("BuildCancel")
 
-	-- Build 모드가 R 바인딩을 덮어쓰므로 종료 시 시설 상호작용 R 바인딩을 복구
-	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
-		local InteractController = require(script.Parent.InteractController)
-		if InteractController.onFacilityInteractPress then
-			InteractController.onFacilityInteractPress()
-		end
-	end)
-	
+	-- 상호작용 키 권한 반환
+	local InteractController = require(script.Parent.Parent.Controllers.InteractController)
+	InteractController.rebindDefaultKeys()
+
 	isPlacing = false
 	currentFacilityId = nil
 	currentPlacementYawOffset = 0

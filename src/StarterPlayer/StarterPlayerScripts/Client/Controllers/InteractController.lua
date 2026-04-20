@@ -203,9 +203,16 @@ playSleepTransitionAndRequest = function(structureId: string)
 		fadeGui.IgnoreGuiInset = true
 		fadeGui.DisplayOrder = 9999
 		fadeGui.Parent = playerGui
+		
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.fromScale(1, 1)
+		frame.BackgroundColor3 = Color3.new(0, 0, 0)
+		frame.BackgroundTransparency = 1
+		frame.BorderSizePixel = 0
+		frame.Parent = fadeGui
 	end
 
-	local black = fadeGui:FindFirstChild("Black")
+	local black = fadeGui:FindFirstChild("Black") or fadeGui:FindFirstChild("Frame")
 	if not black then
 		black = Instance.new("Frame")
 		black.Name = "Black"
@@ -633,8 +640,15 @@ function InteractController.onFacilityInteractPress()
 			PalRadialUI.Close()
 			return
 		end
-		if WindowManager then
-			WindowManager.closeAll()
+		local PortalRUI = require(Client.UI.PortalRadialUI)
+		if PortalRUI.IsOpen() then
+			PortalRUI.Close()
+			return
+		end
+		-- 윈도우 UI (인벤토리 등) 닫기 시도
+		local ok_WM, WindowManagerMod = pcall(require, Client.Utils.WindowManager)
+		if ok_WM and WindowManagerMod and WindowManagerMod.closeAll then
+			WindowManagerMod.closeAll()
 		end
 		return
 	end
@@ -680,6 +694,7 @@ function InteractController.onFacilityInteractPress()
 		local nodeUID = currentTarget:GetAttribute("NodeUID")
 		local nodeId = currentTarget:GetAttribute("NodeId")
 		if nodeUID and nodeId then
+			if UIManager then UIManager.hideInteractPrompt() end
 			HarvestUI.Open(nodeUID, nodeId, currentTarget)
 			return
 		else
@@ -927,6 +942,8 @@ function InteractController.Init()
 	end)
 
 	RadioStoryController.Init()
+	InteractController.rebindDefaultKeys()
+
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		local allowMountedMovement = player:GetAttribute("MountedPalUID")
 			and isMountedMovementKey(input)
@@ -1023,6 +1040,59 @@ function InteractController.Init()
 	
 	initialized = true
 	print("[InteractController] Initialized (R = Interact)")
+end
+
+--- 전역 상호작용 키 바인딩 복구 (타 UI나 모드에서 가로챈 키 반환용)
+function InteractController.rebindDefaultKeys()
+	local InputManager = require(Client.InputManager)
+	
+	-- R = 모든 상호작용 통합
+	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
+		if InteractController.onFacilityInteractPress then
+			InteractController.onFacilityInteractPress()
+		end
+	end)
+
+	-- T = 건물 해체
+	InputManager.bindKey(Enum.KeyCode.T, "InteractFacilityRemoveT", function()
+		if InteractController.onFacilityRemovePress then
+			InteractController.onFacilityRemovePress()
+		end
+	end)
+	
+	-- ESC = 모든 UI 닫기 통합
+	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
+		-- UIManager가 로드되지 않았을 수 있으므로 안전하게 처리
+		local ok, UIManagerMod = pcall(require, Client.UIManager)
+		if ok and UIManagerMod then
+			UIManagerMod.closeInventory()
+			UIManagerMod.closeCrafting()
+			UIManagerMod.closeEquipment()
+			UIManagerMod.closeBuild()
+			UIManagerMod.closeShop()
+			if UIManagerMod.closeTotem then UIManagerMod.closeTotem() end
+		end
+		
+		-- Radial UIs
+		local FRUI = require(Client.UI.FacilityRadialUI)
+		if FRUI.IsOpen() then FRUI.Close() end
+		
+		local PRUI = require(Client.UI.PalRadialUI)
+		if PRUI.IsOpen() then PRUI.Close() end
+		
+		local PortalRUI = require(Client.UI.PortalRadialUI)
+		if PortalRUI.IsOpen() then PortalRUI.Close() end
+		
+		local HarvestUI = require(Client.UI.HarvestUI)
+		if HarvestUI.IsOpen() then HarvestUI.Close() end
+		
+		local ok_WM, WindowManagerMod = pcall(require, Client.Utils.WindowManager)
+		if ok_WM and WindowManagerMod and WindowManagerMod.closeAll then
+			WindowManagerMod.closeAll()
+		end
+	end)
+	
+	print("[InteractController] Default keys (R, T, ESC) rebound.")
 end
 
 return InteractController

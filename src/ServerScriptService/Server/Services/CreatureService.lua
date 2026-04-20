@@ -124,13 +124,15 @@ local COLLAPSE_HP_RATIO = 0.2 -- 체력 20% 이하 시 쓰러짐
 
 -- ★ 크리처별 지면 오프셋 (HarvestService의 CORPSE_GROUND_OFFSETS와 동일)
 local CORPSE_GROUND_OFFSETS = {
-	COMPY = 2.5,
-	BABY_TRICERATOPS = 2,
-	DODO = 0,
-	PARASAUR = 10,
-	STEGOSAURUS = 7,
-	TRICERATOPS = 7.5,
+	TROODON = -1.5,
+	OLOROTITAN = -6,
+	ARCHAEOPTERYX = 0.5,
+	PARASAUR = 0,
+	STEGOSAURUS = -3,
+	TRICERATOPS = 0,
 	RAPTOR = 4,
+	KELENKEN = 2.0,
+	DEINOCHEIRUS = 8.0,
 }
 
 --- 크리처 모델을 지면에 스냅하는 헬퍼 (HarvestService.snapToGround와 동일 로직)
@@ -152,8 +154,8 @@ local function snapCreatureToGround(model, rootPart, creatureId)
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Include
 	rayParams.FilterDescendantsInstances = { workspace.Terrain }
-	local rayOrigin = Vector3.new(rootPart.Position.X, rootPart.Position.Y + 10, rootPart.Position.Z)
-	local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -60, 0), rayParams)
+	local rayOrigin = rootPart.Position + Vector3.new(0, 250, 0)
+	local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -500, 0), rayParams)
 	if rayResult then
 		local groundY = rayResult.Position.Y
 		local dropDist = (lowestY + groundOffset) - groundY
@@ -191,11 +193,6 @@ function CreatureService.Init(_NetController, _DataService, _WorldDropService, _
 	
 	-- DropTableData 로드 (ReplicatedStorage)
 	DropTableData = require(game:GetService("ReplicatedStorage").Data.DropTableData)
-	
-	-- [충돌 그룹] ServerInit에서 이미 등록/비활성화 완료
-	-- Players vs Creatures = false (비전투 상태에서 서로 통과)
-	-- CombatCreatures vs Players = true (전투 상태에서 충돌)
-	local PhysicsService = game:GetService("PhysicsService")
 	
 	-- [추가] 신규 플레이어 충돌 그룹 할당 루틴
 	local function setCharGroup(char)
@@ -631,8 +628,6 @@ function CreatureService.spawn(creatureId, position)
 	model:SetAttribute("DisplayName", creatureName)
 	model:SetAttribute("MaxHealth", data.maxHealth)
 	model:SetAttribute("CurrentHealth", data.maxHealth)
-	model:SetAttribute("MaxTorpor", data.maxTorpor or 100)
-	model:SetAttribute("CurrentTorpor", 0)
 	model:SetAttribute("LabelVisibleUntil", 0)
 	
 	-- ★ 스폰 물리 안정화: workspace 배치 전 rootPart를 Anchored로 고정
@@ -938,14 +933,13 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 
 	creature.lastDamagedAt = tick()
 	
-	-- 1. 데미지 및 기절 수치 적용
+	-- 1. 데미지 적용
 	creature.currentHealth = math.max(0, creature.currentHealth - hpDamage)
-	creature.currentTorpor = math.min(creature.maxTorpor, creature.currentTorpor + torporDamage)
 	creature.labelVisibleUntil = tick() + LABEL_VISIBLE_DURATION
+	
 	-- ★ Attribute 갱신 (클라이언트에서 UI 반영)
 	if creature.model then
 		creature.model:SetAttribute("CurrentHealth", creature.currentHealth)
-		creature.model:SetAttribute("CurrentTorpor", creature.currentTorpor)
 		creature.model:SetAttribute("LabelVisibleUntil", creature.labelVisibleUntil)
 	end
 	
@@ -974,8 +968,74 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 			if creature.rootPart then
 				creature.rootPart.AssemblyLinearVelocity = Vector3.zero
 				creature.rootPart.Anchored = true
-				-- ★ 사망과 동일한 크리처별 지면 스냅
-				snapCreatureToGround(creature.model, creature.rootPart, creature.creatureId)
+				
+				-- ★ 사망 위치와 쓰러짐 위치 불일치 수정
+				-- 서있는 자세(T-Pose) 기준으로 스냅하지 않고, 서버에서 데스 애니메이션을 
+				-- 플레이하여 완전히 바닥에 누운 포즈가 완성된 후 스냅(snap)하도록 개선.
+				task.spawn(function()
+					local animator = creature.humanoid:FindFirstChildOfClass("Animator")
+					if not animator then
+						animator = Instance.new("Animator")
+						animator.Parent = creature.humanoid
+					end
+					
+					local Shared = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+					local CreatureAnimationIds = require(Shared.Config.CreatureAnimationIds)
+					local animSet = CreatureAnimationIds[creature.creatureId] or CreatureAnimationIds.DEFAULT or {}
+					local deathAnimName = animSet.DEATH or (creature.creatureId .. "_Death")
+					
+					local animObj = nil
+					local assetsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
+					if assetsFolder and assetsFolder:FindFirstChild("Animations") then
+						animObj = assetsFolder.Animations:FindFirstChild(deathAnimName, true)
+					end
+					if not animObj then
+						animObj = game:GetService("ReplicatedStorage"):FindFirstChild(deathAnimName, true)
+					end
+					
+					if animObj and animObj:IsA("Animation") then
+						local collapseTrack = animator:LoadAnimation(animObj)
+						collapseTrack.Looped = false
+						collapseTrack.Priority = Enum.AnimationPriority.Action4
+						collapseTrack:Play(0.2)
+						
+						local waited = 0
+						while collapseTrack.Length <= 0 and waited < 2 do
+							task.wait(0.1)
+							waited = waited + 0.1
+						end
+						local trackLength = collapseTrack.Length
+						if trackLength > 0 then
+							task.wait(math.max(0, trackLength - 0.05))
+							if not collapseTrack.IsPlaying then collapseTrack:Play() end
+							collapseTrack.TimePosition = trackLength * 0.98
+						else
+							task.wait(2.0)
+						end
+						collapseTrack:AdjustSpeed(0)
+						task.wait(0.1) -- Motor6D 업데이트 대기
+					end
+					
+					-- 누운 포즈의 Bounding Box를 기준으로 스냅!
+					if activeCreatures[instanceId] and creature.rootPart and creature.model then
+						-- ★ 늘어짐(Stretching) 방지: 모든 파트의 앵커를 잠시 풀고 이동 후 다시 고정
+						for _, part in ipairs(creature.model:GetDescendants()) do
+							if part:IsA("BasePart") then
+								part.Anchored = false
+							end
+						end
+						
+						snapCreatureToGround(creature.model, creature.rootPart, creature.creatureId)
+						
+						-- ★ 포즈 및 위치 영구 고정
+						for _, part in ipairs(creature.model:GetDescendants()) do
+							if part:IsA("BasePart") then
+								part.Anchored = true
+								part.CanCollide = false
+							end
+						end
+					end
+				end)
 			end
 
 			-- 공격자에게 알림
@@ -995,32 +1055,7 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 			return false, nil -- 쓰러짐은 사망이 아님
 		end
 
-		if creature.currentTorpor >= creature.maxTorpor and creature.state ~= "STUNNED" and creature.state ~= "DEAD" then
-			-- 기절 상태 진입
-			setCreatureState(creature, "STUNNED")
-			-- ★ [수정] Anchored 대신 속도 제한으로 중력 유지
-			-- 문제: Anchored = true를 점프/낙하 중에 실행하면 공중에 고정됨
-			-- 해결: X, Z 속도만 0으로, Y(중력)는 계속 적용
-			creature.humanoid.WalkSpeed = 0
-			creature.humanoid.JumpPower = 0
-			creature.humanoid.AutoRotate = false
-			if creature.rootPart then
-				-- ★ [수정] X, Z만 0으로 설정, Y는 현재 속도 유지 (중력 적용)
-				local currentVelocity = creature.rootPart.AssemblyLinearVelocity
-				creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, currentVelocity.Y, 0)
-				
-				-- ★ [제거] Anchored = true 제거 (공중 부양 방지)
-				-- 대신 WalkSpeed = 0으로만 이동 제한
-				-- creature.rootPart.Anchored = false  (명시적으로 해제)
-				if creature.rootPart.Anchored then
-					creature.rootPart.Anchored = false
-				end
-				
-				-- ★ 기절 중 플레이어와 충돌 비활성화 (플레이어가 공룡 통과 가능)
-				creature.rootPart.CanCollide = false
-			end
-			print(string.format("[CreatureService] %s is STUNNED (속도 제한 방식)", instanceId))
-		elseif creature.state ~= "STUNNED" and creature.state ~= "DEAD" then
+		if creature.state ~= "DEAD" then
 			-- 피격 시 어그로/도망 (쓰러짐/기절 상태에서는 상태 전환 금지)
 			local oldState = creature.state
 			if creature.data.behavior ~= "PASSIVE" then

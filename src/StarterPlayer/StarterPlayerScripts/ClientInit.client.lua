@@ -13,14 +13,14 @@ local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local UIManager = require(Client.UIManager)
 local Balance = require(ReplicatedStorage.Shared.Config.Balance)
+local player = Players.LocalPlayer
 
 local function createStudioAdminGoldPanel()
 	if not RunService:IsStudio() then
 		return
 	end
-
-	local player = Players.LocalPlayer
-	player.CameraMaxZoomDistance = Balance.CAM_MAX_ZOOM
+	-- [임시 해제] 기존 줌아웃 제한: 45 (Balance.CAM_MAX_ZOOM)
+	player.CameraMaxZoomDistance = 1000 -- Balance.CAM_MAX_ZOOM
 	player.CameraMinZoomDistance = Balance.CAM_MIN_ZOOM
 	
 	local playerGui = player:FindFirstChild("PlayerGui")
@@ -226,6 +226,7 @@ if success then
 	-- InteractController 초기화 (채집/상호작용)
 	local InteractController = require(Controllers.InteractController)
 	InteractController.Init()
+	InteractController.rebindDefaultKeys()
 	
 	-- MovementController 초기화 (스프린트/구르기)
 	local MovementController = require(Controllers.MovementController)
@@ -299,6 +300,36 @@ if success then
 	NetClient.On("Hunger.Update", function(data)
 		UIManager.updateHunger(data.current, data.max)
 	end)
+
+	-- [추가] 탑승 중 공룡별 목표 크기(주석 수치)로 줌아웃 제한 설정
+	local CreatureData = require(ReplicatedStorage.Data.CreatureData)
+	local function updateCameraZoomLimit()
+		local mountedUID = player:GetAttribute("MountedPalUID")
+		if mountedUID then
+			-- 탑승 중: 현재 타고 있는 공룡의 ID로 데이터 조회
+			local mountedPalId = player:GetAttribute("MountedCreatureId")
+			if mountedPalId then
+				for _, data in ipairs(CreatureData) do
+					if data.id == mountedPalId then
+						-- 주석에 적어놨던 cameraMaxZoom 수치를 적용
+						player.CameraMaxZoomDistance = data.cameraMaxZoom or 45
+						return
+					end
+				end
+			end
+			-- 데이터를 못 찾을 경우의 기본 확장값
+			player.CameraMaxZoomDistance = 60
+		else
+			-- 하차 시: 기본 월드 줌아웃(45)으로 제한
+			player.CameraMaxZoomDistance = Balance.CAM_MAX_ZOOM or 45
+		end
+	end
+
+	-- 탑승/하차 시점 감지
+	player:GetAttributeChangedSignal("MountedPalUID"):Connect(updateCameraZoomLimit)
+	player:GetAttributeChangedSignal("MountedCreatureId"):Connect(updateCameraZoomLimit)
+	updateCameraZoomLimit()
+
 	
 	-- 키 바인딩 설정
 	-- [Key Bindings] Tab = 인벤토리, C = 건축, E = 장비창, P = 도감, B = 귀환
@@ -558,41 +589,7 @@ if success then
 		end
 	end)
 	
-	-- R = 모든 상호작용 통합 (NPC, 자원, 시설, 무전기, 공룡 메뉴)
-	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
-		if InteractController.onFacilityInteractPress then
-			InteractController.onFacilityInteractPress()
-		end
-	end)
-
-	-- T = 건물 해체
-	InputManager.bindKey(Enum.KeyCode.T, "InteractFacilityRemoveT", function()
-		if InteractController.onFacilityRemovePress then
-			InteractController.onFacilityRemovePress()
-		end
-	end)
-	
-	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
-		UIManager.closeInventory()
-		UIManager.closeCrafting()
-		UIManager.closeEquipment()
-		UIManager.closeBuild()
-
-		UIManager.closeShop()
-		if UIManager.closeTotem then
-			UIManager.closeTotem()
-		end
-		
-		-- Radial UIs
-		local FacilityRadialUI = require(Client.UI.FacilityRadialUI)
-		if FacilityRadialUI.IsOpen() then
-			FacilityRadialUI.Close()
-		end
-		local PalRadialUI = require(Client.UI.PalRadialUI)
-		if PalRadialUI.IsOpen() then
-			PalRadialUI.Close()
-		end
-	end)
+	-- R, T, Escape 키는 InteractController.rebindDefaultKeys()에서 통합 관리됨
 end
 
 print("[ClientInit] Client initialized")

@@ -54,7 +54,7 @@ local TechUnlockData = {
 	{
 		id = "TECH_BOW",
 		name = "나무 활",
-		cost = { { itemId = "LOG", amount = 15 }, { itemId = "FIBER", amount = 40 }, { itemId = "DODO_FEATHER", amount = 5 } },
+		cost = { { itemId = "LOG", amount = 15 }, { itemId = "FIBER", amount = 40 }, { itemId = "FEATHER", amount = 5 } },
 		prerequisites = { "TECH_HUNTING" },
 		unlocks = { recipes = { "CRAFT_WOODEN_BOW", "CRAFT_STONE_ARROW" }, facilities = {} },
 		category = "WEAPONS",

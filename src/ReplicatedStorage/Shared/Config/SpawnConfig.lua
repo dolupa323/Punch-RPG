@@ -48,9 +48,9 @@ SpawnConfig.DEFAULT_START_SPAWN = ZONES.GRASSLAND.spawnPoint
 local ZONE_CONFIGS = {
 	GRASSLAND = {
 		Creatures = {
-			{ id = "DODO", weight = 90 },
-			{ id = "BABY_TRICERATOPS", weight = 50 },
-			{ id = "COMPY", weight = 80 },
+			{ id = "ARCHAEOPTERYX", weight = 100 },
+			{ id = "TROODON", weight = 85 },
+			{ id = "OLOROTITAN", weight = 10 },
 		},
 		Harvests = {
 			{ id = "TREE_THIN", weight = 50 },
@@ -64,8 +64,8 @@ local ZONE_CONFIGS = {
 		Creatures = {
 			{ id = "PARASAUR", weight = 70 },
 			{ id = "STEGOSAURUS", weight = 50 },
-			{ id = "TRICERATOPS", weight = 40 },
-			{ id = "RAPTOR", weight = 35 },
+			{ id = "KELENKEN", weight = 50 },
+			{ id = "DEINOCHEIRUS", weight = 30 },
 		},
 		Harvests = {
 			{ id = "BUSH_BERRY", weight = 70 },

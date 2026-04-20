@@ -43,7 +43,7 @@ local HEX_BAR_W_RATIO = 0.88   -- 바 폭 / HEX_SIZE
 local HEX_BAR_H_RATIO = 0.50   -- 바 높이 / HEX_SIZE
 
 -- BillboardGui 설정
-local BILLBOARD_OFFSET = Vector3.new(0, 4, 0)
+local BILLBOARD_OFFSET = Vector3.new(0, 2.5, 0)
 local BILLBOARD_MAX_DIST = 50
 
 --========================================
@@ -358,33 +358,34 @@ local function getNodeTopOffset(nodeModel, adorneePart)
 	if not nodeModel or not adorneePart then return BILLBOARD_OFFSET end
 
 	local ok, result = pcall(function()
-		local cf, size
+		-- 플레이어 캐릭터의 현재 높이 확보 (HumanoidRootPart 기준)
+		local char = player.Character
+		local playerY = (char and char:FindFirstChild("HumanoidRootPart")) and char.HumanoidRootPart.Position.Y or 3
+		
+		-- ★ 플레이어 눈높이 (지면에서 약 4.5~5 스터드 높이)
+		-- HumanoidRootPart가 지면에서 약 3 스터드 위에 있으므로 +1.5~2를 가산
+		local targetY = playerY + 1.8
+		
+		-- Adornee 파트 중심과의 차이 계산
+		local offsetFromAdornee = targetY - adorneePart.Position.Y
+		
+		-- 너무 멀리 떨어지는 것 방지 (모델 근처에 머물게 함)
+		local cf, size = 0, Vector3.new(0, 5, 0)
 		if nodeModel:IsA("Model") then
 			cf, size = nodeModel:GetBoundingBox()
-		elseif nodeModel:IsA("BasePart") then
-			cf = nodeModel.CFrame
-			size = nodeModel.Size
-		else
-			return nil
 		end
+		local maxY = (nodeModel:IsA("BasePart") and nodeModel.Position.Y or cf.Position.Y) + (size.Y/2)
+		local minY = (nodeModel:IsA("BasePart") and nodeModel.Position.Y or cf.Position.Y) - (size.Y/2)
+		
+		-- 최종 Y가 모델의 범위를 너무 벗어나지 않도록 보정 (최소 모델 하단 + 2)
+		local finalY = math.clamp(targetY, minY + 2, maxY + 2)
+		local finalOffset = finalY - adorneePart.Position.Y
 
-		-- 모델의 지면 Y (바운딩 박스 하단)
-		local groundY = cf.Position.Y - (size.Y / 2)
-		-- 시선 높이: 크기가 큰 모델(10+ studs)은 4.5, 작은 모델은 높이+1 (최소 2)
-		local eyeY
-		if size.Y > 10 then
-			eyeY = groundY + 4.5
-		else
-			eyeY = groundY + math.max(size.Y + 1, 2)
-		end
-
-		-- Adornee 파트 중심과의 차이 = StudsOffsetWorldSpace 기준
-		local offsetFromAdornee = eyeY - adorneePart.Position.Y
-		return { offset = offsetFromAdornee }
+		return { offset = finalOffset }
 	end)
 
 	if ok and result then
-		return Vector3.new(0, result.offset, 0), true -- true = WorldSpace
+		return Vector3.new(0, result.offset, 0), true -- WorldSpace
 	end
 	return BILLBOARD_OFFSET, false
 end
@@ -955,10 +956,30 @@ function HarvestUI.Open(nodeUID, nodeId, nodeModel)
 	local centerX = (minX + maxX) / 2
 	local centerY = (minY + maxY) / 2
 
-	-- BillboardGui를 모델에 부착
+	-- BillboardGui를 모델에 부착 (기둥 중심의 파트 탐색 강화)
 	local adornee = nodeModel
 	if nodeModel:IsA("Model") then
-		adornee = nodeModel.PrimaryPart or nodeModel:FindFirstChildWhichIsA("BasePart")
+		-- 1. 이름으로 기둥 파트 검색
+		local trunk = nodeModel:FindFirstChild("Trunk", true) or nodeModel:FindFirstChild("Base", true) or nodeModel:FindFirstChild("Wood", true)
+		if not trunk then
+			-- 2. 이름이 없으면 전체 바운딩 박스 중심(XZ)에 가장 가까운 파트 탐색
+			local cf, size = nodeModel:GetBoundingBox()
+			local centerPos = cf.Position
+			local minHandDist = math.huge
+			
+			for _, p in ipairs(nodeModel:GetDescendants()) do
+				if p:IsA("BasePart") then
+					-- 수평 거리(XZ)만 계산하여 기둥 라인에 있는 파트 찾기
+					local horizontalDist = (Vector3.new(p.Position.X, 0, p.Position.Z) - Vector3.new(centerPos.X, 0, centerPos.Z)).Magnitude
+					if horizontalDist < minHandDist then
+						minHandDist = horizontalDist
+						trunk = p
+					end
+				end
+			end
+		end
+		
+		adornee = trunk or nodeModel.PrimaryPart or nodeModel:FindFirstChildWhichIsA("BasePart")
 		if not adornee then
 			warn("[HarvestUI] No BasePart in nodeModel:", nodeModel:GetFullName())
 			adornee = nodeModel

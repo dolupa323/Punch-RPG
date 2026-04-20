@@ -154,7 +154,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 3,
-		inputs = { { itemId = "DODO_FEATHER", count = 6 }, { itemId = "FIBER", count = 2 } },
+		inputs = { { itemId = "FEATHER", count = 6 }, { itemId = "FIBER", count = 2 } },
 		outputs = { { itemId = "FEATHER_HELMET", count = 1 } },
 	},
 
@@ -244,7 +244,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 2,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 1 }, { itemId = "DODO_FEATHER", count = 2 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 1 }, { itemId = "FEATHER", count = 2 } },
 		outputs = { { itemId = "BRONZE_ARROW", count = 10 } },
 	},
 	{

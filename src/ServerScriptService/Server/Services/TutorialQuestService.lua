@@ -79,13 +79,13 @@ local STEPS = {
 	{
 		key = "KILL_DODO",
 		text = "식량 확보를 위한 사냥",
-		command = "DODO 1마리 처치",
+		command = "ARCHAEOPTERYX 1마리 처치",
 		tip = "근접 공격 후 거리를 유지하며 안전하게 목표를 처치하십시오.",
-		voiceIntro = "슬슬 배가 고플 거다. 근처에 보이는 '도도'를 한 마리 잡아. 그게 네 첫 끼니다.",
-		voiceHint = "도도 한 마리만 잡으면 돼. 무리하지 마.",
+		voiceIntro = "슬슬 배가 고플 거다. 근처에 보이는 '시조새'를 한 마리 잡아. 초원을 돌아다닐 거다.",
+		voiceHint = "시조새 한 마리만 잡으면 돼. 무리하지 마.",
 		voiceReady = "좋아, 잡았군. 바로 불 피울 준비 해.",
 		kind = "KILL",
-		target = "DODO",
+		target = "ARCHAEOPTERYX",
 		reward = {
 			xp = 15,
 			gold = 20,

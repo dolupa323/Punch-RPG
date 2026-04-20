@@ -7,11 +7,11 @@ local DropTableData = {
 	--========================================
 	-- 초식 / PASSIVE
 	--========================================
-	["DODO"] = {
+	["ARCHAEOPTERYX"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 1, max = 2 },
-		{ itemId = "DODO_FEATHER", chance = 0.8, min = 1, max = 3 },
+		{ itemId = "FEATHER", chance = 0.8, min = 1, max = 3 },
 	},
-	["COMPY"] = {
+	["TROODON"] = {
 		{ itemId = "MEAT", chance = 0.8, min = 1, max = 1 },
 		{ itemId = "SMALL_BONE", chance = 0.6, min = 1, max = 2 },
 	},
@@ -28,10 +28,9 @@ local DropTableData = {
 		{ itemId = "TROPICAL_LEATHER", chance = 0.8, min = 3, max = 6 },
 		{ itemId = "HORN", chance = 0.3, min = 1, max = 1 },
 	},
-	["BABY_TRICERATOPS"] = {
+	["OLOROTITAN"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 1, max = 3 },
-		{ itemId = "LEATHER", chance = 1.0, min = 4, max = 7 },
-		{ itemId = "HORN", chance = 0.1, min = 1, max = 1 },
+		{ itemId = "LEATHER", chance = 1.0, min = 1, max = 3 },
 	},
 	["STEGOSAURUS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 4, max = 7 },

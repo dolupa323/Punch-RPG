@@ -140,7 +140,7 @@ NPCShopData.ISLAND_TRADER_GRASSLAND = {
 	buyList = {},
 	sellList = {
 		{ itemId = "MEAT", price = 9 },
-		{ itemId = "DODO_FEATHER", price = 14 },
+		{ itemId = "FEATHER", price = 14 },
 		{ itemId = "SMALL_BONE", price = 12 },
 		{ itemId = "LEATHER", price = 17 },
 		{ itemId = "HORN", price = 24 },

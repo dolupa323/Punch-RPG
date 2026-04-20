@@ -79,7 +79,7 @@ MaterialAttributeData.ItemCategory = {
 	-- Leather 카테고리 (가죽, 깃털)
 	LEATHER            = "LEATHER",
 	TROPICAL_LEATHER   = "LEATHER",
-	DODO_FEATHER       = "LEATHER",
+	FEATHER            = "LEATHER",
 
 	-- Blade 추가 (열대 광석)
 	OBSIDIAN       = "BLADE",

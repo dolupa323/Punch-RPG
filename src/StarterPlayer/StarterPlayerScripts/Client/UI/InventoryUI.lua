@@ -471,22 +471,18 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local anNickLabel = Utils.mkLabel({name="AnimalNick", text="", size=UDim2.new(1, -16, 0, isSmall and 18 or 22), pos=UDim2.new(0, 8, 0, isSmall and 30 or 34), ts=isSmall and 12 or 14, color=C.GRAY, ax=Enum.TextXAlignment.Left, parent=animalLeft})
 	InventoryUI.Refs.Animal.NicknameLabel = anNickLabel
 
-	-- ViewportFrame (크리처 3D 미리보기)
 	local vpSize = isSmall and 180 or 240
-	local vpFrame = Instance.new("ViewportFrame")
-	vpFrame.Name = "CreatureViewport"
-	vpFrame.Size = UDim2.new(1, -16, 0, vpSize)
-	vpFrame.Position = UDim2.new(0, 8, 0, isSmall and 52 or 60)
-	vpFrame.AnchorPoint = Vector2.new(0, 0)
-	vpFrame.BackgroundTransparency = 1
-	vpFrame.BorderSizePixel = 0
-	vpFrame.Parent = animalLeft
-
-	-- 뷰포트 카메라
-	local vpCam = Instance.new("Camera")
-	vpCam.Parent = vpFrame
-	vpFrame.CurrentCamera = vpCam
-	InventoryUI.Refs.Animal.Viewport = vpFrame
+	-- ImageLabel (크리처 전신 일러스트 프리뷰)
+	local portrait = Instance.new("ImageLabel")
+	portrait.Name = "CreaturePortrait"
+	portrait.Size = UDim2.new(1, -16, 0, vpSize)
+	portrait.Position = UDim2.new(0, 8, 0, isSmall and 52 or 60)
+	portrait.AnchorPoint = Vector2.new(0, 0)
+	portrait.BackgroundTransparency = 1
+	portrait.BorderSizePixel = 0
+	portrait.ScaleType = Enum.ScaleType.Fit
+	portrait.Parent = animalLeft
+	InventoryUI.Refs.Animal.Portrait = portrait
 
 	-- 스탯 프레임 (뷰포트 아래)
 	local statsY = (isSmall and 52 or 60) + vpSize + 8
@@ -1089,68 +1085,45 @@ local function clearAnimalStats()
 	end
 end
 
--- 뷰포트에 크리처 모델 로드
-local function loadCreatureViewport(creatureId)
-	local vp = InventoryUI.Refs.Animal.Viewport
-	if not vp then return end
-
-	-- 기존 모델 제거 (카메라 유지)
-	for _, child in ipairs(vp:GetChildren()) do
-		if child:IsA("Model") or child:IsA("BasePart") then child:Destroy() end
-	end
+-- 프리뷰 포트레이트 이미지 로드
+local function loadCreaturePortrait(creatureId)
+	local portrait = InventoryUI.Refs.Animal.Portrait
+	if not portrait then return end
 
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local DataModule = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("CreatureData"))
-	local creatureData
-	for _, d in ipairs(DataModule) do
-		if d.id == creatureId then creatureData = d; break end
-	end
-	if not creatureData then return end
-
-	local modelName = creatureData.modelName
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	if not assets then return end
-
-	-- 모델 검색
-	local template
-	local function searchRecursive(folder, target)
-		local found = folder:FindFirstChild(target)
-		if found then return found end
-		for _, child in ipairs(folder:GetChildren()) do
-			if child:IsA("Folder") or child:IsA("Model") then
-				local res = searchRecursive(child, target)
-				if res then return res end
+	local folder = assets and assets:FindFirstChild("CreatureIcons")
+	
+	if folder then
+		local imageName = "CreatureFull_" .. tostring(creatureId)
+		local imageObj = folder:FindFirstChild(imageName)
+		if imageObj then
+			if imageObj:IsA("ImageLabel") or imageObj:IsA("ImageButton") then
+				portrait.Image = imageObj.Image
+			elseif imageObj:IsA("Decal") or imageObj:IsA("Texture") then
+				portrait.Image = imageObj.Texture
+			elseif imageObj:IsA("StringValue") then
+				portrait.Image = imageObj.Value
+			else
+				portrait.Image = ""
+			end
+		else
+			-- 찾지 못하면 기본 헤드 아이콘이라도 시도
+			local headObj = folder:FindFirstChild(creatureId)
+			if headObj then
+				if headObj:IsA("ImageLabel") or headObj:IsA("ImageButton") then
+					portrait.Image = headObj.Image
+				elseif headObj:IsA("Decal") or headObj:IsA("Texture") then
+					portrait.Image = headObj.Texture
+				elseif headObj:IsA("StringValue") then
+					portrait.Image = headObj.Value
+				end
+			else
+				portrait.Image = ""
 			end
 		end
-		return nil
-	end
-	template = searchRecursive(assets, modelName)
-	if not template then return end
-
-	local model = template:Clone()
-	model.Parent = vp
-
-	-- 모든 파트 Anchored 설정
-	for _, part in ipairs(model:GetDescendants()) do
-		if part:IsA("BasePart") then part.Anchored = true end
-	end
-
-	-- 카메라 위치 설정 (완전 측면 뷰)
-	local cam = vp.CurrentCamera
-	if cam then
-		local center, size
-		if model.PrimaryPart then
-			center = model.PrimaryPart.CFrame.Position
-			size = model:GetExtentsSize()
-		else
-			local cf2
-			cf2, size = model:GetBoundingBox()
-			center = cf2.Position
-		end
-		local maxDim = math.max(size.X, size.Y, size.Z)
-		local distance = maxDim * 0.85
-		-- 정면에서 살짝 측면 방향 (크리처 얼굴 + 옆모습)
-		cam.CFrame = CFrame.new(center + Vector3.new(distance * 0.7, maxDim * 0.05, -distance * 0.7), center)
+	else
+		portrait.Image = ""
 	end
 end
 
@@ -1288,11 +1261,9 @@ function InventoryUI.RefreshAnimalTab(palList)
 		if a.NameLabel then a.NameLabel.Text = "" end
 		if a.NicknameLabel then a.NicknameLabel.Text = "" end
 		clearAnimalStats()
-		-- 뷰포트 비우기
-		if a.Viewport then
-			for _, ch in ipairs(a.Viewport:GetChildren()) do
-				if ch:IsA("Model") or ch:IsA("BasePart") then ch:Destroy() end
-			end
+		-- 포트레이트 초기화
+		if a.Portrait then
+			a.Portrait.Image = ""
 		end
 		a.SelectedPalUID = nil
 		return
@@ -1365,10 +1336,14 @@ function InventoryUI.ShowAnimalDetail(palData)
 	-- 이름 표시
 	local displayName = (creatureData and creatureData.name) or palData.creatureId
 	a.NameLabel.Text = displayName
-	a.NicknameLabel.Text = palData.nickname or displayName
+	
+	-- ★ 레거시 닉네임 보정 (데이너 -> 데이노)
+	local finalNickname = palData.nickname or displayName
+	finalNickname = string.gsub(finalNickname, "데이너", "데이노")
+	a.NicknameLabel.Text = finalNickname
 
-	-- 뷰포트에 모델 로드
-	loadCreatureViewport(palData.creatureId)
+	-- 전신 이미지 로드
+	loadCreaturePortrait(palData.creatureId)
 
 	-- 스탯 표시 (속성 반영된 값 사용)
 	clearAnimalStats()

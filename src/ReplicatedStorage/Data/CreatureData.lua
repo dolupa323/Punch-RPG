@@ -8,12 +8,11 @@ local CreatureData = {
 	-- 초식 / PASSIVE (도망형)
 	--========================================
 	{
-		id = "DODO",
-		name = "도도새",
-		description = "약하고 느리지만 포획하기 쉬운 새",
+		id = "ARCHAEOPTERYX",
+		name = "시조새",
+		description = "초원을 무리지어 날아다니는 새",
 		level = 1,
 		maxHealth = 30,
-		maxTorpor = 20,
 		walkSpeed = 5,
 		runSpeed = 8,
 		damage = 5,
@@ -22,18 +21,18 @@ local CreatureData = {
 		attackDelay = 0.4,
 		attackCooldown = 2.0,
 		behavior = "NEUTRAL",
-		modelName = "DODO",
+		modelName = "Archaeopteryx",
 		xpReward = 5,
-		-- 도감 시스템       -- 작업 속도 +5     -- 목표 크기 (스터드)
-		palBagSlots = 1,
+		palBagSlots = 2,
+		previewZoom = 0.25, -- 시조새 전용 카메라 줌 (더욱 가깝게 보정)
+		cameraMaxZoom = 12, -- 목표 크기 (스터드)
 	},
 	{
-		id = "COMPY",
-		name = "콤프소그나투스",
-		description = "아주 작고 빠른 소형 공룡. 호기심이 많다",
+		id = "TROODON",
+		name = "트로오돈",
+		description = "아주 작고 날쌘 소형 육식공룡.",
 		level = 2,
 		maxHealth = 12,
-		maxTorpor = 10,
 		walkSpeed = 7,
 		runSpeed = 14,
 		damage = 10,
@@ -42,11 +41,13 @@ local CreatureData = {
 		attackDelay = 0.3,
 		attackCooldown = 1.8,
 		behavior = "AGGRESSIVE",
-		modelName = "COMPY",
+		modelName = "Troodon",
+		scale = 1.5,
 		groupSize = 2,
 		xpReward = 3,
 		-- 도감 시스템   -- 공격력 +3%     -- 목표 크기 (스터드)
-		palBagSlots = 1,
+		palBagSlots = 2,
+		cameraMaxZoom = 15,
 	},
 	{
 		id = "PARASAUR",
@@ -54,7 +55,6 @@ local CreatureData = {
 		description = "평화로운 대형 초식공룡. 빠르게 달린다",
 		level = 5,
 		maxHealth = 2500,
-		maxTorpor = 300,
 		walkSpeed = 8,
 		runSpeed = 14,
 		damage = 20,
@@ -71,10 +71,11 @@ local CreatureData = {
 		},
 		-- 도감 시스템     -- 최대 기력 +15     -- 목표 크기 (스터드)
 		mountable = true,
-		mountSeatOffset = Vector3.new(0, 4.5, -7.8),
+		mountSeatOffset = Vector3.new(0, 5.5, -9.5),
 		mountSpeedMultiplier = 1.0,
 		mountJumpPower = 46,
 		palBagSlots = 8,
+		cameraMaxZoom = 45,
 	},
 
 	--========================================
@@ -86,7 +87,6 @@ local CreatureData = {
 		description = "단단한 뿔을 가진 초식공룡. 건드리면 위험하다",
 		level = 8,
 		maxHealth = 7000,
-		maxTorpor = 1000,
 		walkSpeed = 6,
 		runSpeed = 12,
 		damage = 35,
@@ -101,29 +101,34 @@ local CreatureData = {
 			{ name = "박치기", pattern = "CONE", angle = 90, range = 25, damage = 35, windupTime = 3.6, attackTime = 0.7, anim = "ATTACK" },
 			{ name = "앞발찍기", pattern = "CIRCLE", radius = 18, damage = 25, windupTime = 6.0, attackTime = 0.5, anim = "STOMP" },
 		},
-		-- 도감 시스템         -- 방어력 +5     -- 목표 크기 (스터드)
+		-- 도감 시스템         -- 방어력 +5     -- 50 목표 크기 (스터드)
 		palBagSlots = 24,
+		cameraMaxZoom = 50,
 	},
 	{
-		id = "BABY_TRICERATOPS",
-		name = "아기 트리케라톱스",
-		description = "아직 뿔이 다 자라지 않은 어린 트리케라톱스. 겁이 많다.",
+		id = "OLOROTITAN",
+		name = "올로로티탄",
+		description = "긴 목과 부채꼴 볏을 가진 대형 초식 공룡.",
 		level = 3,
 		maxHealth = 150,
-		maxTorpor = 100,
-		walkSpeed = 8,
-		runSpeed = 13,
+		walkSpeed = 5,
+		runSpeed = 9,
 		damage = 10,
 		attackRange = 6,
 		detectRange = 15,
 		attackDelay = 0.5,
 		attackCooldown = 2.0,
 		behavior = "NEUTRAL",
-		modelName = "BABY_TRICERATOPS",
-		scale = 1,
+		modelName = "Olorotitan",
+		scale = 0.8,
 		xpReward = 15,
-		-- 도감 시스템      -- 최대 체력 +10     -- 목표 크기 (스터드)
-		palBagSlots = 4,
+		-- 도감 시스템      -- 최대 체력 +10     -- 48 목표 크기 (스터드)
+		palBagSlots = 8,
+		mountable = true,
+		mountSeatOffset = Vector3.new(0, 10, -5.5), -- 높이를 10으로 올려 완벽하게 등 위로 배치
+		mountSpeedMultiplier = 1.0,
+		mountJumpPower = 48,
+		cameraMaxZoom = 48,
 	},
 	{
 		id = "STEGOSAURUS",
@@ -131,7 +136,6 @@ local CreatureData = {
 		description = "등에 거대한 골판을 가진 초식공룡",
 		level = 7,
 		maxHealth = 4500,
-		maxTorpor = 850,
 		walkSpeed = 5,
 		runSpeed = 10,
 		damage = 20,
@@ -145,8 +149,9 @@ local CreatureData = {
 		attacks = {
 			{ name = "꼬리치기", pattern = "CIRCLE", radius = 18, damage = 20, windupTime = 5.4, attackTime = 0.5, anim = "ATTACK" },
 		},
-		-- 도감 시스템      -- 최대 체력 +20     -- 목표 크기 (스터드)
+		-- 도감 시스템      -- 최대 체력 +20     -- 48 목표 크기 (스터드)
 		palBagSlots = 12,
+		cameraMaxZoom = 48,
 	},
 	{
 		id = "ANKYLOSAURUS",
@@ -154,7 +159,6 @@ local CreatureData = {
 		description = "갑옷 같은 피부와 꼬리 곤봉을 가진 방어형 공룡",
 		level = 10,
 		maxHealth = 1500,
-		maxTorpor = 1200,
 		walkSpeed = 4,
 		runSpeed = 8,
 		damage = 40,
@@ -165,7 +169,8 @@ local CreatureData = {
 		behavior = "NEUTRAL",
 		modelName = "Ankylosaurus",
 		xpReward = 50,
-		-- 도감 시스템         -- 방어력 +8     -- 목표 크기 (스터드)
+		-- 도감 시스템         -- 방어력 +8     -- 42 목표 크기 (스터드)
+		cameraMaxZoom = 42,
 	},
 
 	--========================================
@@ -177,7 +182,6 @@ local CreatureData = {
 		description = "빠르고 민첩한 소형 육식공룡",
 		level = 6,
 		maxHealth = 1200,
-		maxTorpor = 120,
 		walkSpeed = 8,
 		runSpeed = 16,
 		damage = 35,
@@ -191,12 +195,13 @@ local CreatureData = {
 		attacks = {
 			{ name = "깨물기", pattern = "CONE", angle = 80, range = 16, damage = 35, windupTime = 2.4, attackTime = 0.45, anim = "ATTACK" },
 		},
-		-- 도감 시스템   -- 공격력 +5%     -- 목표 크기 (스터드)
+		-- 도감 시스템   -- 공격력 +5%     -- 35 목표 크기 (스터드)
 		mountable = true,
 		mountSeatOffset = Vector3.new(0, 3.0, -4.2),
 		mountSpeedMultiplier = 1.65,
 		mountJumpPower = 58,
 		palBagSlots = 6,
+		cameraMaxZoom = 35,
 	},
 	{
 		id = "TREX",
@@ -204,7 +209,6 @@ local CreatureData = {
 		description = "공포의 폭군. 섬에서 가장 강력한 포식자",
 		level = 15,
 		maxHealth = 4500,
-		maxTorpor = 3500,
 		walkSpeed = 7,
 		runSpeed = 15,
 		damage = 120,
@@ -215,7 +219,58 @@ local CreatureData = {
 		behavior = "AGGRESSIVE",
 		modelName = "TRex",
 		xpReward = 120,
-		-- 도감 시스템   -- 공격력 +8%     -- 목표 크기 (스터드)
+		-- 도감 시스템   -- 공격력 +8%     -- 85 목표 크기 (스터드)
+		cameraMaxZoom = 85,
+	},
+	{
+		id = "KELENKEN",
+		name = "켈렌켄",
+		description = "매우 거대한 공포의 새. 압도적인 질주 속도를 자랑합니다.",
+		level = 4,
+		maxHealth = 450,
+		walkSpeed = 9,
+		runSpeed = 22,
+		damage = 15,
+		attackRange = 6,
+		detectRange = 40,
+		attackDelay = 0.4,
+		attackCooldown = 1.5,
+		behavior = "AGGRESSIVE",
+		modelName = "Kelenken",
+		xpReward = 15,
+		mountable = true,
+		mountSeatOffset = Vector3.new(0, 4.2, 0.5), -- 더 뒤로 이동
+		mountSpeedMultiplier = 2.1,
+		mountJumpPower = 55,
+		palBagSlots = 4,
+		previewZoom = 0.8,    -- 더 확대
+		previewYOffset = 1.2, -- 카메라를 대폭 높여 머리 중앙 배치
+		cameraMaxZoom = 40,   -- 목표 크기 (스터드)
+	},
+	{
+		id = "DEINOCHEIRUS",
+		name = "데이노키루스",
+		description = "거대한 팔과 볏을 가진 기괴한 공룡. 묵직하고 강력합니다.",
+		level = 7,
+		maxHealth = 1800,
+		walkSpeed = 6,
+		runSpeed = 16,
+		damage = 40,
+		attackRange = 10,
+		detectRange = 30,
+		attackDelay = 0.8,
+		attackCooldown = 3.0,
+		behavior = "AGGRESSIVE",
+		modelName = "Deinocheirus",
+		xpReward = 45,
+		mountable = true,
+		mountSeatOffset = Vector3.new(0, 6.0, -5.0),
+		mountSpeedMultiplier = 1.8, -- 켈렌켄 수준으로 상향
+		mountJumpPower = 45,
+		palBagSlots = 12,
+		previewZoom = 0.3,    -- 대폭 확대하여 크게 보이게 함
+		previewYOffset = 1.6, -- 얼굴 포커스 상향
+		cameraMaxZoom = 65,   -- 목표 크기 (스터드)
 	},
 }
 
