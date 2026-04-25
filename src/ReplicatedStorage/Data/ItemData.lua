@@ -605,6 +605,7 @@ local ItemData = {
 		defense = 12,
 		slot = "SUIT",
 		armorSet = "LEATHER",
+		modelId = "LEATHER_ARMOR_MODEL",
 		description = "질긴 가죽으로 만든 생존용 의상. (수리 불가)",
 	},
 	{

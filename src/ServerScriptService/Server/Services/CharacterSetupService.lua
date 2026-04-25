@@ -39,9 +39,9 @@ local function applyPrehistoricStyle(player, character)
 	local skinTone = Appearance.SKIN_TONES[rng:NextInteger(1, #Appearance.SKIN_TONES)]
 	local clothingColor = Appearance.CLOTHING_COLORS[rng:NextInteger(1, #Appearance.CLOTHING_COLORS)]
 	
-	-- 2. 기존 액세서리, 의상, 패키지 파트 삭제
+	-- 2. 기존 액세서리, 의상, 패키지 파트 삭제 (시스템 장비는 제외)
 	for _, child in ipairs(character:GetChildren()) do
-		if child:IsA("Accessory") or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
+		if (child:IsA("Accessory") and not child:GetAttribute("IsArmor")) or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
 			child:Destroy()
 		end
 	end
@@ -97,7 +97,7 @@ local function applyPrehistoricStyle(player, character)
 	-- 5. ChildAdded 감시: 로블록스 엔진이 나중에 유저 액세서리를 다시 끼우려 하면 즉시 삭제
 	local conn
 	conn = character.ChildAdded:Connect(function(child)
-		if child:IsA("Accessory") then
+		if child:IsA("Accessory") and not child:GetAttribute("IsArmor") then
 			child:Destroy()
 		end
 	end)

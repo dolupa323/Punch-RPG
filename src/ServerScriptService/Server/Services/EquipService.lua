@@ -296,7 +296,7 @@ function EquipService.equipItem(player: Player, itemId: string?)
 		-- [추가] 타입별 Grip 설정 (쥐는 각도 및 위치 조정)
 		-- 개별 아이템 그립 오버라이드
 		local gripOverrides = {
-			CRUDE_STONE_AXE = CFrame.new(0, -0.8, 0) * CFrame.Angles(math.rad(180), 0, math.rad(180)),
+			CRUDE_STONE_AXE = CFrame.new(-0.6, -1.0, 0) * CFrame.Angles(0, math.rad(-90), 0),
 			OBSIDIAN_AXE = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, math.rad(-180), 0),
 			OBSIDIAN_PICKAXE = CFrame.new(0, 0, 1.2) * CFrame.Angles(math.rad(-90), math.rad(-90), 0),
 			OBSIDIAN_SWORD = CFrame.new(0, -0.15, 0)
