@@ -188,8 +188,8 @@ local function onInputBegan(input: InputObject, gameProcessed: boolean)
 		end
 	end
 	
-	-- 마우스 입력 (gameProcessed 무시 - 기본 클릭도 처리)
-	if not isUIOpen then
+	-- 마우스 입력 (UI 클릭 시 gameProcessed가 true가 되어 게임 입력을 차단함)
+	if not isUIOpen and not gameProcessed then
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			-- 좌클릭/터치 (최신/가장 높은 레이어부터 호출)
 			if #leftClickOrder > 0 then

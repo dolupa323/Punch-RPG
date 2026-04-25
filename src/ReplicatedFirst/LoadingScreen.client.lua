@@ -158,8 +158,9 @@ local invisibleStartButton = create("TextButton", {
 	Parent = titleFrame,
 	Size = UDim2.new(1, 0, 1, 0),
 	BackgroundTransparency = 1,
+	Active = true, -- 입력 가로채기 보장
 	Text = "",
-	ZIndex = 10 -- 로고보다는 아래, 배경보다는 위 (설정상 creditsButton보다 아래여야 함)
+	ZIndex = 10 
 })
 
 -- Credits 버튼 추가
@@ -171,6 +172,7 @@ local creditsButton = create("TextButton", {
 	Size = UDim2.new(0, 100, 0, 35),
 	BackgroundColor3 = Color3.fromRGB(50, 50, 50),
 	BackgroundTransparency = 0.5,
+	Active = true, -- 입력 가로채기 보장
 	Text = "Credits",
 	TextColor3 = Color3.fromRGB(200, 200, 200),
 	TextSize = 14,

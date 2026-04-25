@@ -66,27 +66,23 @@ MaterialAttributeData.ItemCategory = {
 	HORN           = "BLADE",
 
 	-- Handle 카테고리 (나무, 뼈)
-	BRANCH         = "HANDLE",
-	WOOD           = "HANDLE",
-	LOG            = "HANDLE",
-	PLANK          = "HANDLE",
-	PALM_LOG       = "HANDLE",
-	REED           = "HANDLE",
+	-- [속성 제외] BRANCH, WOOD, LOG, PLANK, PALM_LOG, REED
 	SMALL_BONE     = "HANDLE",
 	BONE           = "HANDLE",
 
 	-- Leather 카테고리 (가죽, 깃털)
-	LEATHER            = "LEATHER",
-	TROPICAL_LEATHER   = "LEATHER",
-	FEATHER            = "LEATHER",
+	LEATHER               = "LEATHER",
+	TROPICAL_LEATHER      = "LEATHER",
+	DESERT_LEATHER        = "LEATHER",
+	TITANOSAURUS_LEATHER  = "LEATHER",
+	FEATHER               = "LEATHER",
 
 	-- Blade 추가 (열대/사막 광석)
 	OBSIDIAN       = "BLADE",
 	BRONZE_ORE     = "BLADE",
 
 	-- Handle 추가 (사막 나무/갈대)
-	DESERT_LOG     = "HANDLE",
-	DESERT_REED    = "HANDLE",
+	-- [속성 제외] DESERT_LOG, DESERT_REED
 
 	-- 속성 미부여 (FIBER, RESIN, DURABLE_LEAF 등은 속성 없음)
 	-- FIBER       = nil (매핑 없으면 속성 부여 안 됨)
@@ -99,7 +95,7 @@ MaterialAttributeData.ItemCategory = {
 -- 속성 부여 확률
 --========================================
 -- 아이템 드롭 시 속성이 붙을 확률 (카테고리에 매핑된 아이템만)
-MaterialAttributeData.ATTRIBUTE_CHANCE = 0.65 -- 65% 확률로 속성 부여, 35%는 무속성
+MaterialAttributeData.ATTRIBUTE_CHANCE = 0.85 -- [상향] 85% 확률로 속성 부여
 
 --========================================
 -- 속성 롤링 함수
@@ -128,13 +124,14 @@ local function weightedRandom(pool: {any}): any?
 	return pool[#pool] -- fallback (부동소수점 오차 방어)
 end
 
--- [내부 함수] 속성 레벨 롤링 (공룡과 동일한 지수적 확률 감소 적용)
+-- [내부 함수] 속성 레벨 롤링 (레벨 1-2 빈도 상향, 3 이상 기하급수적 감소)
 local function rollAttributeLevel(maxLevel: number)
 	local maxLvl = math.max(1, maxLevel or 1)
 	local current = 1
 	
-	-- 75% 확률로 레벨 +1 성공, 실패 시 중단
-	local p = 0.75 
+	-- [조정] 레벨 +1 성공 확률을 0.3으로 하향 (기존 0.75)
+	-- 결과 확률: 1레벨(70%), 2레벨(21%), 3레벨(6.3%), 4레벨(1.89%)...
+	local p = 0.3 
 	
 	while current < maxLvl and math.random() < p do
 		current = current + 1

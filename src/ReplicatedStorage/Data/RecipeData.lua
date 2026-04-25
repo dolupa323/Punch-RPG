@@ -14,7 +14,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 0,
 		techLevel = 1,
-		inputs = { { itemId = "BRANCH", count = 1 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 1 } },
+		inputs = { { itemId = "BRANCH", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "CRUDE_STONE_AXE", count = 1 } },
 	},
 	{
@@ -24,7 +24,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 0,
 		techLevel = 1,
-		inputs = { { itemId = "BRANCH", count = 1 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 1 } },
+		inputs = { { itemId = "BRANCH", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "CRUDE_STONE_PICKAXE", count = 1 } },
 	},
 	{
@@ -49,7 +49,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 4,
 		techLevel = 3,
-		inputs = { { itemId = "PLANK", count = 3 }, { itemId = "STONE", count = 2 }, { itemId = "FIBER", count = 2 } },
+		inputs = { { itemId = "PLANK", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "FIRM_STONE_AXE", count = 1 } },
 	},
 	{
@@ -60,7 +60,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 4,
 		techLevel = 3,
-		inputs = { { itemId = "PLANK", count = 3 }, { itemId = "STONE", count = 3 }, { itemId = "FIBER", count = 2 } },
+		inputs = { { itemId = "PLANK", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "FIRM_STONE_PICKAXE", count = 1 } },
 	},
 	{
@@ -71,7 +71,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 3,
-		inputs = { { itemId = "PLANK", count = 3 }, { itemId = "SMALL_BONE", count = 2 }, { itemId = "FIBER", count = 3 } },
+		inputs = { { itemId = "PLANK", count = 10 }, { itemId = "SMALL_BONE", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "BONE_SWORD", count = 1 } },
 	},
 	{
@@ -143,7 +143,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 6,
 		techLevel = 3,
-		inputs = { { itemId = "LEATHER", count = 5 }, { itemId = "FIBER", count = 3 } },
+		inputs = { { itemId = "LEATHER", count = 1 }, { itemId = "FIBER", count = 15 } },
 		outputs = { { itemId = "LEATHER_ARMOR", count = 1 } },
 	},
 	{
@@ -154,7 +154,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 3,
-		inputs = { { itemId = "FEATHER", count = 6 }, { itemId = "FIBER", count = 2 } },
+		inputs = { { itemId = "FEATHER", count = 1 }, { itemId = "FIBER", count = 10 } },
 		outputs = { { itemId = "FEATHER_HELMET", count = 1 } },
 	},
 
@@ -165,7 +165,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T1",
 		craftTime = 5,
 		techLevel = 4,
-		inputs = { { itemId = "PLANK", count = 2 }, { itemId = "FIBER", count = 5 } },
+		inputs = { { itemId = "PLANK", count = 10 }, { itemId = "FIBER", count = 20 } },
 		outputs = { { itemId = "WOODEN_BOW", count = 1 } },
 	},
 	{
@@ -176,7 +176,7 @@ local RecipeData = {
 		allowedFacilityIds = { "BASIC_WORKBENCH", "NOVICE_WORKBENCH" },
 		craftTime = 2,
 		techLevel = 4,
-		inputs = { { itemId = "PLANK", count = 1 }, { itemId = "STONE", count = 1 } },
+		inputs = { { itemId = "PLANK", count = 5 }, { itemId = "STONE", count = 1 } },
 		outputs = { { itemId = "STONE_ARROW", count = 10 } },
 	},
 	{
@@ -187,7 +187,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 10,
-		inputs = { { itemId = "OBSIDIAN", count = 5 }, { itemId = "PLANK", count = 3 }, { itemId = "REED", count = 1 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "PLANK", count = 15 }, { itemId = "REED", count = 10 } },
 		outputs = { { itemId = "OBSIDIAN_AXE", count = 1 } },
 	},
 	{
@@ -198,7 +198,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 10,
-		inputs = { { itemId = "OBSIDIAN", count = 5 }, { itemId = "PLANK", count = 3 }, { itemId = "REED", count = 1 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "PLANK", count = 15 }, { itemId = "REED", count = 10 } },
 		outputs = { { itemId = "OBSIDIAN_PICKAXE", count = 1 } },
 	},
 	{
@@ -209,7 +209,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 5,
 		techLevel = 10,
-		inputs = { { itemId = "OBSIDIAN", count = 6 }, { itemId = "PLANK", count = 2 }, { itemId = "REED", count = 1 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "PLANK", count = 15 }, { itemId = "REED", count = 10 } },
 		outputs = { { itemId = "OBSIDIAN_SWORD", count = 1 } },
 	},
 	{
@@ -220,7 +220,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 6,
 		techLevel = 10,
-		inputs = { { itemId = "OBSIDIAN", count = 4 }, { itemId = "PLANK", count = 4 }, { itemId = "REED", count = 1 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "PLANK", count = 15 }, { itemId = "REED", count = 15 } },
 		outputs = { { itemId = "OBSIDIAN_BOW", count = 1 } },
 	},
 	{
@@ -231,7 +231,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 10,
 		techLevel = 12,
-		inputs = { { itemId = "OBSIDIAN", count = 8 }, { itemId = "TROPICAL_LEATHER", count = 5 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "TROPICAL_LEATHER", count = 1 }, { itemId = "FIBER", count = 20 } },
 		outputs = { { itemId = "OBSIDIAN_ARMOR", count = 1 } },
 	},
 	{
@@ -242,7 +242,7 @@ local RecipeData = {
 		allowedFacilityIds = { "NOVICE_WORKBENCH" },
 		craftTime = 8,
 		techLevel = 12,
-		inputs = { { itemId = "OBSIDIAN", count = 5 }, { itemId = "TROPICAL_LEATHER", count = 2 } },
+		inputs = { { itemId = "OBSIDIAN", count = 1 }, { itemId = "TROPICAL_LEATHER", count = 1 }, { itemId = "FIBER", count = 15 } },
 		outputs = { { itemId = "OBSIDIAN_HELMET", count = 1 } },
 	},
 
@@ -256,7 +256,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 5,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "DESERT_LOG", count = 3 }, { itemId = "PLANK", count = 5 }, { itemId = "DESERT_REED", count = 10 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 2 }, { itemId = "DESERT_LOG", count = 15 }, { itemId = "PLANK", count = 10 }, { itemId = "DESERT_REED", count = 15 } },
 		outputs = { { itemId = "BRONZE_BOW", count = 1 } },
 	},
 	{
@@ -323,7 +323,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 23,
-		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "DESERT_LOG", count = 2 }, { itemId = "PLANK", count = 3 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 2 }, { itemId = "DESERT_LOG", count = 10 }, { itemId = "PLANK", count = 10 } },
 		outputs = { { itemId = "BRONZE_PICKAXE", count = 1 } },
 	},
 	{
@@ -333,7 +333,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 23,
-		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "DESERT_LOG", count = 2 }, { itemId = "PLANK", count = 3 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 2 }, { itemId = "DESERT_LOG", count = 10 }, { itemId = "PLANK", count = 10 } },
 		outputs = { { itemId = "BRONZE_AXE", count = 1 } },
 	},
 	{
@@ -343,7 +343,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "DESERT_LOG", count = 3 }, { itemId = "PLANK", count = 5 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 2 }, { itemId = "DESERT_LOG", count = 10 }, { itemId = "PLANK", count = 10 } },
 		outputs = { { itemId = "BRONZE_SWORD", count = 1 } },
 	},
 	{
@@ -354,11 +354,11 @@ local RecipeData = {
 		craftTime = 15,
 		techLevel = 27,
 		inputs = { 
-			{ itemId = "BRONZE_INGOT", count = 10 }, 
-			{ itemId = "DESERT_LEATHER", count = 5 }, 
-			{ itemId = "DESERT_LOG", count = 2 }, 
-			{ itemId = "PLANK", count = 5 },
-			{ itemId = "DESERT_REED", count = 5 } 
+			{ itemId = "BRONZE_INGOT", count = 2 }, 
+			{ itemId = "DESERT_LEATHER", count = 2 }, 
+			{ itemId = "DESERT_LOG", count = 15 }, 
+			{ itemId = "PLANK", count = 15 },
+			{ itemId = "DESERT_REED", count = 15 } 
 		},
 		outputs = { { itemId = "BRONZE_ARMOR", count = 1 } },
 	},
@@ -370,11 +370,11 @@ local RecipeData = {
 		craftTime = 10,
 		techLevel = 27,
 		inputs = { 
-			{ itemId = "BRONZE_INGOT", count = 6 }, 
-			{ itemId = "DESERT_LEATHER", count = 2 }, 
-			{ itemId = "DESERT_LOG", count = 1 }, 
-			{ itemId = "PLANK", count = 3 },
-			{ itemId = "DESERT_REED", count = 2 } 
+			{ itemId = "BRONZE_INGOT", count = 1 }, 
+			{ itemId = "DESERT_LEATHER", count = 1 }, 
+			{ itemId = "DESERT_LOG", count = 10 }, 
+			{ itemId = "PLANK", count = 10 },
+			{ itemId = "DESERT_REED", count = 10 } 
 		},
 		outputs = { { itemId = "BRONZE_HELMET", count = 1 } },
 	},
@@ -389,7 +389,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 5,
 		techLevel = 40,
-		inputs = { { itemId = "IRON_INGOT", count = 10 }, { itemId = "WOOD", count = 5 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "WOOD", count = 15 } },
 		outputs = { { itemId = "IRON_AXE", count = 1 } },
 	},
 	{
@@ -399,7 +399,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 5,
 		techLevel = 42,
-		inputs = { { itemId = "IRON_INGOT", count = 12 }, { itemId = "WOOD", count = 5 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "WOOD", count = 15 } },
 		outputs = { { itemId = "IRON_SWORD", count = 1 } },
 	},
 	{
@@ -419,7 +419,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 3,
 		techLevel = 40,
-		inputs = { { itemId = "IRON_INGOT", count = 10 }, { itemId = "WOOD", count = 5 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "WOOD", count = 15 } },
 		outputs = { { itemId = "IRON_PICKAXE", count = 1 } },
 	},
 	{
@@ -429,7 +429,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 3,
 		techLevel = 42,
-		inputs = { { itemId = "IRON_INGOT", count = 15 }, { itemId = "WOOD", count = 10 }, { itemId = "FIBER", count = 10 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "WOOD", count = 20 }, { itemId = "FIBER", count = 20 } },
 		outputs = { { itemId = "CROSSBOW", count = 1 } },
 	},
 	{
@@ -449,7 +449,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 20,
 		techLevel = 42,
-		inputs = { { itemId = "IRON_INGOT", count = 15 }, { itemId = "LEATHER", count = 10 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "LEATHER", count = 2 }, { itemId = "WOOD", count = 20 } },
 		outputs = { { itemId = "IRON_ARMOR", count = 1 } },
 	},
 	{
@@ -459,7 +459,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T3",
 		craftTime = 12,
 		techLevel = 42,
-		inputs = { { itemId = "IRON_INGOT", count = 8 }, { itemId = "LEATHER", count = 4 } },
+		inputs = { { itemId = "IRON_INGOT", count = 2 }, { itemId = "LEATHER", count = 2 }, { itemId = "WOOD", count = 15 } },
 		outputs = { { itemId = "IRON_HELMET", count = 1 } },
 	},
 	{

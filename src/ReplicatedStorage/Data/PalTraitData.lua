@@ -39,15 +39,14 @@ PalTraitData.Traits = {
 	},
 }
 
--- [내부 함수] 특성 레벨 롤링 (지수적 확률 감소 적용)
+-- [내부 함수] 특성 레벨 롤링 (레벨 1-2 빈도 상향, 3 이상 기하급수적 감소)
 local function rollTraitLevel(creatureLevel: number)
 	local maxLvl = math.max(1, creatureLevel)
 	local current = 1
 	
-	-- [핵심] 레벨이 올라갈수록 성공 확률이 비례하여 줄어드는 모델
-	-- 75% 확률로 레벨 +1 성공, 실패 시 중단
-	-- 레벨 50 도달 확률: (0.75)^49 = 약 0.00007%
-	local p = 0.75 
+	-- [조정] 레벨 +1 성공 확률을 0.3으로 하향 (기존 0.75)
+	-- 결과 확률: 1레벨(70%), 2레벨(21%), 3레벨(6.3%), 4레벨(1.89%)...
+	local p = 0.3 
 	
 	while current < maxLvl and math.random() < p do
 		current = current + 1
