@@ -73,6 +73,21 @@ local TechUnlockData = {
 		category = "SETTLEMENT",
 		description = "나무 건축 기술을 숙련하여 더 발전된 시설을 건설할 수 있는 기반을 마련합니다.",
 	},
+	{
+		id = "TECH_OBSIDIAN",
+		name = "흑요석 가공",
+		cost = { { itemId = "OBSIDIAN", amount = 10 }, { itemId = "TROPICAL_LEATHER", amount = 5 } },
+		prerequisites = { "TECH_WOOD_BUILD" },
+		unlocks = { 
+			recipes = { 
+				"CRAFT_OBSIDIAN_AXE", "CRAFT_OBSIDIAN_PICKAXE", "CRAFT_OBSIDIAN_SWORD", 
+				"CRAFT_OBSIDIAN_BOW", "CRAFT_OBSIDIAN_ARMOR", "CRAFT_OBSIDIAN_HELMET" 
+			}, 
+			facilities = { "NOVICE_WORKBENCH" } 
+		},
+		category = "TOOLS",
+		description = "열대 지역의 날카로운 흑요석을 다루는 법을 익혀 강력한 도구와 방어구를 제작합니다.",
+	},
 
 	--========================================
 	-- 🥉 3단계: 청동기 시대 (Bronze Age)

@@ -238,7 +238,7 @@ local CreatureData = {
 		mountJumpPower = 60,
 		palBagSlots = 4,
 		cameraMaxZoom = 50,
-		corpseOffset = 2.0,
+		corpseOffset = 4.5,
 		island = "DESERT",
 	},
 	{

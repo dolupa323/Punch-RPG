@@ -273,7 +273,7 @@ local ResourceNodeData = {
 		optimalTool = nil,
 		resources = {
 			{ itemId = "MEAT", min = 4, max = 8, weight = 1.0 },
-			{ itemId = "LEATHER", min = 3, max = 6, weight = 0.8 },
+			{ itemId = "DESERT_LEATHER", min = 3, max = 5, weight = 1.0 },
 			{ itemId = "HORN", min = 1, max = 1, weight = 0.3 },
 		},
 		maxHealth = 10,
@@ -409,6 +409,7 @@ local ResourceNodeData = {
 		optimalTool = nil,
 		resources = {
 			{ itemId = "MEAT", min = 5, max = 10, weight = 1.0 },
+			{ itemId = "DESERT_LEATHER", min = 1, max = 2, weight = 1.0 },
 			{ itemId = "BONE", min = 2, max = 4, weight = 1.0 },
 			{ itemId = "SHARP_TOOTH", min = 2, max = 5, weight = 0.8 },
 		},
@@ -443,6 +444,7 @@ local ResourceNodeData = {
 		optimalTool = nil,
 		resources = {
 			{ itemId = "MEAT", min = 10, max = 20, weight = 1.0 },
+			{ itemId = "TITANOSAURUS_LEATHER", min = 3, max = 5, weight = 1.0 },
 			{ itemId = "BONE", min = 5, max = 10, weight = 1.0 },
 			{ itemId = "IRON_ORE", min = 2, max = 4, weight = 0.5 },
 		},

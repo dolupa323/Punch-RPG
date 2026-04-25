@@ -223,6 +223,28 @@ local RecipeData = {
 		inputs = { { itemId = "OBSIDIAN", count = 4 }, { itemId = "PLANK", count = 4 }, { itemId = "REED", count = 1 } },
 		outputs = { { itemId = "OBSIDIAN_BOW", count = 1 } },
 	},
+	{
+		id = "CRAFT_OBSIDIAN_ARMOR",
+		name = "흑요석 갑옷",
+		category = "ARMOR",
+		requiredFacility = "CRAFTING_T1",
+		allowedFacilityIds = { "NOVICE_WORKBENCH" },
+		craftTime = 10,
+		techLevel = 12,
+		inputs = { { itemId = "OBSIDIAN", count = 8 }, { itemId = "TROPICAL_LEATHER", count = 5 } },
+		outputs = { { itemId = "OBSIDIAN_ARMOR", count = 1 } },
+	},
+	{
+		id = "CRAFT_OBSIDIAN_HELMET",
+		name = "흑요석 투구",
+		category = "ARMOR",
+		requiredFacility = "CRAFTING_T1",
+		allowedFacilityIds = { "NOVICE_WORKBENCH" },
+		craftTime = 8,
+		techLevel = 12,
+		inputs = { { itemId = "OBSIDIAN", count = 5 }, { itemId = "TROPICAL_LEATHER", count = 2 } },
+		outputs = { { itemId = "OBSIDIAN_HELMET", count = 1 } },
+	},
 
 	--========================================
 	-- 3단계: 제련 및 청동기 작업대 (SMELTING / CRAFTING)

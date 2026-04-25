@@ -334,7 +334,16 @@ end
 function FacilityService.getInfo(player: Player, structureId: string)
 	local runtime = facilityStates[structureId]
 	if not runtime then
-		return false, Enums.ErrorCode.NOT_FOUND, nil
+		-- [수정] 런타임 상태가 없으면 BuildService에서 구조물을 찾아 즉석 등록 시도 (NOT_FOUND 에러 방지)
+		local structure = BuildService.get(structureId)
+		if structure then
+			FacilityService.register(structureId, structure.facilityId, structure.ownerId)
+			runtime = facilityStates[structureId]
+		end
+		
+		if not runtime then
+			return false, Enums.ErrorCode.NOT_FOUND, nil
+		end
 	end
 	
 	-- 거리 검증

@@ -24,7 +24,7 @@ local DropTableData = {
 	--========================================
 	["TRICERATOPS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 4, max = 8 },
-		{ itemId = "LEATHER", chance = 0.8, min = 3, max = 6 },
+		{ itemId = "DESERT_LEATHER", chance = 1.0, min = 3, max = 5 },
 		{ itemId = "HORN", chance = 0.3, min = 1, max = 1 },
 	},
 	["OLOROTITAN"] = {
@@ -38,6 +38,7 @@ local DropTableData = {
 	},
 	["TITANOSAURUS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 10, max = 20 },
+		{ itemId = "TITANOSAURUS_LEATHER", chance = 1.0, min = 3, max = 5 },
 		{ itemId = "BONE", chance = 1.0, min = 5, max = 10 },
 		{ itemId = "IRON_ORE", chance = 0.5, min = 2, max = 4 },
 	},
@@ -58,6 +59,7 @@ local DropTableData = {
 	},
 	["ALLOSAURUS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 5, max = 10 },
+		{ itemId = "DESERT_LEATHER", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BONE", chance = 1.0, min = 2, max = 4 },
 		{ itemId = "SHARP_TOOTH", chance = 0.8, min = 2, max = 5 },
 	},
