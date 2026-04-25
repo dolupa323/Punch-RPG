@@ -896,8 +896,8 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		end
 	end
 
-	local attrCritChance = 0
-	local attrCritDamageMult = 0
+	local attrCritChance = calculated.critChance or 0
+	local attrCritDamageMult = calculated.critDamageMult or 0
 	if toolItem and toolItem.attributes then
 		for attrId, level in pairs(toolItem.attributes) do
 			local fx = MaterialAttributeData.getEffectValues(attrId, level)
@@ -915,7 +915,7 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	end
 
 	local variance = Balance.DAMAGE_VARIANCE or 0.15
-	totalDamage = totalDamage * (1 + (math.random() * 2 - 1) * variance)
+	totalDamage = math.max(0, totalDamage * (1 + (math.random() * 2 - 1) * variance))
 
 	local isCritical = false
 	if attrCritChance > 0 and math.random() < attrCritChance then
@@ -939,6 +939,10 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		hpDamage = hpDamage * levelMod
 		torporDamage = torporDamage * levelMod
 	end
+	
+	-- [FIX] 최종 데미지가 음수가 되지 않도록 보호 (속성 패널티 과중 방지)
+	hpDamage = math.max(0, hpDamage)
+	torporDamage = math.max(0, torporDamage)
 	
 	local killed = false
 	local dropPos = nil

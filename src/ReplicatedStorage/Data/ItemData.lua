@@ -487,6 +487,8 @@ local ItemData = {
 		attackSpeed = 0.58,
 		slot = "HAND",
 		description = "공격력이 향상된 청동 검. (수리 불가)",
+		optimalTool = "SWORD",
+		modelName = "BronzeSword",
 	},
 	{
 		id = "BRONZE_BOW",
@@ -507,15 +509,6 @@ local ItemData = {
 		slot = "HAND",
 		optimalTool = "BOW",
 		description = "안정적인 사격이 가능한 청동 활. (수리 불가)",
-	},
-	{
-		id = "BRONZE_ARROW",
-		name = "청동 화살",
-		type = "AMMO",
-		rarity = "UNCOMMON",
-		maxStack = 100,
-		weight = 0.15,
-		description = "높은 관통력을 가진 청동 화살.",
 	},
 
 	--========================================
@@ -989,18 +982,6 @@ local ItemData = {
 	--========================================
 	-- 사막섬 가공품 및 기타
 	--========================================
-	{
-		id = "DESERT_PLANK",
-		name = "사막나무 판재",
-		type = "RESOURCE",
-		rarity = "UNCOMMON",
-		maxStack = 99,
-		weight = 2.0,
-		description = "사막나무를 가공해 만든 단단한 판재.",
-		icon = "rbxassetid://13515091728",
-		iconName = "PLANK",
-		modelName = "DesertPlank",
-	},
 	{
 		id = "BONE_BLOCK",
 		name = "뼈 블럭",

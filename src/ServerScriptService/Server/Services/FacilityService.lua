@@ -306,17 +306,59 @@ end
 -- Public API
 --========================================
 
---- 시설 등록 (BuildService에서 배치 시 호출)
-function FacilityService.register(structureId: string, facilityId: string, ownerId: number)
+function FacilityService.register(structureId: string, facilityId: string, ownerId: number, initialState: any?)
 	local facilityData = DataService.getFacility(facilityId)
 	if not facilityData then return end
 	
 	-- Input/Fuel/Output 슬롯이 있는 시설이나 제작대 계열 등록
 	local isCraftingFacility = string.match(tostring(facilityData.functionType or ""), "CRAFTING_T")
 	if facilityData.hasInputSlot or facilityData.hasFuelSlot or facilityData.hasOutputSlot or isCraftingFacility then
-		facilityStates[structureId] = createFacilityRuntime(structureId, facilityId, ownerId)
+		local runtime = createFacilityRuntime(structureId, facilityId, ownerId)
+		
+		if initialState then
+			if initialState.state then runtime.state = initialState.state end
+			if initialState.inputSlot then runtime.inputSlot = initialState.inputSlot end
+			if initialState.fuelSlot then runtime.fuelSlot = initialState.fuelSlot end
+			if initialState.outputSlot then runtime.outputSlot = initialState.outputSlot end
+			if initialState.currentFuel then runtime.currentFuel = initialState.currentFuel end
+			if initialState.processProgress then runtime.processProgress = initialState.processProgress end
+			if initialState.currentRecipeId then runtime.currentRecipeId = initialState.currentRecipeId end
+			if initialState.lastUpdateAt then runtime.lastUpdateAt = initialState.lastUpdateAt end
+			if initialState.assignedPalUID then runtime.assignedPalUID = initialState.assignedPalUID end
+			if initialState.assignedPalOwnerId then runtime.assignedPalOwnerId = initialState.assignedPalOwnerId end
+			
+			-- 따라잡기 업데이트
+			lazyUpdate(runtime)
+		end
+		
+		facilityStates[structureId] = runtime
 		print(string.format("[FacilityService] Registered facility: %s (%s)", structureId, facilityId))
 	end
+end
+
+--- 저장용 상태 추출 (SaveService에서 호출)
+function FacilityService.exportPartitionStates(partitionId: string, partitionStructures: any)
+	local exported = {}
+	if not partitionStructures then return exported end
+	
+	for structureId, _ in pairs(partitionStructures) do
+		local runtime = facilityStates[structureId]
+		if runtime then
+			exported[structureId] = {
+				state = runtime.state,
+				inputSlot = runtime.inputSlot,
+				fuelSlot = runtime.fuelSlot,
+				outputSlot = runtime.outputSlot,
+				currentFuel = runtime.currentFuel,
+				processProgress = runtime.processProgress,
+				currentRecipeId = runtime.currentRecipeId,
+				lastUpdateAt = runtime.lastUpdateAt,
+				assignedPalUID = runtime.assignedPalUID,
+				assignedPalOwnerId = runtime.assignedPalOwnerId,
+			}
+		end
+	end
+	return exported
 end
 
 --- 시설 제거 (BuildService에서 해체 시 호출)

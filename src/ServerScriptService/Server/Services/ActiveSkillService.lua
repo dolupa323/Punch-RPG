@@ -170,6 +170,10 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 		end
 	end
 	
+	-- [FIX] 스킬 데미지 음수 방지
+	hpDamage = math.max(0, hpDamage)
+	torporDamage = math.max(0, torporDamage)
+	
 	local killed, dropPos = CreatureService.processAttack(targetInstanceId, hpDamage, torporDamage, player)
 	
 	-- ★ 플레이어 직접 스킬 공격은 전투 BGM/상태에 반영
@@ -351,7 +355,7 @@ local function executeSingleTarget(player, skill, targetId, baseDamage, itemData
 	
 	-- 데미지 등락폭
 	local variance = Balance.DAMAGE_VARIANCE or 0.15
-	totalDamage = math.max(1, totalDamage * (1 + (math.random() * 2 - 1) * variance))
+	totalDamage = math.max(0, totalDamage * (1 + (math.random() * 2 - 1) * variance))
 	
 	-- 치명타 판정
 	local critChance, critDamageMult = getCritInfo(player, itemData)

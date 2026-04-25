@@ -944,18 +944,15 @@ function UIManager._onInvSlotDoubleClick(idx)
 	local itemData = DataHelper.GetData("ItemData", item.itemId)
 	if not itemData then return end
 	
-	if itemData.type == "ARMOR" or itemData.type == "TOOL" or itemData.type == "WEAPON" then
+	if itemData.type == "ARMOR" then
 		local slot = itemData.slot and itemData.slot:upper() or nil
-		if itemData.type == "ARMOR" then
-			if slot ~= "HEAD" and slot ~= "SUIT" then
-				UIManager.notify("방어구 슬롯 정보가 올바르지 않습니다.", C.RED)
-				return
-			end
-		end
-		if not slot then
-			slot = "HAND"
+		if slot ~= "HEAD" and slot ~= "SUIT" then
+			UIManager.notify("장착 가능한 방어구가 아닙니다.", C.RED)
+			return
 		end
 		InventoryController.requestEquip(idx, slot)
+	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
+		UIManager.notify("무기/도구는 핫바(1~8)를 통해 장착하세요.", C.YELLOW)
 	elseif itemData.type == "FOOD" or itemData.type == "CONSUMABLE" then
 		InventoryController.requestUse(idx)
 	end

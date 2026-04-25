@@ -412,6 +412,7 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 	local success, InventoryService = pcall(function() 
 		return require(game:GetService("ServerScriptService").Server.Services.InventoryService) 
 	end)
+	local attrBonuses = {}
 	if success and InventoryService then
 		if InventoryService.getTotalDefense then
 			defense = InventoryService.getTotalDefense(userId)
@@ -419,12 +420,21 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		if InventoryService.getArmorSetBonuses then
 			setBonuses = InventoryService.getArmorSetBonuses(userId)
 		end
+		if InventoryService.getEquipmentAttributeBonuses then
+			attrBonuses = InventoryService.getEquipmentAttributeBonuses(userId)
+		end
 	end
 	
+	-- 기본 스탯 보너스 (포인트 투자)
 	local finalHp = 100 + ((stats[Enums.StatId.MAX_HEALTH] or 0) * Balance.HP_PER_POINT)
 	local finalSta = 100 + ((stats[Enums.StatId.MAX_STAMINA] or 0) * Balance.STAMINA_PER_POINT)
 	local finalAtk = 1.0 + ((stats[Enums.StatId.ATTACK] or 0) * Balance.ATTACK_PER_POINT)
 	
+	-- 장비 속성 보너스 (모든 장착템 합산)
+	if attrBonuses.maxHealthMult then finalHp = finalHp * (1 + attrBonuses.maxHealthMult) end
+	if attrBonuses.damageMult then finalAtk = finalAtk + attrBonuses.damageMult end
+	
+	-- 세트 효과 보너스
 	if setBonuses then
 		if setBonuses.maxHealth then finalHp = finalHp + setBonuses.maxHealth end
 		if setBonuses.maxStamina then finalSta = finalSta + setBonuses.maxStamina end
@@ -447,9 +457,12 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT)
 		),
 		workSpeed = finalWork,
-		attackMult = finalAtk,
+		attackMult = math.max(0.1, finalAtk),
 		defense = defense,
-		speedMult = speedMult, -- StaminaService 안티치트에서 참조
+		speedMult = speedMult,
+		-- 치명타 스탯 추가 (CombatService에서 참조)
+		critChance = attrBonuses.critChance or 0,
+		critDamageMult = attrBonuses.critDamageMult or 0,
 	}
 end
 

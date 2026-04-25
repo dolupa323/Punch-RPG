@@ -296,7 +296,7 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 	end
 end
 
---- ?�롯 ?�이?��? 변�??��?�?변??
+--- ?롯 ?이?? 변????변??
 local function _makeChange(inv: any, slot: number): {slot: number, itemId: string?, count: number?, empty: boolean?, durability: number?}
 	local slotData = inv.slots[slot]
 	if slotData then
@@ -311,26 +311,51 @@ function InventoryService.getEquipment(userId: number)
 	return inv and inv.equipment or {}
 end
 
+--- 장착 중인 모든 장비의 속성 보너스 합산
+function InventoryService.getEquipmentAttributeBonuses(userId: number)
+	local inv = playerInventories[userId]
+	if not inv or not inv.equipment then return {} end
+	
+	local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data").MaterialAttributeData)
+	local totalBonuses = {
+		damageMult = 0,
+		critChance = 0,
+		critDamageMult = 0,
+		durabilityMult = 0,
+		maxHealthMult = 0,
+		defenseMult = 0,
+	}
+	
+	for _, item in pairs(inv.equipment) do
+		if item.attributes then
+			for attrId, level in pairs(item.attributes) do
+				local fx = MaterialAttributeData.getEffectValues(attrId, level)
+				if fx then
+					for statKey, value in pairs(fx) do
+						if totalBonuses[statKey] ~= nil then
+							totalBonuses[statKey] = totalBonuses[statKey] + value
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	return totalBonuses
+end
+
 function InventoryService.getTotalDefense(userId: number): number
 	local inv = playerInventories[userId]
 	if not inv or not inv.equipment then return 0 end
 	
-	local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data").MaterialAttributeData)
-	
 	local defense = 0
+	local attrBonuses = InventoryService.getEquipmentAttributeBonuses(userId)
+	local globalDefenseMult = attrBonuses.defenseMult or 0
+
 	for _, item in pairs(inv.equipment) do
 		local data = DataService.getItem(item.itemId)
 		if data and data.defense then
-			local bonusDef = 0
-			if item.attributes then
-				for attrId, level in pairs(item.attributes) do
-					local fx = MaterialAttributeData.getEffectValues(attrId, level)
-					if fx and fx.defenseMult then
-						bonusDef = bonusDef + fx.defenseMult
-					end
-				end
-			end
-			defense = defense + math.floor(data.defense * (1 + bonusDef) + 0.5)
+			defense = defense + math.floor(data.defense * (1 + globalDefenseMult) + 0.5)
 		end
 	end
 	

@@ -200,11 +200,23 @@ function EquipService.equipItem(player: Player, itemId: string?)
 			if itemId == "OBSIDIAN_AXE" then
 				targetSize = 5.2
 			elseif itemType == "TOOL" then
-				targetSize = 2.8 -- 곡괭이/도끼 등
+				if itemId == "BRONZE_AXE" then
+					targetSize = 6.5 -- 도끼는 원래대로 6.5
+				elseif itemId == "BRONZE_PICKAXE" then
+					targetSize = 5.5 -- 곡괭이만 5.5로 축소
+				else
+					targetSize = 2.8
+				end
 			elseif itemType == "WEAPON" then
 				-- 창은 훨씬 더 거대하게 (11.0)
 				if itemData.optimalTool == "SWORD" then
-					targetSize = 4.0
+					if itemId == "BRONZE_SWORD" then
+						targetSize = 6.5 -- 소드는 원래대로 6.5
+					else
+						targetSize = 4.0
+					end
+				elseif itemData.optimalTool == "BOW" or itemData.optimalTool == "CROSSBOW" then
+					targetSize = 8.0 -- 활 크기 더 크게 확대
 				else
 					targetSize = 4.0
 				end
@@ -303,6 +315,13 @@ function EquipService.equipItem(player: Player, itemId: string?)
 				* CFrame.Angles(math.rad(90), math.rad(90), math.rad(90))
 				* CFrame.Angles(0, math.rad(90), 0),
 			OBSIDIAN_BOW = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0),
+			-- 청동 활 세우기 보정 (Y축 회전으로 앞뒤 뒤집기 적용, Z축으로 세움, 위치를 손쪽으로 당김)
+			BRONZE_BOW = CFrame.new(0, -0.8, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(0, math.rad(90), 0),
+
+			-- 청동 소드 수직 세우기 및 날 방향 정면 보정
+			BRONZE_SWORD = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, math.rad(180), 0),
+			-- 청동 곡괭이 위치 대폭 조정 (한참 더 위로, 더 뒤로)
+			BRONZE_PICKAXE = CFrame.new(0.2, -1.0, 0) * CFrame.Angles(math.rad(-90), math.rad(90), math.rad(90)),
 			TORCH = CFrame.new(0, -0.5, 0) * CFrame.Angles(0, 0, 0),
 		}
 		

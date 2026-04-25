@@ -256,18 +256,18 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 5,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "WOOD", count = 5 }, { itemId = "FIBER", count = 10 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "DESERT_LOG", count = 3 }, { itemId = "PLANK", count = 5 }, { itemId = "DESERT_REED", count = 10 } },
 		outputs = { { itemId = "BRONZE_BOW", count = 1 } },
 	},
 	{
-		id = "CRAFT_BRONZE_ARROW",
-		name = "청동 화살",
+		id = "CRAFT_STONE_ARROW_T2",
+		name = "돌 화살 (대량)",
 		category = "AMMO",
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 2,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 1 }, { itemId = "FEATHER", count = 2 } },
-		outputs = { { itemId = "BRONZE_ARROW", count = 10 } },
+		inputs = { { itemId = "PLANK", count = 1 }, { itemId = "STONE", count = 1 } },
+		outputs = { { itemId = "STONE_ARROW", count = 20 } }, -- 작업대 효율로 2배 생산
 	},
 	{
 		id = "SMELT_BRONZE_INGOT",
@@ -301,7 +301,7 @@ local RecipeData = {
 		craftTime = 2,
 		techLevel = 22,
 		inputs = { { itemId = "DESERT_LOG", count = 1 } },
-		outputs = { { itemId = "DESERT_PLANK", count = 3 } },
+		outputs = { { itemId = "PLANK", count = 3 } },
 	},
 	{
 		id = "CRAFT_BRONZE_BLOCK",
@@ -323,7 +323,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 23,
-		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "WOOD", count = 3 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "DESERT_LOG", count = 2 }, { itemId = "PLANK", count = 3 } },
 		outputs = { { itemId = "BRONZE_PICKAXE", count = 1 } },
 	},
 	{
@@ -333,7 +333,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 23,
-		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "WOOD", count = 3 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 5 }, { itemId = "DESERT_LOG", count = 2 }, { itemId = "PLANK", count = 3 } },
 		outputs = { { itemId = "BRONZE_AXE", count = 1 } },
 	},
 	{
@@ -343,7 +343,7 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 3,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "WOOD", count = 5 } },
+		inputs = { { itemId = "BRONZE_INGOT", count = 8 }, { itemId = "DESERT_LOG", count = 3 }, { itemId = "PLANK", count = 5 } },
 		outputs = { { itemId = "BRONZE_SWORD", count = 1 } },
 	},
 	{
@@ -353,7 +353,13 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 15,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 10 }, { itemId = "LEATHER", count = 5 } },
+		inputs = { 
+			{ itemId = "BRONZE_INGOT", count = 10 }, 
+			{ itemId = "DESERT_LEATHER", count = 5 }, 
+			{ itemId = "DESERT_LOG", count = 2 }, 
+			{ itemId = "PLANK", count = 5 },
+			{ itemId = "DESERT_REED", count = 5 } 
+		},
 		outputs = { { itemId = "BRONZE_ARMOR", count = 1 } },
 	},
 	{
@@ -363,7 +369,13 @@ local RecipeData = {
 		requiredFacility = "CRAFTING_T2",
 		craftTime = 10,
 		techLevel = 27,
-		inputs = { { itemId = "BRONZE_INGOT", count = 6 }, { itemId = "LEATHER", count = 2 } },
+		inputs = { 
+			{ itemId = "BRONZE_INGOT", count = 6 }, 
+			{ itemId = "DESERT_LEATHER", count = 2 }, 
+			{ itemId = "DESERT_LOG", count = 1 }, 
+			{ itemId = "PLANK", count = 3 },
+			{ itemId = "DESERT_REED", count = 2 } 
+		},
 		outputs = { { itemId = "BRONZE_HELMET", count = 1 } },
 	},
 

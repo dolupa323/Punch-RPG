@@ -501,6 +501,18 @@ function SaveService.saveWorld(snapshot: any?): (boolean, string?)
 	
 	-- UpdateAsync 활용
 	local success, err = DataStoreClient.update(key, function(oldData)
+		-- [추가] 월드 저장 시 야생(Wilderness) 시설 상태 동기화
+		local ok, FacilityService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.FacilityService) end)
+		if ok and FacilityService and FacilityService.exportPartitionStates then
+			state.facilityStates = state.facilityStates or {}
+			local wildStates = FacilityService.exportPartitionStates("WILDERNESS", state.wildernessStructures)
+			if wildStates then
+				for sid, r in pairs(wildStates) do
+					state.facilityStates[sid] = r
+				end
+			end
+		end
+		
 		-- 월드는 세션 잠금이 필수적이지 않으나(서버당 1개), UpdateAsync를 쓰는 것이 안전
 		return Serialization.serialize(state)
 	end)
@@ -556,6 +568,15 @@ function SaveService.savePartition(partitionId: string, snapshot: any?): (boolea
 	local key = DataStoreClient.Keys.BASE_PARTITION_PREFIX .. partitionId
 	
 	local success, err = DataStoreClient.update(key, function(oldData)
+		-- [추가] 파티션 저장 직전 시설 상태 동기화
+		local ok, FacilityService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.FacilityService) end)
+		if ok and FacilityService and FacilityService.exportPartitionStates then
+			local facilityStateMap = FacilityService.exportPartitionStates(partitionId, state.structures)
+			if facilityStateMap then
+				state.facilityStates = facilityStateMap
+			end
+		end
+		
 		return Serialization.serialize(state)
 	end)
 	

@@ -946,7 +946,11 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 	creature.lastDamagedAt = tick()
 	
 	-- 1. 데미지 적용
-	creature.currentHealth = math.max(0, creature.currentHealth - hpDamage)
+	hpDamage = math.max(0, hpDamage)
+	torporDamage = math.max(0, torporDamage)
+	
+	local maxHP = creature.maxHealth or (creature.data and creature.data.maxHealth) or 100
+	creature.currentHealth = math.clamp(creature.currentHealth - hpDamage, 0, maxHP)
 	creature.labelVisibleUntil = tick() + LABEL_VISIBLE_DURATION
 	
 	-- ★ Attribute 갱신 (클라이언트에서 UI 반영)
@@ -960,7 +964,7 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 	-- ★ 사망 시 Humanoid Dead 상태 진입 방지 (사망 애니메이션 재생을 위해)
 	-- Health가 0이면 Roblox가 Humanoid를 Dead 상태로 전환하여 Animator 비활성화
 	if creature.currentHealth <= 0 and creature.humanoid then
-		creature.humanoid.Health = 1 -- 임시 유지 (뒤에서 다시 0 설정)
+		creature.humanoid.Health = 0.1 -- ★ [FIX] 1 대신 매우 낮은 값으로 설정 (Roblox 사망 판정 회피 및 재생 방지)
 	end
 	
 	-- 2. 상태 변화 및 연쇄 어그로 (Pack Mentality)

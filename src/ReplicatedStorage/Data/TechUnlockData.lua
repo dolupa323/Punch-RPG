@@ -131,9 +131,9 @@ local TechUnlockData = {
 	{
 		id = "TECH_BRONZE_WEAPONS",
 		name = "청동 무기 및 갑옷",
-		cost = { { itemId = "BRONZE_INGOT", amount = 10 }, { itemId = "LEATHER", amount = 5 } },
+		cost = { { itemId = "BRONZE_INGOT", amount = 10 }, { itemId = "DESERT_LEATHER", amount = 5 } },
 		prerequisites = { "TECH_BRONZE_TOOLS", "TECH_BOW" },
-		unlocks = { recipes = { "CRAFT_BRONZE_SWORD", "CRAFT_BRONZE_BOW", "CRAFT_BRONZE_ARROW", "CRAFT_BRONZE_ARMOR" }, facilities = {} },
+		unlocks = { recipes = { "CRAFT_BRONZE_SWORD", "CRAFT_BRONZE_BOW", "CRAFT_STONE_ARROW_T2", "CRAFT_BRONZE_ARMOR", "CRAFT_BRONZE_HELMET" }, facilities = {} },
 		category = "WEAPONS",
 		description = "청동 무기와 갑옷을 갖춰 더욱 치명적인 위협에 대비합니다.",
 	},

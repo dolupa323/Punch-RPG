@@ -1184,7 +1184,11 @@ function BuildService.loadStructuresFromPartition(partitionId: string)
 		
 		-- 신규 로드 시 FacilityService 등록
 		if FacilityService and FacilityService.register then
-			FacilityService.register(structureId, struct.facilityId, struct.ownerId)
+			local initialState = nil
+			if pState and pState.facilityStates then
+				initialState = pState.facilityStates[structureId]
+			end
+			FacilityService.register(structureId, struct.facilityId, struct.ownerId, initialState)
 		end
 	end
 	
@@ -1197,8 +1201,21 @@ function BuildService.SetFacilityService(facilityService)
 	
 	-- 이미 로드된 구조물들 FacilityService에 등록
 	if facilityService and facilityService.register then
+		local wState = SaveService and SaveService.getWorldState() or nil
+		
 		for structureId, struct in pairs(structures) do
-			facilityService.register(structureId, struct.facilityId, struct.ownerId)
+			local initialState = nil
+			
+			if struct.partitionId and SaveService then
+				local pState = SaveService.getPartition(struct.partitionId)
+				if pState and pState.facilityStates then
+					initialState = pState.facilityStates[structureId]
+				end
+			elseif wState and wState.facilityStates then
+				initialState = wState.facilityStates[structureId]
+			end
+			
+			facilityService.register(structureId, struct.facilityId, struct.ownerId, initialState)
 		end
 		print(string.format("[BuildService] Registered %d structures to FacilityService", structureCount))
 	end

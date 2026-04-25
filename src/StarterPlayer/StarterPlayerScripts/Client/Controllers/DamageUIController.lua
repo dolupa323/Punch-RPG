@@ -219,9 +219,13 @@ function DamageUIController.Init()
 		end
 		
 		-- 데미지 표시 (치명타 분기)
-		if data.damage and data.damage > 0 then
-			local dmgColor = data.isCritical and COLORS.CRITICAL or COLORS.NORMAL
-			spawnDamageText(spawnPos, string.format("%.0f", data.damage), dmgColor, data.damage, data.isCritical)
+		if data.damage and data.damage >= 0 then
+			local dmgValue = data.damage
+			local isMiss = dmgValue <= 1
+			local dmgText = isMiss and "MISS" or string.format("%.0f", dmgValue)
+			local dmgColor = isMiss and Color3.fromRGB(200, 200, 200) or (data.isCritical and COLORS.CRITICAL or COLORS.NORMAL)
+			
+			spawnDamageText(spawnPos, dmgText, dmgColor, dmgValue, data.isCritical)
 		end
 		
 		-- 기절 수치 표시 (보라색)
@@ -234,29 +238,44 @@ function DamageUIController.Init()
 	-- 2. 서버로부터 채집 타격 결과 수신
 	NetClient.On("Harvest.Node.Hit", function(data)
 		-- data: { nodeUID, remainingHits, maxHits, damage }
-		if not data.damage or data.damage <= 0 then return end
+		if not data.damage or data.damage < 0 then return end
+		
+		local dmgValue = data.damage
+		local isMiss = dmgValue <= 1
+		local dmgText = isMiss and "MISS" or string.format("%.0f", dmgValue)
 		
 		local targetModel = findTargetModel(data.nodeUID)
 		if not targetModel then return end
 		
 		local spawnPos = targetModel:GetPivot().Position
-		spawnDamageText(spawnPos, string.format("%.0f", data.damage), COLORS.NORMAL, data.damage)
+		spawnDamageText(spawnPos, dmgText, COLORS.NORMAL, dmgValue)
 	end)
 	
 	-- 3. 플레이어 피격 데미지 표시 (빨간색)
 	local localPlayer = Players.LocalPlayer
 	NetClient.On("Combat.Player.Hit", function(data)
-		if not data.damage or data.damage <= 0 then return end
+		if not data.damage or data.damage < 0 then return end
+		
+		local dmgValue = data.damage
+		local isMiss = dmgValue <= 1
+		local dmgText = isMiss and "MISS" or string.format("-%.0f", dmgValue)
+		local dmgColor = isMiss and Color3.fromRGB(200, 200, 200) or Color3.fromRGB(255, 50, 50)
+
 		local char = localPlayer.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
-		spawnDamageText(hrp.Position + Vector3.new(0, 2, 0), string.format("-%.0f", data.damage), Color3.fromRGB(255, 50, 50), data.damage)
+		spawnDamageText(hrp.Position + Vector3.new(0, 2, 0), dmgText, dmgColor, dmgValue)
 	end)
 	
 	-- 4. 팰(동료 동물) 공격 데미지 표시 (주황색)
 	NetClient.On("Combat.Pal.Hit.Result", function(data)
-		if not data.damage or data.damage <= 0 then return end
+		if not data.damage or data.damage < 0 then return end
 		
+		local dmgValue = data.damage
+		local isMiss = dmgValue <= 1
+		local dmgText = isMiss and "🐾MISS" or string.format("🐾%.0f", dmgValue)
+		local dmgColor = isMiss and Color3.fromRGB(200, 200, 200) or COLORS.PAL_DAMAGE
+
 		local targetModel = findTargetModel(data.targetId)
 		local spawnPos
 		if targetModel then
@@ -273,9 +292,9 @@ function DamageUIController.Init()
 		-- 팰 데미지 표시 (주황색 + 갈색 외곽선)
 		spawnDamageText(
 			spawnPos + Vector3.new(math.random(-1, 1), 0.5, math.random(-1, 1)),
-			string.format("🐾%.0f", data.damage),
-			COLORS.PAL_DAMAGE,
-			data.damage,
+			dmgText,
+			dmgColor,
+			dmgValue,
 			false,
 			COLORS.PAL_STROKE
 		)
@@ -283,7 +302,13 @@ function DamageUIController.Init()
 	
 	-- 5. 소환 팰 피격 데미지 표시 (빨간색, 팰 머리 위)
 	NetClient.On("Combat.Pal.Damaged", function(data)
-		if not data.damage or data.damage <= 0 then return end
+		if not data.damage or data.damage < 0 then return end
+		
+		local dmgValue = data.damage
+		local isMiss = dmgValue <= 1
+		local dmgText = isMiss and "MISS" or string.format("-%.0f", dmgValue)
+		local dmgColor = isMiss and Color3.fromRGB(200, 200, 200) or Color3.fromRGB(255, 50, 50)
+
 		
 		-- palUID 대신 workspace에서 IsPal 속성 모델 찾기
 		local palModel = nil
@@ -313,9 +338,9 @@ function DamageUIController.Init()
 		
 		spawnDamageText(
 			spawnPos + Vector3.new(0, 1, 0),
-			string.format("-%.0f", data.damage),
-			Color3.fromRGB(255, 80, 80),
-			data.damage,
+			dmgText,
+			dmgColor,
+			dmgValue,
 			false
 		)
 	end)
