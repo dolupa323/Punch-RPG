@@ -321,7 +321,16 @@ function PalRadialUI.Open(palModel)
 	billboardGui = Instance.new("BillboardGui")
 	billboardGui.Name = "PalRadialBillboard"
 	billboardGui.Size = UDim2.new(0, 450, 0, 450)
-	billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+	
+	-- [수정] 공룡 크기에 따른 동적 오프셋 적용
+	local offsetHeight = 2.5
+	local size = palModel:GetExtentsSize()
+	if size.Y > 15 then -- 대형 공룡 (올로로티탄 등)
+		offsetHeight = 0.5 -- 메뉴를 몸체 중앙 근처로 낮춤
+	elseif size.Y > 8 then -- 중형
+		offsetHeight = 1.5
+	end
+	billboardGui.StudsOffset = Vector3.new(0, offsetHeight, 0)
 	billboardGui.AlwaysOnTop = true
 	billboardGui.MaxDistance = BILLBOARD_MAX_DIST
 	billboardGui.ClipsDescendants = false

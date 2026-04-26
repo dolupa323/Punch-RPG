@@ -16,9 +16,18 @@ local Balance = require(ReplicatedStorage.Shared.Config.Balance)
 local player = Players.LocalPlayer
 
 local function createStudioAdminGoldPanel()
-	if not RunService:IsStudio() then
+	-- 어드민 ID 목록 (TutorialQuestService와 동기화)
+	local ADMIN_USER_IDS = {
+		[10311679477] = true,
+	}
+	local function checkIsAdmin(userId)
+		return RunService:IsStudio() or userId == game.CreatorId or ADMIN_USER_IDS[userId] == true
+	end
+
+	if not checkIsAdmin(player.UserId) then
 		return
 	end
+
 	-- [임시 해제] 기존 줌아웃 제한: 45 (Balance.CAM_MAX_ZOOM)
 	player.CameraMaxZoomDistance = 1000 -- Balance.CAM_MAX_ZOOM
 	player.CameraMinZoomDistance = Balance.CAM_MIN_ZOOM
@@ -36,10 +45,10 @@ local function createStudioAdminGoldPanel()
 
 	local frame = Instance.new("Frame")
 	frame.AnchorPoint = Vector2.new(1, 0)
-	frame.Position = UDim2.new(1, -34, 0, 12)
-	frame.Size = UDim2.new(0, 220, 0, 122)
+	frame.Position = UDim2.new(1, -34, 0, 80)
+	frame.Size = UDim2.new(0, 240, 0, 360)
 	frame.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
-	frame.BackgroundTransparency = 0.18
+	frame.BackgroundTransparency = 0.1
 	frame.BorderSizePixel = 0
 	frame.Visible = false
 	frame.Parent = gui
@@ -48,13 +57,24 @@ local function createStudioAdminGoldPanel()
 	frameCorner.Parent = frame
 	local frameStroke = Instance.new("UIStroke")
 	frameStroke.Color = Color3.fromRGB(185, 155, 80)
-	frameStroke.Thickness = 1
+	frameStroke.Thickness = 1.2
 	frameStroke.Parent = frame
+
+	local list = Instance.new("UIListLayout", frame)
+	list.Padding = UDim.new(0, 10)
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local pad = Instance.new("UIPadding", frame)
+	pad.PaddingTop = UDim.new(0, 12)
+	pad.PaddingBottom = UDim.new(0, 12)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
 
 	local toggleBtn = Instance.new("TextButton")
 	toggleBtn.Name = "AdminToggleBtn"
-	toggleBtn.Size = UDim2.new(0, 32, 0, 60)
-	toggleBtn.Position = UDim2.new(1, 0, 0, 12)
+	toggleBtn.Size = UDim2.new(0, 42, 0, 42)
+	toggleBtn.Position = UDim2.new(1, -5, 0, 80)
 	toggleBtn.AnchorPoint = Vector2.new(1, 0)
 	toggleBtn.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
 	toggleBtn.BackgroundTransparency = 0.18
@@ -77,10 +97,9 @@ local function createStudioAdminGoldPanel()
 	end)
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -16, 0, 22)
-	title.Position = UDim2.new(0, 8, 0, 8)
+	title.Size = UDim2.new(1, 0, 0, 24)
 	title.BackgroundTransparency = 1
-	title.Text = "Studio Admin Gold"
+	title.Text = "Studio Admin Panel" -- 명칭 변경
 	title.TextColor3 = Color3.fromRGB(255, 220, 120)
 	title.TextSize = 16
 	title.Font = Enum.Font.GothamBold
@@ -88,8 +107,7 @@ local function createStudioAdminGoldPanel()
 	title.Parent = frame
 
 	local goldLabel = Instance.new("TextLabel")
-	goldLabel.Size = UDim2.new(1, -16, 0, 18)
-	goldLabel.Position = UDim2.new(0, 8, 0, 34)
+	goldLabel.Size = UDim2.new(1, 0, 0, 18)
 	goldLabel.BackgroundTransparency = 1
 	goldLabel.Text = "현재 골드: --"
 	goldLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
@@ -99,8 +117,7 @@ local function createStudioAdminGoldPanel()
 	goldLabel.Parent = frame
 
 	local amountBox = Instance.new("TextBox")
-	amountBox.Size = UDim2.new(1, -16, 0, 32)
-	amountBox.Position = UDim2.new(0, 8, 0, 58)
+	amountBox.Size = UDim2.new(1, 0, 0, 32)
 	amountBox.BackgroundColor3 = Color3.fromRGB(38, 42, 48)
 	amountBox.BorderSizePixel = 0
 	amountBox.Text = "5000"
@@ -115,33 +132,35 @@ local function createStudioAdminGoldPanel()
 	amountCorner.CornerRadius = UDim.new(0, 8)
 	amountCorner.Parent = amountBox
 
+	local goldBtns = Instance.new("Frame")
+	goldBtns.Size = UDim2.new(1, 0, 0, 32)
+	goldBtns.BackgroundTransparency = 1
+	goldBtns.Parent = frame
+	local gGrid = Instance.new("UIListLayout", goldBtns)
+	gGrid.FillDirection = Enum.FillDirection.Horizontal
+	gGrid.Padding = UDim.new(0, 8)
+
 	local grantButton = Instance.new("TextButton")
-	grantButton.Size = UDim2.new(0.58, -10, 0, 28)
-	grantButton.Position = UDim2.new(0, 8, 1, -36)
+	grantButton.Size = UDim2.new(0.65, -4, 1, 0)
 	grantButton.BackgroundColor3 = Color3.fromRGB(196, 164, 74)
 	grantButton.BorderSizePixel = 0
 	grantButton.Text = "골드 지급"
 	grantButton.TextColor3 = Color3.fromRGB(20, 20, 20)
 	grantButton.TextSize = 14
 	grantButton.Font = Enum.Font.GothamBold
-	grantButton.Parent = frame
-	local grantCorner = Instance.new("UICorner")
-	grantCorner.CornerRadius = UDim.new(0, 8)
-	grantCorner.Parent = grantButton
+	grantButton.Parent = goldBtns
+	Instance.new("UICorner", grantButton).CornerRadius = UDim.new(0, 8)
 
 	local refreshButton = Instance.new("TextButton")
-	refreshButton.Size = UDim2.new(0.42, -10, 0, 28)
-	refreshButton.Position = UDim2.new(0.58, 2, 1, -36)
+	refreshButton.Size = UDim2.new(0.35, -4, 1, 0)
 	refreshButton.BackgroundColor3 = Color3.fromRGB(70, 78, 92)
 	refreshButton.BorderSizePixel = 0
 	refreshButton.Text = "새로고침"
 	refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 	refreshButton.TextSize = 14
 	refreshButton.Font = Enum.Font.GothamBold
-	refreshButton.Parent = frame
-	local refreshCorner = Instance.new("UICorner")
-	refreshCorner.CornerRadius = UDim.new(0, 8)
-	refreshCorner.Parent = refreshButton
+	refreshButton.Parent = goldBtns
+	Instance.new("UICorner", refreshButton).CornerRadius = UDim.new(0, 8)
 
 	local ShopController = require(Controllers.ShopController)
 
@@ -177,6 +196,112 @@ local function createStudioAdminGoldPanel()
 	end)
 
 	refreshGold()
+
+	--========================================
+	-- Tutorial Quest Admin Section
+	--========================================
+	local line = Instance.new("Frame")
+	line.Size = UDim2.new(1, 0, 0, 1)
+	line.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+	line.BorderSizePixel = 0
+	line.Parent = frame
+
+	local questTitle = Instance.new("TextLabel")
+	questTitle.Size = UDim2.new(1, 0, 0, 20)
+	questTitle.BackgroundTransparency = 1
+	questTitle.Text = "Tutorial Quest"
+	questTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
+	questTitle.TextSize = 14
+	questTitle.Font = Enum.Font.GothamBold
+	questTitle.TextXAlignment = Enum.TextXAlignment.Left
+	questTitle.Parent = frame
+
+	local questLabel = Instance.new("TextLabel")
+	questLabel.Size = UDim2.new(1, 0, 0, 36)
+	questLabel.BackgroundTransparency = 1
+	questLabel.Text = "현재 단계: --"
+	questLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	questLabel.TextSize = 13
+	questLabel.Font = Enum.Font.Gotham
+	questLabel.TextWrapped = true
+	questLabel.Parent = frame
+
+	local qBtns = Instance.new("Frame")
+	qBtns.Size = UDim2.new(1, 0, 0, 32)
+	qBtns.BackgroundTransparency = 1
+	qBtns.Parent = frame
+	local qGrid = Instance.new("UIListLayout", qBtns)
+	qGrid.FillDirection = Enum.FillDirection.Horizontal
+	qGrid.Padding = UDim.new(0, 8)
+
+	local stepBox = Instance.new("TextBox")
+	stepBox.Size = UDim2.new(0.3, -4, 1, 0)
+	stepBox.BackgroundColor3 = Color3.fromRGB(38, 42, 48)
+	stepBox.BorderSizePixel = 0
+	stepBox.Text = "1"
+	stepBox.PlaceholderText = "Step"
+	stepBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	stepBox.TextSize = 14
+	stepBox.Font = Enum.Font.Gotham
+	stepBox.Parent = qBtns
+	Instance.new("UICorner", stepBox).CornerRadius = UDim.new(0, 6)
+
+	local setStepBtn = Instance.new("TextButton")
+	setStepBtn.Size = UDim2.new(0.7, -4, 1, 0)
+	setStepBtn.BackgroundColor3 = Color3.fromRGB(70, 120, 180)
+	setStepBtn.Text = "단계 이동"
+	setStepBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	setStepBtn.TextSize = 13
+	setStepBtn.Font = Enum.Font.GothamBold
+	setStepBtn.Parent = qBtns
+	Instance.new("UICorner", setStepBtn).CornerRadius = UDim.new(0, 6)
+
+	local resetQuestBtn = Instance.new("TextButton")
+	resetQuestBtn.Size = UDim2.new(1, 0, 0, 32)
+	resetQuestBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+	resetQuestBtn.Text = "퀘스트 전체 리셋"
+	resetQuestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	resetQuestBtn.TextSize = 12
+	resetQuestBtn.Font = Enum.Font.GothamBold
+	resetQuestBtn.Parent = frame
+	Instance.new("UICorner", resetQuestBtn).CornerRadius = UDim.new(0, 6)
+
+	local function refreshQuestStatus()
+		local ok, result = NetClient.Request("Tutorial.GetStatus.Request", {})
+		if ok and result and result.data then
+			local data = result.data
+			questLabel.Text = string.format("현재 단계: %d / %d (%s)", data.stepIndex or 0, data.totalSteps or 0, data.completed and "완료" or "진행중")
+		end
+	end
+
+	setStepBtn.MouseButton1Click:Connect(function()
+		local step = tonumber(stepBox.Text)
+		if not step then return end
+		local ok, result = NetClient.Request("Tutorial.Admin.SetStep.Request", { stepIndex = step })
+		if ok then
+			UIManager.notify("퀘스트 단계가 " .. step .. "으로 설정되었습니다.", Color3.fromRGB(100, 200, 255))
+			refreshQuestStatus()
+		else
+			UIManager.notify("단계 설정 실패", Color3.fromRGB(255, 100, 100))
+		end
+	end)
+
+	resetQuestBtn.MouseButton1Click:Connect(function()
+		local ok, result = NetClient.Request("Tutorial.Admin.Reset.Request", {})
+		if ok then
+			UIManager.notify("튜토리얼 퀘스트가 초기화되었습니다.", Color3.fromRGB(255, 150, 100))
+			refreshQuestStatus()
+		else
+			UIManager.notify("리셋 실패", Color3.fromRGB(255, 100, 100))
+		end
+	end)
+
+	task.spawn(function()
+		while gui.Parent do
+			refreshQuestStatus()
+			task.wait(5)
+		end
+	end)
 end
 
 -- NetClient 초기화

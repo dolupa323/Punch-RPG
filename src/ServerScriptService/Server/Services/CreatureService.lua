@@ -1407,8 +1407,22 @@ function CreatureService._initialSpawn()
 		local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
 		if not zoneInfo then continue end
 
-		local zoneCenter = zoneInfo.center
-		local zoneRadius = math.min(getZoneCreatureSpawnRadius(zoneInfo, SPAWN_RADIUS), zoneInfo.radius)
+		-- [수정] 사각형 범위(min/max)로부터 중심점과 반경 계산
+		local zoneMin, zoneMax = zoneInfo.min, zoneInfo.max
+		local zoneCenter, zoneRadius
+		
+		if zoneMin and zoneMax then
+			zoneCenter = Vector3.new((zoneMin.X + zoneMax.X)/2, 20, (zoneMin.Y + zoneMax.Y)/2)
+			-- 사각형의 짧은 쪽을 기준으로 스폰 반경 결정
+			zoneRadius = math.min((zoneMax.X - zoneMin.X)/2, (zoneMax.Y - zoneMin.Y)/2)
+		else
+			-- 폴백 (레거시 지원)
+			zoneCenter = zoneInfo.center or Vector3.new(0, 0, 0)
+			zoneRadius = zoneInfo.radius or SPAWN_RADIUS
+		end
+		
+		-- 설정된 개별 스폰 반경이 있다면 우선 적용
+		zoneRadius = getZoneCreatureSpawnRadius(zoneInfo, zoneRadius)
 
 		print(string.format("[CreatureService] Zone '%s' initial spawn: %d creatures, radius %.0f, center %s",
 			zoneName, PER_ZONE_COUNT, zoneRadius, tostring(zoneCenter)))
@@ -1469,8 +1483,19 @@ function CreatureService.SpawnZone(zoneName)
 	local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
 	if not zoneInfo then return end
 
-	local zoneCenter = zoneInfo.center
-	local zoneRadius = math.min(getZoneCreatureSpawnRadius(zoneInfo, SPAWN_RADIUS), zoneInfo.radius)
+	-- [수정] 사각형 범위(min/max)로부터 중심점과 반경 계산
+	local zoneMin, zoneMax = zoneInfo.min, zoneInfo.max
+	local zoneCenter, zoneRadius
+	
+	if zoneMin and zoneMax then
+		zoneCenter = Vector3.new((zoneMin.X + zoneMax.X)/2, 20, (zoneMin.Y + zoneMax.Y)/2)
+		zoneRadius = math.min((zoneMax.X - zoneMin.X)/2, (zoneMax.Y - zoneMin.Y)/2)
+	else
+		zoneCenter = zoneInfo.center or Vector3.new(0, 0, 0)
+		zoneRadius = zoneInfo.radius or SPAWN_RADIUS
+	end
+	
+	zoneRadius = getZoneCreatureSpawnRadius(zoneInfo, zoneRadius)
 
 	print(string.format("[CreatureService] SpawnZone '%s': %d creatures, radius %.0f", zoneName, PER_ZONE_COUNT, zoneRadius))
 

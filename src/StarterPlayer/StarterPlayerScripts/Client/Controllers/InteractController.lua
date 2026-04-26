@@ -18,11 +18,11 @@ local InputManager = require(Client.InputManager)
 local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
 local UILocalizer = require(Client.Localization.UILocalizer)
 local BuildController = require(Client.Controllers.BuildController)
-local RadioStoryController = require(Client.Controllers.RadioStoryController)
 local WindowManager = require(Client.Utils.WindowManager)
 local HarvestUI = require(Client.UI.HarvestUI)
 local UIManager = nil -- Circular dependency check (will require inside if needed)
 local FacilityRadialUI = require(Client.UI.FacilityRadialUI)
+local NPCRadialUI = require(Client.UI.NPCRadialUI)
 
 local InteractController = {}
 
@@ -43,9 +43,6 @@ local FACILITY_INTERACT_BONUS = 6
 local sleepTransitionBusy = false
 local sleepConfirmGui = nil
 local sleepConfirmActive = false
-local RADIO_MODEL_NAME = "Motorola DP4800"
-local RADIO_INTERACT_DISTANCE = 14
-local REMOVE_CONFIRM_WINDOW = 2.5
 local pendingRemoveStructureId = nil
 local pendingRemoveExpireAt = 0
 local playSleepTransitionAndRequest
@@ -334,20 +331,32 @@ local function findNearbyInteractable(): (Instance?, string?)
 			table.insert(includeList, folder) 
 		end
 	end
+
+	-- [특수 처리] Con_Doctor는 폴더 외부에 있어도 상호작용 가능하도록 추가
+	local doctor = workspace:FindFirstChild("Con_Doctor")
+	if doctor then
+		table.insert(includeList, doctor)
+		if not folderObjects["NPCs"] then
+			folderObjects["NPCs"] = doctor
+		end
+	end
 	
-	if #includeList == 0 then return nil, nil end
+	if #includeList == 0 then 
+		return nil, nil 
+	end
 	overlapParams.FilterDescendantsInstances = includeList
 	
 	-- 반경 내 파트 검색
-	local nearbyParts = workspace:GetPartBoundsInRadius(playerPos, INTERACT_DISTANCE, overlapParams)
+	local searchRadius = math.max(INTERACT_DISTANCE, (Balance.SHOP_INTERACT_RANGE or 10) + 4)
+	local nearbyParts = workspace:GetPartBoundsInRadius(playerPos, searchRadius, overlapParams)
 	
 	local closestTarget = nil
 	local closestType = nil
-	local closestDist = INTERACT_DISTANCE + 1
+	local closestDist = searchRadius + 1
 	local closestScore = math.huge
 
 	local closestFacility = nil
-	local closestFacilityDist = INTERACT_DISTANCE + FACILITY_INTERACT_BONUS + 1
+	local closestFacilityDist = searchRadius + FACILITY_INTERACT_BONUS + 1
 	
 	local typeMap = {
 		ResourceNodes = "resource",
@@ -357,35 +366,52 @@ local function findNearbyInteractable(): (Instance?, string?)
 	}
 	
 	for _, part in ipairs(nearbyParts) do
-		-- [UX 개선] IsDescendantOf 및 Marker 기반 탐색으로 중첩 폴더 대응
 		local entity = nil
 		local currentType = nil
 		
-		for folderName, folder in pairs(folderObjects) do
-			if part:IsDescendantOf(folder) then
-				currentType = typeMap[folderName]
-				
-				-- 상호작용 가능한 루트 탐색 (ID 속성 우선)
-				local check = part
-				while check and check ~= folder do
-					if check:GetAttribute("NodeId") or 
-					   check:GetAttribute("FacilityId") or 
-					   check:GetAttribute("NPCId") or
-					   check:GetAttribute("IsPal") or
-					   game:GetService("CollectionService"):HasTag(check, "ResourceNode") then
-						entity = check
-						break
-					end
-					
-					-- 폴더의 직계 자식 Model이면 엔티티로 후보 등록
-					-- ★ Folder(TROPICAL 등 서브폴더)는 제외하여 속성 누락 경고 방지
-					if check.Parent == folder and check:IsA("Model") then
-						entity = entity or check
-						break
-					end
-					check = check.Parent
+		-- 1. 특수 대상(Con_Doctor) 우선 체크
+		local isDoctor = (doctor and (part == doctor or part:IsDescendantOf(doctor)))
+		if isDoctor then
+			currentType = "npc"
+			-- 상호작용 가능한 루트(Con_Doctor 모델) 탐색
+			local check = part
+			while check do
+				if check == doctor then
+					entity = check
+					break
 				end
-				break
+				if check == workspace then break end
+				check = check.Parent
+			end
+		end
+
+		-- 2. 일반 폴더 기반 체크 (아직 대상을 못 찾은 경우)
+		if not entity then
+			for folderName, folder in pairs(folderObjects) do
+				if part:IsDescendantOf(folder) then
+					currentType = typeMap[folderName]
+					
+					local check = part
+					while check do
+						if check:GetAttribute("NodeId") or 
+						   check:GetAttribute("FacilityId") or 
+						   check:GetAttribute("NPCId") or
+						   check:GetAttribute("IsPal") or
+						   game:GetService("CollectionService"):HasTag(check, "ResourceNode") then
+							entity = check
+							break
+						end
+						
+						if check.Parent == folder then
+							entity = entity or check
+							break
+						end
+						
+						if check == folder or check == workspace then break end
+						check = check.Parent
+					end
+					break
+				end
 			end
 		end
 		
@@ -455,19 +481,6 @@ local function findNearbyInteractable(): (Instance?, string?)
 		end
 	end
 
-	-- 스토리 무전기 탐색 (워크스페이스 어디에 있든 상호작용 가능)
-	if not RadioStoryController.isCompleted() then
-		local radioModel = workspace:FindFirstChild(RADIO_MODEL_NAME, true)
-		if radioModel then
-			local radioDist = getDistToModel(radioModel, playerPos)
-			if radioDist <= math.max(INTERACT_DISTANCE, RADIO_INTERACT_DISTANCE) and radioDist < closestDist then
-				closestDist = radioDist
-				closestTarget = radioModel
-				closestType = "radio"
-			end
-		end
-	end
-	
 	return closestTarget, closestType, closestFacility
 end
 
@@ -485,6 +498,15 @@ local function interactNPC(target: Instance)
 	
 	print("[InteractController] Interacting with NPC:", npcId)
 	
+	if npcId == "Con_Doctor" or target.Name == "Con_Doctor" then
+		if NPCRadialUI.IsOpen() then
+			NPCRadialUI.Close()
+		else
+			NPCRadialUI.Open(target)
+		end
+		return
+	end
+
 	if npcType == "shop" then
 		-- 상점 열기
 		if UIManager then
@@ -492,7 +514,12 @@ local function interactNPC(target: Instance)
 		end
 	else
 		-- 대화 등 다른 상호작용
-		print("[InteractController] NPC dialogue not implemented")
+		print("[InteractController] NPC interaction for", npcId, "falling back to radial menu")
+		if NPCRadialUI.IsOpen() then
+			NPCRadialUI.Close()
+		else
+			NPCRadialUI.Open(target)
+		end
 	end
 end
 
@@ -645,6 +672,10 @@ function InteractController.onFacilityInteractPress()
 			PortalRUI.Close()
 			return
 		end
+		if NPCRadialUI.IsOpen() then
+			NPCRadialUI.Close()
+			return
+		end
 		-- 윈도우 UI (인벤토리 등) 닫기 시도
 		local ok_WM, WindowManagerMod = pcall(require, Client.Utils.WindowManager)
 		if ok_WM and WindowManagerMod and WindowManagerMod.closeAll then
@@ -659,16 +690,6 @@ function InteractController.onFacilityInteractPress()
 		if not ok and UIManager then
 			UIManager.notify("지금은 내릴 수 없습니다.", Color3.fromRGB(255, 120, 120))
 		end
-		return
-	end
-
-	if RadioStoryController.shouldConsumeInteractKey and RadioStoryController.shouldConsumeInteractKey() then
-		RadioStoryController.interact()
-		return
-	end
-
-	if currentTarget and currentTargetType == "radio" then
-		RadioStoryController.interact()
 		return
 	end
 
@@ -869,7 +890,6 @@ local function onUpdate()
 	end
 
 	if UIManager then
-		RadioStoryController.ensureRinging()
 		if currentTarget then
 			local promptText = ""
 			local targetName = nil
@@ -890,6 +910,13 @@ local function onUpdate()
 			end
 
 			targetName = targetName or currentTarget:GetAttribute("DisplayName")
+			if not targetName or targetName == "" then
+				if currentTarget.Name == "Con_Doctor" then
+					targetName = "콘닥터"
+				else
+					targetName = currentTarget.Name
+				end
+			end
 
 			if currentTargetType == "radio" then
 				targetName = UILocalizer.Localize("비상 무전기")
@@ -941,7 +968,6 @@ function InteractController.Init()
 		UIManager = require(Client.UIManager)
 	end)
 
-	RadioStoryController.Init()
 	InteractController.rebindDefaultKeys()
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)

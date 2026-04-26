@@ -165,6 +165,11 @@ Protocol.Commands = {
 	["Tutorial.Step.Complete.Request"] = true,
 	["Tutorial.Admin.Reset.Request"] = true,
 	["Tutorial.Admin.SetStep.Request"] = true,
+	
+	-- Quest 명령어 (Remastered)
+	["Quest.GetList.Request"] = true,
+	["Quest.Accept.Request"] = true,
+	["Quest.Complete.Request"] = true,
 
 
 	-- Recall 명령어 (귀환 텔레포트)

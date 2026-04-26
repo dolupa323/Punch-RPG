@@ -161,6 +161,7 @@ local SkillTreeUI = require(UI.SkillTreeUI)
 local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
 local HarvestUI = require(UI.HarvestUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
+local QuestUI = require(UI.QuestUI)
 
 
 local SkillController = require(Controllers.SkillController)
@@ -264,7 +265,7 @@ function UIManager.requestTutorialStepComplete()
 	end
 
 	if not ok then
-		UIManager.notify("완료 조건을 확인할 수 없습니다. 무전기를 다시 확인해 주세요.", C.WHITE)
+		UIManager.notify("완료 조건을 확인할 수 없습니다. 목표를 다시 확인해 주세요.", C.WHITE)
 		return false
 	end
 
@@ -1417,6 +1418,10 @@ end
 ----------------------------------------------------------------
 function UIManager.openShop(shopId)
 	WindowManager.open("SHOP", shopId)
+end
+
+function UIManager.openQuestList(npcModel)
+	QuestUI:Open(npcModel)
 end
 
 function UIManager._onOpenShop(shopId)
@@ -3111,6 +3116,7 @@ function UIManager.Init()
 	TotemUI.Init(mainGui, UIManager, isMobile)
 	PortalUI.Init(mainGui, UIManager, isMobile)
 	PortalRadialUI:Init(UIManager)
+	QuestUI:Init(UIManager)
 	SkillTreeUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.SetController(SkillController)
 	ActiveSkillBarUI.Init(mainGui)

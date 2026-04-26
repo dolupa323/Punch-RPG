@@ -15,6 +15,9 @@ local T = Theme.Transp
 
 local HUDUI = {}
 local Controllers = script.Parent.Parent:WaitForChild("Controllers")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+local isSmall = isMobile
+local isTutorialMinimized = false
 local tutorialWantedVisible = false
 local tutorialReady = false
 local tutorialPulseTween = nil
@@ -311,6 +314,43 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		vis = false,
 		parent = parent,
 	})
+	
+	local function updateTutorialMinimize()
+		local expandedSize = UDim2.new(0, isSmall and 460 or 420, 0, isSmall and 190 or 170)
+		local minimizedSize = UDim2.new(0, isSmall and 460 or 420, 0, 48)
+		
+		tutorialFrame.Size = isTutorialMinimized and minimizedSize or expandedSize
+		
+		for _, child in ipairs(tutorialFrame:GetChildren()) do
+			if child.Name ~= "TutorialTitle" and child.Name ~= "MinimizeBtn" and child:IsA("GuiObject") and child.Name ~= "UIGradient" then
+				child.Visible = not isTutorialMinimized
+			end
+		end
+		
+		if HUDUI.Refs.minimizeBtn then
+			HUDUI.Refs.minimizeBtn.Text = isTutorialMinimized and "+" or "-"
+		end
+	end
+
+	local minimizeBtn = Utils.mkBtn({
+		name = "MinimizeBtn",
+		text = "-",
+		size = UDim2.new(0, 32, 0, 32),
+		pos = UDim2.new(1, -8, 0, 8),
+		anchor = Vector2.new(1, 0),
+		bg = C.BG_PANEL_L,
+		bgT = 0.8,
+		ts = 20,
+		font = F.TITLE,
+		color = C.WHITE,
+		fn = function()
+			isTutorialMinimized = not isTutorialMinimized
+			updateTutorialMinimize()
+		end,
+		parent = tutorialFrame,
+	})
+	HUDUI.Refs.minimizeBtn = minimizeBtn
+	Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 4)
 
 	local tutorialGradient = Instance.new("UIGradient")
 	tutorialGradient.Rotation = 90
@@ -1236,15 +1276,24 @@ function HUDUI.UpdateTutorialStatus(status)
 
 	if HUDUI.Refs.tutorialCompleteBtn then
 		local ready = status.stepReady == true
-		HUDUI.Refs.tutorialCompleteBtn.Visible = true
+		HUDUI.Refs.tutorialCompleteBtn.Visible = not isTutorialMinimized
 		HUDUI.Refs.tutorialCompleteBtn.AutoButtonColor = ready
 		HUDUI.Refs.tutorialCompleteBtn.Active = ready
 		HUDUI.Refs.tutorialCompleteBtn.BackgroundTransparency = ready and 0.9 or 0.95
 		HUDUI.Refs.tutorialCompleteBtn.Text = ready and UILocalizer.Localize("완료") or UILocalizer.Localize("진행중")
 		if HUDUI.Refs.tutorialClickArea then
-			HUDUI.Refs.tutorialClickArea.Active = ready
+			HUDUI.Refs.tutorialClickArea.Active = ready and not isTutorialMinimized
 		end
 		_setReadyPulse(ready)
+	end
+	
+	-- 접힌 상태 레이아웃 강제 업데이트
+	if isTutorialMinimized then
+		for _, child in ipairs(HUDUI.Refs.tutorialFrame:GetChildren()) do
+			if child.Name ~= "TutorialTitle" and child.Name ~= "MinimizeBtn" and child:IsA("GuiObject") and child.Name ~= "UIGradient" then
+				child.Visible = false
+			end
+		end
 	end
 
 	local shownStep = math.max(1, tonumber(status.stepIndex) or 1)

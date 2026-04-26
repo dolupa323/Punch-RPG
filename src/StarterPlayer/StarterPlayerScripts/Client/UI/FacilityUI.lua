@@ -131,6 +131,8 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 			FacilityUI.SetTab(tabInfo.id)
 		end)
 	end
+	
+	
 
 	local function updateTabVisuals()
 		for id, ref in pairs(FacilityUI.Refs.Tabs) do
@@ -320,6 +322,11 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	end)
 
 	syncQtyUI()
+	
+	-- 초기 시각화 적용 (첫 클릭 전에도 검은색이 나오지 않도록)
+	if updateTabVisuals then
+		updateTabVisuals()
+	end
 end
 
 function FacilityUI.Refresh(recipeList, getIcon, UIManager, isTabSwitch)

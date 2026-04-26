@@ -74,11 +74,8 @@ local function checkCollision(position: Vector3, facilityId: string): boolean
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	
-	-- facilitiesFolder + Terrain 포함 (자연 지물과의 충돌 감지)
+	-- facilitiesFolder만 검사 (지형은 validatePosition에서 별도로 체크함)
 	local filterList = { facilitiesFolder }
-	if terrain then
-		table.insert(filterList, terrain)
-	end
 	overlapParams.FilterDescendantsInstances = filterList
 	
 	local parts = workspace:GetPartBoundsInRadius(position, collisionRadius * 1.5, overlapParams)
@@ -166,6 +163,11 @@ local function isValidFieldSurface(hitInstance: Instance?, hitNormal: Vector3, h
 			[Enum.Material.Ground] = true,
 			[Enum.Material.LeafyGrass] = true,
 			[Enum.Material.Mud] = true,
+			[Enum.Material.Sand] = true,      -- 사막 구역 대응
+			[Enum.Material.Snow] = true,      -- 설원 구역 대응
+			[Enum.Material.Rock] = true,      -- 산악/바위 구역 대응
+			[Enum.Material.Sandstone] = true, -- 사막 바위 대응
+			[Enum.Material.Salt] = true,      -- 소금평원 대응
 		}
 		if not strictAllowedTerrainMaterial[hitMaterial] then
 			return false
