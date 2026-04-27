@@ -100,7 +100,18 @@ local function serializeStatus(userId)
 			
 			-- 단계 정보 (단일 단계 퀘스트이므로 1/1 고정)
 			status.stepIndex = 1
-			status.totalSteps = 1
+			local poolSize = 1
+			if active and active.id then
+				for _, pool in pairs(QuestData.Quests) do
+					for _, q in ipairs(pool) do
+						if q.id == active.id then
+							poolSize = #pool
+							break
+						end
+					end
+				end
+			end
+			status.totalSteps = poolSize
 			
 			-- UI 텍스트 필드
 			status.currentStepText = qData.title

@@ -59,7 +59,7 @@ local ZONE_CONFIGS = {
 			{ id = "PARASAUR", weight = 70 },
 			{ id = "STEGOSAURUS", weight = 50 },
 			{ id = "KELENKEN", weight = 50 },
-			{ id = "DEINOCHEIRUS", weight = 30 },
+			{ id = "SABERTOOTH", weight = 30 },
 		},
 		Harvests = {
 			{ id = "BUSH_BERRY", weight = 70 },
@@ -76,7 +76,7 @@ local ZONE_CONFIGS = {
 			{ id = "GIGANTORAPTOR", weight = 50 },
 			{ id = "TRICERATOPS", weight = 35 },
 			{ id = "TITANOSAURUS", weight = 10 },
-			{ id = "ALLOSAURUS", weight = 5 },
+			{ id = "YUTYRANNUS", weight = 5 },
 		},
 		Harvests = {
 			{ id = "ROCK_SOFT", weight = 50 },
@@ -87,7 +87,6 @@ local ZONE_CONFIGS = {
 	},
 	SNOWY = {
 		Creatures = {
-			{ id = "ALLOSAURUS", weight = 40 },
 			{ id = "TITANOSAURUS", weight = 15 },
 		},
 		Harvests = {

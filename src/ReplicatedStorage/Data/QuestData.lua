@@ -74,10 +74,10 @@ QuestData.Quests = {
 		{
 			id = "T10_KILL_ARCHAEO",
 			title = "시조새 사냥",
-			desc = "시조새(ARCHAEOPTERYX) 3마리를 처치하십시오.",
+			desc = "시조새(ARCHAEOPTERYX) 1마리를 처치하십시오.",
 			kind = "KILL",
 			target = "ARCHAEOPTERYX",
-			count = 3,
+			count = 1,
 			rewardGold = 500,
 		},
 		{
@@ -177,10 +177,10 @@ QuestData.Quests = {
 		},
 		{
 			id = "T40_KILL_ALLOSAUR",
-			title = "알로사우루스 사냥",
-			desc = "알로사우루스(ALLOSAURUS) 1마리를 처치하십시오.",
+			title = "유티라누스 사냥",
+			desc = "유티라누스(YUTYRANNUS) 1마리를 처치하십시오.",
 			kind = "KILL",
-			target = "ALLOSAURUS",
+			target = "YUTYRANNUS",
 			rewardGold = 7000,
 		},
 		{

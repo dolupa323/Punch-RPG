@@ -148,6 +148,10 @@ end
 local function applySkillDamage(player: Player, targetInstanceId: string, damage: number, isBlunt: boolean?, lastKnownPos: Vector3?, isCritical: boolean?)
 	if not CreatureService then return false, false end
 	
+	-- ★ 캐싱: processAttack 이후에는 사망 시 크리처 데이터가 삭제되므로 미리 확보
+	local creature = CreatureService.getCreatureRuntime(targetInstanceId)
+	local creatureData = creature and creature.data
+	
 	local userId = player.UserId
 	local hpDamage = damage
 	local torporDamage = 0
@@ -159,7 +163,6 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 
 	-- ★ 레벨 차이 데미지 보정 (Active Skill)
 	if CombatService and CombatService.getLevelModifier then
-		local creature = CreatureService.getCreatureRuntime(targetInstanceId)
 		if creature then
 			local playerLevel = PlayerStatService.getLevel(userId)
 			local creatureLevel = creature.level or 1
@@ -187,7 +190,7 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 	end
 	
 	-- 넉백 + 피격 연출
-	local creature = CreatureService.getCreatureRuntime(targetInstanceId)
+	-- 여기서 creature는 이미 위에서 선언됨.
 	local displayPos = lastKnownPos -- 폴백 위치
 	if creature and creature.rootPart then
 		local creaturePos = creature.rootPart.Position
@@ -235,9 +238,8 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 			hitPosData = { x = displayPos.X, y = displayPos.Y, z = displayPos.Z }
 		end
 		-- HP 데이터 조회 (전투 UI 갱신용)
-		local skillCreature = CreatureService.getCreatureRuntime(targetInstanceId)
-		local curHP = skillCreature and skillCreature.currentHealth or 0
-		local mxHP = skillCreature and (skillCreature.maxHealth or (skillCreature.data and skillCreature.data.maxHealth)) or 100
+		local curHP = creature and creature.currentHealth or 0
+		local mxHP = creature and (creature.maxHealth or (creatureData and creatureData.maxHealth)) or 100
 		NetController.FireClient(player, "Combat.Hit.Result", {
 			damage = hpDamage,
 			torporDamage = torporDamage,
@@ -252,11 +254,17 @@ local function applySkillDamage(player: Player, targetInstanceId: string, damage
 	end
 	
 	-- 킬 시 드롭 + 피냄새
-	if killed and dropPos and creature then
+	if killed and dropPos then
 		if DebuffService then
 			DebuffService.applyDebuff(userId, "BLOOD_SMELL")
 		end
 		-- 드롭은 CombatService에서만 처리 (중복 방지) → 여기서는 생략
+		local Server = game:GetService("ServerScriptService"):WaitForChild("Server")
+		local Services = Server:WaitForChild("Services")
+		local SafeTutorialQuestService = require(Services.TutorialQuestService)
+		if SafeTutorialQuestService and creatureData then
+			SafeTutorialQuestService.onKilled(userId, creatureData.id or creatureData.creatureId)
+		end
 	end
 	
 	return killed, dropPos

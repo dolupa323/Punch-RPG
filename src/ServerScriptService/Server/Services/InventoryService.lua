@@ -929,6 +929,60 @@ function InventoryService.drop(player: Player, slot: number, count: number?): (b
 	}
 end
 
+--- 아이템 ID를 기준으로 여러 슬롯에서 합계 수량만큼 드랍
+function InventoryService.dropByItemId(player: Player, itemId: string, count: number): (boolean, string?, any?)
+	local userId = player.UserId
+	local inv = playerInventories[userId]
+	
+	if not inv then
+		return false, Enums.ErrorCode.NOT_FOUND, nil
+	end
+	
+	-- 수량 검증
+	local ok, err = _validateCount(count)
+	if not ok then return false, err, nil end
+	
+	local remaining = count
+	local totalDropped = 0
+	local changes = {}
+	local firstDroppedItem = nil -- 첫 번째로 찾은 슬롯의 아이템 정보 (내구도 등 보존용)
+	
+	-- 슬롯 순회하며 제거
+	for slot = 1, Balance.MAX_INV_SLOTS do
+		if remaining <= 0 then break end
+		
+		local slotData = inv.slots[slot]
+		if slotData and slotData.itemId == itemId then
+			local canRemove = math.min(remaining, slotData.count)
+			
+			if not firstDroppedItem then
+				firstDroppedItem = {
+					itemId = itemId,
+					count = 0,
+					durability = slotData.durability
+				}
+			end
+			
+			_decreaseSlot(inv, slot, canRemove)
+			remaining = remaining - canRemove
+			totalDropped = totalDropped + canRemove
+			table.insert(changes, _makeChange(inv, slot))
+		end
+	end
+	
+	if totalDropped > 0 then
+		firstDroppedItem.count = totalDropped
+		_emitChanged(player, changes)
+		
+		return true, nil, {
+			dropped = firstDroppedItem,
+			changes = changes,
+		}
+	end
+	
+	return false, Enums.ErrorCode.ITEM_MISMATCH, nil
+end
+
 --========================================
 -- Public API: MoveInternal (범용 컨테?�너 �??�동)
 -- StorageService ?�에???�사??
@@ -1640,6 +1694,14 @@ local function handleDrop(player: Player, payload: any)
 	return { success = true, data = data }  -- data.dropped 포함
 end
 
+local function handleDropByItemId(player: Player, payload: any)
+	local itemId = payload.itemId
+	local count = payload.count
+	local success, errorCode, data = InventoryService.dropByItemId(player, itemId, count)
+	if not success then return { success = false, errorCode = errorCode } end
+	return { success = true, data = data }
+end
+
 local function handleDropGold(player: Player, payload: any)
 	local count = math.floor(tonumber(payload and payload.count) or 0)
 	if count < 1 then
@@ -2143,6 +2205,7 @@ function InventoryService.GetHandlers()
 		["Inventory.Move.Request"] = handleMove,
 		["Inventory.Split.Request"] = handleSplit,
 		["Inventory.Drop.Request"] = handleDrop,
+		["Inventory.DropByItemId.Request"] = handleDropByItemId,
 		["Inventory.DropGold.Request"] = handleDropGold,
 		["Inventory.Get.Request"] = handleGetInventory,
 		["Inventory.ActiveSlot.Request"] = handleActiveSlot,

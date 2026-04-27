@@ -494,8 +494,8 @@ SkillTreeData.TAMING = {
 		effects = {
 			{ stat = "TAMING_RATE_BONUS", value = 0.04 },
 		},
-		unlockCreatures = { "PARASAUR", "TRICERATOPS", "DEINOCHEIRUS", "STEGOSAURUS", "ALLOSAURUS" },
-		description = "포획 확률 +4%\n파라사우롤로푸스, 트리케라톱스, 데이노키루스, 스테고사우루스, 알로사우루스 포획 해금",
+		unlockCreatures = { "PARASAUR", "TRICERATOPS", "SABERTOOTH", "STEGOSAURUS", "YUTYRANNUS" },
+		description = "포획 확률 +4%\n파라사우롤로푸스, 트리케라톱스, 검치호, 스테고사우루스, 유티라누스 포획 해금",
 	},
 	{
 		id = "TAMING_T4",

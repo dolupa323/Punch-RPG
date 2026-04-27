@@ -95,26 +95,26 @@ local CreatureAnimationIds = {
 		MOUNT_RUN = "Kelenken_Run",
 	},
 
-	-- 데이노키루스
-	DEINOCHEIRUS = {
-		IDLE = "Deinocheirus_Idle",
-		WALK = "Deinocheirus_Walk",
-		RUN = "Deinocheirus_Run",
-		ATTACK = "Deinocheirus_Attack",
-		DEATH = "Deinocheirus_Death",
-		MOUNT_IDLE = "Deinocheirus_Idle",
-		MOUNT_RUN = "Deinocheirus_Run",
+	-- 검치호
+	SABERTOOTH = {
+		IDLE = "Sabertooth_Idle",
+		WALK = "Sabertooth_Walk",
+		RUN = "Sabertooth_Run",
+		ATTACK = "Sabertooth_Attack",
+		DEATH = "Sabertooth_Death",
+		MOUNT_IDLE = "Sabertooth_Idle",
+		MOUNT_RUN = "Sabertooth_Run",
 	},
 
-	-- 알로사우루스
-	ALLOSAURUS = {
-		IDLE = "Allosaurus_Idle",
-		WALK = "Allosaurus_Walk",
-		RUN = "Allosaurus_Run",
-		ATTACK = "Allosaurus_Attack",
-		DEATH = "Allosaurus_Death",
-		MOUNT_IDLE = "Allosaurus_Idle",
-		MOUNT_RUN = "Allosaurus_Run",
+	-- 유티라누스
+	YUTYRANNUS = {
+		IDLE = "Yutyrannus_Idle",
+		WALK = "Yutyrannus_Walk",
+		RUN = "Yutyrannus_Run",
+		ATTACK = "Yutyrannus_Attack",
+		DEATH = "Yutyrannus_Death",
+		MOUNT_IDLE = "Yutyrannus_Idle",
+		MOUNT_RUN = "Yutyrannus_Run",
 	},
 
 	-- 기간토랍토르

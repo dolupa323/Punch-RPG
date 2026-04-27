@@ -57,11 +57,16 @@ local DropTableData = {
 		{ itemId = "BONE", chance = 0.8, min = 3, max = 6 },
 		{ itemId = "HORN", chance = 0.4, min = 1, max = 2 },
 	},
-	["ALLOSAURUS"] = {
+	["YUTYRANNUS"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 5, max = 10 },
 		{ itemId = "DESERT_LEATHER", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BONE", chance = 1.0, min = 2, max = 4 },
 		{ itemId = "SHARP_TOOTH", chance = 0.8, min = 2, max = 5 },
+	},
+	["SABERTOOTH"] = {
+		{ itemId = "MEAT", chance = 1.0, min = 2, max = 4 },
+		{ itemId = "TROPICAL_LEATHER", chance = 1.0, min = 2, max = 3 },
+		{ itemId = "SHARP_TOOTH", chance = 1.0, min = 2, max = 2 },
 	},
 	["GIGANTORAPTOR"] = {
 		{ itemId = "MEAT", chance = 1.0, min = 1, max = 2 },

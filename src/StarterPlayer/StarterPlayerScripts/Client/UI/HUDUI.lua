@@ -1208,7 +1208,8 @@ local function _buildProgressText(status)
 		return table.concat(chunks, "  |  ")
 	end
 
-	if status.stepKind == "ITEM_ANY" then
+	local isCountBased = status.stepKind == "ITEM_ANY" or status.stepKind == "KILL" or status.stepKind == "BUILD" or status.stepKind == "HARVEST"
+	if isCountBased then
 		local nowCount = progress.count or 0
 		local needCount = status.stepCount or 1
 		return UILocalizer.Localize(string.format("진행도: %d / %d", nowCount, needCount))

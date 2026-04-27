@@ -89,7 +89,30 @@ local function handleInventoryDropWithWorldDrop(player, payload)
 	end
 	return { success = true, data = data }
 end
+
+local function handleInventoryDropByItemIdWithWorldDrop(player, payload)
+	local itemId = payload.itemId
+	local count = payload.count
+	local success, errorCode, data = InventoryService.dropByItemId(player, itemId, count)
+	if not success then return { success = false, errorCode = errorCode } end
+	
+	local dropped = data.dropped
+	if dropped then
+		local character = player.Character
+		if character then
+			local hrp = character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
+				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability)
+				if spawnOk then data.worldDrop = spawnData end
+			end
+		end
+	end
+	return { success = true, data = data }
+end
+
 NetController.RegisterHandler("Inventory.Drop.Request", handleInventoryDropWithWorldDrop)
+NetController.RegisterHandler("Inventory.DropByItemId.Request", handleInventoryDropByItemIdWithWorldDrop)
 
 local StaminaService = require(Services.StaminaService)
 StaminaService.Init(NetController)
