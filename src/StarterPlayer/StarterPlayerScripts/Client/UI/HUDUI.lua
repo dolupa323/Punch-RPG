@@ -364,7 +364,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	HUDUI.Refs.tutorialTitle = Utils.mkLabel({
 		name = "TutorialTitle",
-		text = UILocalizer.Localize("튜토리얼 퀘스트"),
+		text = UILocalizer.Localize("퀘스트"),
 		size = UDim2.new(1, -16, 0, 32),
 		pos = UDim2.new(0, 10, 0, 8),
 		ax = Enum.TextXAlignment.Left,
@@ -1232,7 +1232,7 @@ function HUDUI.UpdateTutorialStatus(status)
 	end
 
 	if status.completed then
-		HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("튜토리얼 완료")
+		HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트 완료")
 		HUDUI.Refs.tutorialStep.Text = UILocalizer.Localize("기본 생존 가이드를 모두 마쳤습니다.\n가이드: 이제부터는 네 판단으로 살아남아.")
 		local completedReward = _buildRewardText(status.reward or status.rewardPreview)
 		HUDUI.Refs.tutorialProgress.Text = UILocalizer.Localize("보상이 지급되었습니다")
@@ -1257,7 +1257,7 @@ function HUDUI.UpdateTutorialStatus(status)
 		return
 	end
 
-	HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize(string.format("튜토리얼 퀘스트 (%d/%d)", status.stepIndex or 0, status.totalSteps or 0))
+	HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트")
 	local stepLines = {}
 	local currentStepText = localizeTutorialStepField(status, "currentStepText")
 	if currentStepText ~= "" then
@@ -1299,7 +1299,7 @@ function HUDUI.UpdateTutorialStatus(status)
 
 	local shownStep = math.max(1, tonumber(status.stepIndex) or 1)
 	local totalSteps = math.max(1, tonumber(status.totalSteps) or 1)
-	HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize(string.format("튜토리얼 퀘스트 (%d/%d)", shownStep, totalSteps))
+	HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트")
 	HUDUI.SetTutorialVisible(true)
 end
 
