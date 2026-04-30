@@ -162,6 +162,9 @@ local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
 local HarvestUI = require(UI.HarvestUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
 local QuestUI = require(UI.QuestUI)
+local FacilityRadialUI = require(UI.FacilityRadialUI)
+local PalRadialUI = require(UI.PalRadialUI)
+local NPCRadialUI = require(UI.NPCRadialUI)
 
 
 local SkillController = require(Controllers.SkillController)
@@ -204,12 +207,16 @@ end
 
 local function updateUIMode()
 	local anyOpen = WindowManager.isAnyOpen()
-	InputManager.setUIOpen(anyOpen)
-	UIManager._setMainHUDVisible(not anyOpen)
+	local hasFullWindow = WindowManager.hasFullWindowOpen()
 	
-	-- 액티브 스킬바도 UI가 열릴 때 숨김 (겹침 방지)
+	InputManager.setUIOpen(anyOpen)
+	
+	-- 전체 화면 창(인벤토리 등)이 열릴 때만 메인 HUD를 숨김
+	UIManager._setMainHUDVisible(not hasFullWindow)
+	
+	-- 액티브 스킬바도 전체 화면 UI가 열릴 때만 숨김
 	if ActiveSkillBarUI and ActiveSkillBarUI.SetVisible then
-		ActiveSkillBarUI.SetVisible(not anyOpen)
+		ActiveSkillBarUI.SetVisible(not hasFullWindow)
 	end
 end
 
@@ -1185,7 +1192,7 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 				
 				local btn = mkBtn({name="B", size=UDim2.new(1,0,1,0), bgT=1, z=25, parent=nf})
 				btn.MouseButton1Click:Connect(function()
-					selectedPersonalRecipeId = recipe.id
+				selectedPersonalRecipeId = recipe.id
 					UIManager.refreshPersonalCrafting() -- Refresh strokes
 					UIManager._updatePersonalCraftDetail(recipe)
 				end)
@@ -1839,22 +1846,20 @@ end
 -- Portal UI (Radial Menu)
 ----------------------------------------------------------------
 
-function UIManager.openPortal(status)
-	if not status then return end
-	PortalRadialUI:Open(status)
+function UIManager.openPortalRadial(status)
+	WindowManager.open("PORTAL_RADIAL", status)
 end
 
-function UIManager.closePortal()
-	PortalRadialUI:Close()
-	PortalUI.SetVisible(false)
+function UIManager.closePortalRadial()
+	WindowManager.close("PORTAL_RADIAL")
 end
 
 function UIManager._onOpenPortal(data)
-	UIManager.openPortal(data)
+	UIManager.openPortalRadial(data)
 end
 
 function UIManager._onClosePortal()
-	UIManager.closePortal()
+	UIManager.closePortalRadial()
 end
 
 function UIManager.refreshPortal(newData)
@@ -2794,7 +2799,7 @@ local function setupEventListeners()
 	-- Portal Events (고대 포탈 시스템)
 	if NetClient.On then
 		NetClient.On("Portal.UI.Open", function(data)
-			UIManager.openPortal(data)
+			UIManager.openPortalRadial(data)
 		end)
 
 		NetClient.On("Portal.MissingMaterials", function()
@@ -2809,7 +2814,7 @@ local function setupEventListeners()
 
 		NetClient.On("Portal.Teleporting", function(data)
 			local dest = (data and data.destination) or "다음 섬"
-			UIManager.closePortal()
+			UIManager.closePortalRadial()
 
 			local oldFadeGui = player.PlayerGui:FindFirstChild("PortalFadeGui")
 			if oldFadeGui then
@@ -3089,6 +3094,25 @@ function UIManager.Init()
 	mainGui.IgnoreGuiInset = true -- SafeArea 제어를 위해 true 설정
 	mainGui.Parent = playerGui
 
+	-- [Click-Outside-to-Close] 전역 배경용 전용 레이어 (HUD 뒤에 배치하기 위해 분리)
+	local dimGui = Instance.new("ScreenGui")
+	dimGui.Name = "GlobalDimGui"
+	dimGui.DisplayOrder = -10 -- HUD 및 모든 UI보다 뒤에 배치
+	dimGui.IgnoreGuiInset = true
+	dimGui.ResetOnSpawn = false
+	dimGui.Parent = playerGui
+
+	local globalDim = Instance.new("Frame")
+	globalDim.Name = "GlobalDimBackground"
+	globalDim.Size = UDim2.new(1, 0, 1, 0)
+	globalDim.BackgroundTransparency = 1
+	globalDim.BackgroundColor3 = Color3.new(0, 0, 0)
+	globalDim.BorderSizePixel = 0
+	globalDim.Active = false
+	globalDim.Visible = false
+	globalDim.Parent = dimGui
+	WindowManager.setDimBackground(globalDim)
+
 	-- [Responsive] UIScale 도입
 	local uiScale = Instance.new("UIScale")
 	uiScale.Parent = mainGui
@@ -3125,6 +3149,13 @@ function UIManager.Init()
 	CraftingUI.Init(mainGui, UIManager, isMobile)
 	ShopUI.Init(mainGui, UIManager, isMobile)
 	InteractUI.Init(mainGui, isMobile)
+	if InteractUI.Refs.PromptFrame then
+		InteractUI.Refs.PromptFrame.MouseButton1Click:Connect(function()
+			if InteractController and InteractController.onFacilityInteractPress then
+				InteractController.onFacilityInteractPress()
+			end
+		end)
+	end
 	EquipmentUI.Init(mainGui, UIManager, Enums, isMobile)
 	equipmentUIFrame = EquipmentUI.Refs.Frame
 	BuildUI.Init(mainGui, UIManager, isMobile)
@@ -3182,6 +3213,13 @@ function UIManager.Init()
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
 	WindowManager.register("QUEST", UIManager._onOpenQuest, UIManager._onCloseQuest)
+
+	-- [NEW] 상호작용 방사형 UI 등록
+	WindowManager.register("HARVEST", HarvestUI.Open, HarvestUI.Close)
+	WindowManager.register("FACILITY_RADIAL", FacilityRadialUI.Open, FacilityRadialUI.Close)
+	WindowManager.register("PAL_RADIAL", PalRadialUI.Open, PalRadialUI.Close)
+	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
+	WindowManager.register("NPC_RADIAL", NPCRadialUI.Open, NPCRadialUI.Close)
 
 	-- ★ 오픈/닫기 애니메이션용 메인 패널 프레임 등록
 	-- 오버레이 구조(INV, BUILD 등): 첫 자식 윈도우가 애니 대상

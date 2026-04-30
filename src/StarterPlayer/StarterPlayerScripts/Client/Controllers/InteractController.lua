@@ -512,9 +512,9 @@ local function interactNPC(target: Instance)
 	
 	if npcId == "Con_Doctor" or target.Name == "Con_Doctor" then
 		if NPCRadialUI.IsOpen() then
-			NPCRadialUI.Close()
+			WindowManager.close("NPC_RADIAL")
 		else
-			NPCRadialUI.Open(target)
+			WindowManager.open("NPC_RADIAL", target)
 		end
 		return
 	end
@@ -522,15 +522,15 @@ local function interactNPC(target: Instance)
 	if npcType == "shop" then
 		-- 상점 열기
 		if UIManager then
-			UIManager.openShop(npcId)
+			WindowManager.open("SHOP", npcId)
 		end
 	else
 		-- 대화 등 다른 상호작용
 		print("[InteractController] NPC interaction for", npcId, "falling back to radial menu")
 		if NPCRadialUI.IsOpen() then
-			NPCRadialUI.Close()
+			WindowManager.close("NPC_RADIAL")
 		else
-			NPCRadialUI.Open(target)
+			WindowManager.open("NPC_RADIAL", target)
 		end
 	end
 end
@@ -542,9 +542,9 @@ local function interactFacility(target: Instance)
 	end
 	
 	if FacilityRadialUI.IsOpen() then
-		FacilityRadialUI.Close()
+		WindowManager.close("FACILITY_RADIAL")
 	else
-		FacilityRadialUI.Open(target)
+		WindowManager.open("FACILITY_RADIAL", target)
 	end
 end
 
@@ -665,34 +665,8 @@ end
 --- R키 눌림 처리 (건물/시설 상호작용 전용)
 function InteractController.onFacilityInteractPress()
 	if InputManager.isUIOpen() then
-		-- 시설 상호작용 키(R)로 UI 닫기까지 일관 처리
-		if HarvestUI.IsOpen() then
-			HarvestUI.Close()
-			return
-		end
-		if FacilityRadialUI.IsOpen() then
-			FacilityRadialUI.Close()
-			return
-		end
-		local PalRadialUI = require(Client.UI.PalRadialUI)
-		if PalRadialUI.IsOpen() then
-			PalRadialUI.Close()
-			return
-		end
-		local PortalRUI = require(Client.UI.PortalRadialUI)
-		if PortalRUI.IsOpen() then
-			PortalRUI.Close()
-			return
-		end
-		if NPCRadialUI.IsOpen() then
-			NPCRadialUI.Close()
-			return
-		end
-		-- 윈도우 UI (인벤토리 등) 닫기 시도
-		local ok_WM, WindowManagerMod = pcall(require, Client.Utils.WindowManager)
-		if ok_WM and WindowManagerMod and WindowManagerMod.closeAll then
-			WindowManagerMod.closeAll()
-		end
+		-- [Refactor] 모든 열린 창(방사형 UI 포함)을 WindowManager를 통해 닫음
+		WindowManager.closeAll()
 		return
 	end
 
@@ -715,9 +689,9 @@ function InteractController.onFacilityInteractPress()
 		-- Pal UI 띄우기 처리 (Radial UI)
 		local PalRadialUI = require(Client.UI.PalRadialUI)
 		if PalRadialUI.IsOpen() then
-			PalRadialUI.Close()
+			WindowManager.close("PAL_RADIAL")
 		else
-			PalRadialUI.Open(currentTarget)
+			WindowManager.open("PAL_RADIAL", currentTarget)
 		end
 		return
 	end
@@ -728,7 +702,7 @@ function InteractController.onFacilityInteractPress()
 		local nodeId = currentTarget:GetAttribute("NodeId")
 		if nodeUID and nodeId then
 			if UIManager then UIManager.hideInteractPrompt() end
-			HarvestUI.Open(nodeUID, nodeId, currentTarget)
+			WindowManager.open("HARVEST", nodeUID, nodeId, currentTarget)
 			return
 		else
 			warn("[InteractController] Resource node missing attributes - NodeUID:", nodeUID, "NodeId:", nodeId, "Model:", currentTarget:GetFullName())

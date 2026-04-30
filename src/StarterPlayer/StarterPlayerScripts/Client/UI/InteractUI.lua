@@ -98,18 +98,22 @@ function InteractUI.Init(parent, isMobile)
 	local isSmall = isMobile
 	
 	-- Interaction Prompt — 투명 미니말 (알림창/경고창 컨벤션)
-	local prompt = Utils.mkFrame({
-		name = "InteractPrompt",
-		size = UDim2.new(0, 0, 0, 0),
-		pos = UDim2.new(0.5, 0, isSmall and 0.52 or 0.55, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_PANEL,
-		bgT = 0.85,
-		r = 4,
-		stroke = false,
-		vis = false,
-		parent = parent
-	})
+	local prompt = Instance.new("TextButton")
+	prompt.Name = "InteractPrompt"
+	prompt.Size = UDim2.new(0, 0, 0, 0)
+	prompt.Position = UDim2.new(0.5, 0, isSmall and 0.52 or 0.55, 0)
+	prompt.AnchorPoint = Vector2.new(0.5, 0.5)
+	prompt.BackgroundColor3 = C.BG_PANEL
+	prompt.BackgroundTransparency = 0.85
+	prompt.BorderSizePixel = 0
+	prompt.Visible = false
+	prompt.Text = ""
+	prompt.AutoButtonColor = false
+	prompt.Parent = parent
+
+	local promptCorner = Instance.new("UICorner")
+	promptCorner.CornerRadius = UDim.new(0, 4)
+	promptCorner.Parent = prompt
 	prompt.AutomaticSize = Enum.AutomaticSize.XY
 
 	local sizeC = Instance.new("UISizeConstraint")

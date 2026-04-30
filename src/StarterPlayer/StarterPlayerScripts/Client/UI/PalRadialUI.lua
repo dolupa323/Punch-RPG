@@ -14,6 +14,7 @@ local Client = script.Parent.Parent
 local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local UITheme = require(Client.UI.UITheme)
+local WindowManager = require(Client.Utils.WindowManager)
 
 local StorageController = require(Client.Controllers.StorageController)
 
@@ -342,6 +343,7 @@ function PalRadialUI.Open(palModel)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.fromScale(1, 1)
 	container.BackgroundTransparency = 1
+	container.Active = true
 	container.Parent = billboardGui
 
 	local isMountable = palModel:GetAttribute("CanMount") == true
@@ -389,6 +391,7 @@ function PalRadialUI.Close()
 	setPalMovementPaused(false)
 	currentPalModel = nil
 	InputManager.setUIOpen(false)
+	WindowManager.close("PAL_RADIAL")
 end
 
 return PalRadialUI

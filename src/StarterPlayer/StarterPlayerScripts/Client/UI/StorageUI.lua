@@ -264,7 +264,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 		name = "StorageMenu",
 		size = UDim2.new(1, 0, 1, 0),
 		bg = C.BG_OVERLAY,
-		bgT = 0.5,
+		bgT = 1, -- GlobalDimBackground가 처리
 		vis = false,
 		parent = parent,
 	})

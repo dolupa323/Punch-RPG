@@ -12,6 +12,7 @@ local Balance = require(Shared.Config.Balance)
 local Client = script.Parent.Parent
 local InputManager = require(Client.InputManager)
 local UITheme = require(Client.UI.UITheme)
+local WindowManager = require(Client.Utils.WindowManager)
 
 local PortalRadialUI = {}
 
@@ -248,6 +249,7 @@ function PortalRadialUI:Open(portalData)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.fromScale(1, 1)
 	container.BackgroundTransparency = 1
+	container.Active = true
 	container.Parent = billboardGui
 
 	-- 포탈 제목
@@ -332,6 +334,7 @@ function PortalRadialUI.Close()
 
 	currentPortalId = nil
 	InputManager.setUIOpen(false)
+	WindowManager.close("PORTAL_RADIAL")
 	
 	-- 상호작용 키 권한 반환 (순환 참조 방지를 위해 task.defer 사용 고려)
 	task.defer(function()

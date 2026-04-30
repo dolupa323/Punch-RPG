@@ -461,11 +461,19 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		parent = parent,
 	})
 	
+	local relayoutTutorialPanel -- Forward declaration
+	
 	local function updateTutorialMinimize()
-		local expandedSize = UDim2.new(0, isSmall and 460 or 420, 0, isSmall and 190 or 170)
-		local minimizedSize = UDim2.new(0, isSmall and 460 or 420, 0, 48)
+		-- [Fix] 하드코딩된 큰 수치 제거 및 동적 너비 유지
+		local vp = workspace.CurrentCamera.ViewportSize
+		local panelWidth = math.clamp(math.floor(vp.X * (isSmall and 0.25 or 0.12)), 130, 180)
 		
-		tutorialFrame.Size = isTutorialMinimized and minimizedSize or expandedSize
+		if isTutorialMinimized then
+			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 48)
+		else
+			-- 확장 상태는 relayoutTutorialPanel에서 텍스트 길이에 맞춰 높이를 자동 계산함
+			relayoutTutorialPanel()
+		end
 		
 		for _, child in ipairs(tutorialFrame:GetChildren()) do
 			local isAlwaysHidden = (child.Name == "TutorialCompleteBtn" or child.Name == "TutorialReward" or child.Name == "TutorialProgress" or child.Name == "TutorialReadyHint")
@@ -506,6 +514,27 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		color = C.GOLD,
 		parent = tutorialFrame,
 	})
+	
+	-- [Restore] Minimize button
+	local minimizeBtn = Utils.mkBtn({
+		name = "MinimizeBtn",
+		text = "-",
+		size = UDim2.new(0, 24, 0, 24),
+		pos = UDim2.new(1, -4, 0, 4),
+		anchor = Vector2.new(1, 0),
+		bgT = 1,
+		stroke = false,
+		ts = 18, -- Reduced from 20+
+		font = F.TITLE,
+		color = C.GOLD,
+		z = 100, -- Ensure it's above TutorialClickArea
+		fn = function()
+			isTutorialMinimized = not isTutorialMinimized
+			updateTutorialMinimize()
+		end,
+		parent = tutorialFrame,
+	})
+	HUDUI.Refs.minimizeBtn = minimizeBtn
 
 	HUDUI.Refs.tutorialStep = Utils.mkLabel({
 		name = "TutorialStep",
@@ -595,7 +624,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 	HUDUI.Refs.tutorialClickArea = tutorialClickArea
 
-	local function relayoutTutorialPanel()
+	relayoutTutorialPanel = function()
 		if not (HUDUI.Refs.tutorialFrame and HUDUI.Refs.tutorialTitle and HUDUI.Refs.tutorialStep) then
 			return
 		end
@@ -617,7 +646,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local stepH = stepBounds.Y + 4
 
 		local wantedHeight = topPadding + titleH + rowGap + stepH + bottomPadding
-		local panelHeight = math.max(40, wantedHeight)
+		local panelHeight = isTutorialMinimized and 48 or math.max(40, wantedHeight)
 
 		panel.Size = UDim2.new(panel.Size.X.Scale, panel.Size.X.Offset, 0, panelHeight)
 
@@ -650,9 +679,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		tutorialFrame.Size = UDim2.new(0, panelWidth, 0, tutorialFrame.Size.Y.Offset)
 		tutorialFrame.Position = UDim2.new(1, -12, 0, 260) -- 210 -> 260 (위치 내림)
 
-		local titleSize = math.clamp(math.floor(vp.Y * (isSmall and 0.036 or 0.030)), 24, 36)
-		local bodySize = math.clamp(math.floor(vp.Y * (isSmall and 0.028 or 0.024)), 18, 28)
-		local progressSize = math.clamp(math.floor(vp.Y * (isSmall and 0.025 or 0.022)), 17, 24)
+		local titleSize = math.clamp(math.floor(vp.Y * (isSmall and 0.030 or 0.024)), 18, 28)
+		local bodySize = math.clamp(math.floor(vp.Y * (isSmall and 0.024 or 0.020)), 14, 22)
+		local progressSize = math.clamp(math.floor(vp.Y * (isSmall and 0.022 or 0.018)), 13, 20)
 
 		HUDUI.Refs.tutorialTitle.TextSize = titleSize
 		HUDUI.Refs.tutorialStep.TextSize = bodySize

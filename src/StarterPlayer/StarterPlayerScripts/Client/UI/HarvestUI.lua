@@ -13,11 +13,12 @@ local Balance = require(Shared.Config.Balance)
 local AnimationIds = require(Shared.Config.AnimationIds)
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local UITheme = require(Client.UI.UITheme)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
 local UILocalizer = require(Client.Localization.UILocalizer)
+local NetClient = require(Client.NetClient)
+local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local WindowManager = require(Client.Utils.WindowManager)
 local AnimationManager = require(Client.Utils.AnimationManager)
 
 local HarvestUI = {}
@@ -1030,6 +1031,7 @@ function HarvestUI.Open(nodeUID, nodeId, nodeModel)
 	slotContainer.Size = UDim2.new(1, 0, 1, -28)
 	slotContainer.Position = UDim2.new(0, 0, 0, 28)
 	slotContainer.BackgroundTransparency = 1
+	slotContainer.Active = true -- 배경 클릭 시 닫기 방지
 	slotContainer.Parent = billboard
 
 	-- 슬롯 생성 (허니콤 배치) — 카드 펼침 애니메이션 준비
@@ -1154,6 +1156,7 @@ function HarvestUI.Close()
 	end
 
 	InputManager.setUIOpen(false)
+	WindowManager.close("HARVEST")
 
 	if updateConn then updateConn:Disconnect(); updateConn = nil end
 	if escConn then escConn:Disconnect(); escConn = nil end

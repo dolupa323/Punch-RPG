@@ -295,13 +295,10 @@ function QuestUI:Open(npcModel)
 	mainOverlay = Instance.new("Frame")
 	mainOverlay.Name = "QuestOverlay"
 	mainOverlay.Size = UDim2.fromScale(1, 1)
-	mainOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
-	mainOverlay.BackgroundTransparency = 1
-	mainOverlay.Active = true
+	mainOverlay.BackgroundTransparency = 1 -- GlobalDimBackground가 처리
+	mainOverlay.Active = false -- 클릭이 전역 배경으로 전달되도록 함
 	mainOverlay.Parent = playerGui:WaitForChild("GameUI")
 	QuestUI.Refs.Frame = mainOverlay
-	
-	TweenService:Create(mainOverlay, TweenInfo.new(0.3), {BackgroundTransparency = 0.4}):Play()
 
 	local panel = Instance.new("Frame")
 	panel.Name = "QuestPanel"

@@ -15,6 +15,7 @@ local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local UITheme = require(Client.UI.UITheme)
 local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local WindowManager = require(Client.Utils.WindowManager)
 
 local FacilityRadialUI = {}
 
@@ -289,6 +290,7 @@ function FacilityRadialUI.Open(target)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.fromScale(1, 1)
 	container.BackgroundTransparency = 1
+	container.Active = true
 	container.Parent = billboardGui
 
 	-- 시설 이름 표시 (중앙)
@@ -379,6 +381,7 @@ function FacilityRadialUI.Close()
 	currentTarget = nil
 	currentStructureId = nil
 	InputManager.setUIOpen(false)
+	WindowManager.close("FACILITY_RADIAL")
 end
 
 return FacilityRadialUI

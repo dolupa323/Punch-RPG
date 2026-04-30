@@ -63,6 +63,7 @@ function UIUtils.mkFrame(p)
 	if not p.useCanvas then
 		f.ClipsDescendants = p.clips or false
 	end
+	f.Active = (p.active ~= false) -- Default to true to block close-all clicks
 	f.Parent = p.parent
 	
 	-- Warm Rounded Corners

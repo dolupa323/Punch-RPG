@@ -12,6 +12,7 @@ local Balance = require(Shared.Config.Balance)
 local Client = script.Parent.Parent
 local InputManager = require(Client.InputManager)
 local UITheme = require(Client.UI.UITheme)
+local WindowManager = require(Client.Utils.WindowManager)
 
 local NPCRadialUI = {}
 
@@ -258,6 +259,7 @@ function NPCRadialUI.Open(npcModel)
 	local container = Instance.new("Frame")
 	container.Size = UDim2.fromScale(1, 1)
 	container.BackgroundTransparency = 1
+	container.Active = true
 	container.Parent = billboardGui
 
 	-- NPC 이름
@@ -320,6 +322,7 @@ function NPCRadialUI.Close()
 
 	currentNPC = nil
 	InputManager.setUIOpen(false)
+	WindowManager.close("NPC_RADIAL")
 	
 	task.defer(function()
 		local InteractController = require(Client.Controllers.InteractController)
