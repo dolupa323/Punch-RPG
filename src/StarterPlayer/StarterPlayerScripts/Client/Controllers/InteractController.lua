@@ -321,7 +321,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	
-	local targetFolderNames = {"ResourceNodes", "NPCs", "Facilities", "Creatures"}
+	local targetFolderNames = {"ResourceNodes", "NPCs", "Facilities", "Creatures", "Portals"}
 	local folderObjects = {}
 	local includeList = {}
 	for _, name in ipairs(targetFolderNames) do
@@ -363,6 +363,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 		NPCs = "npc",
 		Facilities = "facility",
 		Creatures = "pal",
+		Portals = "portal",
 	}
 	
 	for _, part in ipairs(nearbyParts) do
@@ -398,6 +399,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 						   check:GetAttribute("NPCId") or
 						   check:GetAttribute("IsPal") or
 						   check:GetAttribute("ResourceNode") or
+						   check:GetAttribute("PortalId") or
 						   game:GetService("CollectionService"):HasTag(check, "ResourceNode") then
 							entity = check
 							break
@@ -416,7 +418,14 @@ local function findNearbyInteractable(): (Instance?, string?)
 			end
 		end
 		
-		if not entity or not currentType then continue end
+		if not entity then continue end
+
+		-- [NEW] 포탈 타입 판정
+		if entity:GetAttribute("FacilityId") == "PORTAL" or entity:GetAttribute("PortalId") then
+			currentType = "portal"
+		end
+
+		if not currentType then continue end
 
 		-- 팰인 경우 내 팰인지 체크 (RootPart 또는 Model에 걸린 IsPal 속성)
 		if currentType == "pal" then
@@ -446,6 +455,8 @@ local function findNearbyInteractable(): (Instance?, string?)
 			allowedDistance = math.max(4, serverRange + 1)
 		elseif currentType == "npc" then
 			allowedDistance = math.max(INTERACT_DISTANCE, (Balance.SHOP_INTERACT_RANGE or 10) + 2)
+		elseif currentType == "portal" then
+			allowedDistance = (Balance.PORTAL_INTERACT_RANGE or 20)
 		end
 
 		local dist = getDistToModel(entity, playerPos)
@@ -728,6 +739,17 @@ function InteractController.onFacilityInteractPress()
 	local facTarget = currentFacilityTarget or (currentTargetType == "facility" and currentTarget)
 	if facTarget then
 		interactFacility(facTarget)
+		return
+	end
+
+	-- 포탈 상호작용 처리
+	if currentTarget and currentTargetType == "portal" then
+		local portalId = currentTarget:GetAttribute("PortalId")
+		local isReturn = currentTarget:GetAttribute("IsReturn") or false
+		if portalId then
+			NetClient.Request("Portal.Interact.Request", { portalId = portalId, isReturn = isReturn })
+		end
+		return
 	end
 end
 
@@ -939,6 +961,8 @@ local function onUpdate()
 				promptText = UILocalizer.Localize("[R] 공룡 메뉴")
 			elseif currentTargetType == "radio" then
 				promptText = UILocalizer.Localize("[R] 무전 수신")
+			elseif currentTargetType == "portal" then
+				promptText = UILocalizer.Localize("[R] 상호작용")
 			else
 				promptText = UILocalizer.Localize("[R] 상호작용")
 			end

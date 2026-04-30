@@ -186,6 +186,7 @@ Protocol.Commands = {
 	["Portal.GetStatus.Request"] = true,
 	["Portal.Deposit.Request"] = true,
 	["Portal.Teleport.Request"] = true,
+	["Portal.Interact.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

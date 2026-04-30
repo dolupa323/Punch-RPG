@@ -624,14 +624,16 @@ local function _attachPrompt(part, objectText, actionText, callback)
 	prompt.KeyboardKeyCode = Enum.KeyCode.R
 	prompt.MaxActivationDistance = PROMPT_DISTANCE
 	prompt.HoldDuration = 0
-	prompt.Style = Enum.ProximityPromptStyle.Custom
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = part
+
+	-- [통합 시스템 전환] ProximityPrompt의 시각적 요소를 비활성화하여 커스텀 UI만 보이게 함
+	prompt.Enabled = false
 
 	prompt.Triggered:Connect(callback)
 end
 
-local function _setupPortalObject(objectName, objectText, actionText, callback)
+local function _setupPortalObject(objectName, objectText, actionText, callback, portalId, isReturn)
 	task.spawn(function()
 		local portalObj = nil
 		local deadline = os.clock() + 30
@@ -647,6 +649,12 @@ local function _setupPortalObject(objectName, objectText, actionText, callback)
 			warn("[PortalService] Portal object not found:", objectName)
 			return
 		end
+
+		-- 커스텀 상호작용 시스템 연동을 위한 속성 부여
+		portalObj:SetAttribute("FacilityId", "PORTAL")
+		portalObj:SetAttribute("PortalId", portalId)
+		portalObj:SetAttribute("DisplayName", objectText)
+		portalObj:SetAttribute("IsReturn", isReturn)
 
 		if portalObj:IsA("Model") then
 			local found = 0
@@ -674,12 +682,12 @@ local function _setupPortalPair(def)
 	-- 출발 포탈 (초원섬 → 대상 섬)
 	_setupPortalObject(def.portalName, def.displayName, "상호작용", function(player)
 		_onPortalTriggered(player, def.id, false)
-	end)
+	end, def.id, false)
 
 	-- 귀환 포탈 (대상 섬 → 초원섬)
 	_setupPortalObject(def.returnPortalName, "초원섬 귀환 포탈", "돌아가기", function(player)
 		_onPortalTriggered(player, def.id, true)
-	end)
+	end, def.id, true)
 end
 
 --========================================
@@ -726,6 +734,15 @@ function PortalService.GetHandlers()
 		end,
 		["Portal.Teleport.Request"] = function(player, payload)
 			return _requestPortalTeleport(player, payload or {})
+		end,
+		["Portal.Interact.Request"] = function(player, payload)
+			-- 커스텀 컨트롤러에서 호출하는 통합 상호작용 지점
+			local portalId = payload and payload.portalId
+			local isReturn = payload and payload.isReturn or false
+			if not portalId then return { success = false } end
+			
+			_onPortalTriggered(player, portalId, isReturn)
+			return { success = true }
 		end,
 	}
 end
