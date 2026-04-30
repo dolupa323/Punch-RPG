@@ -79,7 +79,27 @@ local function checkCollision(position: Vector3, facilityId: string): boolean
 	overlapParams.FilterDescendantsInstances = filterList
 	
 	local parts = workspace:GetPartBoundsInRadius(position, collisionRadius * 1.5, overlapParams)
-	return #parts > 0
+	if #parts > 0 then
+		local hitNames = {}
+		local realObstacles = {}
+		for _, part in ipairs(parts) do
+			local pName = part.Name:lower()
+			local parentName = (part.Parent and part.Parent.Name or ""):lower()
+			if string.find(pName, "mountain") or string.find(pName, "rock") or string.find(pName, "cliff") or string.find(pName, "env") or
+			   string.find(parentName, "mountain") or string.find(parentName, "rock") or string.find(parentName, "cliff") then
+				continue
+			end
+			table.insert(realObstacles, part)
+			if #hitNames < 3 then table.insert(hitNames, part.Name) end
+		end
+		
+		if #realObstacles > 0 then
+			-- [로그] 필요 시 주석 해제
+			-- warn(string.format("[BuildService] Collision detected with: %s", table.concat(hitNames, ", ")))
+			return true
+		end
+	end
+	return false
 end
 
 local function getPlacementProfile(): string
@@ -145,16 +165,19 @@ local function isValidFieldSurface(hitInstance: Instance?, hitNormal: Vector3, h
 	local upDot = hitNormal:Dot(Vector3.new(0, 1, 0))
 	local slope = math.deg(math.acos(math.clamp(upDot, -1, 1)))
 	if slope > getMaxGroundSlopeDeg() then
+		-- warn(string.format("[BuildService] Slope too steep: %.1f deg", slope))
 		return false
 	end
 
 	if hitMaterial == Enum.Material.Water then
+		warn("[BuildService] Cannot build on water")
 		return false
 	end
 
 	local strict = isStrictFieldProfile()
 	if strict then
 		if hitInstance ~= workspace.Terrain then
+			warn(string.format("[BuildService] Strict profile: Hit instance is not Terrain (%s)", tostring(hitInstance and hitInstance.Name)))
 			return false
 		end
 
@@ -170,6 +193,7 @@ local function isValidFieldSurface(hitInstance: Instance?, hitNormal: Vector3, h
 			[Enum.Material.Salt] = true,      -- 소금평원 대응
 		}
 		if not strictAllowedTerrainMaterial[hitMaterial] then
+			warn(string.format("[BuildService] Strict profile: Forbidden material (%s)", tostring(hitMaterial)))
 			return false
 		end
 	end
@@ -184,13 +208,23 @@ local function isValidFieldSurface(hitInstance: Instance?, hitNormal: Vector3, h
 
 	for _, folder in ipairs(foldersToReject) do
 		if folder and hitInstance:IsDescendantOf(folder) then
+			warn(string.format("[BuildService] Hit instance belongs to rejected folder: %s (Hit: %s)", folder.Name, hitInstance.Name))
 			return false
 		end
 	end
 
 	local model = hitInstance:FindFirstAncestorWhichIsA("Model")
-	if model and (model:GetAttribute("StructureId") or model:GetAttribute("NodeId") or model:GetAttribute("NPCId")) then
-		return false
+	if model then
+		local name = model.Name:lower()
+		if string.find(name, "mountain") or string.find(name, "rock") or string.find(name, "cliff") or string.find(name, "env") then
+			-- 환경 오브젝트는 지면으로 간주
+			return true
+		end
+		
+		if (model:GetAttribute("StructureId") or model:GetAttribute("NodeId") or model:GetAttribute("NPCId")) then
+			-- warn(string.format("[BuildService] Hit restricted model: %s", model.Name))
+			return false
+		end
 	end
 
 	return true
@@ -212,12 +246,14 @@ local function validatePosition(position: Vector3): (boolean, string?, string?, 
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 	
-	-- 시설물 외에도 플레이어, 크리처 등 동적 개체 제외
+	-- 시설물 외에도 플레이어, 크리처, 채집 노드 등 동적 개체 제외
 	local ignoreList = {}
 	local charFolder = workspace:FindFirstChild("Characters")
 	if charFolder then table.insert(ignoreList, charFolder) end
 	local creatureFolder = workspace:FindFirstChild("Creatures")
 	if creatureFolder then table.insert(ignoreList, creatureFolder) end
+	local resourceFolder = workspace:FindFirstChild("ResourceNodes")
+	if resourceFolder then table.insert(ignoreList, resourceFolder) end
 	
 	raycastParams.FilterDescendantsInstances = ignoreList
 	
@@ -552,6 +588,8 @@ end
 --========================================
 function BuildService.place(player: Player, facilityId: string, position: Vector3, rotation: Vector3?): (boolean, string?, any?)
 	local userId = player.UserId
+	-- print(string.format("[BuildService] Place Request: User %d, Facility %s", userId, facilityId))
+	
 	local character = player.Character
 	local isCampfire = facilityId == "CAMPFIRE"
 	local isCampTotem = facilityId == "CAMP_TOTEM"
@@ -640,10 +678,12 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	-- 5. 위치 검증
 	local posOk, posErr, parentId, groundY, groundNormal, hitInstance, hitMaterial = validatePosition(position)
 	if not posOk then
+		warn(string.format("[BuildService] validatePosition failed for player %d: %s", userId, tostring(posErr)))
 		return false, posErr, nil
 	end
 
 	if not isValidFieldSurface(hitInstance, groundNormal or Vector3.new(0, 1, 0), hitMaterial) then
+		warn(string.format("[BuildService] isValidFieldSurface failed for player %d at (%.1f, %.1f, %.1f)", userId, position.X, position.Y, position.Z))
 		return false, Enums.ErrorCode.INVALID_POSITION, nil
 	end
 
@@ -654,6 +694,7 @@ function BuildService.place(player: Player, facilityId: string, position: Vector
 	-- 지면이 아닌데 지지대(parentId)도 없으면 공중부양 금지
 	-- 절대좌표가 아닌, 감지된 지면과의 거리(오차 범위 3.5 스터드)로 체크
 	if math.abs(position.Y - groundY) > getMaxGroundGap() then
+		warn(string.format("[BuildService] Ground gap too large: %.2f (max: %.1f)", math.abs(position.Y - groundY), getMaxGroundGap()))
 		return false, Enums.ErrorCode.INVALID_POSITION, nil
 	end
 
@@ -1176,13 +1217,13 @@ function BuildService.loadStructuresFromPartition(partitionId: string)
 		
 		local pos = struct.position
 		if type(pos) == "table" then
-			pos = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
+			struct.position = Vector3.new(pos.X or pos.x or 0, pos.Y or pos.y or 0, pos.Z or pos.z or 0)
 		end
 		local rot = struct.rotation
 		if type(rot) == "table" then
-			rot = Vector3.new(rot.X or rot.x or 0, rot.Y or rot.y or 0, rot.Z or rot.z or 0)
+			struct.rotation = Vector3.new(rot.X or rot.x or 0, rot.Y or rot.y or 0, rot.Z or rot.z or 0)
 		end
-		spawnFacilityModel(struct.facilityId, pos, rot, structureId, struct.ownerId)
+		spawnFacilityModel(struct.facilityId, struct.position, struct.rotation, structureId, struct.ownerId)
 		
 		-- 신규 로드 시 FacilityService 등록
 		if FacilityService and FacilityService.register then

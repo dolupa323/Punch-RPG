@@ -319,6 +319,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		r = 6,
 		parent = menuAnchor
 	})
+	HUDUI.Refs.MenuButton = hamburgerBtn
+
 	local hamIcon = Instance.new("ImageLabel")
 	hamIcon.Size = UDim2.new(0.65, 0, 0.65, 0); hamIcon.Position = UDim2.new(0.5, 0, 0.5, 0); hamIcon.AnchorPoint = Vector2.new(0.5, 0.5)
 	hamIcon.BackgroundTransparency = 1; hamIcon.Image = UIManager.getItemIcon("Icon_Hamburger")
@@ -342,6 +344,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	hamburgerBtn.MouseButton1Click:Connect(function()
 		sideMenu.Visible = not sideMenu.Visible
+		if sideMenu.Visible then
+			UIManager.fireMenuOpened()
+		end
 	end)
 
 	local function mkMenuBtn(name, iconId, label, fn)
@@ -371,11 +376,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		return btn
 	end
 
-	mkMenuBtn("Btn_Inv", UIManager.getItemIcon("Icon_Inventory"), "인벤토리 (Tab)", function() UIManager.toggleInventory() end)
-	mkMenuBtn("Btn_Build", UIManager.getItemIcon("Icon_Build"), "건축 (C)", function() UIManager.toggleBuild() end)
-	mkMenuBtn("Btn_Equip", UIManager.getItemIcon("Icon_Equipment"), "장비 (E)", function() UIManager.toggleEquipment() end)
-	mkMenuBtn("Btn_Skill", UIManager.getItemIcon("Icon_Skill"), "스킬 (K)", function() UIManager.toggleSkillTree() end)
-	mkMenuBtn("Btn_Quest", UIManager.getItemIcon("Icon_Quest"), "임무 (J)", function() 
+	HUDUI.Refs.InventoryTabButton = mkMenuBtn("Btn_Inv", UIManager.getItemIcon("Icon_Inventory"), "가방 (Tab)", function() 
+		UIManager.toggleInventory() 
+	end)
+	HUDUI.Refs.BuildTabButton = mkMenuBtn("Btn_Build", UIManager.getItemIcon("Icon_Build"), "건축 (C)", function() UIManager.toggleBuild() end)
+	HUDUI.Refs.EquipTabButton = mkMenuBtn("Btn_Equip", UIManager.getItemIcon("Icon_Equipment"), "장비 (E)", function() UIManager.toggleEquipment() end)
+	HUDUI.Refs.SkillTabButton = mkMenuBtn("Btn_Skill", UIManager.getItemIcon("Icon_Skill"), "스킬 (K)", function() UIManager.toggleSkillTree() end)
+	HUDUI.Refs.QuestTabButton = mkMenuBtn("Btn_Quest", UIManager.getItemIcon("Icon_Quest"), "임무 (J)", function() 
 		if UIManager.toggleQuest then UIManager.toggleQuest() end 
 	end)
 
@@ -1652,6 +1659,10 @@ function HUDUI.UpdateCombatUI(currentHP, maxHP)
 	if HUDUI.Refs.combatHPLabel then
 		HUDUI.Refs.combatHPLabel.Text = string.format("%d / %d", math.floor(currentHP), math.floor(maxHP))
 	end
+end
+
+function HUDUI.isSideMenuVisible()
+	return HUDUI.Refs.sideMenu and HUDUI.Refs.sideMenu.Visible == true
 end
 
 return HUDUI

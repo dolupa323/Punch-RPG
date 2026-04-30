@@ -14,7 +14,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 0,
 		techLevel = 1,
-		inputs = { { itemId = "BRANCH", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
+		inputs = { { itemId = "BRANCH", count = 1 }, { itemId = "STONE", count = 1 } },
 		outputs = { { itemId = "CRUDE_STONE_AXE", count = 1 } },
 	},
 	{
@@ -24,7 +24,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 0,
 		techLevel = 1,
-		inputs = { { itemId = "BRANCH", count = 10 }, { itemId = "STONE", count = 1 }, { itemId = "FIBER", count = 10 } },
+		inputs = { { itemId = "BRANCH", count = 1 }, { itemId = "STONE", count = 1 } },
 		outputs = { { itemId = "CRUDE_STONE_PICKAXE", count = 1 } },
 	},
 	{

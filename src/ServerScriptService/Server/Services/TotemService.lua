@@ -32,7 +32,7 @@ local PORTAL_NAMES = {
 	"Portal_Desert", "Portal_Return_Desert",
 	"Portal_Snowy", "Portal_Return_Snowy"
 }
-local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 10
+local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 18
 
 local function distanceToOrientedBoxSurface(position: Vector3, boxCFrame: CFrame, boxSize: Vector3): number
 	local localPos = boxCFrame:PointToObjectSpace(position)
@@ -113,6 +113,7 @@ local function isInStarterProtectionZone(position: Vector3): boolean
 	end
 
 	local radius = Balance.STARTER_PROTECTION_RADIUS or 45
+	-- [복구] 시각적 울타리가 정사각형이므로 논리 체크도 사각형(AABB)으로 일치시킴
 	local dx = math.abs(position.X - center.X)
 	local dz = math.abs(position.Z - center.Z)
 	return dx <= radius and dz <= radius

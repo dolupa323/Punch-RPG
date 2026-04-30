@@ -19,6 +19,7 @@ local DataService
 local WorldDropService
 local PlayerStatService -- Phase 6 연동
 local HarvestService -- 시체 채집 연동
+local TutorialService = nil -- 튜토리얼 유저 보호를 위한 참조
 local DropTableData -- require 나중에 (상호참조 방지)
 local DebuffService -- Phase 4-4 연동
 local protectedZoneChecker = nil -- TotemService에서 주입
@@ -2022,6 +2023,12 @@ function CreatureService._updateAILoop()
 					creature.lostAggroAt = now -- 어그로 상실 시점 기록
 				end
 			elseif minDist <= detectRange then
+				-- 튜토리얼 중인 플레이어는 선공 대상에서 제외
+				local isInTutorial = false
+				if closestPlayerUserId and TutorialService then
+					isInTutorial = TutorialService.isPlayerInTutorial(closestPlayerUserId)
+				end
+
 				-- 전투 중인 플레이어는 선공 대상에서 제외
 				local playerInCombat = false
 				if closestPlayerUserId then
@@ -2031,15 +2038,15 @@ function CreatureService._updateAILoop()
 					end
 				end
 				
-				-- 어그로 쿨다운 체크 (한번 따돌리면 잠시 동안 다시 인식 못하게 함)
+				-- 어그로 쿨다운 체크
 				local isCold = not creature.lostAggroAt or (now - creature.lostAggroAt > AGGRO_COOLDOWN)
 				
-				if isCold and not playerInCombat then
-					-- 공격 사거리 내: CHASE 전환 건너뛰고 직접 공격 (달리기 애니메이션 방지)
+				if isCold and not playerInCombat and not isInTutorial then
+					-- 공격 사거리 내: CHASE 전환 건너뛰고 직접 공격
 					local immediateRange = (creature.data.attackRange or 5) * 1.3
 					local atkReady = not creature.lastAttackTime or (now - creature.lastAttackTime >= (creature.data.attackCooldown or CREATURE_ATTACK_COOLDOWN))
 					if minDist <= immediateRange and atkReady then
-						-- CHASE 없이 직접 공격 플래그 (섹션 5에서 처리)
+						-- CHASE 없이 직접 공격 플래그
 						creature._directAttack = true
 						if not creature.chaseStartTime then
 							creature.chaseStartTime = now
@@ -2780,6 +2787,10 @@ end
 
 function CreatureService.SetProtectedZoneChecker(checkerFn)
 	protectedZoneChecker = checkerFn
+end
+
+function CreatureService.SetTutorialService(service)
+	TutorialService = service
 end
 
 --========================================

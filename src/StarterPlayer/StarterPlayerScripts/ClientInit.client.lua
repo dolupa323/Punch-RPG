@@ -198,7 +198,7 @@ local function createStudioAdminGoldPanel()
 	refreshGold()
 
 	--========================================
-	-- Tutorial Quest Admin Section
+	-- New Tutorial (Manual Test)
 	--========================================
 	local line = Instance.new("Frame")
 	line.Size = UDim2.new(1, 0, 0, 1)
@@ -206,25 +206,35 @@ local function createStudioAdminGoldPanel()
 	line.BorderSizePixel = 0
 	line.Parent = frame
 
-	local questTitle = Instance.new("TextLabel")
-	questTitle.Size = UDim2.new(1, 0, 0, 20)
-	questTitle.BackgroundTransparency = 1
-	questTitle.Text = "Tutorial Quest"
-	questTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
-	questTitle.TextSize = 14
-	questTitle.Font = Enum.Font.GothamBold
-	questTitle.TextXAlignment = Enum.TextXAlignment.Left
-	questTitle.Parent = frame
+	local tutTitle = Instance.new("TextLabel")
+	tutTitle.Size = UDim2.new(1, 0, 0, 20)
+	tutTitle.BackgroundTransparency = 1
+	tutTitle.Text = "Tutorial (Manual Test)"
+	tutTitle.TextColor3 = Color3.fromRGB(150, 255, 180)
+	tutTitle.TextSize = 14
+	tutTitle.Font = Enum.Font.GothamBold
+	tutTitle.TextXAlignment = Enum.TextXAlignment.Left
+	tutTitle.Parent = frame
 
-	local questLabel = Instance.new("TextLabel")
-	questLabel.Size = UDim2.new(1, 0, 0, 36)
-	questLabel.BackgroundTransparency = 1
-	questLabel.Text = "현재 단계: --"
-	questLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-	questLabel.TextSize = 13
-	questLabel.Font = Enum.Font.Gotham
-	questLabel.TextWrapped = true
-	questLabel.Parent = frame
+	local tutLabel = Instance.new("TextLabel")
+	tutLabel.Size = UDim2.new(1, 0, 0, 36)
+	tutLabel.BackgroundTransparency = 1
+	tutLabel.Text = "현재 상태: 대기중"
+	tutLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	tutLabel.TextSize = 13
+	tutLabel.Font = Enum.Font.Gotham
+	tutLabel.TextWrapped = true
+	tutLabel.Parent = frame
+
+	local startTutBtn = Instance.new("TextButton")
+	startTutBtn.Size = UDim2.new(1, 0, 0, 32)
+	startTutBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
+	startTutBtn.Text = "튜토리얼 강제 시작"
+	startTutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	startTutBtn.TextSize = 13
+	startTutBtn.Font = Enum.Font.GothamBold
+	startTutBtn.Parent = frame
+	Instance.new("UICorner", startTutBtn).CornerRadius = UDim.new(0, 6)
 
 	local qBtns = Instance.new("Frame")
 	qBtns.Size = UDim2.new(1, 0, 0, 32)
@@ -256,41 +266,53 @@ local function createStudioAdminGoldPanel()
 	setStepBtn.Parent = qBtns
 	Instance.new("UICorner", setStepBtn).CornerRadius = UDim.new(0, 6)
 
-	local resetQuestBtn = Instance.new("TextButton")
-	resetQuestBtn.Size = UDim2.new(1, 0, 0, 32)
-	resetQuestBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-	resetQuestBtn.Text = "퀘스트 전체 리셋"
-	resetQuestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	resetQuestBtn.TextSize = 12
-	resetQuestBtn.Font = Enum.Font.GothamBold
-	resetQuestBtn.Parent = frame
-	Instance.new("UICorner", resetQuestBtn).CornerRadius = UDim.new(0, 6)
+	local resetTutBtn = Instance.new("TextButton")
+	resetTutBtn.Size = UDim2.new(1, 0, 0, 32)
+	resetTutBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+	resetTutBtn.Text = "진행 정보 초기화"
+	resetTutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	resetTutBtn.TextSize = 12
+	resetTutBtn.Font = Enum.Font.GothamBold
+	resetTutBtn.Parent = frame
+	Instance.new("UICorner", resetTutBtn).CornerRadius = UDim.new(0, 6)
 
-	local function refreshQuestStatus()
+	local function refreshTutorialStatus()
 		local ok, result = NetClient.Request("Tutorial.GetStatus.Request", {})
 		if ok and result and result.data then
 			local data = result.data
-			questLabel.Text = string.format("현재 단계: %d / %d (%s)", data.stepIndex or 0, data.totalSteps or 0, data.completed and "완료" or "진행중")
+			tutLabel.Text = string.format("단계: %d / %d (%s)", 
+				data.stepIndex or 0, data.totalSteps or 0, 
+				data.completed and "완료" or (data.stepIndex > 0 and "진행중" or "시작안함"))
 		end
 	end
+
+	startTutBtn.MouseButton1Click:Connect(function()
+		local ok, result = NetClient.Request("Tutorial.Start.Request", {})
+		if ok then
+			UIManager.notify("튜토리얼이 시작되었습니다.", Color3.fromRGB(100, 255, 150))
+			refreshTutorialStatus()
+		else
+			UIManager.notify("시작 실패", Color3.fromRGB(255, 100, 100))
+		end
+	end)
 
 	setStepBtn.MouseButton1Click:Connect(function()
 		local step = tonumber(stepBox.Text)
 		if not step then return end
 		local ok, result = NetClient.Request("Tutorial.Admin.SetStep.Request", { stepIndex = step })
 		if ok then
-			UIManager.notify("퀘스트 단계가 " .. step .. "으로 설정되었습니다.", Color3.fromRGB(100, 200, 255))
-			refreshQuestStatus()
+			UIManager.notify("튜토리얼 단계가 " .. step .. "으로 설정되었습니다.", Color3.fromRGB(100, 200, 255))
+			refreshTutorialStatus()
 		else
 			UIManager.notify("단계 설정 실패", Color3.fromRGB(255, 100, 100))
 		end
 	end)
 
-	resetQuestBtn.MouseButton1Click:Connect(function()
+	resetTutBtn.MouseButton1Click:Connect(function()
 		local ok, result = NetClient.Request("Tutorial.Admin.Reset.Request", {})
 		if ok then
-			UIManager.notify("튜토리얼 퀘스트가 초기화되었습니다.", Color3.fromRGB(255, 150, 100))
-			refreshQuestStatus()
+			UIManager.notify("튜토리얼 진행 정보가 초기화되었습니다.", Color3.fromRGB(255, 150, 100))
+			refreshTutorialStatus()
 		else
 			UIManager.notify("리셋 실패", Color3.fromRGB(255, 100, 100))
 		end
@@ -298,8 +320,8 @@ local function createStudioAdminGoldPanel()
 
 	task.spawn(function()
 		while gui.Parent do
-			refreshQuestStatus()
-			task.wait(5)
+			refreshTutorialStatus()
+			task.wait(3)
 		end
 	end)
 end

@@ -161,10 +161,12 @@ Protocol.Commands = {
 	["Hunger.Update"] = true,
 
 	-- Tutorial 명령어
+	["Tutorial.Start.Request"] = true,
 	["Tutorial.GetStatus.Request"] = true,
 	["Tutorial.Step.Complete.Request"] = true,
 	["Tutorial.Admin.Reset.Request"] = true,
 	["Tutorial.Admin.SetStep.Request"] = true,
+	["Tutorial.Admin.ForceStart.Request"] = true,
 	
 	-- Quest 명령어 (Remastered)
 	["Quest.GetList.Request"] = true,

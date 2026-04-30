@@ -23,6 +23,34 @@ local BuildController = {}
 --========================================
 local player = Players.LocalPlayer
 local initialized = false
+local completeListeners = {}
+
+--========================================
+-- Public API: Listeners
+--========================================
+function BuildController.onCompleted(callback)
+	table.insert(completeListeners, callback)
+	return {
+		Disconnect = function()
+			for i, v in ipairs(completeListeners) do
+				if v == callback then
+					table.remove(completeListeners, i)
+					break
+				end
+			end
+		end
+	}
+end
+
+function BuildController.isPlacing()
+	return isPlacing
+end
+
+local function fireCompleteListeners(facilityId)
+	for _, callback in ipairs(completeListeners) do
+		pcall(function() callback(facilityId) end)
+	end
+end
 
 -- 로컬 구조물 캐시 [structureId] = { id, facilityId, position, rotation, health, ownerId }
 local structuresCache = {}
@@ -44,7 +72,7 @@ local heartbeatConn = nil
 local totemInfoCache = {} -- [structureId] = { data, fetchedAt }
 local TOTEM_INFO_CACHE_TTL = 4
 
-local MAX_PLACE_DISTANCE = 35
+local MAX_PLACE_DISTANCE = Balance.BUILD_RANGE or 30
 local DEFAULT_MAX_GROUND_SLOPE_DEG = Balance.BUILD_MAX_GROUND_SLOPE_DEG or 42
 local STRICT_MAX_GROUND_SLOPE_DEG = Balance.BUILD_STRICT_MAX_GROUND_SLOPE_DEG or 12
 
@@ -96,9 +124,43 @@ local function isInStarterProtectedZone(position: Vector3): boolean
 		return false
 	end
 	local radius = Balance.STARTER_PROTECTION_RADIUS or 45
+	-- [복구] 시각적 울타리가 정사각형이므로 논리 체크도 사각형(AABB)으로 일치시킴
 	local dx = math.abs(position.X - center.X)
 	local dz = math.abs(position.Z - center.Z)
 	return dx <= radius and dz <= radius
+end
+
+local function isInPortalRestrictionZone(position: Vector3): boolean
+	local PORTAL_NAMES = {
+		"Portal_Tropical", "Portal_Return_Tropical",
+		"Portal_Desert", "Portal_Return_Desert",
+		"Portal_Snowy", "Portal_Return_Snowy"
+	}
+	local margin = Balance.PORTAL_RESTRICTION_MARGIN or 18
+
+	for _, child in ipairs(workspace:GetChildren()) do
+		if (child:IsA("Model") or child:IsA("BasePart")) and string.find(child.Name, "Portal") then
+			local boxCF, boxSize
+			if child:IsA("Model") then
+				boxCF, boxSize = child:GetBoundingBox()
+			else
+				boxCF, boxSize = child.CFrame, child.Size
+			end
+
+			if boxCF and boxSize then
+				-- 거리 기반의 정밀한 체크 (box surface distance)
+				local localPos = boxCF:PointToObjectSpace(position)
+				local half = (boxSize * 0.5) + Vector3.new(margin, 40, margin)
+				local dx = math.max(math.abs(localPos.X) - half.X, 0)
+				local dz = math.max(math.abs(localPos.Z) - half.Z, 0)
+				if dx <= 0 and dz <= 0 then
+					warn("[Build] Inside Portal Restriction Zone: " .. child.Name)
+					return true
+				end
+			end
+		end
+	end
+	return false
 end
 
 local function getTotemExtents(info)
@@ -150,6 +212,10 @@ end
 local function getProtectedZoneBlockCode(position: Vector3): string?
 	if isInStarterProtectedZone(position) then
 		return "STARTER_ZONE_PROTECTED"
+	end
+	
+	if isInPortalRestrictionZone(position) then
+		return "NO_PERMISSION"
 	end
 
 	local facilities = workspace:FindFirstChild("Facilities")
@@ -394,7 +460,8 @@ local function isEmptyFieldHit(result: RaycastResult): boolean
 	end
 	local nodesFolder = workspace:FindFirstChild("ResourceNodes")
 	if nodesFolder and hit:IsDescendantOf(nodesFolder) then
-		return false
+		-- [수정] 채집 노드(나무 이파리 등) 위에도 건설 가능하도록 허용
+		return true
 	end
 	local npcsFolder = workspace:FindFirstChild("NPCs")
 	if npcsFolder and hit:IsDescendantOf(npcsFolder) then
@@ -410,8 +477,16 @@ local function isEmptyFieldHit(result: RaycastResult): boolean
 	end
 
 	local model = hit:FindFirstAncestorWhichIsA("Model")
-	if model and (model:GetAttribute("NodeId") or model:GetAttribute("StructureId") or model:GetAttribute("NPCId")) then
-		return false
+	if model then
+		local name = model.Name:lower()
+		if string.find(name, "mountain") or string.find(name, "rock") or string.find(name, "cliff") or string.find(name, "env") then
+			-- 환경 오브젝트는 지면으로 간주
+			return true
+		end
+		
+		if model:GetAttribute("NodeId") or model:GetAttribute("StructureId") or model:GetAttribute("NPCId") then
+			return false
+		end
 	end
 
 	return true
@@ -442,6 +517,20 @@ local function isBlockedByWorld(finalCF: CFrame, surfaceInstance: Instance?): bo
 		if part.Transparency >= 1 and not part.CanCollide then
 			continue
 		end
+		-- [추가] 채집 노드(나무, 돌 등)는 건설을 가로막는 장애물로 보지 않음
+		local nodesFolder = workspace:FindFirstChild("ResourceNodes")
+		if nodesFolder and part:IsDescendantOf(nodesFolder) then
+			continue
+		end
+		
+		-- [추가] 산, 바위 등 맵 환경 오브젝트는 장애물에서 제외
+		local pName = part.Name:lower()
+		local parentName = (part.Parent and part.Parent.Name or ""):lower()
+		if string.find(pName, "mountain") or string.find(pName, "rock") or string.find(pName, "cliff") or string.find(pName, "env") or
+		   string.find(parentName, "mountain") or string.find(parentName, "rock") or string.find(parentName, "cliff") then
+			continue
+		end
+		
 		return true
 	end
 
@@ -670,6 +759,11 @@ function BuildController.startPlacement(facilityId: string)
 		if player.Character then
 			table.insert(filterList, player.Character)
 		end
+		-- [추가] 채집 노드를 무시하여 이파리 아래의 땅을 클릭할 수 있게 함
+		local nodesFolder = workspace:FindFirstChild("ResourceNodes")
+		if nodesFolder then
+			table.insert(filterList, nodesFolder)
+		end
 		rayParams.FilterDescendantsInstances = filterList
 		rayParams.FilterType = Enum.RaycastFilterType.Exclude
 		
@@ -715,17 +809,29 @@ function BuildController.startPlacement(facilityId: string)
 
 			if not isEmptyFieldHit(result) then
 				isPlaceable = false
+				-- [로그] 지면 판정 실패 시 (디버그 필요 시 주석 해제)
+				-- warn("[Build] isEmptyFieldHit failed: hit on " .. tostring(result.Instance and result.Instance.Name))
 			end
 
 			if isPlaceable and finalCF and isBlockedByWorld(finalCF, hitPart) then
 				isPlaceable = false
+				-- [로그] 장애물 판정 실패 (상세 로그는 isBlockedByWorld 내부 참조)
+				-- warn("[Build] isBlockedByWorld returned true")
 			end
 
 			if isPlaceable then
 				blockCode = getProtectedZoneBlockCode(hitPos)
 				if blockCode then
 					isPlaceable = false
+					-- [로그] 보호 구역 판정 시 (디버그용)
+					-- print("[Build] Protected Zone Blocked: ", blockCode)
 				end
+			end
+			
+			-- 상태가 변경될 때만 로그 출력 (디버그용 주석 해제하여 사용 가능)
+			if _G.BUILD_DEBUG and (isPlaceable ~= currentIsPlaceable or blockCode ~= currentPlacementBlockCode) then
+				print(string.format("[BuildDebug] Pos: (%.1f, %.1f), Placeable: %s, Code: %s", 
+					hitPos.X, hitPos.Z, tostring(isPlaceable), tostring(blockCode)))
 			end
 		else
 			isPlaceable = false
@@ -767,6 +873,9 @@ function BuildController.startPlacement(facilityId: string)
 	InputManager.onLeftClick("BuildPlace", function()
 		if isPlacing and currentGhost then
 			if not currentIsPlaceable then
+				-- [디버그 로그] 필요 시 주석 해제
+				-- warn(string.format("[BuildController] Client-side rejection: BlockCode=%s", tostring(currentPlacementBlockCode or "NONE (Terrain/Obstruction)")))
+				
 				local UIManager = require(script.Parent.Parent.UIManager)
 				if currentPlacementBlockCode == "STARTER_ZONE_PROTECTED" then
 					UIManager.notify("초보자 보호존에서는 건설할 수 없습니다.", Color3.fromRGB(255, 100, 100))
@@ -900,6 +1009,7 @@ local function onPlaced(data)
 		ownerId = data.ownerId,
 	}
 	structureCount = structureCount + 1
+	fireCompleteListeners(data.facilityId)
 end
 
 local function onRemoved(data)

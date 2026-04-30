@@ -9,6 +9,30 @@ local UIManager = require(script.Parent.Parent.UIManager)
 local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
 
 local initialized = false
+local completeListeners = {}
+
+--========================================
+-- Public API: Listeners
+--========================================
+function CraftController.onCompleted(callback)
+	table.insert(completeListeners, callback)
+	return {
+		Disconnect = function()
+			for i, cb in ipairs(completeListeners) do
+				if cb == callback then
+					table.remove(completeListeners, i)
+					break
+				end
+			end
+		end
+	}
+end
+
+local function fireCompleteListeners(recipeId)
+	for _, callback in ipairs(completeListeners) do
+		pcall(function() callback(recipeId) end)
+	end
+end
 
 --========================================
 -- Event Handlers
@@ -48,6 +72,8 @@ local function onCraftCompleted(data)
 		UIManager.refreshPersonalCrafting(true)
 	end
 	if UIManager._onCraftUpdate then UIManager._onCraftUpdate() end
+	
+	fireCompleteListeners(data and data.recipeId)
 end
 
 local function onCraftReady(data)

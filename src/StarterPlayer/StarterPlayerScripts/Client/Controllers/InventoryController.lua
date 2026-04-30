@@ -190,6 +190,16 @@ end
 
 function InventoryController.onChanged(callback: () -> ())
 	table.insert(changeListeners, callback)
+	return {
+		Disconnect = function()
+			for i, v in ipairs(changeListeners) do
+				if v == callback then
+					table.remove(changeListeners, i)
+					break
+				end
+			end
+		end
+	}
 end
 
 --========================================

@@ -73,10 +73,10 @@ Balance.FACILITY_PASSIVE_DECAY_TICK = 5 -- 시설 자연 내구도 감소 적용
 -- 건축 (Build)
 --========================================
 Balance.BUILD_STRUCTURE_CAP = 500    -- 서버 전체 구조물 최대 수
-Balance.BUILD_RANGE = 20             -- 플레이어 건축 가능 거리 (스터드)
+Balance.BUILD_RANGE = 30             -- 플레이어 건축 가능 거리 (스터드)
 Balance.BUILD_MIN_GROUND_DIST = 0.5  -- 지면 최소 거리 (스터드)
 Balance.BUILD_COLLISION_RADIUS = 2   -- 기본 충돌 체크 반경 (스터드)
-Balance.BUILD_PLACEMENT_PROFILE = "STRICT_FIELD" -- DEFAULT | STRICT_FIELD
+Balance.BUILD_PLACEMENT_PROFILE = "DEFAULT" -- DEFAULT | STRICT_FIELD
 Balance.BUILD_MAX_GROUND_SLOPE_DEG = 42      -- 일반 공간의 허용 경사
 Balance.BUILD_STRICT_MAX_GROUND_SLOPE_DEG = 12 -- 엄격 모드 허용 경사
 Balance.BUILD_MAX_GROUND_GAP = 3.5           -- 일반 공간 지면 오차 허용
@@ -234,6 +234,7 @@ Balance.TOTEM_PREVIEW_HEIGHT = 0.25      -- 토템 범위 프리뷰 높이
 Balance.TOTEM_PROXIMITY_SHOW_RANGE = 65  -- 토템 범위 프리뷰 노출 거리
 Balance.STARTER_PROTECTION_RADIUS = 45   -- 초보자 스폰 보호존 반경
 Balance.STARTER_PROTECTION_SHOW_RANGE = 130 -- 스폰 보호존 프리뷰 표시 거리
+Balance.PORTAL_RESTRICTION_MARGIN = 18       -- 포탈 주변 건설 제한 거리 (스터드)
 
 --========================================
 -- 자동화 시스템 (Phase 7)

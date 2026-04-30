@@ -55,7 +55,11 @@ local PORTAL_NAMES = {
 	"Portal_Desert", "Portal_Return_Desert",
 	"Portal_Snowy", "Portal_Return_Snowy"
 }
-local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 10
+local PORTAL_RESTRICTION_MARGIN = Balance.PORTAL_RESTRICTION_MARGIN or 18
+
+-- Forward declarations
+local refreshNearbyPreview
+local hidePreview
 
 local function getExtentsFromInfo(info, fallbackRadius)
 	local radius = tonumber(fallbackRadius) or tonumber(info and info.radius) or (Balance.BASE_DEFAULT_RADIUS or 30)
@@ -89,7 +93,7 @@ local function destroyAllPreviews()
 	activePreviews = {}
 end
 
-local function hidePreview()
+function hidePreview()
 	destroyAllPreviews()
 end
 
@@ -180,8 +184,9 @@ end
 
 local function requestInfo(structureId, callback)
 	local ok, result = NetClient.Request("Totem.GetInfo.Request", { structureId = structureId })
-	if ok and type(result) == "table" and result.success then
-		local data = result.data
+	
+	if ok then
+		local data = result
 		infoCache[structureId] = {
 			data = data,
 			fetchedAt = tick(),
@@ -190,15 +195,17 @@ local function requestInfo(structureId, callback)
 			callback(true, data)
 		end
 		return true, data
+	else
+		if callback then
+			callback(false, result) -- result is errorCode here
+		end
+		return false, result
 	end
-	if callback then
-		callback(false, data)
-	end
-	return false, data
 end
 
 local function requestOwnInfo(callback)
 	if ownInfoRequestPending then
+		if callback then callback(false, "PENDING") end
 		return false, "PENDING"
 	end
 	ownInfoRequestPending = true
@@ -207,10 +214,15 @@ local function requestOwnInfo(callback)
 	ownInfoRequestPending = false
 	ownInfoFetchedAt = tick()
 
-	if ok and type(result) == "table" and result.success then
-		local data = result.data
+	if ok and type(result) == "table" then
+		local data = result
 		if tonumber(data.ownerId) == Players.LocalPlayer.UserId then
 			ownInfoCache = data
+			-- 즉시 렌더링 시도
+			task.spawn(function()
+				refreshNearbyPreview()
+			end)
+			
 			if callback then
 				callback(true, data)
 			end
@@ -219,37 +231,30 @@ local function requestOwnInfo(callback)
 	end
 
 	if callback then
-		callback(false, data)
+		callback(false, result)
 	end
-	return false, data
+	return false, result
 end
 
 local function getStarterZoneInfo()
-	local center = nil
+	local centerCF = nil
 	local spawnPart = workspace:FindFirstChild("SpawnLocation", true)
 	if spawnPart then
 		if spawnPart:IsA("BasePart") then
-			center = spawnPart.Position
+			centerCF = spawnPart.CFrame
 		elseif spawnPart:IsA("Model") then
-			local ok, pivot = pcall(function()
-				return spawnPart:GetPivot()
-			end)
-			if ok and pivot then
-				center = pivot.Position
-			elseif spawnPart.PrimaryPart then
-				center = spawnPart.PrimaryPart.Position
-			end
+			centerCF = spawnPart:GetPivot()
 		end
 	elseif SpawnConfig and typeof(SpawnConfig.DEFAULT_START_SPAWN) == "Vector3" then
-		center = SpawnConfig.DEFAULT_START_SPAWN
+		centerCF = CFrame.new(SpawnConfig.DEFAULT_START_SPAWN)
 	end
 
-	if not center then
+	if not centerCF then
 		return nil
 	end
 
 	return {
-		centerPosition = center,
+		centerCFrame = centerCF,
 		radius = Balance.STARTER_PROTECTION_RADIUS or 45,
 		westExtent = Balance.STARTER_PROTECTION_RADIUS or 45,
 		eastExtent = Balance.STARTER_PROTECTION_RADIUS or 45,
@@ -335,10 +340,11 @@ local function checkTerritoryEntry(hrpPos)
 	end
 end
 
-local function renderPreviewRing(zoneId, centerPos: Vector3, infoOrRadius: any, _color: Color3, transparency: number, _excludeModel: Instance?)
+local function renderPreviewRing(zoneId, centerCF: CFrame, infoOrRadius: any, _color: Color3, transparency: number, _excludeModel: Instance?)
 	local template = getFenceTemplate()
 	if not template then return end
 
+	local centerPos = centerCF.Position
 	local centerX, centerY, centerZ = centerPos.X, centerPos.Y, centerPos.Z
 	local extents = type(infoOrRadius) == "table" and getExtentsFromInfo(infoOrRadius) or getExtentsFromInfo(nil, tonumber(infoOrRadius) or (Balance.BASE_DEFAULT_RADIUS or 30))
 
@@ -422,14 +428,23 @@ local function renderPreviewRing(zoneId, centerPos: Vector3, infoOrRadius: any, 
 			if not seg then continue end
 
 			local along = ((s - 0.5) / side.count - 0.5) * side.length
-			local pos
+			local localOffset
 			if axis == "X" then
-				pos = Vector3.new(centerX + along, baseY, centerZ) + offset
+				localOffset = Vector3.new(along, 0, 0) + offset
 			else
-				pos = Vector3.new(centerX, baseY, centerZ + along) + offset
+				localOffset = Vector3.new(0, 0, along) + offset
 			end
+			
+			-- Y축 높이는 지형에 맞춤
+			local worldPos = centerCF:PointToWorldSpace(localOffset)
+			local groundY = baseY
+			local gyRay = workspace:Raycast(Vector3.new(worldPos.X, worldPos.Y + 100, worldPos.Z), Vector3.new(0, -200, 0), rayParams)
+			if gyRay then groundY = gyRay.Position.Y + fencePivotOffsetY end
 
-			local cf = CFrame.new(pos) * CFrame.Angles(0, rotY, 0)
+			local finalPos = Vector3.new(worldPos.X, groundY, worldPos.Z)
+			-- 중심점의 회전을 유지하면서 각 변의 회전(rotY)을 더함
+			local cf = CFrame.new(finalPos) * (centerCF - centerCF.Position) * CFrame.Angles(0, rotY, 0)
+
 			if seg:IsA("Model") then
 				seg:PivotTo(cf)
 			else
@@ -441,7 +456,7 @@ local function renderPreviewRing(zoneId, centerPos: Vector3, infoOrRadius: any, 
 	p.lastRenderedAt = tick()
 end
 
-local function refreshNearbyPreview()
+function refreshNearbyPreview()
 	if isTeleporting then return end 
 
 	local character = Players.LocalPlayer and Players.LocalPlayer.Character
@@ -462,9 +477,21 @@ local function refreshNearbyPreview()
 	ownInfo = ownInfo or ownInfoCache
 	if type(ownInfo) == "table" and typeof(ownInfo.centerPosition) == "Vector3" then
 		local ownActive = ownInfo.upkeep and ownInfo.upkeep.active
+		local cf = CFrame.new(ownInfo.centerPosition)
+		-- 실제 토템 모델이 있다면 회전값 가져오기
+		local facilities = workspace:FindFirstChild("Facilities")
+		if facilities then
+			for _, obj in ipairs(facilities:GetChildren()) do
+				if obj:GetAttribute("OwnerId") == tostring(Players.LocalPlayer.UserId) and obj:GetAttribute("FacilityId") == "CAMP_TOTEM" then
+					cf = obj:GetPivot()
+					break
+				end
+			end
+		end
+
 		renderPreviewRing(
 			"OWN",
-			ownInfo.centerPosition,
+			cf,
 			ownInfo,
 			ownActive and OWN_PREVIEW_COLOR_ACTIVE or OWN_PREVIEW_COLOR_INACTIVE,
 			ownActive and 0.3 or 0.5
@@ -475,8 +502,8 @@ local function refreshNearbyPreview()
 	local starterZone = getStarterZoneInfo()
 	if starterZone then
 		local showRange = Balance.STARTER_PROTECTION_SHOW_RANGE or 130
-		if (hrpPos - starterZone.centerPosition).Magnitude <= showRange then
-			renderPreviewRing("STARTER", starterZone.centerPosition, starterZone, STARTER_PREVIEW_COLOR, 0.3)
+		if (hrpPos - starterZone.centerCFrame.Position).Magnitude <= showRange then
+			renderPreviewRing("STARTER", starterZone.centerCFrame, starterZone, STARTER_PREVIEW_COLOR, 0.3)
 		else
 			destroyPreviewZone("STARTER")
 		end
@@ -527,7 +554,7 @@ local function refreshNearbyPreview()
 					
 					renderPreviewRing(
 						"PORTAL_" .. portalName,
-						boxCFrame.Position,
+						boxCFrame,
 						{ radius = radius },
 						portalColor,
 						0.4
@@ -566,10 +593,10 @@ local function refreshNearbyPreview()
 				else
 					if tonumber(info.ownerId) ~= localUserId then
 						local active = info.upkeep and info.upkeep.active
-						local centerPos = info.centerPosition or pp.Position
+						local centerCF = info.centerPosition and CFrame.new(info.centerPosition) or pp:GetPivot()
 						renderPreviewRing(
 							sid, 
-							centerPos, 
+							centerCF, 
 							info, 
 							active and PREVIEW_COLOR_ACTIVE or PREVIEW_COLOR_INACTIVE, 
 							active and 0.3 or 0.5
@@ -858,6 +885,17 @@ function TotemController.Init()
 		task.delay(0.5, function()
 			requestOwnInfo()
 		end)
+	end)
+
+	NetClient.On("Build.Placed", function(data)
+		if type(data) ~= "table" or not data.facilityId then
+			return
+		end
+		
+		if data.facilityId == "CAMP_TOTEM" and tonumber(data.ownerId) == Players.LocalPlayer.UserId then
+			print("[TotemController] Own totem placed, requesting info immediately")
+			requestOwnInfo()
+		end
 	end)
 
 	if previewConn then

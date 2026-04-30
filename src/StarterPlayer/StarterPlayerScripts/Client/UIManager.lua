@@ -53,9 +53,50 @@ local TimeController = require(Controllers.TimeController)
 local DragDropController = require(Controllers.DragDropController)
 local InteractController = require(Controllers.InteractController)
 
+-- UI Modules
+local UI = script.Parent.UI
+local Theme = require(UI.UITheme)
+local Utils = require(UI.UIUtils)
+local HUDUI = require(UI.HUDUI)
+local InventoryUI = require(UI.InventoryUI)
+local CraftingUI = require(UI.CraftingUI)
+local ShopUI = require(UI.ShopUI)
+local InteractUI = require(UI.InteractUI)
+local BuildUI = require(UI.BuildUI)
+local EquipmentUI = require(UI.EquipmentUI)
+local StorageUI = require(UI.StorageUI)
+local FacilityUI = require(UI.FacilityUI)
+local MaterialSelectUI = require(UI.MaterialSelectUI)
+
+local PromptUI = require(UI.PromptUI)
+local TotemUI = require(UI.TotemUI)
+local PortalUI = require(UI.PortalUI)
+local SkillTreeUI = require(UI.SkillTreeUI)
+local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
+local HarvestUI = require(UI.HarvestUI)
+local PortalRadialUI = require(UI.PortalRadialUI)
+local QuestUI = require(UI.QuestUI)
+local FacilityRadialUI = require(UI.FacilityRadialUI)
+local PalRadialUI = require(UI.PalRadialUI)
+local NPCRadialUI = require(UI.NPCRadialUI)
+
 local WindowManager = require(Client.Utils.WindowManager)
+local TutorialUI = require(Client.UI.TutorialUI)
 
 local UIManager = {}
+
+-- Signals for Tutorial
+UIManager.OnMenuOpened = Instance.new("BindableEvent").Event
+UIManager._fireMenuOpened = function() Instance.new("BindableEvent"):Fire() end -- 임시, 아래에서 교체 예정
+UIManager.OnInventoryOpened = Instance.new("BindableEvent").Event
+
+local menuOpenedEvent = Instance.new("BindableEvent")
+UIManager.OnMenuOpened = menuOpenedEvent.Event
+local inventoryOpenedEvent = Instance.new("BindableEvent")
+UIManager.OnInventoryOpened = inventoryOpenedEvent.Event
+
+function UIManager.fireMenuOpened() menuOpenedEvent:Fire() end
+function UIManager.fireInventoryOpened() inventoryOpenedEvent:Fire() end
 
 ----------------------------------------------------------------
 -- ★ 에러코드 → 사용자 친화적 한글 메시지 변환
@@ -121,6 +162,96 @@ local ERROR_MESSAGES = {
 	INSUFFICIENT_STAT_POINTS = "스탯 포인트가 부족합니다.",
 }
 
+function UIManager.showTutorialGuide(text)
+	TutorialUI.SetMessage(text)
+end
+
+function UIManager.hideTutorialGuide()
+	TutorialUI.SetMessage("")
+end
+
+function UIManager.blinkUIElement(elementName)
+	task.spawn(function()
+		local target = nil
+		local retries = 0
+		while not target and retries < 50 do
+			if elementName:sub(1, 7) == "Recipe:" then
+				local recipeId = elementName:sub(8)
+				if personalCraftNodes and personalCraftNodes[recipeId] then
+					target = personalCraftNodes[recipeId].frame
+				end
+			elseif HUDUI and HUDUI.Refs and HUDUI.Refs[elementName] then
+				target = HUDUI.Refs[elementName]
+			elseif InventoryUI and InventoryUI.Refs and InventoryUI.Refs[elementName] then
+				target = InventoryUI.Refs[elementName]
+			end
+			
+			if not target then
+				retries = retries + 1
+				task.wait(0.1)
+			end
+		end
+		
+		if target then
+			TutorialUI.BlinkElement(target)
+		else
+			warn("[UIManager] Failed to find UI element for blinking:", elementName)
+		end
+	end)
+end
+
+function UIManager.setFocusUIElement(elementName)
+	if not elementName then
+		TutorialUI.SetFocusElement(nil)
+		return
+	end
+	
+	local target = nil
+	if elementName:sub(1, 7) == "Recipe:" then
+		local recipeId = elementName:sub(8)
+		if personalCraftNodes and personalCraftNodes[recipeId] then
+			target = personalCraftNodes[recipeId].frame
+		end
+	elseif elementName:sub(1, 9) == "BuildCat:" then
+		local catId = elementName:sub(10)
+		if BuildUI and BuildUI.Refs and BuildUI.Refs.CategoryBtns then
+			target = BuildUI.Refs.CategoryBtns[catId]
+		end
+	elseif elementName:sub(1, 9) == "Facility:" then
+		local facilityId = elementName:sub(10)
+		if BuildUI and BuildUI.Refs and BuildUI.Refs.Grid then
+			target = BuildUI.Refs.Grid:FindFirstChild(facilityId)
+			if target and target:FindFirstChild("frame") then
+				target = target.frame
+			end
+		end
+	elseif elementName == "QuickCraftTab" then
+		target = InventoryUI.Refs.TabCraft
+	elseif elementName == "CraftStartButton" then
+		target = InventoryUI.Refs.Detail.BtnMain
+	elseif elementName == "InventoryTabButton" then
+		target = HUDUI.Refs.InventoryTabButton
+	elseif elementName == "BuildTabButton" then
+		target = HUDUI.Refs.BuildTabButton
+	elseif elementName == "MenuButton" then
+		target = HUDUI.Refs.MenuButton
+	elseif HUDUI and HUDUI.Refs and HUDUI.Refs[elementName] then
+		target = HUDUI.Refs[elementName]
+	elseif InventoryUI and InventoryUI.Refs and InventoryUI.Refs[elementName] then
+		target = InventoryUI.Refs[elementName]
+	elseif BuildUI and BuildUI.Refs and BuildUI.Refs[elementName] then
+		target = BuildUI.Refs[elementName]
+	elseif BuildUI and BuildUI.Refs and BuildUI.Refs.Detail and BuildUI.Refs.Detail[elementName] then
+		target = BuildUI.Refs.Detail[elementName]
+	end
+	
+	TutorialUI.SetFocusElement(target)
+end
+
+function UIManager.stopAllBlinks()
+	TutorialUI.StopAllBlinks()
+end
+
 --- 에러코드를 사용자 친화적 한글 메시지로 변환
 --- @param errCode any 서버로부터 받은 에러코드
 --- @param fallbackAction string? 행동 설명 (예: "소환", "제작")
@@ -139,32 +270,7 @@ end
 
 
 
--- UI Modules
-local UI = script.Parent.UI
-local Theme = require(UI.UITheme)
-local Utils = require(UI.UIUtils)
-local HUDUI = require(UI.HUDUI)
-local InventoryUI = require(UI.InventoryUI)
-local CraftingUI = require(UI.CraftingUI)
-local ShopUI = require(UI.ShopUI)
-local InteractUI = require(UI.InteractUI)
-local BuildUI = require(UI.BuildUI)
-local EquipmentUI = require(UI.EquipmentUI)
-local StorageUI = require(UI.StorageUI)
-local FacilityUI = require(UI.FacilityUI)
-local MaterialSelectUI = require(UI.MaterialSelectUI)
 
-local PromptUI = require(UI.PromptUI)
-local TotemUI = require(UI.TotemUI)
-local PortalUI = require(UI.PortalUI)
-local SkillTreeUI = require(UI.SkillTreeUI)
-local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
-local HarvestUI = require(UI.HarvestUI)
-local PortalRadialUI = require(UI.PortalRadialUI)
-local QuestUI = require(UI.QuestUI)
-local FacilityRadialUI = require(UI.FacilityRadialUI)
-local PalRadialUI = require(UI.PalRadialUI)
-local NPCRadialUI = require(UI.NPCRadialUI)
 
 
 local SkillController = require(Controllers.SkillController)
@@ -202,6 +308,22 @@ local currentTotemStructureId = nil
 -- 0. UI 관리 헬퍼
 local function isAnyWindowOpen()
 	return WindowManager.isAnyOpen()
+end
+
+function UIManager.isMenuOpen()
+	return HUDUI and HUDUI.isSideMenuVisible and HUDUI.isSideMenuVisible()
+end
+
+function UIManager.isBuildOpen()
+	return WindowManager.isOpen("BUILD")
+end
+
+function UIManager.getSelectedBuildId()
+	return selectedBuildId
+end
+
+function UIManager.getSelectedBuildCategory()
+	return selectedBuildCat
 end
 
 
@@ -404,6 +526,7 @@ end
 
 function UIManager.toggleEquipment()
 	WindowManager.toggle("EQUIP")
+	UIManager.fireInventoryOpened()
 end
 ----------------------------------------------------------------
 -- Public API: Settings/Etc 
@@ -706,6 +829,7 @@ end
 
 function UIManager.toggleInventory(startTab)
 	WindowManager.toggle("INV", startTab)
+	UIManager.fireInventoryOpened()
 end
 
 function UIManager.toggleQuest()
@@ -993,18 +1117,16 @@ function UIManager.onUseItem()
 	local itemData = DataHelper.GetData("ItemData", item.itemId)
 	if not itemData then return end
 
-	if itemData.type == "ARMOR" or itemData.type == "TOOL" or itemData.type == "WEAPON" then
+	if itemData.type == "ARMOR" then
 		local slot = itemData.slot and itemData.slot:upper() or nil
-		if itemData.type == "ARMOR" then
-			if slot ~= "HEAD" and slot ~= "SUIT" then
-				UIManager.notify("방어구 슬롯 정보가 올바르지 않습니다.", C.RED)
-				return
-			end
-		end
-		if not slot then
-			slot = "HAND"
+		if slot ~= "HEAD" and slot ~= "SUIT" then
+			UIManager.notify("방어구 슬롯 정보가 올바르지 않습니다.", C.RED)
+			return
 		end
 		InventoryController.requestEquip(selectedInvSlot, slot)
+		return
+	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
+		UIManager.notify("무기/도구는 핫바(1~8)를 통해 사용하세요.", C.YELLOW)
 		return
 	end
 
@@ -1013,9 +1135,23 @@ end
 
 function UIManager.onInventorySlotRightClick(idx)
 	if not WindowManager.isOpen("INV") or not idx then return end
-	-- 클릭 효과를 위해 좌클릭 선택 로직 선행 실행 (옵션)
+	
+	local items = InventoryController.getItems()
+	local item = items[idx]
+	if not item or not item.itemId then return end
+	
+	local itemData = DataHelper.GetData("ItemData", item.itemId)
+	if not itemData then return end
+	
+	-- 좌클릭 선택 로직 선행 (디테일 뷰 동기화)
 	UIManager._onInvSlotClick(idx)
-	-- 실제 사용 요청
+	
+	if itemData.type == "TOOL" or itemData.type == "WEAPON" then
+		UIManager.notify("무기/도구는 핫바(1~8)에 배치하여 사용하세요.", C.YELLOW)
+		return
+	end
+	
+	-- 실제 사용 요청 (방어구 장착 또는 소모품 사용)
 	InventoryController.requestUse(idx)
 end
 
@@ -1257,6 +1393,23 @@ function UIManager._updatePersonalCraftDetail(recipe)
 		if refs.ProgBar then refs.ProgBar.Visible = false end
 	end
 end
+
+function UIManager.getSelectedRecipeId()
+	return selectedPersonalRecipeId
+end
+
+function UIManager.isInventoryVisible()
+	return InventoryUI.Refs.Frame and InventoryUI.Refs.Frame.Visible
+end
+
+function UIManager.isCraftingTabVisible()
+	return InventoryUI.Refs.CraftFrame and InventoryUI.Refs.CraftFrame.Visible
+end
+
+function UIManager.isMenuOpen()
+	return HUDUI.Refs.sideMenu and HUDUI.Refs.sideMenu.Visible
+end
+
 
 -- [추가] 풀스크린 제작 메뉴용 클라이언트 액션 (CraftingUI 호출용)
 function UIManager._onCraftSlotClick(recipe, mode)
@@ -3177,6 +3330,7 @@ function UIManager.Init()
 	ActiveSkillBarUI.Init(mainGui)
 	PromptUI.Init()
 	HarvestUI.Init(UIManager)
+	TutorialUI.Init(mainGui, isMobile)
 	UILocalizer.StartAuto(mainGui)
 
 	StorageController.Init()
@@ -3187,6 +3341,10 @@ function UIManager.Init()
 	hotbarSlots = HUDUI.Refs.hotbarSlots
 	invSlots = InventoryUI.Refs.Slots
 	equipSlots = EquipmentUI.Refs.Slots
+	
+	-- Tutorial Aliases
+	HUDUI.Refs.QuickCraftTab = InventoryUI.Refs.TabCraft
+	HUDUI.Refs.CraftStartButton = InventoryUI.Refs.Detail.BtnMain
 	
 	-- Personal Crafting references
 	invPersonalCraftGrid = InventoryUI.Refs.CraftGrid

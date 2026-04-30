@@ -308,4 +308,11 @@ for command, handler in pairs(PortalService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
-print("[ServerInit] Server initialized (No-BOM)")
+local TutorialService = require(Services.TutorialService)
+TutorialService.Init(NetController, SaveService, PlayerStatService, InventoryService)
+for command, handler in pairs(TutorialService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+CreatureService.SetTutorialService(TutorialService)
+
+print("[ServerInit] Server initialized (No-BOM)")

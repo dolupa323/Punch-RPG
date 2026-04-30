@@ -1171,11 +1171,22 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.BtnDrop.Visible = false
 			end
 		else
-			d.BtnMain.Visible = true
+			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
+			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD))
+			
+			if isArmor then
+				d.BtnMain.Visible = true
+				d.BtnMain.Text = UILocalizer.Localize("장착")
+				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+			elseif isUsable then
+				d.BtnMain.Visible = true
+				d.BtnMain.Text = UILocalizer.Localize("사용")
+				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+			else
+				d.BtnMain.Visible = false
+			end
+			
 			d.BtnDrop.Visible = true
-			d.BtnMain.BackgroundColor3 = C.GOLD_SEL
-			local isEquippable = (itemData and (itemData.type == Enums.ItemType.ARMOR or itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL))
-			d.BtnMain.Text = UILocalizer.Localize(isEquippable and "장착" or "사용")
 		end
 		
 		-- Durability Display
