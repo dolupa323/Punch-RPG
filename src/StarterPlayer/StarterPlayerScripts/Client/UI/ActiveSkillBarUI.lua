@@ -263,7 +263,6 @@ local function createBar(parent)
 			z = 6,
 			parent = slotFrame,
 		})
-		if isMobile then keyLabel.Visible = false end
 
 		-- 터치/클릭 이벤트
 		slotFrame.MouseButton1Click:Connect(function()
@@ -376,7 +375,6 @@ local function createBar(parent)
 			z = 6,
 			parent = capFrame,
 		})
-		if isMobile then capKeyLabel.Visible = false end
 
 		-- 클릭 이벤트
 		capFrame.MouseButton1Click:Connect(function()
@@ -482,7 +480,6 @@ local function createBar(parent)
 			z = 6,
 			parent = intFrame,
 		})
-		if isMobile then intKeyLabel.Visible = false end
 
 		-- 클릭 이벤트
 		intFrame.MouseButton1Click:Connect(function()
