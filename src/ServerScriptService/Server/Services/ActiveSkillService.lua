@@ -27,7 +27,7 @@ local StaminaService
 local HungerService
 
 -- Constants
-local DEV_NO_COOLDOWN = true             -- ★ 개발용 노쿨 (릴리즈 시 false로 변경)
+local DEV_NO_COOLDOWN = false            -- ★ 개발용 노쿨 해제 (원래대로 복구)
 local SKILL_STAMINA_COST = 15           -- 스킬 사용 시 스태미나 소모
 local SKILL_GCD = 0.5                    -- 글로벌 쿨다운 (연타 방지)
 local MULTI_HIT_INTERVAL = 0.3          -- 멀티히트 간격 (초)

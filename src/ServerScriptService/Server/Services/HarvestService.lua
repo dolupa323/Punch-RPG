@@ -678,15 +678,7 @@ local function calculateEfficiency(player: Player, nodeOptimalType: string?, too
 		baseEff = Balance.HARVEST_EFFICIENCY_BAREHAND or 0.5
 	end
 	
-	-- 2. Work Speed 보너스 (10점당 +5%)
-	local workSpeedBonus = 0
-	if PlayerStatService then
-		local stats = PlayerStatService.getStats(player.UserId)
-		local workSpeedStat = (stats and stats.statInvested and stats.statInvested[Enums.StatId.WORK_SPEED]) or 0
-		workSpeedBonus = math.floor(workSpeedStat / 10) * 0.05
-	end
-	
-	return baseEff + workSpeedBonus
+	return baseEff
 end
 
 --- 드롭 아이템 계산 (효율 적용)

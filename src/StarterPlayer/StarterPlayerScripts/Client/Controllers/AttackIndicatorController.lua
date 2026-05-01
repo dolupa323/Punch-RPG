@@ -19,13 +19,13 @@ local AttackIndicatorController = {}
 --========================================
 -- Constants
 --========================================
-local VOLUME_HEIGHT = 3                          -- 볼륨 높이 (studs)
-local VOLUME_TRANSPARENCY = 0.85                 -- 기본 투명도 (높을수록 투명)
-local VOLUME_COLOR = Color3.fromRGB(255, 80, 80) -- 위험 영역 빨간색 (연한 톤)
+local VOLUME_HEIGHT = 4                          -- 볼륨 높이 (12에서 4로 롤백)
+local VOLUME_TRANSPARENCY = 0.7                 -- 더 투명하게 (0.4 -> 0.7)
+local VOLUME_COLOR = Color3.fromRGB(255, 100, 100) -- 연하고 밝은 붉은색
 local FLASH_SPEED = 4.0                          -- 깜빡임 속도
-local INDICATOR_OVERSIZE = 1.0                   -- 판정 범위와 정확히 일치
-local FADE_IN_TIME = 0.08                        -- 페이드인 시간 (짧게)
-local FADE_OUT_TIME = 0.15                       -- 페이드아웃 시간
+local INDICATOR_OVERSIZE = 1.4                   -- 서버 판정(1.3x)보다 확실히 크게 표시 (플레이어 체감 최적화)
+local FADE_IN_TIME = 0.1                         -- 페이드인 시간
+local FADE_OUT_TIME = 0.2                        -- 페이드아웃 시간
 
 -- Active indicators: [instanceId] = { model: Model, conn: RBXScriptConnection? }
 local activeIndicators = {}
@@ -78,7 +78,7 @@ end
 -- 3D Volume Part Creation
 --========================================
 
---- 반투명 Neon Part 생성 (공통)
+--- "붉은 유리 박스" 느낌의 Part 생성
 local function createVolumePart(size: Vector3, cf: CFrame): Part
 	local part = Instance.new("Part")
 	part.Name = "AttackVolume"
@@ -87,11 +87,13 @@ local function createVolumePart(size: Vector3, cf: CFrame): Part
 	part.CanQuery = false
 	part.CanTouch = false
 	part.CastShadow = false
-	part.Material = Enum.Material.Neon
+	part.Material = Enum.Material.Glass
+	part.Reflectance = 0.2 -- 유리의 매끄러운 반사광
 	part.Color = VOLUME_COLOR
 	part.Transparency = 1 -- 시작 시 투명 (페이드인)
 	part.Size = size
 	part.CFrame = cf
+
 	return part
 end
 
@@ -111,7 +113,7 @@ local function createConeVolume(origin: Vector3, lookVector: Vector3, range: num
 	local center = Vector3.new(origin.X, groundY + VOLUME_HEIGHT / 2, origin.Z) + flatLook * (range / 2)
 	local cf = CFrame.lookAt(center, center + flatLook)
 
-	local part = createVolumePart(Vector3.new(width, VOLUME_HEIGHT, range), cf)
+	local part = createVolumePart(Vector3.new(width * 1.2, VOLUME_HEIGHT, range), cf) -- 너비 20% 추가 여유
 	part.Parent = model
 
 	return model
@@ -211,7 +213,7 @@ local function startFlashEffect(model: Model, windupTime: number, attackTime: nu
 
 		for _, desc in ipairs(model:GetDescendants()) do
 			if desc:IsA("BasePart") then
-				desc.Transparency = math.clamp(flashTransparency, 0.6, 0.95)
+				desc.Transparency = math.clamp(flashTransparency, 0.5, 0.9)
 			end
 		end
 	end)
@@ -246,7 +248,7 @@ end
 -- Show Indicators
 --========================================
 
---- 텔레그래프(패턴) 공격 범위 표시 — 크리처 발광(flashLeadTime)과 동기화
+--- 텔레그래프(패턴) 공격 범위 표시 — 서버 신호 수신 즉시 표시 (네트워크 지연 보상)
 local function showTelegraphIndicator(instanceId: string, data: any)
 	clearIndicator(instanceId)
 
@@ -256,71 +258,63 @@ local function showTelegraphIndicator(instanceId: string, data: any)
 	local targetPos = Vector3.new(data.targetPos[1], data.targetPos[2], data.targetPos[3])
 	local windupTime = data.windupTime or 0.5
 	local attackTime = data.attackTime or 0.5
+	local bufferTime = 0.35 -- 서버 NETWORK_ANIM_BUFFER와 동기화
 
-	-- ★ 발광 타이밍 계산 (CreatureAnimationController와 동일)
-	local flashLeadTime = math.min(0.5, windupTime * 0.8)
-	local delayBeforeShow = math.max(0, windupTime - flashLeadTime)
-
-	-- 지연 후 볼륨 표시 (발광과 동시에 나타남)
-	task.delay(delayBeforeShow, function()
-		-- 이미 다른 인디케이터가 등록되었으면 무시
-		if activeIndicators[instanceId] then return end
-
-		-- 실시간 크리처 위치 반영
-		local creatureModel = findCreatureModel(instanceId)
-		if creatureModel then
-			local hrp = creatureModel:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				creaturePos = hrp.Position
-				creatureLook = hrp.CFrame.LookVector
-			end
+	-- ★ 즉시 표시 (지연 제거): 네트워크 랙 상황에서도 최대한 빨리 범위를 보여줌
+	local creatureModel = findCreatureModel(instanceId)
+	if creatureModel then
+		local hrp = creatureModel:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			creaturePos = hrp.Position
+			creatureLook = hrp.CFrame.LookVector
 		end
+	end
 
-		-- CONE 패턴: Head 위치를 시작점으로
-		local indicatorOrigin = creaturePos
-		if pattern == "CONE" and creatureModel then
-			local headPart = findHeadPart(creatureModel)
-			if headPart then
-				indicatorOrigin = headPart.Position
-			end
+	-- CONE 패턴: Head 위치를 시작점으로
+	local indicatorOrigin = creaturePos
+	if pattern == "CONE" and creatureModel then
+		local headPart = findHeadPart(creatureModel)
+		if headPart then
+			indicatorOrigin = headPart.Position
 		end
+	end
 
-		-- 패턴별 3D 볼륨 생성
-		local indicatorModel
-		if pattern == "CONE" then
-			local visRange = (data.range or 10) * INDICATOR_OVERSIZE
-			local visAngle = (data.angle or 60) * INDICATOR_OVERSIZE
-			indicatorModel = createConeVolume(indicatorOrigin, creatureLook, visRange, visAngle)
-		elseif pattern == "CIRCLE" then
-			local visRadius = (data.radius or 10) * INDICATOR_OVERSIZE
-			indicatorModel = createCircleVolume(creaturePos, visRadius)
-		elseif pattern == "CHARGE" then
-			local visWidth = (data.width or 6) * INDICATOR_OVERSIZE
-			local visLength = (data.length or 20) * INDICATOR_OVERSIZE
-			indicatorModel = createChargeVolume(creaturePos, creatureLook, visWidth, visLength)
-		elseif pattern == "PROJECTILE" then
-			local visRadius = (data.impactRadius or 5) * INDICATOR_OVERSIZE
-			indicatorModel = createProjectileVolume(targetPos, visRadius)
-		else
-			local visRange = (data.range or 10) * INDICATOR_OVERSIZE
-			local visAngle = (data.angle or 60) * INDICATOR_OVERSIZE
-			indicatorModel = createConeVolume(indicatorOrigin, creatureLook, visRange, visAngle)
-		end
+	-- 패턴별 3D 볼륨 생성
+	local indicatorModel
+	if pattern == "CONE" then
+		local visRange = (data.range or 10) * INDICATOR_OVERSIZE
+		local visAngle = (data.angle or 60) * INDICATOR_OVERSIZE
+		indicatorModel = createConeVolume(indicatorOrigin, creatureLook, visRange, visAngle)
+	elseif pattern == "CIRCLE" then
+		local visRadius = (data.radius or 10) * INDICATOR_OVERSIZE
+		indicatorModel = createCircleVolume(creaturePos, visRadius)
+	elseif pattern == "CHARGE" then
+		local visWidth = (data.width or 6) * INDICATOR_OVERSIZE
+		local visLength = (data.length or 20) * INDICATOR_OVERSIZE
+		indicatorModel = createChargeVolume(creaturePos, creatureLook, visWidth, visLength)
+	elseif pattern == "PROJECTILE" then
+		local visRadius = (data.impactRadius or 5) * INDICATOR_OVERSIZE
+		indicatorModel = createProjectileVolume(targetPos, visRadius)
+	else
+		local visRange = (data.range or 10) * INDICATOR_OVERSIZE
+		local visAngle = (data.angle or 60) * INDICATOR_OVERSIZE
+		indicatorModel = createConeVolume(indicatorOrigin, creatureLook, visRange, visAngle)
+	end
 
-		indicatorModel.Parent = indicatorFolder
+	indicatorModel.Parent = indicatorFolder
 
-		-- ★ flashLeadTime 동안만 깜빡임 (windup 0 + attack = flashLeadTime)
-		local flashConn = startFlashEffect(indicatorModel, 0, flashLeadTime)
+	-- ★ 전체 시간(준비 + 공격 + 버퍼) 동안 유지
+	local totalIndicatorTime = windupTime + attackTime + bufferTime
+	local flashConn = startFlashEffect(indicatorModel, windupTime, attackTime + bufferTime)
 
-		activeIndicators[instanceId] = {
-			model = indicatorModel,
-			conn = flashConn,
-		}
+	activeIndicators[instanceId] = {
+		model = indicatorModel,
+		conn = flashConn,
+	}
 
-		-- ★ flashLeadTime 후 자동 제거 (발광 끝나면 즉시 사라짐)
-		task.delay(flashLeadTime + 0.1, function()
-			clearIndicator(instanceId)
-		end)
+	-- ★ 서버 판정 종료 시점에 맞춰 제거 (동시성 체감을 위해 딜레이 최소화)
+	task.delay(totalIndicatorTime + 0.05, function()
+		clearIndicator(instanceId)
 	end)
 end
 

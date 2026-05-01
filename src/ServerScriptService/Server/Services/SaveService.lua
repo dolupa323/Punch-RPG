@@ -99,7 +99,6 @@ local function _getDefaultPlayerSave()
 				[Enums.StatId.MAX_HEALTH] = 0,
 				[Enums.StatId.MAX_STAMINA] = 0,
 				[Enums.StatId.INV_SLOTS] = 0,
-				[Enums.StatId.WORK_SPEED] = 0,
 				[Enums.StatId.ATTACK] = 0,
 			}
 		},

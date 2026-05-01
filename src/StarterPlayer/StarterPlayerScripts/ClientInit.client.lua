@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local StarterPlayerScripts = script.Parent
 
 local Client = StarterPlayerScripts:WaitForChild("Client")
@@ -43,15 +44,28 @@ local function createStudioAdminGoldPanel()
 	gui.DisplayOrder = 200
 	gui.Parent = playerGui
 
-	local frame = Instance.new("Frame")
+	-- [반응형] 모바일 여부 확인
+	local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = isMobile and 0.85 or 1.0
+	uiScale.Parent = gui
+
+	local frame = Instance.new("ScrollingFrame")
+	frame.Name = "StudioAdminPanel"
 	frame.AnchorPoint = Vector2.new(1, 0)
-	frame.Position = UDim2.new(1, -34, 0, 80)
-	frame.Size = UDim2.new(0, 240, 0, 360)
+	frame.Position = isMobile and UDim2.new(1, -10, 0, 85) or UDim2.new(1, -48, 0, 85)
+	frame.Size = UDim2.new(0, isMobile and 200 or 250, 0, isMobile and 260 or 360)
 	frame.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
 	frame.BackgroundTransparency = 0.1
 	frame.BorderSizePixel = 0
 	frame.Visible = false
+	frame.ScrollBarThickness = 4
+	frame.ScrollBarImageColor3 = Color3.fromRGB(185, 155, 80)
+	frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	frame.ScrollingDirection = Enum.ScrollingDirection.Y
+	frame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	frame.Parent = gui
+	
 	local frameCorner = Instance.new("UICorner")
 	frameCorner.CornerRadius = UDim.new(0, 10)
 	frameCorner.Parent = frame
@@ -74,7 +88,7 @@ local function createStudioAdminGoldPanel()
 	local toggleBtn = Instance.new("TextButton")
 	toggleBtn.Name = "AdminToggleBtn"
 	toggleBtn.Size = UDim2.new(0, 42, 0, 42)
-	toggleBtn.Position = UDim2.new(1, -5, 0, 80)
+	toggleBtn.Position = isMobile and UDim2.new(1, -10, 0, 40) or UDim2.new(1, -5, 0, 80)
 	toggleBtn.AnchorPoint = Vector2.new(1, 0)
 	toggleBtn.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
 	toggleBtn.BackgroundTransparency = 0.18
@@ -97,43 +111,43 @@ local function createStudioAdminGoldPanel()
 	end)
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0, 24)
+	title.Size = UDim2.new(1, 0, 0, isMobile and 20 or 24)
 	title.BackgroundTransparency = 1
-	title.Text = "Studio Admin Panel" -- 명칭 변경
+	title.Text = "Studio Admin Panel"
 	title.TextColor3 = Color3.fromRGB(255, 220, 120)
-	title.TextSize = 16
+	title.TextSize = isMobile and 14 or 16
 	title.Font = Enum.Font.GothamBold
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Parent = frame
 
 	local goldLabel = Instance.new("TextLabel")
-	goldLabel.Size = UDim2.new(1, 0, 0, 18)
+	goldLabel.Size = UDim2.new(1, 0, 0, isMobile and 14 or 18)
 	goldLabel.BackgroundTransparency = 1
 	goldLabel.Text = "현재 골드: --"
 	goldLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-	goldLabel.TextSize = 14
+	goldLabel.TextSize = isMobile and 12 or 14
 	goldLabel.Font = Enum.Font.Gotham
 	goldLabel.TextXAlignment = Enum.TextXAlignment.Left
 	goldLabel.Parent = frame
 
 	local amountBox = Instance.new("TextBox")
-	amountBox.Size = UDim2.new(1, 0, 0, 32)
+	amountBox.Size = UDim2.new(1, 0, 0, isMobile and 28 or 32)
 	amountBox.BackgroundColor3 = Color3.fromRGB(38, 42, 48)
 	amountBox.BorderSizePixel = 0
 	amountBox.Text = "5000"
 	amountBox.PlaceholderText = "지급 골드"
 	amountBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 	amountBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-	amountBox.TextSize = 16
+	amountBox.TextSize = isMobile and 14 or 16
 	amountBox.Font = Enum.Font.Gotham
 	amountBox.ClearTextOnFocus = false
 	amountBox.Parent = frame
 	local amountCorner = Instance.new("UICorner")
-	amountCorner.CornerRadius = UDim.new(0, 8)
+	amountCorner.CornerRadius = UDim.new(0, 6)
 	amountCorner.Parent = amountBox
 
 	local goldBtns = Instance.new("Frame")
-	goldBtns.Size = UDim2.new(1, 0, 0, 32)
+	goldBtns.Size = UDim2.new(1, 0, 0, isMobile and 28 or 32)
 	goldBtns.BackgroundTransparency = 1
 	goldBtns.Parent = frame
 	local gGrid = Instance.new("UIListLayout", goldBtns)
@@ -146,10 +160,10 @@ local function createStudioAdminGoldPanel()
 	grantButton.BorderSizePixel = 0
 	grantButton.Text = "골드 지급"
 	grantButton.TextColor3 = Color3.fromRGB(20, 20, 20)
-	grantButton.TextSize = 14
+	grantButton.TextSize = isMobile and 12 or 14
 	grantButton.Font = Enum.Font.GothamBold
 	grantButton.Parent = goldBtns
-	Instance.new("UICorner", grantButton).CornerRadius = UDim.new(0, 8)
+	Instance.new("UICorner", grantButton).CornerRadius = UDim.new(0, 6)
 
 	local refreshButton = Instance.new("TextButton")
 	refreshButton.Size = UDim2.new(0.35, -4, 1, 0)
@@ -157,10 +171,10 @@ local function createStudioAdminGoldPanel()
 	refreshButton.BorderSizePixel = 0
 	refreshButton.Text = "새로고침"
 	refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	refreshButton.TextSize = 14
+	refreshButton.TextSize = isMobile and 12 or 14
 	refreshButton.Font = Enum.Font.GothamBold
 	refreshButton.Parent = goldBtns
-	Instance.new("UICorner", refreshButton).CornerRadius = UDim.new(0, 8)
+	Instance.new("UICorner", refreshButton).CornerRadius = UDim.new(0, 6)
 
 	local ShopController = require(Controllers.ShopController)
 
@@ -207,37 +221,37 @@ local function createStudioAdminGoldPanel()
 	line.Parent = frame
 
 	local tutTitle = Instance.new("TextLabel")
-	tutTitle.Size = UDim2.new(1, 0, 0, 20)
+	tutTitle.Size = UDim2.new(1, 0, 0, isMobile and 16 or 20)
 	tutTitle.BackgroundTransparency = 1
 	tutTitle.Text = "Tutorial (Manual Test)"
 	tutTitle.TextColor3 = Color3.fromRGB(150, 255, 180)
-	tutTitle.TextSize = 14
+	tutTitle.TextSize = isMobile and 12 or 14
 	tutTitle.Font = Enum.Font.GothamBold
 	tutTitle.TextXAlignment = Enum.TextXAlignment.Left
 	tutTitle.Parent = frame
 
 	local tutLabel = Instance.new("TextLabel")
-	tutLabel.Size = UDim2.new(1, 0, 0, 36)
+	tutLabel.Size = UDim2.new(1, 0, 0, isMobile and 28 or 36)
 	tutLabel.BackgroundTransparency = 1
 	tutLabel.Text = "현재 상태: 대기중"
 	tutLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-	tutLabel.TextSize = 13
+	tutLabel.TextSize = isMobile and 11 or 13
 	tutLabel.Font = Enum.Font.Gotham
 	tutLabel.TextWrapped = true
 	tutLabel.Parent = frame
 
 	local startTutBtn = Instance.new("TextButton")
-	startTutBtn.Size = UDim2.new(1, 0, 0, 32)
+	startTutBtn.Size = UDim2.new(1, 0, 0, isMobile and 28 or 32)
 	startTutBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 80)
 	startTutBtn.Text = "튜토리얼 강제 시작"
 	startTutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	startTutBtn.TextSize = 13
+	startTutBtn.TextSize = isMobile and 12 or 13
 	startTutBtn.Font = Enum.Font.GothamBold
 	startTutBtn.Parent = frame
 	Instance.new("UICorner", startTutBtn).CornerRadius = UDim.new(0, 6)
 
 	local qBtns = Instance.new("Frame")
-	qBtns.Size = UDim2.new(1, 0, 0, 32)
+	qBtns.Size = UDim2.new(1, 0, 0, isMobile and 28 or 32)
 	qBtns.BackgroundTransparency = 1
 	qBtns.Parent = frame
 	local qGrid = Instance.new("UIListLayout", qBtns)
@@ -248,6 +262,38 @@ local function createStudioAdminGoldPanel()
 	stepBox.Size = UDim2.new(0.3, -4, 1, 0)
 	stepBox.BackgroundColor3 = Color3.fromRGB(38, 42, 48)
 	stepBox.BorderSizePixel = 0
+	stepBox.Text = "1"
+	stepBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	stepBox.TextSize = isMobile and 13 or 14
+	stepBox.Font = Enum.Font.Gotham
+	stepBox.Parent = qBtns
+	Instance.new("UICorner", stepBox).CornerRadius = UDim.new(0, 6)
+
+	local setStepBtn = Instance.new("TextButton")
+	setStepBtn.Size = UDim2.new(0.7, -4, 1, 0)
+	setStepBtn.BackgroundColor3 = Color3.fromRGB(70, 85, 110)
+	setStepBtn.Text = "단계 강제 이동"
+	setStepBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	setStepBtn.TextSize = isMobile and 12 or 13
+	setStepBtn.Font = Enum.Font.GothamBold
+	setStepBtn.Parent = qBtns
+	Instance.new("UICorner", setStepBtn).CornerRadius = UDim.new(0, 6)
+
+	local resetTutBtn = Instance.new("TextButton")
+	resetTutBtn.Size = UDim2.new(1, 0, 0, isMobile and 28 or 32)
+	resetTutBtn.BackgroundColor3 = Color3.fromRGB(150, 70, 70)
+	resetTutBtn.Text = "진행 정보 초기화"
+	resetTutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	resetTutBtn.TextSize = isMobile and 12 or 13
+	resetTutBtn.Font = Enum.Font.GothamBold
+	resetTutBtn.Parent = frame
+	Instance.new("UICorner", resetTutBtn).CornerRadius = UDim.new(0, 6)
+
+	-- 스크롤 크기 동적 업데이트 보강
+	list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		frame.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 20)
+	end)
+	frame.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 20)
 	stepBox.Text = "1"
 	stepBox.PlaceholderText = "Step"
 	stepBox.TextColor3 = Color3.fromRGB(255, 255, 255)

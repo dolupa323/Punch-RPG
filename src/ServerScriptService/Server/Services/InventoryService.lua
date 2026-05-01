@@ -1846,8 +1846,7 @@ local function handleUse(player: Player, payload: any)
 		-- 길들이기 확률: 레벨이 높을수록 낮음
 		-- [DEV] 개발용 100% 확률 고정 — 릴리스 시 아래 원래 공식으로 복원할 것
 		-- 원래 공식:
-		-- local baseTameRate = math.clamp(0.50 - creatureLevel * 0.05, 0.05, 0.50)
-		local baseTameRate = 1.0 -- [DEV] 길들이기 100%
+		local baseTameRate = math.clamp(0.50 - creatureLevel * 0.05, 0.05, 0.50)
 
 		-- 스킬 보너스 적용
 		local unlockedMap = SkillServiceRef.getUnlockedSkills(userId)
@@ -1856,9 +1855,7 @@ local function handleUse(player: Player, payload: any)
 			table.insert(learnedList, skillId)
 		end
 		local tamingBonus = SkillTreeDataModule.GetTamingRateBonus(learnedList)
-		-- [DEV] 개발용 100% — 릴리스 시 원래 공식으로 복원:
-		-- local finalRate = math.clamp(baseTameRate + tamingBonus, 0.03, 0.60)
-		local finalRate = 1.0 -- [DEV] 길들이기 100%
+		local finalRate = math.clamp(baseTameRate + tamingBonus, 0.03, 0.60)
 
 		-- 확률 굴림
 		local roll = math.random()

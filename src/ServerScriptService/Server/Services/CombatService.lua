@@ -46,6 +46,7 @@ local CONTACT_KNOCKBACK_FORCE = 10   -- 전투 중 접촉 시 밀어내기 힘 (
 local CONTACT_STAGGER_DURATION = 0.3 -- 접촉 경직 시간 (초)
 local CONTACT_STAGGER_COOLDOWN = 2.0 -- 접촉 경직 쿨다운 (경직 해제 후 재발동까지)
 local CONTACT_CHECK_DIST = 3         -- 접촉 판정 거리 (스터드) (5 → 3, 과도한 감지 방지)
+local MAX_CREATURE_ATTACK_HEIGHT = 4  -- 크리처 공격 세로 판정 높이 (12에서 4로 롤백)
 
 -- Level Gap Constants
 local LEVEL_GAP_MULTIPLIER = 0.05 -- 레벨 차이당 5% 증감
@@ -485,13 +486,20 @@ function CombatService.isInCone(creaturePos: Vector3, creatureLook: Vector3, pla
 	if toPlayer.Magnitude > range then return false end
 	local dot = flatLook.Unit:Dot(toPlayer.Unit)
 	local angleRad = math.acos(math.clamp(dot, -1, 1))
-	return angleRad <= math.rad(halfAngleDeg)
+	if angleRad > math.rad(halfAngleDeg) then return false end
+	
+	-- Y축 판정 (세로)
+	local yDiff = math.abs(playerPos.Y - creaturePos.Y)
+	return yDiff <= (MAX_CREATURE_ATTACK_HEIGHT / 2) + 2 -- 약간의 여유분
 end
 
 --- 원형(CIRCLE) 범위 판정: 크리처 중심 반경 내
 function CombatService.isInCircle(creaturePos: Vector3, playerPos: Vector3, radius: number): boolean
-	local dist = (Vector3.new(playerPos.X, 0, playerPos.Z) - Vector3.new(creaturePos.X, 0, creaturePos.Z)).Magnitude
-	return dist <= radius
+	local distXZ = (Vector3.new(playerPos.X, 0, playerPos.Z) - Vector3.new(creaturePos.X, 0, creaturePos.Z)).Magnitude
+	if distXZ > radius then return false end
+	
+	local yDiff = math.abs(playerPos.Y - creaturePos.Y)
+	return yDiff <= (MAX_CREATURE_ATTACK_HEIGHT / 2) + 2
 end
 
 --- 직선 돌진(CHARGE) 범위 판정: 크리처 전방 직사각형 통로 내
@@ -507,13 +515,19 @@ function CombatService.isInCharge(creaturePos: Vector3, creatureLook: Vector3, p
 	-- 횡방향 투영 (lateral distance)
 	local rightDir = Vector3.new(flatLook.Z, 0, -flatLook.X)
 	local lateralDist = math.abs(rightDir:Dot(toPlayer))
-	return lateralDist <= (width / 2)
+	if lateralDist > (width / 2) then return false end
+	
+	local yDiff = math.abs(playerPos.Y - creaturePos.Y)
+	return yDiff <= (MAX_CREATURE_ATTACK_HEIGHT / 2) + 2
 end
 
 --- 원거리 투사체(PROJECTILE) 범위 판정: 착탄 지점 기준 반경 내
 function CombatService.isInProjectile(impactPos: Vector3, playerPos: Vector3, impactRadius: number): boolean
-	local dist = (Vector3.new(playerPos.X, 0, playerPos.Z) - Vector3.new(impactPos.X, 0, impactPos.Z)).Magnitude
-	return dist <= impactRadius
+	local distXZ = (Vector3.new(playerPos.X, 0, playerPos.Z) - Vector3.new(impactPos.X, 0, impactPos.Z)).Magnitude
+	if distXZ > impactRadius then return false end
+	
+	local yDiff = math.abs(playerPos.Y - impactPos.Y)
+	return yDiff <= (MAX_CREATURE_ATTACK_HEIGHT / 2) + 2
 end
 
 --- 공격 패턴에 따라 적절한 판정 함수 호출

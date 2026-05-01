@@ -50,7 +50,6 @@ local function _normalizeStatInvested(raw: any): {[string]: number}
 		[Enums.StatId.MAX_HEALTH] = 0,
 		[Enums.StatId.MAX_STAMINA] = 0,
 		[Enums.StatId.INV_SLOTS] = 0,
-		[Enums.StatId.WORK_SPEED] = 0,
 		[Enums.StatId.ATTACK] = 0,
 		[Enums.StatId.DEFENSE] = 0,
 	}
@@ -372,13 +371,6 @@ function PlayerStatService.upgradeStat(userId: number, statId: string): (boolean
 		end
 	end
 
-	-- 작업 속도 스탯: 상한 검사 (평균 50포인트)
-	if statId == Enums.StatId.WORK_SPEED then
-		local currentInvested = stats.statInvested[Enums.StatId.WORK_SPEED] or 0
-		if currentInvested >= (Balance.MAX_WORKSPEED_POINTS or 50) then
-			return false, "MAX_WORKSPEED_REACHED"
-		end
-	end
 	
 	stats.statInvested[statId] = (stats.statInvested[statId] or 0) + 1
 	_savePlayerStats(userId)
@@ -441,7 +433,6 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		if setBonuses.attackMult then finalAtk = finalAtk + setBonuses.attackMult end
 	end
 	
-	local finalWork = 100 + ((stats[Enums.StatId.WORK_SPEED] or 0) * Balance.WORKSPEED_PER_POINT)
 
 	-- 이동 속도 보너스 (방어구 세트 등)
 	local speedMult = 0
@@ -456,7 +447,6 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 			Balance.MAX_INV_SLOTS,
 			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT)
 		),
-		workSpeed = finalWork,
 		attackMult = math.max(0.1, finalAtk),
 		defense = defense,
 		speedMult = speedMult,
@@ -508,7 +498,6 @@ function PlayerStatService.applyStats(userId: number)
 	if character then
 		character:SetAttribute("MaxSlots", calc.maxSlots)
 		character:SetAttribute("AttackMult", calc.attackMult)
-		character:SetAttribute("WorkSpeed", calc.workSpeed)
 		character:SetAttribute("Defense", calc.defense)
 	end
 	

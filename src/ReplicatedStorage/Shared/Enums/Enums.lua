@@ -102,7 +102,7 @@ Enums.ErrorCode = {
 	SHOP_TOO_FAR = "SHOP_TOO_FAR",                   -- 상점 거리 초과
 	LEVEL_NOT_MET = "LEVEL_NOT_MET",                 -- 필요 레벨 미충족
 	GOLD_CAP_REACHED = "GOLD_CAP_REACHED",           -- 골드 한도 도달
-
+	
 	-- 토템/거점 유지비 관련
 	TOTEM_REQUIRED = "TOTEM_REQUIRED",               -- 토템 없이 건설 시도
 	TOTEM_NOT_FOUND = "TOTEM_NOT_FOUND",             -- 토템 없음
@@ -120,7 +120,6 @@ Enums.StatId = {
 	MAX_HEALTH = "MAX_HEALTH",     -- 최대 체력
 	MAX_STAMINA = "MAX_STAMINA",   -- 최대 스태미나
 	INV_SLOTS = "INV_SLOTS",       -- 인벤토리 칸
-	WORK_SPEED = "WORK_SPEED",     -- 작업 속도
 	ATTACK = "ATTACK",             -- 공격력
 	DEFENSE = "DEFENSE",           -- 방어력
 }

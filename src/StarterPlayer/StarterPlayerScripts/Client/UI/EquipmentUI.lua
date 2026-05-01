@@ -175,7 +175,6 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		{id=Enums.StatId.MAX_HEALTH, name="최대 체력", up=true}, 
 		{id=Enums.StatId.MAX_STAMINA, name="최대 스태미나", up=true}, 
 		{id=Enums.StatId.INV_SLOTS, name="인벤토리 칸", up=true}, 
-		{id=Enums.StatId.WORK_SPEED, name="작업 속도", up=true}, 
 		{id=Enums.StatId.ATTACK, name="공격력", up=true},
 		{id=Enums.StatId.DEFENSE, name="방어력", up=false}
 	}
@@ -619,7 +618,6 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 		if statId == Enums.StatId.MAX_HEALTH then baseValue = calc.maxHealth or 100; valText = string.format("%d HP", baseValue)
 		elseif statId == Enums.StatId.MAX_STAMINA then baseValue = calc.maxStamina or 100; valText = string.format("%d STA", baseValue)
 		elseif statId == Enums.StatId.INV_SLOTS then baseValue = calc.maxSlots or 60; valText = string.format("%d 칸", baseValue)
-		elseif statId == Enums.StatId.WORK_SPEED then baseValue = calc.workSpeed or 100; valText = string.format("%d%%", baseValue)
 		elseif statId == Enums.StatId.ATTACK then baseValue = (calc.attackMult or 1.0) * 100; valText = string.format("%.0f%%", baseValue)
 		elseif statId == Enums.StatId.DEFENSE then baseValue = calc.defense or 0; valText = string.format("%d", baseValue) end
 		

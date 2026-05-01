@@ -38,6 +38,7 @@ local lastDodgeTime = 0
 -- 자동 달리기 상태 (직진 유지 시 가속)
 local autoMoveHoldTime = 0
 local autoMoveDirection = nil
+local isShiftDown = false -- 수동 달리기용
 local AUTO_SPRINT_HOLD_TIME = Balance.AUTO_SPRINT_HOLD_TIME or 1.6
 local AUTO_SPRINT_DIRECTION_DOT = Balance.AUTO_SPRINT_DIRECTION_DOT or 0.94
 local AUTO_SPRINT_MIN_MOVE = Balance.AUTO_SPRINT_MIN_MOVE or 0.25
@@ -217,7 +218,7 @@ local function updateAutoSprint(dt: number)
 		autoMoveHoldTime = 0
 	end
 
-	shouldSprint = autoMoveHoldTime >= AUTO_SPRINT_HOLD_TIME
+	shouldSprint = (autoMoveHoldTime >= AUTO_SPRINT_HOLD_TIME) or isShiftDown
 	setSprintState(shouldSprint)
 end
 
@@ -295,6 +296,14 @@ local function onInputBegan(input: InputObject, gameProcessed: boolean)
 	-- LeftControl: 구르기
 	if input.KeyCode == Enum.KeyCode.LeftControl then
 		performDodge()
+	elseif input.KeyCode == Enum.KeyCode.LeftShift then
+		isShiftDown = true
+	end
+end
+
+local function onInputEnded(input: InputObject, _gameProcessed: boolean)
+	if input.KeyCode == Enum.KeyCode.LeftShift then
+		isShiftDown = false
 	end
 end
 
@@ -330,6 +339,7 @@ function MovementController.Init()
 	
 	-- 입력 연결
 	UserInputService.InputBegan:Connect(onInputBegan)
+	UserInputService.InputEnded:Connect(onInputEnded)
 	
 	-- 서버 이벤트 리스너
 	NetClient.On("Stamina.Update", onStaminaUpdate)

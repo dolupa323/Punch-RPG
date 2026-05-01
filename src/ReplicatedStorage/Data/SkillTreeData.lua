@@ -106,7 +106,7 @@ SkillTreeData.SWORD = {
 		reqLevel = 8,
 		spCost = 2,
 		prereqs = { "SWORD_P1" },
-		cooldown = 12,
+		cooldown = 4,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 2.00 },
 		},
@@ -120,7 +120,7 @@ SkillTreeData.SWORD = {
 		reqLevel = 25,
 		spCost = 3,
 		prereqs = { "SWORD_P3" },
-		cooldown = 18,
+		cooldown = 8,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 3.50 },
 			{ stat = "SLOW_DURATION", value = 2.5 },
@@ -135,7 +135,7 @@ SkillTreeData.SWORD = {
 		reqLevel = 40,
 		spCost = 3,
 		prereqs = { "SWORD_P4" },
-		cooldown = 30,
+		cooldown = 16,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 5 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 1.60 },
@@ -225,7 +225,7 @@ SkillTreeData.BOW = {
 		reqLevel = 8,
 		spCost = 2,
 		prereqs = { "BOW_P1" },
-		cooldown = 14,
+		cooldown = 4,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 2.50 },
 			{ stat = "STAGGER_DURATION", value = 2.0 },
@@ -241,7 +241,7 @@ SkillTreeData.BOW = {
 		reqLevel = 25,
 		spCost = 3,
 		prereqs = { "BOW_P3" },
-		cooldown = 20,
+		cooldown = 8,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 5 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 0.90 },
@@ -256,7 +256,7 @@ SkillTreeData.BOW = {
 		reqLevel = 40,
 		spCost = 3,
 		prereqs = { "BOW_P4" },
-		cooldown = 35,
+		cooldown = 16,
 		effects = {
 			{ stat = "SKILL_DAMAGE_MULT", value = 3.00 },
 			{ stat = "SKILL_AOE_RADIUS", value = 8 },
@@ -348,7 +348,7 @@ SkillTreeData.AXE = {
 		reqLevel = 8,
 		spCost = 2,
 		prereqs = { "AXE_P1" },
-		cooldown = 12,
+		cooldown = 4,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 4 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 0.625 },
@@ -365,7 +365,7 @@ SkillTreeData.AXE = {
 		reqLevel = 25,
 		spCost = 3,
 		prereqs = { "AXE_P3" },
-		cooldown = 22,
+		cooldown = 8,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 28 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 0.10 },
@@ -381,7 +381,7 @@ SkillTreeData.AXE = {
 		reqLevel = 40,
 		spCost = 3,
 		prereqs = { "AXE_P4" },
-		cooldown = 35,
+		cooldown = 16,
 		effects = {
 			{ stat = "SKILL_MULTI_HIT", value = 8 },
 			{ stat = "SKILL_DAMAGE_MULT", value = 1.50 },

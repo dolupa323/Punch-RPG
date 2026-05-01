@@ -953,9 +953,14 @@ function HarvestUI.Open(nodeUID, nodeId, nodeModel)
 
 	local viewportSize = workspace.CurrentCamera.ViewportSize
 	local baseHeight = 1080
-	local scale = math.clamp(viewportSize.Y / baseHeight, 0.6, 1.1)
+	local scale = viewportSize.Y / baseHeight
+
 	if UserInputService.TouchEnabled then
-		scale = scale * 0.9 -- 모바일은 살짝 더 작게
+		-- 모바일: 기존의 적합한 크기 유지 (0.6 ~ 1.1)
+		scale = math.clamp(scale, 0.6, 1.1) * 0.9
+	else
+		-- PC: 시인성 확보를 위해 배율 상향 (1.25 ~ 1.8)
+		scale = math.clamp(scale * 1.3, 1.25, 1.8)
 	end
 	
 	local scaledHexSize = math.floor(HEX_SIZE * scale)

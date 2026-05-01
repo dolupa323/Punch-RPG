@@ -167,10 +167,12 @@ local function updateCreatureAnimation(model, info)
 			end
 		end
 	elseif info.isAttacking then
-		-- 공격 애니메이션이 끝났는지 체크 (캐시된 트랙 활용)
-		local attackTrack = AnimationManager.load(humanoid, attackAnimName)
+		-- ★ [FIX] 현재 실제 재생 중인 공격 애니메이션 이름으로 체크
+		local currentAttackName = info.currentAttackAnim or animSet.ATTACK
+		local attackTrack = AnimationManager.load(humanoid, currentAttackName)
 		if attackTrack and not attackTrack.IsPlaying then
 			info.isAttacking = false
+			info.currentAttackAnim = nil
 		else
 			-- 아직 공격 중이면 다른 애니메이션 전환 차단
 			return
@@ -520,6 +522,9 @@ function CreatureAnimationController.Init()
 							info.isAttacking = false
 							return 
 						end
+						
+						-- ★ 현재 재생 중인 공격 애니메이션 이름 저장 (updateCreatureAnimation에서 체크용)
+						info.currentAttackAnim = attackAnimName
 						
 						local attackTrack = AnimationManager.play(humanoid, attackAnimName, 0.05)
 						if attackTrack then

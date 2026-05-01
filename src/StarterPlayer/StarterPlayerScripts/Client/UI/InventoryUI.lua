@@ -187,19 +187,34 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	scroll.Parent = gridArea
 	
 	local grid = Instance.new("UIGridLayout")
-	-- [Responsive Grid] Scale 기반으로 변경하여 화면 크기에 따라 슬롯 크기 자동 조절
-	grid.CellSize = UDim2.new(0.18, 0, 0.18, 0) 
-	grid.CellPadding = UDim2.new(0.015, 0, 0.015, 0)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
-	
-	local gridRatio = Instance.new("UIAspectRatioConstraint", grid)
-	gridRatio.AspectRatio = 1
-	
+
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 12); pad.PaddingRight = UDim.new(0, 20)
+	pad.PaddingTop = UDim.new(0, 10); pad.PaddingLeft = UDim.new(0, 12); pad.PaddingRight = UDim.new(0, 20); pad.PaddingBottom = UDim.new(0, 10)
 	pad.Parent = scroll
+
+	-- [근본적 해결] 컨테이너 크기에 맞춰 슬롯 크기(Offset)를 동적으로 계산
+	local function updateGridCellSize()
+		local absSize = scroll.AbsoluteSize
+		if absSize.X <= 0 then return end
+		
+		local availableWidth = absSize.X - (pad.PaddingLeft.Offset + pad.PaddingRight.Offset + 24)
+		local cellSize = math.floor(availableWidth * 0.15)
+		local paddingSize = math.floor(availableWidth * 0.012)
+		
+		grid.CellSize = UDim2.new(0, cellSize, 0, cellSize)
+		grid.CellPadding = UDim2.new(0, paddingSize, 0, paddingSize)
+	end
+
+	-- [CanvasSize 동기화] AbsoluteContentSize를 감지하여 캔버스 높이를 정확히 설정 (AutomaticCanvasSize의 한계 극복)
+	grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		scroll.CanvasSize = UDim2.new(0, 0, 0, grid.AbsoluteContentSize.Y + pad.PaddingTop.Offset + pad.PaddingBottom.Offset)
+	end)
+
+	scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridCellSize)
+	task.defer(updateGridCellSize)
 
 	for i = 1, Balance.MAX_INV_SLOTS do
 		local slot = Utils.mkSlot({name="Slot"..i, parent=scroll})
@@ -1173,6 +1188,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		else
 			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
 			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD))
+			local isCaptureBox = (itemData and itemData.type == Enums.ItemType.CAPTURE_BOX)
 			
 			if isArmor then
 				d.BtnMain.Visible = true
@@ -1181,6 +1197,10 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			elseif isUsable then
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("사용")
+				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+			elseif isCaptureBox then
+				d.BtnMain.Visible = true
+				d.BtnMain.Text = UILocalizer.Localize("길들이기")
 				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
 			else
 				d.BtnMain.Visible = false

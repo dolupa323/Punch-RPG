@@ -62,6 +62,8 @@ end
 -- 튜토리얼 시작
 function TutorialService.startTutorial(userId)
 	local progress = getOrCreateProgress(userId)
+	if not progress then return end
+	
 	progress.stepIndex = 1
 	progress.completed = false
 	
@@ -72,7 +74,7 @@ end
 -- 단계 완료 처리 및 보상
 function TutorialService.completeStep(userId, stepIndex)
 	local progress = getOrCreateProgress(userId)
-	if progress.stepIndex ~= stepIndex then return false end
+	if not progress or progress.stepIndex ~= stepIndex then return false end
 	
 	local stepData = TutorialData.Steps[stepIndex]
 	if not stepData then return false end
@@ -119,6 +121,10 @@ function TutorialService.GetHandlers()
 		
 		["Tutorial.GetStatus.Request"] = function(player)
 			local progress = getOrCreateProgress(player.UserId)
+			if not progress then 
+				return { success = false, message = "Data not loaded" } 
+			end
+			
 			return { success = true, data = {
 				stepIndex = progress.stepIndex,
 				totalSteps = #TutorialData.Steps,
@@ -133,6 +139,7 @@ function TutorialService.GetHandlers()
 
 		["Tutorial.Admin.Reset.Request"] = function(player)
 			local progress = getOrCreateProgress(player.UserId)
+			if not progress then return { success = false } end
 			progress.stepIndex = 0
 			progress.completed = false
 			fireUpdate(player.UserId)
@@ -141,6 +148,7 @@ function TutorialService.GetHandlers()
 
 		["Tutorial.Admin.SetStep.Request"] = function(player, payload)
 			local progress = getOrCreateProgress(player.UserId)
+			if not progress then return { success = false } end
 			progress.stepIndex = payload.stepIndex or 1
 			progress.completed = false
 			fireUpdate(player.UserId)

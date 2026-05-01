@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
@@ -244,9 +245,12 @@ function NPCRadialUI.Open(npcModel)
 
 	local viewportSize = workspace.CurrentCamera.ViewportSize
 	local baseHeight = 1080
-	local scale = math.clamp(viewportSize.Y / baseHeight, 0.6, 1.1)
+	local scale = viewportSize.Y / baseHeight
+
 	if UserInputService.TouchEnabled then
-		scale = scale * 0.9 -- 모바일 보정
+		scale = math.clamp(scale, 0.6, 1.1) * 0.9
+	else
+		scale = math.clamp(scale * 1.3, 1.25, 1.8)
 	end
 	
 	local scaledHexSize = math.floor(HEX_SIZE * scale)

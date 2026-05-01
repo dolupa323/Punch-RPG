@@ -269,13 +269,13 @@ local function _createDiamondNode(parent, skill, cx, cy, nodeSize, isUnlocked, c
 	local halfDiag = nodeSize * 0.71
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Name = "Name_" .. skill.id
-	nameLabel.Size = UDim2.new(0, nodeSize * 1.8, 0, math.floor(math.clamp(nodeSize * 0.24, 12, 24)))
-	nameLabel.Position = UDim2.new(0, cx, 0, cy + halfDiag + math.floor(math.clamp(nodeSize * 0.08, 4, 12)))
+	nameLabel.Size = UDim2.new(0, nodeSize * 2.2, 0, math.floor(math.clamp(nodeSize * 0.3, 16, 32)))
+	nameLabel.Position = UDim2.new(0, cx, 0, cy + halfDiag + math.floor(math.clamp(nodeSize * 0.1, 6, 16)))
 	nameLabel.AnchorPoint = Vector2.new(0.5, 0)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = skill.name
 	nameLabel.TextColor3 = isUnlocked and C.WHITE or (isTreeLocked and C.DIM or (canUnlockResult and C.GOLD or C.GRAY))
-	nameLabel.TextSize = math.floor(math.clamp(nodeSize * 0.18, 11, 14)) -- 축소
+	nameLabel.TextSize = math.floor(math.clamp(nodeSize * 0.22, 14, 18)) -- 가독성 상향
 	nameLabel.Font = Enum.Font.GothamMedium
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.ZIndex = 3
@@ -291,8 +291,12 @@ end
 local function _createArrow(parent, fromX, fromY, toX, toY, nodeSize, isActive)
 	local halfDiag = nodeSize * 0.71
 	local dy = toY - fromY
-	local arrowColor = isActive and Color3.fromRGB(190, 175, 120) or Color3.fromRGB(75, 70, 55)
-	local arrowTransp = isActive and 0.15 or 0.55
+	local arrowColor = isActive and Color3.fromRGB(200, 185, 130) or Color3.fromRGB(75, 70, 55)
+	local arrowTransp = isActive and 0.1 or 0.55
+	
+	-- 노드 크기에 따른 선 두께 및 머리 크기 계산
+	local thickness = math.clamp(nodeSize * 0.03, 1.5, 3)
+	local headSize = math.clamp(nodeSize * 0.12, 6, 12)
 
 	if math.abs(dy) < 10 then
 		-- 수평 화살표
@@ -303,7 +307,7 @@ local function _createArrow(parent, fromX, fromY, toX, toY, nodeSize, isActive)
 
 		local line = Instance.new("Frame")
 		line.Name = "ArrowH"
-		line.Size = UDim2.new(0, length, 0, 2)
+		line.Size = UDim2.new(0, length, 0, thickness)
 		line.Position = UDim2.new(0, sx, 0, fromY)
 		line.AnchorPoint = Vector2.new(0, 0.5)
 		line.BackgroundColor3 = arrowColor
@@ -315,7 +319,7 @@ local function _createArrow(parent, fromX, fromY, toX, toY, nodeSize, isActive)
 		-- 화살표 머리
 		local head = Instance.new("Frame")
 		head.Name = "ArrowHd"
-		head.Size = UDim2.new(0, 6, 0, 6)
+		head.Size = UDim2.new(0, headSize, 0, headSize)
 		head.Position = UDim2.new(0, ex, 0, fromY)
 		head.AnchorPoint = Vector2.new(0.5, 0.5)
 		head.Rotation = 45
@@ -333,7 +337,7 @@ local function _createArrow(parent, fromX, fromY, toX, toY, nodeSize, isActive)
 
 		local line = Instance.new("Frame")
 		line.Name = "ArrowV"
-		line.Size = UDim2.new(0, 2, 0, length)
+		line.Size = UDim2.new(0, thickness, 0, length)
 		line.Position = UDim2.new(0, fromX, 0, sy)
 		line.AnchorPoint = Vector2.new(0.5, 0)
 		line.BackgroundColor3 = arrowColor
@@ -344,7 +348,7 @@ local function _createArrow(parent, fromX, fromY, toX, toY, nodeSize, isActive)
 
 		local head = Instance.new("Frame")
 		head.Name = "ArrowHd"
-		head.Size = UDim2.new(0, 6, 0, 6)
+		head.Size = UDim2.new(0, headSize, 0, headSize)
 		head.Position = UDim2.new(0, fromX, 0, ey)
 		head.AnchorPoint = Vector2.new(0.5, 0.5)
 		head.Rotation = 45
@@ -711,122 +715,133 @@ _renderSkillNodes = function(nodeArea)
 		end
 	end
 
-	-- 영역 크기 (AbsoluteSize 미확정 대비)
-	local areaWidth = nodeArea.AbsoluteSize.X
-	if areaWidth < 50 then areaWidth = 600 end
-	local areaHeight = nodeArea.AbsoluteSize.Y
-	if areaHeight < 50 then areaHeight = 450 end
+	-- 영역 크기 (AbsoluteSize가 0이거나 너무 작을 경우 기본값 사용)
+	local areaWidth = math.max(nodeArea.AbsoluteSize.X, 800)
+	local areaHeight = math.max(nodeArea.AbsoluteSize.Y, 500)
 
 	-- 반응형 스케일 팩터 (높이 기준)
-	local scale = math.clamp(areaHeight / 250, 0.6, 2.0)
-	local nodeSize = math.floor(math.clamp(60 * scale, 40, 68))
+	local scale = math.clamp(areaHeight / 500, 0.7, 1.4)
+	local nodeSize = math.floor(math.clamp(82 * scale, 72, 92))
 
-	-- 레이아웃 계산 (원본 배치 유지: 패시브 상단행, 액티브 하단행, 좌→우 컬럼)
-	-- 폭 초과 시 줄바꿈하여 상하 스크롤
+	-- 레이아웃 데이터 준비
+	if #skills == 0 then return end
+
+	-- [가로형 트리 구조]
+	-- 1. 패시브 노드를 수평으로 일렬 배치 (메인 줄기)
+	-- 2. 액티브 노드를 각 부모 패시브 바로 아래에 배치 (가지)
+	local colSpacing = math.floor(nodeSize * 2.1)
+	local rowSpacing = math.floor(nodeSize * 2.0)
+	
+	-- 전체 폭 계산 (패시브 개수 기준)
 	local nPassive = #passives
-	if nPassive == 0 then return end
+	local totalTreeWidth = (nPassive - 1) * colSpacing + nodeSize
+	
+	-- [중요] startX가 음수가 되지 않도록 하고, 전체 너비를 확보
+	local startX = 60 -- 좌측 고정 여백
+	if totalTreeWidth < areaWidth - 120 then
+		startX = (areaWidth - totalTreeWidth) / 2
+	end
 
-	local colSpacing = math.floor(nodeSize * 1.8)
-	local marginX = math.floor(nodeSize * 1.0)
-
-	-- 한 줄에 들어가는 최대 컬럼 수 (폭 기반 자동 줄바꿈)
-	local usableWidth = areaWidth - marginX * 2
-	local colsPerRow = math.max(1, math.floor((usableWidth + colSpacing - nodeSize) / colSpacing))
-
-	-- 한 페이지(행 묶음)의 높이: 마커 + 패시브행 + 액티브행 (여유 있게)
-	local markerH = math.floor(nodeSize * 0.15)
+	local markerH = math.floor(nodeSize * 0.2)
 	local passiveY = markerH + math.floor(nodeSize * 1.2)
-	local activeY = passiveY + math.floor(nodeSize * 2.2)
-	local pageHeight = activeY + math.floor(nodeSize * 1.8) -- 한 페이지 총 높이
+	local activeY = passiveY + rowSpacing
 
 	-- 노드 위치 맵
 	local nodePositions = {}
 
-	-- ========== 패시브 행 (상단, 좌→우, 폭 넘으면 줄바꿈) ==========
+	-- ========== 1단계: 패시브 노드 배치 (수평 일렬) ==========
 	for i, skill in ipairs(passives) do
-		local colIndex = (i - 1) % colsPerRow         -- 현재 줄 내 컬럼
-		local rowIndex = math.floor((i - 1) / colsPerRow) -- 몇 번째 줄
+		local cx = startX + (i - 1) * colSpacing
+		local cy = passiveY
+		nodePositions[skill.id] = { x = cx, y = cy, type = "PASSIVE", order = i }
 
-		local cx = marginX + colIndex * colSpacing
-		local cy = passiveY + rowIndex * pageHeight
-		nodePositions[skill.id] = { x = cx, y = cy }
-
-		-- 레벨 마커 (노드 위)
+		-- 레벨 마커
 		local marker = Instance.new("TextLabel")
-		marker.Name = "LvMark_" .. i
-		marker.Size = UDim2.new(0, nodeSize * 1.6, 0, math.floor(nodeSize * 0.24))
-		marker.Position = UDim2.new(0, cx, 0, markerH + rowIndex * pageHeight)
+		marker.Name = "LvMark_" .. skill.id
+		marker.Size = UDim2.new(0, nodeSize * 1.5, 0, math.floor(nodeSize * 0.3))
+		marker.Position = UDim2.new(0, cx, 0, markerH)
 		marker.AnchorPoint = Vector2.new(0.5, 0)
 		marker.BackgroundTransparency = 1
 		marker.Text = "Lv." .. skill.reqLevel
-		marker.TextColor3 = playerLevel >= skill.reqLevel and Color3.fromRGB(170, 165, 140) or C.DIM
-		marker.TextSize = math.floor(math.clamp(nodeSize * 0.22, 13, 24))
+		marker.TextColor3 = playerLevel >= skill.reqLevel and Color3.fromRGB(200, 190, 150) or C.DIM
+		marker.TextSize = math.floor(math.clamp(nodeSize * 0.24, 14, 22))
 		marker.Font = Enum.Font.RobotoMono
 		marker.ZIndex = 2
 		marker.Parent = nodeArea
 
-		-- 마커 → 노드 연결선
-		local lineLen = passiveY - markerH - math.floor(nodeSize * 0.28) - nodeSize * 0.35
-		if lineLen > 2 then
-			local markLine = Instance.new("Frame")
-			markLine.Name = "MarkLine"
-			markLine.Size = UDim2.new(0, 1, 0, lineLen)
-			markLine.Position = UDim2.new(0, cx, 0, markerH + math.floor(nodeSize * 0.22) + rowIndex * pageHeight)
-			markLine.AnchorPoint = Vector2.new(0.5, 0)
-			markLine.BackgroundColor3 = C.BORDER_DIM
-			markLine.BackgroundTransparency = 0.7
-			markLine.BorderSizePixel = 0
-			markLine.ZIndex = 0
-			markLine.Parent = nodeArea
-		end
+		-- 마커 수직선
+		local line = Instance.new("Frame")
+		line.Name = "MarkLine"
+		line.Size = UDim2.new(0, 1.5, 0, passiveY - markerH - math.floor(nodeSize * 0.75))
+		line.Position = UDim2.new(0, cx, 0, markerH + math.floor(nodeSize * 0.25))
+		line.AnchorPoint = Vector2.new(0.5, 0)
+		line.BackgroundColor3 = C.BORDER_DIM
+		line.BackgroundTransparency = 0.6
+		line.BorderSizePixel = 0
+		line.ZIndex = 1
+		line.Parent = nodeArea
 
 		local isUnlocked = unlockedSkills[skill.id] == true
 		local canUnlock = skillController and skillController.canUnlock(skill.id) or false
 		_createDiamondNode(nodeArea, skill, cx, cy, nodeSize, isUnlocked, canUnlock, isTreeLocked, playerLevel)
 	end
 
-	-- ========== 액티브 행 (하단, 선행스킬 컬럼과 같은 X에 배치) ==========
+	-- ========== 2단계: 액티브 노드 배치 (부모 아래) ==========
+	local parentActiveCount = {} -- { [prereqId] = count }
+
 	for _, skill in ipairs(actives) do
 		local prereqId = skill.prereqs and skill.prereqs[1]
 		local prereqPos = prereqId and nodePositions[prereqId]
-		local cx = prereqPos and prereqPos.x or marginX
-		-- 같은 줄(페이지)의 액티브 Y = 해당 페이지의 activeY
-		local prereqRow = prereqPos and math.floor((prereqPos.y - passiveY) / pageHeight + 0.5) or 0
-		local cy = activeY + prereqRow * pageHeight
-		nodePositions[skill.id] = { x = cx, y = cy }
+		
+		local cx, cy
+		if prereqPos then
+			parentActiveCount[prereqId] = (parentActiveCount[prereqId] or 0) + 1
+			local count = parentActiveCount[prereqId]
+			
+			-- 부모 바로 아래 배치. 만약 부모 하나에 액티브가 여러개면 약간 옆으로 분산
+			local xOffset = (count - 1) * math.floor(nodeSize * 0.5)
+			cx = prereqPos.x + xOffset
+			cy = activeY + (count - 1) * math.floor(nodeSize * 0.4) -- 계단식 배치 방지 위해 Y 오프셋 최소화
+		else
+			-- 부모 없는 액티브 (예외 케이스)
+			cx = startX + (nPassive + 1) * colSpacing
+			cy = activeY
+		end
+		
+		nodePositions[skill.id] = { x = cx, y = cy, type = "ACTIVE" }
 
 		local isUnlocked = unlockedSkills[skill.id] == true
 		local canUnlock = skillController and skillController.canUnlock(skill.id) or false
 		_createDiamondNode(nodeArea, skill, cx, cy, nodeSize, isUnlocked, canUnlock, isTreeLocked, playerLevel)
 	end
 
-	-- ========== 화살표 (선행 연결) ==========
+	-- ========== 3단계: 연결선/화살표 ==========
 	for _, skill in ipairs(skills) do
 		if skill.prereqs then
-			for _, prereqId in ipairs(skill.prereqs) do
-				local from = nodePositions[prereqId]
+			for _, preId in ipairs(skill.prereqs) do
+				local from = nodePositions[preId]
 				local to = nodePositions[skill.id]
 				if from and to then
-					local bothUnlocked = (unlockedSkills[prereqId] == true)
-					_createArrow(nodeArea, from.x, from.y, to.x, to.y, nodeSize, bothUnlocked)
+					local isActive = (unlockedSkills[preId] == true)
+					_createArrow(nodeArea, from.x, from.y, to.x, to.y, nodeSize, isActive)
 				end
 			end
 		end
 	end
 
-	-- 선택된 노드 디테일 갱신
-	if selectedSkillId then
-		_updateDetailPanel()
-	end
+	-- 선택 상태 유지
+	if selectedSkillId then _updateDetailPanel() end
 
-	-- 상하 스크롤 영역 설정 (마지막 페이지 하단 + 여백)
-	local totalRows = math.ceil(nPassive / colsPerRow)
-	local contentBottom = (totalRows - 1) * pageHeight + activeY + math.floor(nodeSize * 1.5)
-	if contentBottom > areaHeight then
-		nodeArea.CanvasSize = UDim2.new(0, 0, 0, contentBottom + 10)
-	else
-		nodeArea.CanvasSize = UDim2.new(0, 0, 0, 0)
+	-- 캔버스 크기 자동 설정 (가로 스크롤 대응)
+	local maxX = 0
+	for _, pos in pairs(nodePositions) do
+		maxX = math.max(maxX, pos.x)
 	end
+	nodeArea.CanvasSize = UDim2.new(0, maxX + nodeSize * 1.5, 0, 0)
+	
+	-- 스크롤바 가시성
+	nodeArea.ScrollingDirection = Enum.ScrollingDirection.X
+	nodeArea.ScrollBarThickness = 4
 end
 
 ----------------------------------------------------------------
@@ -948,6 +963,8 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		stroke = 1.5,
 		strokeC = C.BORDER,
 		ratio = 1.45, -- Wide layout for skill tree
+		clips = true, -- Clipping 추가
+		useCanvas = true, -- 최강의 클리핑을 위해 CanvasGroup 사용
 		parent = SkillTreeUI.Refs.Frame,
 	})
 
@@ -1134,6 +1151,8 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		bg = C.BG_DARK,
 		bgT = 0.6,
 		r = 6,
+		clips = true, -- Clipping 추가
+		useCanvas = true, -- CanvasGroup 강제 클리핑
 		parent = body,
 	})
 	SkillTreeUI.Refs.ContentArea = contentArea
@@ -1190,33 +1209,70 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		parent = contentArea,
 	})
 
-	-- ============ 노드 그리드 영역 (다이아몬드 배치, 스크롤 지원) ============
-	local detailHeight = isSmall and 140 or 180
+	-- ============ 노드 그리드 영역 (가로 스크롤만 지원) ============
 	local nodeArea = Instance.new("ScrollingFrame")
 	nodeArea.Name = "NodeArea"
-	nodeArea.Size = UDim2.new(1, -16, 1, -(levelBarY + detailHeight + 28))
+	-- [수정] 아래 영역 전부 사용 (DetailPanel이 고정 공간을 차지하지 않음)
+	nodeArea.Size = UDim2.new(1, -16, 1, -(levelBarY + 20)) 
 	nodeArea.Position = UDim2.new(0, 8, 0, levelBarY + 6)
 	nodeArea.BackgroundTransparency = 1
 	nodeArea.BorderSizePixel = 0
 	nodeArea.ScrollBarThickness = 4
 	nodeArea.ScrollBarImageColor3 = Color3.fromRGB(140, 130, 100)
 	nodeArea.ScrollBarImageTransparency = 0.4
-	nodeArea.CanvasSize = UDim2.new(0, 0, 0, 0) -- _renderSkillNodes에서 동적 설정
+	nodeArea.CanvasSize = UDim2.new(0, 0, 0, 0)
 	nodeArea.AutomaticCanvasSize = Enum.AutomaticSize.None
-	nodeArea.ScrollingDirection = Enum.ScrollingDirection.Y
+	nodeArea.ScrollingDirection = Enum.ScrollingDirection.X -- 가로 스크롤만 허용
 	nodeArea.ElasticBehavior = Enum.ElasticBehavior.Always
+	nodeArea.ClipsDescendants = true
+	nodeArea.Active = true -- 입력 캡처 활성화
 	nodeArea.Parent = contentArea
 	SkillTreeUI.Refs.NodeArea = nodeArea
 
-	-- ============ 스킬 상세 패널 (하단) ============
+	-- [추가] 드래그 앤 드롭 스크롤 기능 (PC 마우스 드래그 지원)
+	local isDragging = false
+	local dragStartPos = Vector2.new()
+	local startCanvasPos = Vector2.new()
+
+	nodeArea.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			isDragging = true
+			dragStartPos = input.Position
+			startCanvasPos = nodeArea.CanvasPosition
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStartPos
+			-- X축 드래그만 반영 (ScrollingDirection.X이므로)
+			nodeArea.CanvasPosition = Vector2.new(
+				math.clamp(startCanvasPos.X - delta.X, 0, math.max(0, nodeArea.CanvasSize.X.Offset - nodeArea.AbsoluteSize.X)),
+				0
+			)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			isDragging = false
+		end
+	end)
+
+	-- ============ 스킬 상세 패널 (플로팅 오버레이) ============
+	local detailHeight = isSmall and 140 or 180
 	local detailPanel = Utils.mkFrame({
 		name = "DetailPanel",
-		size = UDim2.new(1, -16, 0, detailHeight + 10),  -- 약간 여유
-		pos = UDim2.new(0, 8, 1, -(detailHeight + 18)),
-		bg = C.BG_PANEL_L,
-		bgT = 0.5,
-		r = 6,
+		size = UDim2.new(0.96, 0, 0, detailHeight),
+		pos = UDim2.new(0.02, 0, 1, -10), -- 하단에 붙여서 나타남
+		anchor = Vector2.new(0, 1),
+		bg = Color3.fromRGB(35, 32, 25),
+		bgT = 0.1, -- 배경 더 진하게 하여 가독성 확보
+		r = 8,
+		stroke = 2,
+		strokeC = C.GOLD,
 		vis = false,
+		z = 10, -- 다른 노드들보다 위에 표시
 		parent = contentArea,
 	})
 	SkillTreeUI.Refs.DetailPanel = detailPanel
@@ -1283,6 +1339,29 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		ts = isSmall and 10 or 12, -- 축소
 		font = F.NORMAL,
 		color = C.UNCOMMON,
+		parent = detailPanel,
+	})
+
+	-- [추가] 상세 패널 닫기 버튼
+	Utils.mkBtn({
+		name = "CloseDetailBtn",
+		text = "닫기",
+		size = UDim2.new(0, isSmall and 50 or 60, 0, isSmall and 24 or 30),
+		pos = UDim2.new(1, -10, 0, 10),
+		anchor = Vector2.new(1, 0),
+		bg = C.BG_DARK,
+		bgT = 0.5,
+		ts = 12,
+		font = F.TITLE,
+		color = C.GRAY,
+		r = 4,
+		fn = function()
+			selectedSkillId = nil
+			_updateDetailPanel()
+			if SkillTreeUI.Refs.NodeArea then
+				_renderSkillNodes(SkillTreeUI.Refs.NodeArea)
+			end
+		end,
 		parent = detailPanel,
 	})
 

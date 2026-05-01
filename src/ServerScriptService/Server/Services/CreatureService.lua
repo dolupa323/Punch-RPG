@@ -1090,47 +1090,7 @@ function CreatureService.processAttack(instanceId: string, hpDamage: number, tor
 				end
 			end
 
-			-- [시스템 추가] 주변 동족 인식 (Pack Mentality)
-			-- 공격받은 크리처 주변 50스터드 내 같은 creatureId를 가진 개체들을 깨움
-			local pPos = creature.rootPart.Position
-			for _, other in pairs(activeCreatures) do
-				if other.id ~= instanceId and other.creatureId == creature.creatureId then
-					local otherPos = other.rootPart.Position
-					local dist = (otherPos - pPos).Magnitude
-					if dist < (Balance.PACK_AGGRO_RADIUS or 50) then
-						-- ★ 고저차 체크: 절벽 위/아래 투시 방지
-						local heightDiff = math.abs(otherPos.Y - pPos.Y)
-						if heightDiff > PACK_MENTALITY_HEIGHT_DIFF then
-							continue
-						end
-						
-						-- ★ 시야(LOS) 확인: 중간에 지형 장애물이 있으면 감지 불가
-						local losParams = RaycastParams.new()
-						losParams.FilterDescendantsInstances = { creature.model, other.model, creatureFolder }
-						losParams.FilterType = Enum.RaycastFilterType.Exclude
-						local losRay = workspace:Raycast(pPos, (otherPos - pPos), losParams)
-						if losRay and (losRay.Position - otherPos).Magnitude > 5 then
-							-- 지형에 막혀서 시야가 없음 → 동족 인식 실패
-							continue
-						end
-						
-						if other.state == "IDLE" or other.state == "WANDER" then
-							local otherOldState = other.state
-							if other.data.behavior ~= "PASSIVE" then
-								setCreatureState(other, "CHASE")
-							else
-								setCreatureState(other, "FLEE")
-								other.humanoid.WalkSpeed = (other.data.runSpeed or 20) * 1.2
-							end
-							-- 동족도 전투 진입 사운드 재생
-							local otherCry = other.rootPart:FindFirstChild("CombatCry")
-							if otherCry and otherCry.SoundId ~= "" then
-								otherCry:Play()
-							end
-						end
-					end
-				end
-			end
+			-- [동족 인식 삭제됨]
 		end
 	end
 	
@@ -2555,6 +2515,7 @@ function CreatureService._updateAILoop()
 						if not chosenAttack then
 							local attackDelay = creature.data.attackDelay or 0.5
 							creature.attackingUntil = now + attackDelay + NETWORK_ANIM_BUFFER
+							creature.lastAttackTime = now
 
 							if NetController then
 								NetController.FireAllClients("Creature.Attack.Play", {
@@ -2567,7 +2528,7 @@ function CreatureService._updateAILoop()
 							end
 
 							if closestPlayerHum and closestPlayerHum.Health > 0 then
-								task.delay(attackDelay, function()
+								task.delay(attackDelay + NETWORK_ANIM_BUFFER, function()
 									local currentCreature = activeCreatures[id]
 									if not currentCreature or not currentCreature.model or not currentCreature.model.Parent then return end
 									if (currentCreature.currentHealth or 0) <= 0 or currentCreature.state == "DEAD" then return end
@@ -2610,6 +2571,7 @@ function CreatureService._updateAILoop()
 						local attackTime = chosenAttack.attackTime or 0.5
 						local totalTime = windupTime + attackTime
 						creature.attackingUntil = now + totalTime + NETWORK_ANIM_BUFFER
+						creature.lastAttackTime = now
 
 						-- 텔레그래프 공격 시작 → ATTACK 상태로 전환 (클라이언트에서 RUN 재생 방지)
 						setCreatureState(creature, "ATTACK")

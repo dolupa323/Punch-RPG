@@ -24,7 +24,7 @@ local activeSkillSlots = { nil, nil, nil, nil }
 local playerLevel = 1
 
 -- 액티브 스킬 쿨다운 (클라이언트 예측)
-local DEV_NO_COOLDOWN = true  -- ★ 개발용 노쿨 (릴리즈 시 false로 변경)
+local DEV_NO_COOLDOWN = false -- ★ 개발용 노쿨 해제 (원래대로 복구)
 local skillCooldowns = {}     -- { [skillId] = endTime (tick) }
 local skillGCD = 0            -- 글로벌 쿨다운 종료 시각
 

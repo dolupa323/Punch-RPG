@@ -275,9 +275,12 @@ function FacilityRadialUI.Open(target)
 	
 	local viewportSize = workspace.CurrentCamera.ViewportSize
 	local baseHeight = 1080
-	local scale = math.clamp(viewportSize.Y / baseHeight, 0.6, 1.1)
+	local scale = viewportSize.Y / baseHeight
+
 	if UserInputService.TouchEnabled then
-		scale = scale * 0.9 -- 모바일은 살짝 더 작게 (기존에 너무 컸음)
+		scale = math.clamp(scale, 0.6, 1.1) * 0.9
+	else
+		scale = math.clamp(scale * 1.3, 1.25, 1.8)
 	end
 	
 	local scaledHexSize = math.floor(HEX_SIZE * scale)

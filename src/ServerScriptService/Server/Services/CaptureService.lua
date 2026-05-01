@@ -26,9 +26,11 @@ local PlayerStatService
 -- 포획 확률 계산
 --========================================
 
-local function calcCaptureRate(creatureId: string, tamingBonus: number): number
-	-- [DEV] 포획 100% (개발 편의성)
-	return 1.0
+local function calcCaptureRate(creatureLevel: number, tamingBonus: number): number
+	-- 기본 확률: 레벨이 높을수록 낮음 (50% ~ 10%)
+	local baseRate = math.clamp(0.50 - (creatureLevel - 1) * 0.03, 0.10, 0.50)
+	-- 최종 확률: 기본 + 스킬 보너스 (최대 80%)
+	return math.clamp(baseRate + tamingBonus, 0.05, 0.80)
 end
 
 --========================================
@@ -109,7 +111,7 @@ local function handleCaptureAttempt(player: Player, payload: any)
 
 	-- 5. 포획 확률 계산 + 굴림
 	local tamingBonus = SkillTreeData.GetTamingRateBonus(learnedList)
-	local captureRate = calcCaptureRate(creatureId, tamingBonus)
+	local captureRate = calcCaptureRate(creature.level or 1, tamingBonus)
 	local roll = math.random()
 	local captured = roll <= captureRate
 
