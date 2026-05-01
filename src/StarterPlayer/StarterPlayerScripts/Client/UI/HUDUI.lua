@@ -369,6 +369,24 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		
 		local click = Instance.new("TextButton")
 		click.Size = UDim2.new(1, 0, 1, 0); click.BackgroundTransparency = 1; click.Text = ""; click.Parent = btn
+		
+		-- [추가] 시각적 피드백
+		local uiScale = Instance.new("UIScale")
+		uiScale.Parent = btn
+		
+		click.MouseEnter:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = C.BG_PANEL_L, BackgroundTransparency = 0.2}):Play()
+		end)
+		click.MouseLeave:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = C.BG_DARK, BackgroundTransparency = 0.45}):Play()
+		end)
+		click.MouseButton1Down:Connect(function()
+			TweenService:Create(uiScale, TweenInfo.new(0.05), {Scale = 0.85}):Play()
+		end)
+		click.MouseButton1Up:Connect(function()
+			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
+		end)
+
 		click.MouseButton1Click:Connect(function()
 			fn()
 			sideMenu.Visible = false -- Close menu after click
@@ -1517,6 +1535,54 @@ function HUDUI.UpdateStatusEffects(debuffList)
 			HUDUI.HideTooltip()
 		end)
 	end
+
+	-- [추가] 키보드/마우스 입력 시 시각적 피드백 동기화
+	local function triggerScale(btn)
+		if not btn then return end
+		local uiScale = btn:FindFirstChild("UIScale") or Instance.new("UIScale", btn)
+		TweenService:Create(uiScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.85}):Play()
+		task.delay(0.05, function()
+			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		end)
+	end
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		-- 채팅 등 UI 포커스 상태면 무시
+		if gameProcessed then
+			local focused = UserInputService:GetFocusedTextBox()
+			if focused then return end
+		end
+
+		-- 핫바 (1-8)
+		local kc = input.KeyCode.Value
+		if kc >= Enum.KeyCode.One.Value and kc <= Enum.KeyCode.Eight.Value then
+			local slotIdx = kc - Enum.KeyCode.One.Value + 1
+			local slot = HUDUI.Refs.hotbarSlots and HUDUI.Refs.hotbarSlots[slotIdx]
+			if slot then triggerScale(slot.frame) end
+		end
+
+		-- 사이드 메뉴 (Tab, B, E, K, J)
+		if input.KeyCode == Enum.KeyCode.Tab then
+			triggerScale(HUDUI.Refs.InventoryTabButton)
+		elseif input.KeyCode == Enum.KeyCode.B then
+			triggerScale(HUDUI.Refs.BuildTabButton)
+		elseif input.KeyCode == Enum.KeyCode.E then
+			triggerScale(HUDUI.Refs.EquipTabButton)
+		elseif input.KeyCode == Enum.KeyCode.K then
+			triggerScale(HUDUI.Refs.SkillTabButton)
+		elseif input.KeyCode == Enum.KeyCode.J then
+			triggerScale(HUDUI.Refs.QuestTabButton)
+		end
+
+		-- 액션 버튼 (Space: 점프, Mouse1: 공격, LeftControl: 구르기)
+		if input.KeyCode == Enum.KeyCode.Space then
+			triggerScale(HUDUI.Refs.hex_Jump)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+			triggerScale(HUDUI.Refs.hex_Attack)
+		elseif input.KeyCode == Enum.KeyCode.LeftControl then
+			triggerScale(HUDUI.Refs.hex_Dodge)
+		end
+	end)
 end
 
 function HUDUI.UpdateCoordinates(x, z)

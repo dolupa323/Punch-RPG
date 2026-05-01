@@ -201,8 +201,10 @@ function UIUtils.mkHexBtn(p)
 	aspect.AspectRatio = 1
 	aspect.Parent = b
 	
+	local strokeRef = nil
 	if p.stroke then
 		local s = Instance.new("ImageLabel")
+		s.Name = "Stroke"
 		s.Size = UDim2.new(1.1, 0, 1.1, 0)
 		s.Position = UDim2.new(0.5, 0, 0.5, 0)
 		s.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -211,7 +213,25 @@ function UIUtils.mkHexBtn(p)
 		s.ImageColor3 = p.strokeC or C.WHITE
 		s.ZIndex = b.ZIndex - 1
 		s.Parent = b
+		strokeRef = s
 	end
+	
+	-- [추가] 시각적 피드백
+	local scale = Instance.new("UIScale")
+	scale.Parent = b
+	
+	b.MouseEnter:Connect(function()
+		TweenService:Create(b, TweenInfo.new(0.12), {ImageColor3 = C.BTN_H, ImageTransparency = 0.15}):Play()
+	end)
+	b.MouseLeave:Connect(function()
+		TweenService:Create(b, TweenInfo.new(0.12), {ImageColor3 = p.bg or C.BG_PANEL, ImageTransparency = p.bgT or 0.4}):Play()
+	end)
+	b.MouseButton1Down:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.05), {Scale = 0.85}):Play()
+	end)
+	b.MouseButton1Up:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
+	end)
 	
 	if p.fn then b.MouseButton1Click:Connect(p.fn) end
 	return b

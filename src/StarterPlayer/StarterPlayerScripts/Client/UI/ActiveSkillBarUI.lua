@@ -274,6 +274,23 @@ local function createBar(parent)
 			end
 		end)
 
+		-- [추가] 시각적 피드백 (눌림 효과)
+		local uiScale = Instance.new("UIScale")
+		uiScale.Parent = slotFrame
+		
+		slotFrame.MouseButton1Down:Connect(function()
+			TweenService:Create(uiScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.82}):Play()
+		end)
+		slotFrame.MouseButton1Up:Connect(function()
+			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		end)
+		slotFrame.MouseEnter:Connect(function()
+			-- [제거] 노란 외곽선 피드백 제거
+		end)
+		slotFrame.MouseLeave:Connect(function()
+			-- [제거] 노란 외곽선 피드백 제거
+		end)
+
 		slotRefs[i] = {
 			frame = slotFrame,
 			icon = icon,
@@ -283,6 +300,7 @@ local function createBar(parent)
 			strokeBars = strokeBars,
 			bgBars = bgBars,
 			wasOnCooldown = false,
+			uiScale = uiScale, -- 참조 저장
 		}
 	end
 
@@ -365,6 +383,23 @@ local function createBar(parent)
 			ActiveSkillBarUI._tryCapture()
 		end)
 
+		-- [추가] 시각적 피드백
+		local capScale = Instance.new("UIScale")
+		capScale.Parent = capFrame
+
+		capFrame.MouseButton1Down:Connect(function()
+			TweenService:Create(capScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.82}):Play()
+		end)
+		capFrame.MouseButton1Up:Connect(function()
+			TweenService:Create(capScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		end)
+		capFrame.MouseEnter:Connect(function()
+			-- [제거]
+		end)
+		capFrame.MouseLeave:Connect(function()
+			-- [제거]
+		end)
+
 		captureRef = {
 			frame = capFrame,
 			icon = capIcon,
@@ -372,6 +407,7 @@ local function createBar(parent)
 			bgBars = capBgBars,
 			keyLabel = capKeyLabel,
 			active = false,
+			uiScale = capScale,
 		}
 	end
 
@@ -456,6 +492,23 @@ local function createBar(parent)
 			end
 		end)
 
+		-- [추가] 시각적 피드백
+		local intScale = Instance.new("UIScale")
+		intScale.Parent = intFrame
+
+		intFrame.MouseButton1Down:Connect(function()
+			TweenService:Create(intScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.82}):Play()
+		end)
+		intFrame.MouseButton1Up:Connect(function()
+			TweenService:Create(intScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		end)
+		intFrame.MouseEnter:Connect(function()
+			-- [제거]
+		end)
+		intFrame.MouseLeave:Connect(function()
+			-- [제거]
+		end)
+
 		interactRef = {
 			frame = intFrame,
 			icon = intIcon,
@@ -463,6 +516,7 @@ local function createBar(parent)
 			bgBars = intBgBars,
 			keyLabel = intKeyLabel,
 			active = false,
+			uiScale = intScale,
 		}
 	end
 end
@@ -715,13 +769,33 @@ function ActiveSkillBarUI.Init(parent)
 		refreshSlots()
 	end)
 
-	-- G 키: 포획 시도
+	-- [추가] 키보드 입력 시 시각적 피드백 동기화
+	local function triggerScale(uiScale)
+		if not uiScale then return end
+		TweenService:Create(uiScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.82}):Play()
+		task.delay(0.05, function()
+			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		end)
+	end
+
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
-		if input.KeyCode == Enum.KeyCode.G then
+		
+		-- 스킬 슬롯 (Q, F, V, Ctrl)
+		if input.KeyCode == Enum.KeyCode.Q then
+			triggerScale(slotRefs[1] and slotRefs[1].uiScale)
+		elseif input.KeyCode == Enum.KeyCode.F then
+			triggerScale(slotRefs[2] and slotRefs[2].uiScale)
+		elseif input.KeyCode == Enum.KeyCode.V then
+			triggerScale(slotRefs[3] and slotRefs[3].uiScale)
+		elseif input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
+			triggerScale(slotRefs[4] and slotRefs[4].uiScale)
+		elseif input.KeyCode == Enum.KeyCode.G then
+			triggerScale(captureRef and captureRef.uiScale)
 			ActiveSkillBarUI._tryCapture()
 		elseif input.KeyCode == Enum.KeyCode.R then
-			-- R키 입력 시 버튼 눌림 효과 (선택사항)
+			triggerScale(interactRef and interactRef.uiScale)
+			-- Interact logic is already handled by InteractController or here
 		end
 	end)
 
