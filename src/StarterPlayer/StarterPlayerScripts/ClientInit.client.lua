@@ -17,12 +17,8 @@ local Balance = require(ReplicatedStorage.Shared.Config.Balance)
 local player = Players.LocalPlayer
 
 local function createStudioAdminGoldPanel()
-	-- 어드민 ID 목록 (TutorialQuestService와 동기화)
-	local ADMIN_USER_IDS = {
-		[10311679477] = true,
-	}
 	local function checkIsAdmin(userId)
-		return RunService:IsStudio() or userId == game.CreatorId or ADMIN_USER_IDS[userId] == true
+		return RunService:IsStudio() or Balance.ADMIN_IDS[userId] == true
 	end
 
 	if not checkIsAdmin(player.UserId) then
@@ -210,6 +206,81 @@ local function createStudioAdminGoldPanel()
 	end)
 
 	refreshGold()
+
+	--========================================
+	-- Level & Account Reset (Marketing)
+	--========================================
+	local line2 = Instance.new("Frame")
+	line2.Size = UDim2.new(1, 0, 0, 1)
+	line2.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+	line2.BorderSizePixel = 0
+	line2.Parent = frame
+
+	local levelTitle = Instance.new("TextLabel")
+	levelTitle.Size = UDim2.new(1, 0, 0, 20)
+	levelTitle.BackgroundTransparency = 1
+	levelTitle.Text = "Level & Reset (Marketing)"
+	levelTitle.TextColor3 = Color3.fromRGB(255, 150, 100)
+	levelTitle.TextSize = 14
+	levelTitle.Font = Enum.Font.GothamBold
+	levelTitle.TextXAlignment = Enum.TextXAlignment.Left
+	levelTitle.Parent = frame
+
+	local lvBtns = Instance.new("Frame")
+	lvBtns.Size = UDim2.new(1, 0, 0, 32)
+	lvBtns.BackgroundTransparency = 1
+	lvBtns.Parent = frame
+	local lvGrid = Instance.new("UIListLayout", lvBtns)
+	lvGrid.FillDirection = Enum.FillDirection.Horizontal
+	lvGrid.Padding = UDim.new(0, 8)
+
+	local lvBox = Instance.new("TextBox")
+	lvBox.Size = UDim2.new(0.35, -4, 1, 0)
+	lvBox.BackgroundColor3 = Color3.fromRGB(38, 42, 48)
+	lvBox.Text = "50"
+	lvBox.PlaceholderText = "레벨"
+	lvBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lvBox.TextSize = 14
+	lvBox.Font = Enum.Font.Gotham
+	lvBox.Parent = lvBtns
+	Instance.new("UICorner", lvBox).CornerRadius = UDim.new(0, 6)
+
+	local setLvBtn = Instance.new("TextButton")
+	setLvBtn.Size = UDim2.new(0.65, -4, 1, 0)
+	setLvBtn.BackgroundColor3 = Color3.fromRGB(100, 120, 180)
+	setLvBtn.Text = "레벨 설정"
+	setLvBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	setLvBtn.TextSize = 13
+	setLvBtn.Font = Enum.Font.GothamBold
+	setLvBtn.Parent = lvBtns
+	Instance.new("UICorner", setLvBtn).CornerRadius = UDim.new(0, 6)
+
+	local fullResetBtn = Instance.new("TextButton")
+	fullResetBtn.Size = UDim2.new(1, 0, 0, 32)
+	fullResetBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+	fullResetBtn.Text = "마케팅용 완전 초기화 (!)"
+	fullResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	fullResetBtn.TextSize = 13
+	fullResetBtn.Font = Enum.Font.GothamBold
+	fullResetBtn.Parent = frame
+	Instance.new("UICorner", fullResetBtn).CornerRadius = UDim.new(0, 6)
+
+	setLvBtn.MouseButton1Click:Connect(function()
+		local lv = tonumber(lvBox.Text)
+		if not lv then return end
+		local ok = NetClient.Request("Admin.SetLevel.Request", { level = lv })
+		if ok then
+			UIManager.notify("레벨이 " .. lv .. "로 설정되었습니다.", Color3.fromRGB(100, 200, 255))
+		end
+	end)
+
+	fullResetBtn.MouseButton1Click:Connect(function()
+		local ok = NetClient.Request("Admin.FullReset.Request", {})
+		if ok then
+			UIManager.notify("계정이 완전히 초기화되었습니다.", Color3.fromRGB(255, 100, 100))
+			frame.Visible = false -- 촬영을 위해 패널 닫기
+		end
+	end)
 
 	--========================================
 	-- New Tutorial (Manual Test)

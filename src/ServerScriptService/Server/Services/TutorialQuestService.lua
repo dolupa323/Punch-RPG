@@ -17,9 +17,6 @@ local PlayerStatService = nil
 local InventoryService = nil
 local NPCShopService = nil
 
-local ADMIN_USER_IDS = {
-	[10311679477] = true,
-}
 
 --========================================
 -- Helper Logic
@@ -31,8 +28,7 @@ local function getTodayString()
 end
 
 local function isAdminUser(userId)
-	if userId == game.CreatorId then return true end
-	return ADMIN_USER_IDS[userId] == true
+	return Balance.ADMIN_IDS[userId] == true
 end
 
 local function getOrCreateProgress(userId)
@@ -130,7 +126,7 @@ local function fireStatus(userId)
 	if not NetController then return end
 	local player = Players:GetPlayerByUserId(userId)
 	if not player then return end
-	NetController.FireClient(player, "Tutorial.Step.Updated", serializeStatus(userId))
+	NetController.FireClient(player, "Quest.Status.Updated", serializeStatus(userId))
 end
 
 --========================================
@@ -310,14 +306,14 @@ function QuestService.onHarvest(userId, nodeType) updateQuestProgress(userId, "H
 
 function QuestService.GetHandlers()
 	return {
-		["Tutorial.GetStatus.Request"] = function(p, payload) return { success = true, data = serializeStatus(p.UserId) } end,
-		["Tutorial.Step.Complete.Request"] = handleStepComplete,
+		["Quest.GetStatus.Request"] = function(p, payload) return { success = true, data = serializeStatus(p.UserId) } end,
+		["Quest.Step.Complete.Request"] = handleStepComplete,
 		["Quest.GetList.Request"] = handleGetList,
 		["Quest.Accept.Request"] = handleAcceptQuest,
 		["Quest.Complete.Request"] = handleStepComplete,
 		
 		-- 어드민 명령어 (리셋용)
-		["Tutorial.Admin.Reset.Request"] = function(p, payload)
+		["Quest.Admin.Reset.Request"] = function(p, payload)
 			if not isAdminUser(p.UserId) then return { success = false } end
 			local prg = getOrCreateProgress(p.UserId)
 			prg.activeQuest = nil

@@ -44,16 +44,7 @@ local DEBUG_ITEM_GRANT_ADMIN_IDS = {
 }
 
 local function _canUseDebugGrant(player: Player): boolean
-	if not RunService:IsStudio() then
-		return false
-	end
-	if DEBUG_ITEM_GRANT_ADMIN_IDS[player.UserId] then
-		return true
-	end
-	if player.UserId == game.CreatorId then
-		return true
-	end
-	return false
+	return RunService:IsStudio() or Balance.ADMIN_IDS[player.UserId] == true
 end
 
 local function _getDefaultEquipment()
@@ -563,9 +554,10 @@ function InventoryService.getOrCreateInventory(userId: number): any
 	local normalizedSlots = {}
 	if savedInv then
 		for k, node in pairs(savedInv) do
-			local numKey = tonumber(k) or (node and node.slot)
-			if numKey and type(node) == "table" and node.itemId then
-				local item = DataService.getItem(node.itemId)
+			if type(node) == "table" then
+				local numKey = tonumber(k) or node.slot
+				if numKey and node.itemId then
+					local item = DataService.getItem(node.itemId)
 				if item and item.durability and not node.durability then
 					node.durability = item.durability -- ?�락???�구??초기??
 				end
@@ -580,6 +572,7 @@ function InventoryService.getOrCreateInventory(userId: number): any
 			end
 		end
 	end
+end
 	
 	if savedEquip then
 		for _, node in pairs(savedEquip) do

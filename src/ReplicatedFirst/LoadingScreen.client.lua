@@ -467,6 +467,7 @@ invisibleStartButton.MouseButton1Click:Connect(function()
 	camera.CameraType = Enum.CameraType.Custom
 	
 	setMovementEnabled(true)
+	player:SetAttribute("GameStarted", true)
 	
 	-- 다시 페이드 인
 	local endFade = TweenService:Create(blackFrame, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {

@@ -201,8 +201,8 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		if absSize.X <= 0 then return end
 		
 		local availableWidth = absSize.X - (pad.PaddingLeft.Offset + pad.PaddingRight.Offset + 24)
-		local cellSize = math.floor(availableWidth * 0.15)
-		local paddingSize = math.floor(availableWidth * 0.012)
+		local cellSize = math.floor(availableWidth * 0.08)
+		local paddingSize = math.floor(availableWidth * 0.008)
 		
 		grid.CellSize = UDim2.new(0, cellSize, 0, cellSize)
 		grid.CellPadding = UDim2.new(0, paddingSize, 0, paddingSize)
@@ -223,24 +223,24 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		-- 핫바 배지 추가 (HOTBAR 전용 디자인)
 		if i <= 8 then
 			local vividHotbarYellow = C.GOLD
-			local badgeSize = isSmall and 16 or 18
+			local badgeSize = isSmall and 14 or 16
 			local badge = Utils.mkFrame({
 				name = "HotbarBadge",
 				size = UDim2.new(0, badgeSize, 0, badgeSize),
-				pos = UDim2.new(0, 3, 0, 3),
+				pos = UDim2.new(0, 2, 0, 2),
 				bg = vividHotbarYellow,
 				bgT = 0,
-				r = 4,
+				r = 3,
 				z = slot.frame.ZIndex + 9,
 				parent = slot.frame
 			})
 			local badgeStroke = Instance.new("UIStroke")
-			badgeStroke.Thickness = 2
+			badgeStroke.Thickness = 1.5
 			badgeStroke.Color = C.WOOD_DARK
 			badgeStroke.Parent = badge
 			Utils.mkLabel({
 				text = tostring(i),
-				ts = TS_HOTBAR,
+				ts = isSmall and 10 or 12,
 				bold = true,
 				color = C.BG_DARK,
 				z = slot.frame.ZIndex + 10,
@@ -248,10 +248,10 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 			})
 			local hotbarTag = Utils.mkLabel({
 				text = "HOT",
-				size = UDim2.new(0, isSmall and 20 or 24, 0, isSmall and 9 or 10),
-				pos = UDim2.new(1, -2, 0, 2),
+				size = UDim2.new(0, isSmall and 16 or 20, 0, isSmall and 8 or 9),
+				pos = UDim2.new(1, -1, 0, 1),
 				anchor = Vector2.new(1, 0),
-				ts = TS_HOTBAR_TAG,
+				ts = isSmall and 6 or 7,
 				bold = true,
 				color = vividHotbarYellow,
 				ax = Enum.TextXAlignment.Right,
@@ -261,7 +261,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 			hotbarTag.TextStrokeTransparency = 0.35
 			hotbarTag.TextStrokeColor3 = C.BG_DARK
 			local stk = slot.frame:FindFirstChildOfClass("UIStroke")
-			if stk then stk.Color = vividHotbarYellow; stk.Thickness = 1.8 end -- 핫바 슬롯은 상시 강조
+			if stk then stk.Color = vividHotbarYellow; stk.Thickness = 1.2 end -- 핫바 슬롯은 상시 강조
 		end
 		
 		-- Hover Effect (PC Highlight)
@@ -322,7 +322,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		InventoryUI.Refs.Slots[i] = slot
 		-- 반응형 카운트 텍스트 크기
 		if slot.countLabel then
-			slot.countLabel.TextSize = TS_SLOT_COUNT
+			slot.countLabel.TextSize = isSmall and 10 or 12
 		end
 	end
 	
@@ -570,7 +570,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	craftScroll.Parent = craftArea
 	InventoryUI.Refs.CraftGrid = craftScroll
 	
-	local craftCellSize = isSmall and 68 or 75
+	local craftCellSize = isSmall and 56 or 60
 	local cGrid = Instance.new("UIGridLayout")
 	cGrid.CellSize = UDim2.new(0, craftCellSize, 0, craftCellSize)
 	cGrid.CellPadding = UDim2.new(0, isSmall and 6 or 8, 0, isSmall and 6 or 8)

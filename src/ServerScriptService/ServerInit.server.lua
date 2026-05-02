@@ -158,7 +158,8 @@ for command, handler in pairs(BuildService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
-DurabilityService.Init(NetController, InventoryService, DataService, BuildService, Balance)
+DL = require(Services.DurabilityService)
+DL.Init(NetController, InventoryService, DataService, BuildService, Balance)
 
 local CraftingService = require(Services.CraftingService)
 CraftingService.Init(NetController, DataService, InventoryService, BuildService, RecipeService, TechService, PlayerStatService, WorldDropService, TimeService)
@@ -315,4 +316,7 @@ for command, handler in pairs(TutorialService.GetHandlers()) do
 end
 CreatureService.SetTutorialService(TutorialService)
 
-print("[ServerInit] Server initialized (No-BOM)")
+local AdminCommandService = require(Services.AdminCommandService)
+AdminCommandService.Init(NetController, PlayerStatService, InventoryService, TechService, TutorialService, SaveService)
+
+print("[ServerInit] Server initialized (No-BOM) - AdminCommandService Ready")

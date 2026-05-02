@@ -119,6 +119,11 @@ local function _getDefaultPlayerSave()
 			jobId = nil,
 			timestamp = 0,
 		},
+		-- 튜토리얼 진행도
+		introTutorial = {
+			stepIndex = 0,
+			completed = false,
+		},
 		-- 스냅샷 (롤백용)
 		snapshots = {},
 	}

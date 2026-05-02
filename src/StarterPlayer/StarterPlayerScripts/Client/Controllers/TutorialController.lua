@@ -270,6 +270,8 @@ end
 --========================================
 
 function TutorialController.UpdateStep(data)
+	if not data then return end
+	print("[TutorialController] Received UpdateStep, index:", data.stepIndex)
 	stopCheckers()
 	currentStepData = data
 	
@@ -279,6 +281,23 @@ function TutorialController.UpdateStep(data)
 	end
 
 	local step = data.stepData
+	
+	-- [수정] 타이틀 화면이 닫힐 때까지 대기
+	if not Players.LocalPlayer:GetAttribute("GameStarted") then
+		print("[TutorialController] Waiting for GameStarted attribute...")
+		task.spawn(function()
+			local p = Players.LocalPlayer
+			while not p:GetAttribute("GameStarted") do
+				p:GetAttributeChangedSignal("GameStarted"):Wait()
+			end
+			-- 다시 호출하여 표시
+			if currentStepData == data then
+				TutorialController.UpdateStep(data)
+			end
+		end)
+		return
+	end
+
 	UIManager.showTutorialGuide(step.message)
 
 	-- UI 강조 (깜빡임)

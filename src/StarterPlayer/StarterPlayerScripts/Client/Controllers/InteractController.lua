@@ -393,7 +393,10 @@ local function findNearbyInteractable(): (Instance?, string?)
 					currentType = typeMap[folderName]
 					
 					local check = part
+					local foundEntity = nil
+					
 					while check do
+						-- 1. 명시적인 속성이 있는 경우 일단 후보로 등록
 						if check:GetAttribute("NodeId") or 
 						   check:GetAttribute("FacilityId") or 
 						   check:GetAttribute("NPCId") or
@@ -401,18 +404,31 @@ local function findNearbyInteractable(): (Instance?, string?)
 						   check:GetAttribute("ResourceNode") or
 						   check:GetAttribute("PortalId") or
 						   game:GetService("CollectionService"):HasTag(check, "ResourceNode") then
-							entity = check
+							
+							foundEntity = check
+							
+							-- 2. 근데 이게 Part나 MeshPart이고 부모가 Model이라면, 데이터는 보통 Model에 있으므로 더 올라감
+							if check:IsA("BasePart") and check.Parent and check.Parent:IsA("Model") then
+								foundEntity = check.Parent
+							end
+							
+							-- 최상위 엔티티를 찾았으므로 루프 종료
 							break
 						end
 						
+						-- 폴더 바로 아래의 오브젝트인 경우 (마지막 보루)
 						if check.Parent == folder then
-							entity = entity or check
+							if not foundEntity and (check:IsA("Model") or check:IsA("BasePart")) then
+								foundEntity = check
+							end
 							break
 						end
 						
 						if check == folder or check == workspace then break end
 						check = check.Parent
 					end
+					
+					entity = foundEntity
 					break
 				end
 			end

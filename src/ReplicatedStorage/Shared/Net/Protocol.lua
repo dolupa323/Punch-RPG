@@ -172,6 +172,9 @@ Protocol.Commands = {
 	["Quest.GetList.Request"] = true,
 	["Quest.Accept.Request"] = true,
 	["Quest.Complete.Request"] = true,
+	["Quest.GetStatus.Request"] = true,
+	["Quest.Step.Complete.Request"] = true,
+	["Quest.Admin.Reset.Request"] = true,
 
 
 	-- Recall 명령어 (귀환 텔레포트)
@@ -189,6 +192,10 @@ Protocol.Commands = {
 	["Portal.Deposit.Request"] = true,
 	["Portal.Teleport.Request"] = true,
 	["Portal.Interact.Request"] = true,
+
+	-- Admin 전용 명령어 (마케팅/테스트)
+	["Admin.FullReset.Request"] = true,
+	["Admin.SetLevel.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

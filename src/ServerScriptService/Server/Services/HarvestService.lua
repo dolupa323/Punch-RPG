@@ -192,29 +192,20 @@ end
 --- 자원 모델 찾기 (정확 매칭 우선, 부분 매칭은 후순위)
 --- ★ Pass 1: 정확한 modelName/nodeId 매칭만 시도
 --- ★ Pass 2: 부분 문자열 매칭 (fallback)
+--- 자원 모델 찾기 (재귀 검색 지원)
 local function findResourceModel(modelsFolder, modelName, nodeId)
 	if not modelsFolder then return nil end
 	
 	local lowerModelName = modelName:lower()
 	local lowerNodeId = nodeId:lower()
-	local lastPart = lowerNodeId:match("_([^_]+)$") or lowerNodeId
-	local nodeType = lowerNodeId:match("^([^_]+)")
 	
-	-- 정확 매칭 (modelName 또는 nodeId 완전 일치)
-	local function exactMatch(name)
-		local lower = name:lower()
-		return lower == lowerModelName or lower == lowerNodeId
+	-- 정확 매칭 여부 확인 헬퍼
+	local function isExactMatch(inst)
+		local name = inst.Name:lower()
+		return name == lowerModelName or name == lowerNodeId
 	end
-	
-	-- 부분 매칭 (lastPart 또는 nodeType 포함)
-	local function partialMatch(name)
-		local lower = name:lower()
-		if lower:find(lowerModelName, 1, true) or lowerModelName:find(lower, 1, true) then return true end
-		if lower:find(lastPart, 1, true) then return true end
-		if nodeType and lower:find(nodeType, 1, true) then return true end
-		return false
-	end
-	
+
+	-- 폴더 내용을 모델로 변환 헬퍼 (기존 로직 유지)
 	local function cloneFolderAsModel(folder)
 		local wrapper = Instance.new("Model")
 		wrapper.Name = folder.Name
@@ -227,49 +218,44 @@ local function findResourceModel(modelsFolder, modelName, nodeId)
 		return wrapper
 	end
 
-	-- Folder 내부에서 구조 보존형 템플릿 생성 헬퍼
 	local function getModelFromFolder(folder)
 		local children = folder:GetChildren()
-		if #children == 0 then
-			return nil
-		end
+		if #children == 0 then return nil end
 		if #children == 1 and (children[1]:IsA("Model") or children[1]:IsA("BasePart")) then
 			return children[1]
 		end
 		return cloneFolderAsModel(folder)
 	end
-	
-	-- ====== Pass 1: 정확 매칭만 시도 ======
-	-- 1-A: Folder 내부 (정확)
-	for _, child in ipairs(modelsFolder:GetChildren()) do
-		if child:IsA("Folder") and exactMatch(child.Name) then
-			local found = getModelFromFolder(child)
-			if found then
-				return found
-			end
-		end
-	end
-	-- 1-B: 직접 Model/BasePart (정확)
-	for _, child in ipairs(modelsFolder:GetChildren()) do
-		if (child:IsA("Model") or child:IsA("BasePart")) and exactMatch(child.Name) then
+
+	-- 1. 모든 자손 중에서 정확히 일치하는 Model/BasePart 탐색
+	for _, child in ipairs(modelsFolder:GetDescendants()) do
+		if (child:IsA("Model") or child:IsA("BasePart")) and isExactMatch(child) then
+			-- 부모가 폴더이고 이름이 같다면, 그 폴더 자체가 노드 컨테이너일 수 있음 (우선순위 낮음)
 			return child
 		end
 	end
-	
-	-- ====== Pass 2: 부분 매칭 (fallback) ======
-	-- 2-A: Folder 내부 (부분)
-	for _, child in ipairs(modelsFolder:GetChildren()) do
-		if child:IsA("Folder") and partialMatch(child.Name) then
+
+	-- 2. 모든 자손 중에서 정확히 일치하는 Folder 탐색 (컨테이너 방식)
+	for _, child in ipairs(modelsFolder:GetDescendants()) do
+		if child:IsA("Folder") and isExactMatch(child) then
 			local found = getModelFromFolder(child)
-			if found then
-				return found
-			end
+			if found then return found end
 		end
 	end
-	-- 2-B: 직접 Model/BasePart (부분)
-	for _, child in ipairs(modelsFolder:GetChildren()) do
-		if (child:IsA("Model") or child:IsA("BasePart")) and partialMatch(child.Name) then
-			return child
+
+	-- 3. 부분 매칭 fallback (기존 호환성 유지)
+	local lastPart = lowerNodeId:match("_([^_]+)$") or lowerNodeId
+	for _, child in ipairs(modelsFolder:GetDescendants()) do
+		local name = child.Name:lower()
+		if (child:IsA("Model") or child:IsA("BasePart") or child:IsA("Folder")) then
+			if name:find(lowerModelName, 1, true) or name:find(lastPart, 1, true) then
+				if child:IsA("Folder") then
+					local found = getModelFromFolder(child)
+					if found then return found end
+				else
+					return child
+				end
+			end
 		end
 	end
 	
@@ -458,11 +444,11 @@ function HarvestService.spawnNodeModel(nodeId: string, position: Vector3, nodeUI
 	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
 	
 	local searchFolders = {
-		assets and assets:FindFirstChild("ResourceNodeModels"),
 		assets and assets:FindFirstChild("ItemModels"),
+		assets and assets:FindFirstChild("ResourceNodeModels"),
 		assets and assets:FindFirstChild("Models"),
 		assets,
-		nodeFolder -- 워크스페이스 내 ResourceNodes 폴더도 탐색 범위에 포함
+		nodeFolder -- 워크스페이스 내 ResourceNodes 폴더 (COMMON/BRANCH 등 포함)
 	}
 	
 	local modelName = nodeData.modelName or nodeId
@@ -2268,6 +2254,13 @@ function HarvestService._setupPrePlacedNodes()
 		end
 
 		local candidates = { nodeModel.Name }
+		
+		-- [추가] 자식 모델들 중에서 유효한 NodeId가 있는지 확인 (중첩 모델 대응)
+		for _, child in ipairs(nodeModel:GetChildren()) do
+			if child:IsA("Model") then
+				table.insert(candidates, child.Name)
+			end
+		end
 		-- ★ 부모/조부모 이름도 후보에 포함 (Folder뿐 아니라 Model 컨테이너도 대응)
 		local parent = nodeModel.Parent
 		if parent and parent.Name ~= "ResourceNodes" then

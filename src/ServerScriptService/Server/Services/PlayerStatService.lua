@@ -730,4 +730,34 @@ function PlayerStatService.SetLevelUpCallback(callback)
 	levelUpCallback = callback
 end
 
+-- [Admin/Debug] 레벨 강제 설정 (마케팅 및 테스트용)
+function PlayerStatService.debugSetLevel(userId: number, targetLevel: number)
+	local target = playerStats[userId]
+	if not target then return false end
+
+	targetLevel = math.clamp(targetLevel, 1, Balance.PLAYER_MAX_LEVEL)
+	
+	-- 해당 레벨에 필요한 최소 총 경험치로 설정
+	local requiredTotalXP = _getTotalXPForLevel(targetLevel)
+	target.totalXP = requiredTotalXP
+	target.level = targetLevel
+	target.currentXP = 0
+	
+	-- 즉시 저장 로직 호출
+	_savePlayerStats(userId)
+	
+	-- 스탯 재적용 (최대 체력 등 갱신)
+	PlayerStatService.applyStats(userId)
+	
+	-- 클라이언트 동기화 (기존 Player.Stats.Changed 이벤트 사용)
+	local player = game.Players:GetPlayerByUserId(userId)
+	if player and NetController then
+		local fullStats = PlayerStatService.getStats(userId)
+		NetController.FireClient(player, "Player.Stats.Changed", fullStats)
+	end
+	
+	print(string.format("[PlayerStatService] Debug: Set player %d level to %d", userId, targetLevel))
+	return true
+end
+
 return PlayerStatService
