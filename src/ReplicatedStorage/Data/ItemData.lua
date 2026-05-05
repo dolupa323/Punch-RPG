@@ -1245,6 +1245,72 @@ local ItemData = {
 		modelName = "CaptureBox",
 		creatureId = "GIGANTORAPTOR",
 	},
+
+	--========================================
+	-- 강화 재료 (Enhancement Materials)
+	--========================================
+	{
+		id = "ALCHEMY_STONE_LOW",
+		name = "하급 연금석",
+		type = "ENHANCE_MATERIAL",
+		rarity = "COMMON",
+		maxStack = 99,
+		weight = 0.2,
+		description = "낮은 마력이 깃든 연금석. 강화 성공 확률이 낮으며 실패 시 무기가 파괴될 위험이 있습니다.",
+		iconName = "AlchemyStone_Low",
+		modelName = "AlchemyStone_Low",
+	},
+	{
+		id = "ALCHEMY_STONE_MID",
+		name = "중급 연금석",
+		type = "ENHANCE_MATERIAL",
+		rarity = "UNCOMMON",
+		maxStack = 99,
+		weight = 0.2,
+		description = "정제된 마력이 깃든 연금석. 강화 성공 확률이 보통이며 실패 시 무기가 파괴될 위험이 있습니다.",
+		iconName = "AlchemyStone_Mid",
+		modelName = "AlchemyStone_Mid",
+		isPremium = true, -- 프리미엄(로벅스) 아이템 표시용
+	},
+	{
+		id = "ALCHEMY_STONE_HIGH",
+		name = "상급 연금석",
+		type = "ENHANCE_MATERIAL",
+		rarity = "RARE",
+		maxStack = 99,
+		weight = 0.2,
+		description = "강력한 마력이 깃든 연금석. 강화 성공 확률이 높으며 실패 시 무기가 파괴될 위험이 있습니다.",
+		iconName = "AlchemyStone_High",
+		modelName = "AlchemyStone_High",
+		isPremium = true,
+	},
+	-- 방지권 추가
+	{
+		id = "3586927112",
+		name = "하락방지권",
+		type = "ENHANCE_SCROLL",
+		rarity = "EPIC",
+		maxStack = 99,
+		weight = 0.1,
+		description = "연금 실패 시 강화 단계가 하락하는 것을 방지해주는 신비로운 주문서입니다.",
+		iconName = "ProtectScroll_Down",
+		modelName = "ProtectScroll_Down",
+		isPremium = true,
+		isDownProtect = true,
+	},
+	{
+		id = "3586927381",
+		name = "파괴방지권",
+		type = "ENHANCE_SCROLL",
+		rarity = "LEGENDARY",
+		maxStack = 99,
+		weight = 0.1,
+		description = "연금 실패 시 아이템이 파괴되는 것을 방지해주는 강력한 마력의 주문서입니다.",
+		iconName = "ProtectScroll_Destroy",
+		modelName = "ProtectScroll_Destroy",
+		isPremium = true,
+		isDestroyProtect = true,
+	},
 }
 
 return ItemData

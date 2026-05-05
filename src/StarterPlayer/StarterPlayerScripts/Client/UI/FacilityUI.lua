@@ -7,6 +7,7 @@ local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local Enums = require(ReplicatedStorage.Shared.Enums.Enums)
+local EnhanceUI = require(script.Parent.EnhanceUI) -- 추가
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -44,6 +45,7 @@ FacilityUI.Refs = {
 		Label = nil,
 	},
 	Tabs = {}, -- { [tabId] = { Frame, Label } }
+	EnhanceFrame = nil, -- 추가
 }
 
 local ALL_TABS = {
@@ -155,6 +157,7 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		if not tabId then return end
 		currentTab = tabId
 		updateTabVisuals()
+		
 		FacilityUI.Refresh(currentRawRecipeList, nil, UIManagerRef, true) -- 필터링된 리프레시
 	end
 
@@ -195,6 +198,7 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 	local leftPanel = Utils.mkFrame({
 		name="Left", size=UDim2.new(0.5, -5, 1, 0), bgT=1, r=4, parent=content
 	})
+	FacilityUI.Refs.RecipeFrame = leftPanel
 	
 	local subTitle = Utils.mkLabel({
 		text=UILocalizer.Localize("품목"), size=UDim2.new(1, -20, 0, 30), pos=UDim2.new(0, 10, 0, 5),
@@ -364,6 +368,10 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		end
 	end)
 
+	-- [추가] 연금 UI 초기화 (DetailFrame 내부에 배치)
+	FacilityUI.Refs.EnhanceFrame = EnhanceUI.Init(rightPanel, UIManager)
+	EnhanceUI.SetVisible(false)
+
 	syncQtyUI()
 	
 	-- 초기 시각화 적용 (첫 클릭 전에도 검은색이 나오지 않도록)
@@ -479,6 +487,22 @@ function FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, getIcon,
 		return
 	end
 	FacilityUI.Refs.DetailFrame.Visible = true
+	local isAlchemy = (recipe.id == "ALCHEMY_ENHANCE")
+	
+	-- Toggle Visibility
+	d.Icon.Parent.Visible = not isAlchemy
+	d.Name.Visible = not isAlchemy
+	d.BagCount.Visible = not isAlchemy
+	d.Time.Visible = not isAlchemy
+	d.QtyWrap.Visible = not isAlchemy
+	d.Mats.Visible = not isAlchemy
+	d.Btn.Visible = not isAlchemy
+	
+	if FacilityUI.Refs.EnhanceFrame then
+		EnhanceUI.SetVisible(isAlchemy)
+	end
+
+	if isAlchemy then return end
 
 	local output = recipe.outputs[1]
 	local outData = getItemData(output.itemId)

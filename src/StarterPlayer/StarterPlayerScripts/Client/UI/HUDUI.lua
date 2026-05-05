@@ -403,6 +403,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.QuestTabButton = mkMenuBtn("Btn_Quest", UIManager.getItemIcon("Icon_Quest"), "임무 (J)", function() 
 		if UIManager.toggleQuest then UIManager.toggleQuest() end 
 	end)
+	HUDUI.Refs.ShopTabButton = mkMenuBtn("Btn_Shop", UIManager.getItemIcon("Icon_Shop"), "상점", function()
+		if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end
+	end)
 
 	-- Debuff display row (above HP bar)
 	local debuffRow = Utils.mkFrame({name = "DebuffRow", size = UDim2.new(1, 0, 0, 0), bgT = 1, parent = statFrame})

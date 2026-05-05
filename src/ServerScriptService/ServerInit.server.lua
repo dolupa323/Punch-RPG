@@ -187,6 +187,9 @@ for command, handler in pairs(CombatService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
+local EnhanceService = require(Services.EnhanceService)
+EnhanceService.Init()
+
 local SkillService = require(Services.SkillService)
 SkillService.Init(NetController, PlayerStatService, SaveService)
 for command, handler in pairs(SkillService.GetHandlers()) do

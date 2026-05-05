@@ -1,5 +1,5 @@
 -- BotService.lua
--- Survivor Bot (가짜 유저) 관리 서비스 (Phase 7 - 표준 애니메이션 폴백 적용)
+-- Survivor Bot (가짜 유저) 관리 서비스 (Phase 8 - 휴식 애니메이션 개선 및 상태 전이 최적화)
 -- 월드에 플레이어와 유사한 봇을 스폰하고 "보여주기용" 채집, 전투, 휴식 연출 제공
 
 local BotService = {}
@@ -34,7 +34,7 @@ local COMBAT_LOOKUP_RADIUS = 80
 local INTERACT_DIST = 5.5
 local ATTACK_DIST = 9.0
 
--- Roblox Standard Animation IDs (폴백용)
+-- Roblox Standard Animation IDs
 local DEFAULT_ANIMS = {
 	IDLE = "rbxassetid://507766388",
 	WALK = "rbxassetid://507777826",
@@ -45,7 +45,6 @@ local DEFAULT_ANIMS = {
 -- Internal Functions
 --========================================
 
---- 봇 외형 적용
 local function applyBotAppearance(model, botName)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
@@ -85,7 +84,6 @@ local function applyBotAppearance(model, botName)
 	pants.PantsTemplate = Appearance.CLOTHING_IDS.DEFAULT_PANTS
 end
 
---- 연출용 타겟 노드 찾기
 local function findNearbyDecorationTarget(position, radius)
 	local nodeFolder = workspace:FindFirstChild("ResourceNodes")
 	if not nodeFolder then return nil end
@@ -106,7 +104,6 @@ local function findNearbyDecorationTarget(position, radius)
 	return nil
 end
 
---- 연출용 전투 대상 찾기
 local function findNearbyCreature(position, radius)
 	local creatureFolder = workspace:FindFirstChild("ActiveCreatures")
 	if not creatureFolder then return nil end
@@ -128,22 +125,23 @@ local function findNearbyCreature(position, radius)
 end
 
 local function playBotAnim(bot, animNameOrId, isLoop)
+	-- 이미 같은 애니메이션이 재생 중이라면 리턴
 	if bot.currentAnimName == animNameOrId and bot.currentAnim and bot.currentAnim.IsPlaying then
 		return bot.currentAnim
 	end
 
-	if bot.currentAnim then bot.currentAnim:Stop(0.2) end
+	if bot.currentAnim then 
+		bot.currentAnim:Stop(0.3) 
+	end
 	
 	local animator = bot.humanoid:FindFirstChildOfClass("Animator")
 	if animator then
 		local animObj = nil
 		
-		-- 1. rbxassetid 직접 입력 처리
 		if animNameOrId:match("^rbxassetid://") then
 			animObj = Instance.new("Animation")
 			animObj.AnimationId = animNameOrId
 		else
-			-- 2. Assets/Animations 폴더 검색
 			local assets = ReplicatedStorage:FindFirstChild("Assets")
 			local anims = assets and assets:FindFirstChild("Animations")
 			animObj = anims and anims:FindFirstChild(animNameOrId)
@@ -152,7 +150,7 @@ local function playBotAnim(bot, animNameOrId, isLoop)
 		if animObj and animObj:IsA("Animation") then
 			local track = animator:LoadAnimation(animObj)
 			track.Looped = isLoop or false
-			track:Play(0.2)
+			track:Play(0.3)
 			bot.currentAnim = track
 			bot.currentAnimName = animNameOrId
 			return track
@@ -161,9 +159,9 @@ local function playBotAnim(bot, animNameOrId, isLoop)
 	return nil
 end
 
---- 기본 이동 애니메이션 처리
 local function setupBotAnimationHandler(bot)
 	bot.humanoid.Running:Connect(function(speed)
+		-- 특정 행동 중에는 이동 애니메이션 무시
 		if bot.state == "ACTING_GATHER" or bot.state == "ATTACKING_CREATURE" or bot.state == "RESTING" then
 			return
 		end
@@ -272,10 +270,16 @@ local function _updateBotsLoop()
 					end
 				end
 				
-				if math.random() < 0.1 then
+				-- 휴식 시늉 (15%)
+				if math.random() < 0.15 then
 					bot.state = "RESTING"
-					bot.actionEndTime = now + math.random(15, 30)
-					playBotAnim(bot, AnimationIds.MISC.REST, true)
+					-- 휴식 시간 단축 및 1회 재생 설정
+					bot.actionEndTime = now + math.random(6, 12) 
+					-- 루프를 끄고 마지막 프레임에서 멈추도록 설정 (Roblox 기본 동작: 멈춘 상태 유지)
+					local track = playBotAnim(bot, AnimationIds.MISC.REST, false)
+					if track then
+						track.DidLoop:Connect(function() track:AdjustSpeed(0) end) -- 루프 방지 강제
+					end
 					continue
 				end
 
@@ -301,8 +305,10 @@ local function _updateBotsLoop()
 			
 		elseif bot.state == "RESTING" then
 			if now >= bot.actionEndTime then
+				-- 휴식이 끝나면 즉시 배회 상태로 전환하여 움직임 유도
 				bot.state = "IDLE"
-				bot.nextActionTime = now + math.random(3, 8)
+				bot.nextActionTime = now -- 즉시 다음 행동
+				if bot.currentAnim then bot.currentAnim:Stop(0.5) end
 			end
 
 		elseif bot.state == "CHASE_CREATURE" then
@@ -407,7 +413,7 @@ function BotService.Init()
 	end)
 	
 	initialized = true
-	print("[BotService] Initialized Phase 7 - Standard Animation Fallback Active")
+	print("[BotService] Initialized Phase 8 - Resting AI Polished")
 end
 
 return BotService

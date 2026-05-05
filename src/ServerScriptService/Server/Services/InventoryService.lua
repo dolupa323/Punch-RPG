@@ -1462,7 +1462,29 @@ function InventoryService.removeItemFromSlot(userId: number, slot: number, count
 	return toRemove
 end
 
---- ?�체 ?�벤?�리 ?�이??반환 (?�라?�언???�기?�용)
+--- 특정 슬롯의 속성(Attributes)을 업데이트
+function InventoryService.updateSlotAttributes(userId: number, slot: number, attributes: any)
+	local inv = playerInventories[userId]
+	if not inv then return false end
+	
+	local ok, err = _validateSlotRange(slot)
+	if not ok then return false end
+	
+	local slotData = inv.slots[slot]
+	if not slotData then return false end
+	
+	slotData.attributes = attributes
+	
+	-- 인벤토리 변경 알림 발생
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		_emitChanged(player, { _makeChange(inv, slot) })
+	end
+	
+	return true
+end
+
+--- 전체 인벤토리 아이템 반환 (클라이언트 초기화용)
 function InventoryService.getFullInventory(userId: number): {{slot: number, itemId: string?, count: number?}}
 	local inv = playerInventories[userId]
 	if not inv then return {} end

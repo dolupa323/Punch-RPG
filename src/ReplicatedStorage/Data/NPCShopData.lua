@@ -129,7 +129,7 @@ NPCShopData.ISLAND_TRADER_GRASSLAND = {
 	modelRotationOffset = Vector3.new(180, 0, 0),
 	interactPartSize = Vector3.new(4, 4, 4),
 	interactPartOffset = Vector3.new(0, 0, 0),
-	sellOnly = true,
+	sellOnly = false,
 	acceptAllItems = true,
 	dynamicSellPricing = true,
 	sellPricing = {
@@ -137,7 +137,9 @@ NPCShopData.ISLAND_TRADER_GRASSLAND = {
 		positiveMinMultiplier = 0.35,
 		negativeLevelBonusPerLevel = 0.12,
 	},
-	buyList = {},
+	buyList = {
+		{ itemId = "ALCHEMY_STONE_LOW", price = 100, stock = -1 },
+	},
 	sellList = {
 		{ itemId = "MEAT", price = 9 },
 		{ itemId = "FEATHER", price = 14 },
@@ -159,7 +161,7 @@ NPCShopData.ISLAND_TRADER_TROPICAL = {
 	modelRotationOffset = Vector3.new(180, 0, 0),
 	interactPartSize = Vector3.new(4, 4, 4),
 	interactPartOffset = Vector3.new(0, 0, 0),
-	sellOnly = true,
+	sellOnly = false,
 	acceptAllItems = true,
 	dynamicSellPricing = true,
 	sellPricing = {
@@ -167,7 +169,9 @@ NPCShopData.ISLAND_TRADER_TROPICAL = {
 		positiveMinMultiplier = 0.35,
 		negativeLevelBonusPerLevel = 0.12,
 	},
-	buyList = {},
+	buyList = {
+		{ itemId = "ALCHEMY_STONE_LOW", price = 120, stock = -1 },
+	},
 	sellList = {
 		{ itemId = "MEAT", price = 11 },
 		{ itemId = "TROPICAL_LEATHER", price = 26 },

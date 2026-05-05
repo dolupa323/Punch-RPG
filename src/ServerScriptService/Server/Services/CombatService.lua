@@ -873,19 +873,10 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	local calculated = PlayerStatService.GetCalculatedStats(userId)
 	local attackMult = calculated.attackMult or 1.0
 
+	-- [수정] 도구(도끼/곡괭이)로 크리처 공격 시 데미지 페널티 삭제
+	-- 초반 플레이어가 도끼로도 충분히 사냥할 수 있도록 보장
 	if targetType == "CREATURE" and itemData and itemData.type == "TOOL" then
-		local toolRole = tostring(itemData.optimalTool or ""):upper()
-		if toolRole == "AXE" or toolRole == "PICKAXE" then
-			local skipNerf = false
-			if toolRole == "AXE" and SkillService then
-				local treeId = SkillService.getCombatTreeId(userId)
-				if treeId == "AXE" then skipNerf = true end
-			end
-			if not skipNerf then
-				baseDamage = DEFAULT_BAREHAND_DAMAGE
-				isBlunt = true
-			end
-		end
+		-- 페널티 로직 제거됨
 	end
 
 	if targetType == "PLAYER" then
@@ -897,6 +888,21 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	end
 
 	local totalDamage = baseDamage * attackMult
+	
+	-- [추가] 강화 레벨 보너스 적용 (+1당 기본 대미지의 15% 가산)
+	if toolItem and toolItem.attributes then
+		-- [수정] 강화 레벨에 따른 추가 공격력 합산
+		local enhanceLevel = (toolItem.attributes and toolItem.attributes.enhanceLevel) or 0
+		local enhanceDamage = (toolItem.attributes and toolItem.attributes.enhanceDamage) or 0
+		
+		if enhanceDamage > 0 then
+			totalDamage = totalDamage + enhanceDamage
+		elseif enhanceLevel > 0 then
+			-- 레거시 지원: 수치 없는 강화 무기는 기존 방식 유지 (15%)
+			totalDamage = totalDamage * (1 + (enhanceLevel * 0.15))
+		end
+	end
+
 	if isBowShot then
 		totalDamage = totalDamage * (0.55 + (bowChargeRatio * 0.85))
 	end

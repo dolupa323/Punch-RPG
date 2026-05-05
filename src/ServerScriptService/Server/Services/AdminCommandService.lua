@@ -17,14 +17,30 @@ local TutorialService
 local SaveService
 local Balance = require(ReplicatedStorage.Shared.Config.Balance)
 
+local RunService = game:GetService("RunService")
+
 -- 관리자 권한 확인 (Balance 공통 설정 참조)
 local function isAdmin(player: Player)
-	return RunService:IsStudio() or Balance.ADMIN_IDS[player.UserId] == true
+	return RunService:IsStudio() or (Balance.ADMIN_IDS and Balance.ADMIN_IDS[player.UserId] == true)
 end
 
 --========================================
 -- Core Logic
 --========================================
+
+--- 테스트용 강화 아이템 세트 지급
+local function giveEnhanceSet(player: Player)
+	if not InventoryService then return end
+	local userId = player.UserId
+	
+	InventoryService.addItem(userId, "ALCHEMY_STONE_MID", 10)
+	InventoryService.addItem(userId, "ALCHEMY_STONE_HIGH", 10)
+	InventoryService.addItem(userId, "3586927112", 10) -- 하락방지권
+	InventoryService.addItem(userId, "3586927381", 10) -- 파괴방지권
+	InventoryService.addItem(userId, "SWORD_IRON", 1)  -- 테스트용 무기
+	
+	print(string.format("[AdminCommandService] Enhancement test set given to %s", player.Name))
+end
 
 --- 계정 완전 초기화 (마케팅용)
 local function resetAccount(player: Player)
@@ -90,6 +106,11 @@ local function handleSetLevel(player: Player, payload: any)
 	return { success = success }
 end
 
+local function handleGiveEnhanceSet(player: Player, payload: any)
+	giveEnhanceSet(player)
+	return { success = true }
+end
+
 --========================================
 -- Command Parser
 --========================================
@@ -111,6 +132,8 @@ local function processCommand(player: Player, message: string)
 
 	if command == "reset" or command == "초기화" then
 		resetAccount(player)
+	elseif command == "enhance" or command == "강화" then
+		giveEnhanceSet(player)
 	elseif (command == "level" or command == "레벨") and args[2] then
 		local lv = tonumber(args[2])
 		if lv and PlayerStatService.debugSetLevel then
@@ -135,6 +158,7 @@ function AdminCommandService.Init(_NetController, _PlayerStatService, _Inventory
 	if NetController then
 		NetController.RegisterHandler("Admin.FullReset.Request", handleFullReset)
 		NetController.RegisterHandler("Admin.SetLevel.Request", handleSetLevel)
+		NetController.RegisterHandler("Admin.GiveEnhanceSet.Request", handleGiveEnhanceSet)
 	end
 
 	Players.PlayerAdded:Connect(function(player)

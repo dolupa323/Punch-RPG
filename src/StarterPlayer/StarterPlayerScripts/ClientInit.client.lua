@@ -265,6 +265,24 @@ local function createStudioAdminGoldPanel()
 	fullResetBtn.Parent = frame
 	Instance.new("UICorner", fullResetBtn).CornerRadius = UDim.new(0, 6)
 
+	-- 강화 아이템 지급 버튼 추가
+	local giveEnhanceBtn = Instance.new("TextButton")
+	giveEnhanceBtn.Size = UDim2.new(1, 0, 0, 32)
+	giveEnhanceBtn.BackgroundColor3 = Color3.fromRGB(185, 155, 80)
+	giveEnhanceBtn.Text = "강화 아이템 세트 지급"
+	giveEnhanceBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+	giveEnhanceBtn.TextSize = 13
+	giveEnhanceBtn.Font = Enum.Font.GothamBold
+	giveEnhanceBtn.Parent = frame
+	Instance.new("UICorner", giveEnhanceBtn).CornerRadius = UDim.new(0, 6)
+
+	giveEnhanceBtn.MouseButton1Click:Connect(function()
+		local ok = NetClient.Request("Admin.GiveEnhanceSet.Request", {})
+		if ok then
+			UIManager.notify("강화 테스트 아이템이 지급되었습니다.", Color3.fromRGB(255, 220, 120))
+		end
+	end)
+
 	setLvBtn.MouseButton1Click:Connect(function()
 		local lv = tonumber(lvBox.Text)
 		if not lv then return end

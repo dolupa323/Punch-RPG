@@ -97,10 +97,21 @@ local RecipeData = {
 		outputs = { { itemId = "PLANK", count = 3 } },
 	},
 	{
+		id = "ALCHEMY_ENHANCE",
+		name = "연금",
+		category = "RESOURCE",
+		requiredFacility = "CRAFTING_T1",
+		allowedFacilityIds = { "BASIC_WORKBENCH", "NOVICE_WORKBENCH", "IRON_WORKBENCH", "BRONZE_WORKBENCH" },
+		craftTime = 0,
+		techLevel = 1,
+		inputs = {},
+		outputs = { { itemId = "ALCHEMY_STONE_LOW", count = 1 } }, -- Icon placeholder
+	},
+	{
 		id = "CRAFT_LOG_BLOCK",
-		name = "통나무 블럭 가공",
+		name = "기초 통나무 블록",
 		category = "BLOCK_PROCESS",
-		buildSkillId = "BUILD_T1",
+		buildSkillId = "BUILD_T0",
 		facilityTabName = "나무 블럭가공",
 		requiredFacility = "CRAFTING_T1",
 		allowedFacilityIds = { "BASIC_WORKBENCH", "NOVICE_WORKBENCH" },

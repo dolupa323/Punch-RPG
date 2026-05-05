@@ -902,7 +902,7 @@ function InventoryUI.UpdateCurrency(amount)
 	end
 end
 
-local function createStatRow(parent, label, value, bonusText, hexColor, order)
+local function createStatRow(parent, label, value, bonusText, hexColor, order, totalValue)
 	local ts = (InventoryUI._ts and InventoryUI._ts.detailStat) or 16
 	local rowH = ts + 10
 	local row = Instance.new("Frame")
@@ -928,7 +928,15 @@ local function createStatRow(parent, label, value, bonusText, hexColor, order)
 	valL.Size = UDim2.new(0.5, 0, 1, 0)
 	valL.Position = UDim2.new(0.5, 0, 0, 0)
 	valL.BackgroundTransparency = 1
-	valL.Text = value .. (bonusText and (" <font color=\"" .. hexColor .. "\">" .. bonusText .. "</font>") or "")
+	
+	local valText = ""
+	if totalValue then
+		valText = totalValue .. " <font color=\"#FFFFFF\">(" .. value .. "</font>" .. (bonusText and (" <font color=\"" .. hexColor .. "\">" .. bonusText .. "</font>") or "") .. "<font color=\"#FFFFFF\">)</font>"
+	else
+		valText = value .. (bonusText and (" <font color=\"" .. hexColor .. "\">" .. bonusText .. "</font>") or "")
+	end
+	
+	valL.Text = valText
 	valL.TextColor3 = C.WHITE
 	valL.TextSize = ts + 1
 	valL.Font = F.TITLE
@@ -1000,7 +1008,9 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		if d.RarityLine then d.RarityLine.BackgroundColor3 = rarityColor end
 		if d.RarityDot then d.RarityDot.BackgroundColor3 = rarityColor end
 		
-		d.Name.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "name", data.name or (itemData and itemData.name) or itemId)
+		local baseName = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "name", data.name or (itemData and itemData.name) or itemId)
+		local enhanceLevel = (data.attributes and data.attributes.enhanceLevel) or 0
+		d.Name.Text = baseName .. (enhanceLevel > 0 and (" +" .. enhanceLevel) or "")
 		d.Name.TextColor3 = rarityColor
 		d.Icon.Image = getItemIcon(itemData and itemData.id or itemId)
 		d.Icon.Visible = true
@@ -1029,7 +1039,16 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				end
 				
 				local baseDmg = itemData.damage or 0
+				local enhanceLevel = (data.attributes and data.attributes.enhanceLevel) or 0
+				local enhanceDamage = (data.attributes and data.attributes.enhanceDamage) or 0
+				
 				local finalDmg = math.floor(baseDmg * (1 + bonusDmg) + 0.5)
+				if enhanceDamage > 0 then
+					finalDmg = finalDmg + enhanceDamage
+				elseif enhanceLevel > 0 then
+					finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * 0.15) + 0.5)
+				end
+				
 				local extraDmg = finalDmg - baseDmg
 				
 				local finalCrit = math.floor(bonusCrit * 100 + 0.5)
@@ -1037,15 +1056,15 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				local curDur = data.durability or baseDur
 				local maxDur = math.floor(baseDur * (1 + bonusDur) + 0.5)
 				
-				local dmgColor = bonusDmg > 0 and "#8CDC64" or "#FFFFFF"
+				local dmgColor = (bonusDmg > 0 or enhanceLevel > 0) and "#8CDC64" or "#FFFFFF"
 				local critColor = bonusCrit > 0 and "#8CDC64" or "#FFFFFF"
 				local durColor = bonusDur > 0 and "#8CDC64" or "#FFFFFF"
 				
 				d.Stats.Visible = false
 				d.StatsGrid.Visible = true
-				createStatRow(d.StatsGrid, "공격력", tostring(baseDmg), (extraDmg ~= 0 and string.format("(%+d)", extraDmg) or nil), dmgColor, 1)
-				createStatRow(d.StatsGrid, "치명타 확률", "0%", (finalCrit ~= 0 and string.format("(%+d%%)", finalCrit) or nil), critColor, 2)
-				createStatRow(d.StatsGrid, "내구도", tostring(baseDur), (bonusDur ~= 0 and string.format("(%+d)", maxDur - baseDur) or nil), durColor, 3)
+				createStatRow(d.StatsGrid, "공격력", tostring(baseDmg), (extraDmg ~= 0 and string.format("+%d", extraDmg) or nil), dmgColor, 1, tostring(finalDmg))
+				createStatRow(d.StatsGrid, "치명타 확률", "0%", (finalCrit ~= 0 and string.format("+%d%%", finalCrit) or nil), critColor, 2)
+				createStatRow(d.StatsGrid, "내구도", tostring(baseDur), (bonusDur ~= 0 and string.format("+%d", maxDur - baseDur) or nil), durColor, 3)
 				
 			elseif iType == "ARMOR" then
 				local bonusDef, bonusHp, bonusDur = 0, 0, 0

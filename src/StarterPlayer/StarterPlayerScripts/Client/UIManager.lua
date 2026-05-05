@@ -67,6 +67,7 @@ local EquipmentUI = require(UI.EquipmentUI)
 local StorageUI = require(UI.StorageUI)
 local FacilityUI = require(UI.FacilityUI)
 local MaterialSelectUI = require(UI.MaterialSelectUI)
+local PremiumShopUI = require(UI.PremiumShopUI)
 
 local PromptUI = require(UI.PromptUI)
 local TotemUI = require(UI.TotemUI)
@@ -97,6 +98,11 @@ UIManager.OnInventoryOpened = inventoryOpenedEvent.Event
 
 function UIManager.fireMenuOpened() menuOpenedEvent:Fire() end
 function UIManager.fireInventoryOpened() inventoryOpenedEvent:Fire() end
+
+function UIManager.getInventorySlot(slot)
+	local cache = InventoryController.getInventoryCache()
+	return cache[slot]
+end
 
 ----------------------------------------------------------------
 -- ★ 에러코드 → 사용자 친화적 한글 메시지 변환
@@ -1902,6 +1908,7 @@ function UIManager._onCloseFacility()
 	currentFacilityId = nil
 	selectedFacilityRecipe = nil
 	FacilityUI.SetVisible(false)
+	UIManager.closeItemSelector() -- Close selection modal if open
 	FacilityController.closeFacility()
 end
 
@@ -3413,10 +3420,13 @@ function UIManager.Init()
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
 		WindowManager.registerFrame("TOTEM", TotemUI.Refs.Frame)
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
+		WindowManager.registerFrame("PREMIUM_SHOP", PremiumShopUI.Refs.Frame)
 	end)
 
 	-- [Refactor] DragDropController 초기화
 	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)
+	
+	PremiumShopUI.Init(mainGui, UIManager)
 
 	initialized = true
 	print("[UIManager] Initialized — WindowManager & Controllers decoupled")
@@ -3517,6 +3527,463 @@ function UIManager.onReleasePal()
 	else
 		UIManager.notify(friendlyError(data, "풀어주기"), Color3.fromRGB(255, 100, 100))
 	end
+end
+
+----------------------------------------------------------------
+-- 프리미엄 상점 (Premium Shop)
+----------------------------------------------------------------
+function UIManager.togglePremiumShop()
+	if WindowManager.isOpen("PREMIUM_SHOP") then
+		UIManager.closePremiumShop()
+	else
+		UIManager.openPremiumShop()
+	end
+end
+
+function UIManager.openPremiumShop()
+	WindowManager.closeOthers({"PREMIUM_SHOP"})
+	PremiumShopUI.Refresh(UIManager.getItemIcon)
+	PremiumShopUI.SetVisible(true)
+	WindowManager.open("PREMIUM_SHOP")
+	
+	updateUIMode()
+end
+
+function UIManager.closePremiumShop()
+	PremiumShopUI.SetVisible(false)
+	WindowManager.close("PREMIUM_SHOP")
+	
+	updateUIMode()
+end
+
+----------------------------------------------------------------
+-- Enhancement (Alchemy)
+----------------------------------------------------------------
+
+local activeSelectorCallback = nil
+local activeSelectorMode = nil -- "WEAPON" or "STONE"
+
+function UIManager.openItemSelector(mode, callback)
+	if selectorOverlay then selectorOverlay:Destroy() end
+	activeSelectorCallback = callback
+	activeSelectorMode = mode
+	
+	-- 1. 오버레이 생성
+	selectorOverlay = Utils.mkFrame({
+		name = "ItemSelectorOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.6,
+		z = 100,
+		parent = mainGui
+	})
+	
+	local main = Utils.mkWindow({
+		name = "SelectorWindow",
+		size = UDim2.new(0.6, 0, 0.7, 0),
+		maxSize = Vector2.new(600, 500),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		r = 10,
+		parent = selectorOverlay
+	})
+	
+	local titles = {
+		WEAPON = "강화할 무기 선택",
+		ALCHEMY_STONE = "사용할 연금석 선택",
+		ENHANCE_SCROLL = "사용할 주문서 선택",
+		DOWN_PROTECT = "하락 방지 주문서 선택",
+		DESTROY_PROTECT = "파괴 방지 주문서 선택",
+	}
+	local titleStr = titles[mode] or "아이템 선택"
+	
+	Utils.mkLabel({
+		text = UILocalizer.Localize(titleStr),
+		size = UDim2.new(1, 0, 0, 50),
+		pos = UDim2.new(0, 0, 0, 10),
+		ts = 22,
+		font = Theme.Fonts.TITLE,
+		color = C.GOLD,
+		ax = Enum.TextXAlignment.Center,
+		parent = main
+	})
+	
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -20, 1, -120)
+	scroll.Position = UDim2.new(0.5, 0, 0, 65)
+	scroll.AnchorPoint = Vector2.new(0.5, 0)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 4
+	scroll.ScrollBarImageColor3 = C.GOLD
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	scroll.ClipsDescendants = true
+	scroll.Parent = main
+	
+	local scrollPad = Instance.new("UIPadding")
+	scrollPad.PaddingTop = UDim.new(0, 5)
+	scrollPad.PaddingBottom = UDim.new(0, 5)
+	scrollPad.PaddingLeft = UDim.new(0, 5)
+	scrollPad.PaddingRight = UDim.new(0, 10) -- Space for scrollbar
+	scrollPad.Parent = scroll
+	
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.new(0, 80, 0, 80)
+	grid.CellPadding = UDim2.new(0, 15, 0, 15) -- Increased padding to prevent stroke clipping
+	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	grid.Parent = scroll
+	
+	-- 2. 아이템 필터링 및 생성
+	local cache = InventoryController.getInventoryCache()
+	local found = false
+	
+	for slot, data in pairs(cache) do
+		local isValid = false
+		local itemData = DataHelper.GetData("ItemData", data.itemId)
+		
+		if mode == "WEAPON" then
+			if itemData and (itemData.type == "WEAPON" or itemData.type == "TOOL") then
+				isValid = true
+			end
+		elseif mode == "ALCHEMY_STONE" then
+			if itemData and itemData.type == "ENHANCE_MATERIAL" then
+				isValid = true
+			elseif data.itemId and data.itemId:find("ALCHEMY_STONE") then
+				isValid = true
+			end
+		elseif mode == "ENHANCE_SCROLL" then
+			if itemData and itemData.type == "ENHANCE_SCROLL" then
+				isValid = true
+			elseif data.itemId == "3586927112" or data.itemId == "3586927381" then
+				isValid = true
+			elseif data.itemId and data.itemId:find("SCROLL") then
+				isValid = true
+			end
+		elseif mode == "DOWN_PROTECT" then
+			if data.itemId == "3586927112" then
+				isValid = true
+			elseif itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDownProtect then
+				isValid = true
+			end
+		elseif mode == "DESTROY_PROTECT" then
+			if data.itemId == "3586927381" then
+				isValid = true
+			elseif itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDestroyProtect then
+				isValid = true
+			end
+		end
+		
+		if isValid then
+			found = true
+			local btn = Utils.mkFrame({
+				name = "Slot_" .. slot,
+				size = UDim2.new(0, 80, 0, 80),
+				bg = C.BG_SLOT,
+				bgT = 0.2,
+				r = 6,
+				stroke = 1,
+				strokeC = C.BORDER,
+				parent = scroll
+			})
+			
+			local icon = Instance.new("ImageLabel")
+			icon.Size = UDim2.new(0.8, 0, 0.8, 0)
+			icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+			icon.AnchorPoint = Vector2.new(0.5, 0.5)
+			icon.BackgroundTransparency = 1
+			icon.Image = UIManager.getItemIcon(data.itemId)
+			icon.Parent = btn
+			
+			-- 강화 수치 표시
+			if data.attributes and data.attributes.enhanceLevel and data.attributes.enhanceLevel > 0 then
+				Utils.mkLabel({
+					text = "+" .. data.attributes.enhanceLevel,
+					size = UDim2.new(0, 30, 0, 20),
+					pos = UDim2.new(1, -2, 1, -2),
+					anchor = Vector2.new(1, 1),
+					ts = 14,
+					font = Theme.Fonts.TITLE,
+					color = C.GOLD,
+					parent = btn
+				})
+			end
+			
+			local click = Instance.new("TextButton")
+			click.Size = UDim2.new(1, 0, 1, 0)
+			click.BackgroundTransparency = 1
+			click.Text = ""
+			click.Parent = btn
+			
+			click.MouseButton1Click:Connect(function()
+				selectorOverlay:Destroy()
+				selectorOverlay = nil
+				local cb = activeSelectorCallback
+				activeSelectorCallback = nil
+				activeSelectorMode = nil
+				cb(slot, data)
+			end)
+		end
+	end
+	
+	if not found then
+		Utils.mkLabel({
+			text = UILocalizer.Localize("선택 가능한 아이템이 없습니다."),
+			size = UDim2.new(1, 0, 0, 100),
+			pos = UDim2.new(0, 0, 0, 80),
+			ts = 16,
+			color = C.GRAY,
+			ax = Enum.TextXAlignment.Center,
+			parent = scroll
+		})
+	end
+	
+	local cancel = Utils.mkBtn({
+		text = UILocalizer.Localize("취소"),
+		size = UDim2.new(0, 150, 0, 40),
+		pos = UDim2.new(0.5, 0, 1, -10),
+		anchor = Vector2.new(0.5, 1),
+		bg = C.BG_DARK,
+		color = C.WHITE, -- Fixed contrast: white text on dark background
+		ts = 18,
+		fn = function()
+			selectorOverlay:Destroy()
+			selectorOverlay = nil
+			activeSelectorCallback = nil
+			activeSelectorMode = nil
+		end,
+		parent = main
+	})
+end
+
+function UIManager.closeItemSelector()
+	if selectorOverlay then
+		selectorOverlay:Destroy()
+		selectorOverlay = nil
+		activeSelectorCallback = nil
+		activeSelectorMode = nil
+	end
+end
+function UIManager.requestEnhance(weaponSlot, stoneSlot, callback, scrolls)
+	task.spawn(function()
+		local success, result = NetClient.Request("Enhance.Request", {
+			weaponSlot = weaponSlot,
+			stoneSlot = stoneSlot,
+			scrolls = scrolls
+		})
+		if callback then
+			callback(success, result)
+		end
+	end)
+end
+
+function UIManager.showEnhanceResult(result, data)
+	if not mainGui then return end
+	
+	local overlay = Utils.mkFrame({
+		name = "EnhanceResultOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 1,
+		z = 1000,
+		useCanvas = true,
+		parent = mainGui
+	})
+	overlay.GroupTransparency = 1
+	
+	local bgDim = Utils.mkFrame({
+		name = "Dim",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.5,
+		parent = overlay
+	})
+	
+	local center = Utils.mkFrame({
+		name = "Center",
+		size = UDim2.new(0.6, 0, 0.4, 0),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bgT = 1,
+		parent = overlay
+	})
+	
+	local isSuccess = (result == "SUCCESS")
+	local isDestroyed = (result == "DESTROYED")
+	
+	local titleText = ""
+	local titleColor = C.WHITE
+	
+	if isSuccess then
+		titleText = "연금 성공!"
+		titleColor = C.GOLD
+	elseif isDestroyed then
+		titleText = "아이템 파괴!"
+		titleColor = C.RED
+	else
+		titleText = "연금 실패"
+		titleColor = C.WHITE
+	end
+	
+	-- Glow Effect for Success
+	if isSuccess then
+		local glow = Instance.new("ImageLabel")
+		glow.Name = "Glow"
+		glow.Size = UDim2.new(1.5, 0, 2.5, 0)
+		glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+		glow.AnchorPoint = Vector2.new(0.5, 0.5)
+		glow.BackgroundTransparency = 1
+		glow.Image = "rbxassetid://352348164"
+		glow.ImageColor3 = C.GOLD
+		glow.ImageTransparency = 0.6
+		glow.Parent = center
+	end
+	
+	local title = Utils.mkLabel({
+		text = UILocalizer.Localize(titleText),
+		size = UDim2.new(1, 0, 1, 0),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 64, -- Even bigger
+		font = Theme.Fonts.TITLE,
+		color = titleColor,
+		parent = center
+	})
+	
+	-- Success subtitle (New Level)
+	if isSuccess and data and data.newLevel then
+		Utils.mkLabel({
+			text = "+" .. data.newLevel,
+			size = UDim2.new(1, 0, 0, 40),
+			pos = UDim2.new(0.5, 0, 0.75, 0),
+			anchor = Vector2.new(0.5, 0.5),
+			ts = 32,
+			color = C.GOLD,
+			parent = center
+		})
+	end
+	
+	-- Animations
+	TweenService:Create(overlay, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+	
+	task.delay(2.5, function()
+		if overlay and overlay.Parent then
+			local t = TweenService:Create(overlay, TweenInfo.new(0.5), {GroupTransparency = 1})
+			t:Play()
+			t.Completed:Wait()
+			if overlay and overlay.Parent then overlay:Destroy() end
+		end
+	end)
+	
+	-- Close on click
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundTransparency = 1
+	btn.Text = ""
+	btn.Parent = overlay
+	btn.MouseButton1Click:Connect(function()
+		overlay:Destroy()
+	end)
+end
+
+function UIManager.getItemName(itemId)
+	local data = DataHelper.GetData("ItemData", itemId)
+	if data and data.name then
+		return UILocalizer.LocalizeDataText("ItemData", tostring(itemId), "name", data.name)
+	end
+	
+	-- ItemData에 없으면 ProductConfig 확인 (로벅스 아이템 등)
+	local ProductConfig = require(ReplicatedStorage.Shared.Config.ProductConfig)
+	local pData = ProductConfig.PRODUCTS[tostring(itemId)]
+	if pData and pData.name then
+		return UILocalizer.Localize(pData.name)
+	end
+	
+	return tostring(itemId)
+end
+
+
+function UIManager.showEnhanceConfirm(params)
+	if not mainGui then return end
+	
+	local overlay = Utils.mkFrame({
+		name = "EnhanceConfirmOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.6,
+		z = 2000,
+		parent = mainGui
+	})
+	
+	local win = Utils.mkWindow({
+		name = "ConfirmWindow",
+		size = UDim2.new(0, 400, 0, 320),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		r = 8,
+		parent = overlay
+	})
+	
+	Utils.mkLabel({
+		text = UILocalizer.Localize("연금 강화 확인"),
+		size = UDim2.new(1, 0, 0, 40),
+		pos = UDim2.new(0.5, 0, 0, 10),
+		anchor = Vector2.new(0.5, 0),
+		ts = 20,
+		font = Theme.Fonts.TITLE,
+		color = C.GOLD,
+		parent = win
+	})
+	
+	local content = Utils.mkLabel({
+		text = params.message,
+		size = UDim2.new(0.9, 0, 0, 140),
+		pos = UDim2.new(0.5, 0, 0.45, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 16,
+		color = C.WHITE,
+		rich = true,
+		wrap = true,
+		parent = win
+	})
+	
+	local btnWrap = Utils.mkFrame({
+		size = UDim2.new(1, -40, 0, 50),
+		pos = UDim2.new(0.5, 0, 1, -20),
+		anchor = Vector2.new(0.5, 1),
+		bgT = 1,
+		parent = win
+	})
+	
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0, 20)
+	list.Parent = btnWrap
+	
+	local cancelBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("취소"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = C.BG_SLOT,
+		ts = 16,
+		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
+		parent = btnWrap
+	})
+	
+	local confirmBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("확인"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = C.GOLD,
+		color = C.BG_DARK,
+		ts = 16,
+		fn = function()
+			overlay:Destroy()
+			if params.onConfirm then params.onConfirm() end
+		end,
+		parent = btnWrap
+	})
 end
 
 return UIManager

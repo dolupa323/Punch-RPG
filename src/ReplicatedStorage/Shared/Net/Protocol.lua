@@ -196,6 +196,10 @@ Protocol.Commands = {
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,
+	["Admin.GiveEnhanceSet.Request"] = true,
+
+	-- Enhancement 명령어 (연금 강화)
+	["Enhance.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

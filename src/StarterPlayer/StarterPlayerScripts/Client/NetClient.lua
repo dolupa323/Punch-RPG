@@ -41,7 +41,7 @@ function NetClient.Request(command: string, payload: any?): (boolean, any)
 	local timeoutSeconds = 5
 	if command == "Inventory.Sort" or command == "Inventory.Organize" then
 		timeoutSeconds = 15
-	elseif command and (command:match("Crafting") or command:match("Build") or command:match("Tutorial")) then
+	elseif command and (command:match("Crafting") or command:match("Build") or command:match("Tutorial") or command:match("Enhance")) then
 		timeoutSeconds = 10
 	end
 	
