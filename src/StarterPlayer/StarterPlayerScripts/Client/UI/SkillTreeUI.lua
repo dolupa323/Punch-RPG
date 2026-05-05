@@ -1245,11 +1245,19 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	UserInputService.InputChanged:Connect(function(input)
 		if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local delta = input.Position - dragStartPos
-			-- X축 드래그만 반영 (ScrollingDirection.X이므로)
-			nodeArea.CanvasPosition = Vector2.new(
-				math.clamp(startCanvasPos.X - delta.X, 0, math.max(0, nodeArea.CanvasSize.X.Offset - nodeArea.AbsoluteSize.X)),
-				0
-			)
+			
+			-- [중요] UIScale 대응: 화면 픽셀 이동거리를 UI 스케일에 맞춰 보정하여 드래그 속도와 범위를 일치시킴
+			local scale = 1
+			local screenGui = nodeArea:FindFirstAncestorOfClass("ScreenGui")
+			if screenGui then
+				local uiScale = screenGui:FindFirstChildOfClass("UIScale")
+				if uiScale then
+					scale = uiScale.Scale
+				end
+			end
+			
+			-- [수정] 수동 클램핑 범위를 제거하여 로블록스 엔진이 실제 캔버스 끝까지 이동을 허용하도록 함
+			nodeArea.CanvasPosition = Vector2.new(startCanvasPos.X - (delta.X / scale), 0)
 		end
 	end)
 

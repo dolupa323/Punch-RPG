@@ -319,4 +319,7 @@ CreatureService.SetTutorialService(TutorialService)
 local AdminCommandService = require(Services.AdminCommandService)
 AdminCommandService.Init(NetController, PlayerStatService, InventoryService, TechService, TutorialService, SaveService)
 
-print("[ServerInit] Server initialized (No-BOM) - AdminCommandService Ready")
+local BotService = require(Services.BotService)
+BotService.Init()
+
+print("[ServerInit] Server initialized (No-BOM) - AdminCommandService & BotService Ready")

@@ -1723,6 +1723,34 @@ function CreatureService._updateAILoop()
 		end
 	end
 	
+	-- 2.2 봇 감지 (시각적 전투 연출용)
+	local survivorBots = workspace:FindFirstChild("SurvivorBots")
+	if survivorBots then
+		for _, bot in ipairs(survivorBots:GetChildren()) do
+			local hrp = bot:FindFirstChild("HumanoidRootPart")
+			local hum = bot:FindFirstChildOfClass("Humanoid")
+			if hrp and hum and hum.Health > 0 then
+				local botPos = hrp.Position
+				-- 봇 주변의 크리처 탐색 (간소화를 위해 거점 반경 방식 사용)
+				for _, creature in pairs(activeCreatures) do
+					if creature.rootPart then
+						local d = (botPos - creature.rootPart.Position).Magnitude
+						if d < creature.minDist then
+							creature.minDist = d
+							creature.closestPlayerPos = botPos
+							creature.closestPlayerRoot = hrp
+							creature.closestPlayerHum = hum
+							creature.closestPlayerUserId = 0 -- 봇 식별용 가상 ID
+							
+							local head = creature.model:FindFirstChild("Head", true) or creature.model:FindFirstChild("Neck", true)
+							creature.headDist = head and (botPos - head.Position).Magnitude or d
+						end
+					end
+				end
+			end
+		end
+	end
+	
 	-- 3. 각 크리처별 AI 로직 실행 (상태 머신)
 	for id, creature in pairs(activeCreatures) do
 		if not creature.model or not creature.model.Parent then
@@ -2534,7 +2562,14 @@ function CreatureService._updateAILoop()
 									if (currentCreature.currentHealth or 0) <= 0 or currentCreature.state == "DEAD" then return end
 
 									local player = Players:GetPlayerByUserId(closestPlayerUserId)
-									if not player then return end
+									if not player then 
+										-- 봇이거나 플레이어가 나감: 데미지 무시 (시각 연출만)
+										if closestPlayerUserId == 0 then
+											local BotService = require(game:GetService("ServerScriptService").Server.Services.BotService)
+											BotService.notifyHit(closestTargetId, currentCreature.model)
+										end
+										return 
+									end
 									local playerChar = player.Character
 									local playerHrp = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
 									if not playerHrp then return end

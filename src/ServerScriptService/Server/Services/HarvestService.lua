@@ -2943,6 +2943,39 @@ local function handleGatherInfo(player: Player, payload: any)
 	}
 end
 
+--- 봇이 자원 노드에 데미지를 입힘 (Phase 2 가짜 유저용)
+function HarvestService.applyBotDamage(nodeUID: string, damage: number)
+	local nodeState = activeNodes[nodeUID]
+	if not nodeState then return false end
+	
+	nodeState.remainingHits = math.max(0, nodeState.remainingHits - damage)
+	
+	-- HP 브로드캐스트
+	if NetController then
+		local nodeData = DataService.getResourceNode(nodeState.nodeId)
+		local maxHP = (nodeData and nodeData.maxHealth) or 50
+		NetController.FireClientsInRange(nodeState.position, 400, "Harvest.Node.Hit", {
+			nodeUID = nodeUID,
+			remainingHits = nodeState.remainingHits,
+			maxHits = maxHP,
+		})
+	end
+	
+	-- 고갈 시 제거
+	if nodeState.remainingHits <= 0 then
+		HarvestService._destroyNodeModel(nodeUID)
+		activeNodes[nodeUID] = nil
+		-- 자동 스폰 카운트 복구
+		if nodeState.isAutoSpawned then
+			local nodeId = nodeState.nodeId
+			spawnedNodesByType[nodeId] = math.max(0, (spawnedNodesByType[nodeId] or 0) - 1)
+			spawnedNodeCount = math.max(0, spawnedNodeCount - 1)
+		end
+	end
+	
+	return true
+end
+
 function HarvestService.GetHandlers()
 	return {
 		["Harvest.Hit.Request"] = handleHitRequest,

@@ -27,8 +27,8 @@ AnimationIds.ATTACK_UNARMED = {
 -- 전투 애니메이션 (도구/무기)
 --========================================
 AnimationIds.ATTACK_TOOL = {
-	SWING = "AttackTool_Swing",
-	OVERHEAD = "AttackTool_Overhead",
+	SWING = "AttackSword_Swing",
+	MINE = "AttackTool_Mine",
 }
 
 AnimationIds.ATTACK_SWORD = {
