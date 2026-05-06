@@ -37,6 +37,8 @@ local function giveEnhanceSet(player: Player)
 	InventoryService.addItem(userId, "ALCHEMY_STONE_HIGH", 10)
 	InventoryService.addItem(userId, "3586927112", 10) -- 하락방지권
 	InventoryService.addItem(userId, "3586927381", 10) -- 파괴방지권
+	InventoryService.addItem(userId, "REPAIR_TICKET_LOW", 10)  -- 하급 수리권 10개 지급
+	InventoryService.addItem(userId, "REPAIR_TICKET_HIGH", 10) -- 상급 수리 키트 10개 지급
 	InventoryService.addItem(userId, "SWORD_IRON", 1)  -- 테스트용 무기
 	
 	print(string.format("[AdminCommandService] Enhancement test set given to %s", player.Name))

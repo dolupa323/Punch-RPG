@@ -628,6 +628,41 @@ end
 local function handleResetStats(player: Player, payload: any)
 	local userId = player.UserId
 	
+	-- [추가] 스텟 초기화권 아이템 (3587362100) 보유량 검사 및 차감
+	local InventoryService = nil
+	pcall(function()
+		InventoryService = require(game:GetService("ServerScriptService").Server.Services.InventoryService)
+	end)
+	
+	if not InventoryService then
+		return { success = false, errorCode = "INTERNAL_ERROR" }
+	end
+	
+	-- 투자된 스탯이 하나라도 있는지 선제 검사
+	local stats = playerStats[userId]
+	local totalInvested = 0
+	if stats and stats.statInvested then
+		for _, invested in pairs(stats.statInvested) do
+			totalInvested = totalInvested + (invested or 0)
+		end
+	end
+	if totalInvested <= 0 then
+		return { success = false, errorCode = "NOTHING_TO_RESET" }
+	end
+	
+	local resetTicketId = "3587362100"
+	local hasTicket = InventoryService.hasItem(userId, resetTicketId, 1)
+	
+	if not hasTicket then
+		return { success = false, errorCode = "NO_ITEM", message = "스텟초기화권 아이템이 부족합니다." }
+	end
+	
+	-- 아이템 1개 차감결제처리
+	local removed = InventoryService.removeItem(userId, resetTicketId, 1)
+	if removed < 1 then
+		return { success = false, errorCode = "NO_ITEM", message = "스텟초기화권 아이템이 부족합니다." }
+	end
+	
 	local oldCalc = PlayerStatService.GetCalculatedStats(userId)
 	local oldMaxSlots = oldCalc.maxSlots or Balance.BASE_INV_SLOTS
 	
@@ -640,10 +675,7 @@ local function handleResetStats(player: Player, payload: any)
 	
 	local droppedItems = {}
 	if newMaxSlots < oldMaxSlots then
-		local invOk, InventoryService = pcall(function()
-			return require(game:GetService("ServerScriptService").Server.Services.InventoryService)
-		end)
-		if invOk and InventoryService and InventoryService.dropExcessItems then
+		if InventoryService and InventoryService.dropExcessItems then
 			droppedItems = InventoryService.dropExcessItems(player, newMaxSlots)
 		end
 	end

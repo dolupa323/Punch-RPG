@@ -361,13 +361,48 @@ local function handleResetSkills(player: Player, _payload: any)
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]
 
+	-- 1. 투자된 스킬이 존재하여 환급받을 가치가 있는지 검사
+	local totalUnlocked = 0
+	if cache and cache.unlockedSkills then
+		for _ in pairs(cache.unlockedSkills) do
+			totalUnlocked = totalUnlocked + 1
+		end
+	end
+	
+	if totalUnlocked <= 0 then
+		return { success = false, errorCode = "NOTHING_TO_RESET", message = "초기화할 스킬이 없습니다." }
+	end
+
+	-- 2. 스킬포인트 초기화권 아이템 (3587361918) 보유량 검사 및 차감
+	local InventoryService = nil
+	pcall(function()
+		InventoryService = require(game:GetService("ServerScriptService").Server.Services.InventoryService)
+	end)
+	
+	if not InventoryService then
+		return { success = false, errorCode = "INTERNAL_ERROR" }
+	end
+	
+	local resetTicketId = "3587361918"
+	local hasTicket = InventoryService.hasItem(userId, resetTicketId, 1)
+	
+	if not hasTicket then
+		return { success = false, errorCode = "NO_ITEM", message = "스킬초기화권 아이템이 부족합니다." }
+	end
+	
+	-- 아이템 1개 차감결제처리
+	local removed = InventoryService.removeItem(userId, resetTicketId, 1)
+	if removed < 1 then
+		return { success = false, errorCode = "NO_ITEM", message = "스킬초기화권 아이템이 부족합니다." }
+	end
+
 	cache.unlockedSkills = {}
 	cache.combatTreeId = nil
 	cache.skillPointsSpent = 0
 	cache.activeSkillSlots = { nil, nil, nil, nil }
 	_syncToSave(userId)
 
-	print(string.format("[SkillService] %s RESET all skills (SP refunded)", player.Name))
+	print(string.format("[SkillService] %s RESET all skills (SP refunded, charged ticket %s)", player.Name, resetTicketId))
 
 	return {
 		success = true,

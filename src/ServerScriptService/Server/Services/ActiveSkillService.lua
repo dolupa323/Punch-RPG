@@ -81,7 +81,20 @@ local function getWeaponBaseDamage(player: Player): (number, any, number?)
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return DEFAULT_BAREHAND_DAMAGE, nil, nil end
 	
-	return itemData.damage or DEFAULT_BAREHAND_DAMAGE, itemData, toolSlot
+	local dmg = itemData.damage or DEFAULT_BAREHAND_DAMAGE
+	
+	-- 강화 보너스 대미지 적용 (스킬에 완벽 동기화)
+	if slotData.attributes then
+		local enhanceLevel = slotData.attributes.enhanceLevel or 0
+		local enhanceDamage = slotData.attributes.enhanceDamage or 0
+		if enhanceDamage > 0 then
+			dmg = dmg + enhanceDamage
+		elseif enhanceLevel > 0 then
+			dmg = dmg * (1 + (enhanceLevel * 0.15))
+		end
+	end
+	
+	return dmg, itemData, toolSlot
 end
 
 --- AOE 범위 내 크리처 검색

@@ -1992,14 +1992,20 @@ local function handleUse(player: Player, payload: any)
 		return { success = true, data = { action = "TAME_SUCCESS", creatureId = creatureId, palUID = palUID, tameRate = finalRate, traits = rolledTraits } }
 	end
 	
-	-- 3. ?�모???�이??
+	-- 수리 키트 사용 요청 지원 (USE_REPAIR_TICKET 반환)
+	if itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM then
+		print(string.format("[InventoryService] User %d requested repair ticket usage: %s", userId, slotData.itemId))
+		return { success = true, data = { action = "USE_REPAIR_TICKET" } }
+	end
+	
+	-- 3. ?모???이??
 	if itemData.type == Enums.ItemType.CONSUMABLE then
-		-- ?�시: ?�용 ?�림�?
+		-- ?시: ?용 ?림?
 		print(string.format("[InventoryService] User %d used %s", userId, slotData.itemId))
 		return { success = true, data = { action = "USE", itemId = slotData.itemId } }
 	end
 	
-	-- 3. ?�식 (Phase 11 ?�동)
+	-- 3. ?식 (Phase 11 ?동)
 	if itemData.type == Enums.ItemType.FOOD or itemData.foodValue then
 		local HungerService = require(game:GetService("ServerScriptService").Server.Services.HungerService)
 		local current, max = HungerService.getHunger(userId)
@@ -2249,6 +2255,47 @@ end
 
 function InventoryService.SetQuestFoodEatenCallback(callback)
 	questFoodEatenCallback = callback
+end
+
+--========================================
+-- Robux Purchase Handler (ProcessReceipt)
+--========================================
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+MarketplaceService.ProcessReceipt = function(receiptInfo)
+	local userId = receiptInfo.PlayerId
+	local productId = tostring(receiptInfo.ProductId)
+	
+	local player = Players:GetPlayerByUserId(userId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	-- ProductConfig 로딩
+	local ProductConfig = nil
+	pcall(function()
+		ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("ProductConfig"))
+	end)
+	
+	if ProductConfig and ProductConfig.PRODUCTS then
+		local productData = ProductConfig.PRODUCTS[productId]
+		if productData and productData.itemId then
+			local itemId = productData.itemId
+			local amount = productData.amount or 1
+			local added, remaining = InventoryService.addItem(userId, itemId, amount)
+			if added > 0 then
+				print(string.format("[Purchase] Successfully awarded %d of %s to player %s for product %s", amount, itemId, player.Name, productId))
+				return Enum.ProductPurchaseDecision.PurchaseGranted
+			else
+				warn(string.format("[Purchase] Failed to award %s to player %s - Inventory Full?", itemId, player.Name))
+				return Enum.ProductPurchaseDecision.NotProcessedYet
+			end
+		end
+	end
+	
+	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
 return InventoryService

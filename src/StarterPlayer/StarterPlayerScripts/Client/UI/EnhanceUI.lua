@@ -499,9 +499,26 @@ function EnhanceUI.StartEnhance()
 	end
 end
 
+function EnhanceUI.Reset()
+	EnhanceUI.State.selectedWeaponSlot = nil
+	EnhanceUI.State.selectedStoneSlot = nil
+	EnhanceUI.State.selectedDownSlot = nil
+	EnhanceUI.State.selectedDestroySlot = nil
+	EnhanceUI.State.isProcessing = false
+	
+	EnhanceUI.UpdateWeapon(nil)
+	EnhanceUI.UpdateStone(nil)
+	EnhanceUI.UpdateDownProtect(nil)
+	EnhanceUI.UpdateDestroyProtect(nil)
+	EnhanceUI.UpdateChances()
+end
+
 function EnhanceUI.SetVisible(vis)
 	if EnhanceUI.Refs.Main then
 		EnhanceUI.Refs.Main.Visible = vis
+		if not vis then
+			EnhanceUI.Reset()
+		end
 	end
 end
 

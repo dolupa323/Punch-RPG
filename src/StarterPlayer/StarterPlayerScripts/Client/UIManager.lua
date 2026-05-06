@@ -346,6 +346,11 @@ local function updateUIMode()
 	if ActiveSkillBarUI and ActiveSkillBarUI.SetVisible then
 		ActiveSkillBarUI.SetVisible(not hasFullWindow)
 	end
+	
+	-- 인벤토리가 닫히면 선택 UI 모달도 함께 즉시 닫음
+	if not WindowManager.isOpen("INV") then
+		UIManager.closeItemSelector()
+	end
 end
 
 local function closeAllWindows(except)
@@ -492,6 +497,10 @@ function UIManager.resetAllStats()
 			UIManager.refreshStats()
 			UIManager.refreshInventory()
 		else
+			if data == "NO_ITEM" or (type(data) == "table" and data.errorCode == "NO_ITEM") then
+				UIManager.notify("스텟초기화권이 필요합니다.", C.RED)
+				return
+			end
 			UIManager.notify(friendlyError(data, "스탯 초기화"), C.RED)
 		end
 	end)
@@ -1110,7 +1119,7 @@ function UIManager._onInvSlotDoubleClick(idx)
 		InventoryController.requestEquip(idx, slot)
 	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
 		UIManager.notify("무기/도구는 핫바(1~8)를 통해 장착하세요.", C.YELLOW)
-	elseif itemData.type == "FOOD" or itemData.type == "CONSUMABLE" then
+	elseif itemData.type == "FOOD" or itemData.type == "CONSUMABLE" or itemData.type == "REPAIR_ITEM" then
 		InventoryController.requestUse(idx)
 	end
 end
@@ -1154,6 +1163,9 @@ function UIManager.onInventorySlotRightClick(idx)
 	
 	if itemData.type == "TOOL" or itemData.type == "WEAPON" then
 		UIManager.notify("무기/도구는 핫바(1~8)에 배치하여 사용하세요.", C.YELLOW)
+		return
+	elseif itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM then
+		-- 수리 키트는 우클릭 단축 사용을 완전히 제거 및 금지합니다
 		return
 	end
 	
@@ -3671,6 +3683,10 @@ function UIManager.openItemSelector(mode, callback)
 			if data.itemId == "3586927381" then
 				isValid = true
 			elseif itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDestroyProtect then
+				isValid = true
+			end
+		elseif mode == "REPAIR" then
+			if itemData and (itemData.type == "WEAPON" or itemData.type == "TOOL" or itemData.type == "ARMOR") then
 				isValid = true
 			end
 		end

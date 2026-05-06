@@ -83,9 +83,52 @@ end
 
 function DurabilityService.GetHandlers()
 	return {
-		-- 수리 요청은 이제 무시하거나 실패 응답 반환 (전면 비활성화)
 		["Durability.Repair.Request"] = function(player, payload)
-			return { success = false, errorCode = Enums.ErrorCode.NOT_SUPPORTED }
+			local userId = player.UserId
+			local ticketSlot = tonumber(payload.ticketSlot)
+			local targetSlot = tonumber(payload.targetSlot)
+			
+			if not ticketSlot or not targetSlot then
+				return { success = false, errorCode = Enums.ErrorCode.INVALID_SLOT }
+			end
+			
+			-- 1. 수리권 정보 검증
+			local ticketItem = InventoryService.getSlot(userId, ticketSlot)
+			if not ticketItem then
+				return { success = false, errorCode = Enums.ErrorCode.SLOT_EMPTY }
+			end
+			
+			local ticketData = DataService.getItem(ticketItem.itemId)
+			if not ticketData or ticketData.type ~= "REPAIR_ITEM" then
+				return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
+			end
+			
+			-- 2. 수리 대상 장비 검증
+			local targetItem = InventoryService.getSlot(userId, targetSlot)
+			if not targetItem then
+				return { success = false, errorCode = Enums.ErrorCode.SLOT_EMPTY }
+			end
+			
+			local targetData = DataService.getItem(targetItem.itemId)
+			if not targetData or not targetItem.durability then
+				return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
+			end
+			
+			-- 최대 내구도 확인 및 이미 가득 찬 경우의 예외 리턴 처리
+			local maxDur = targetData.durability or 100
+			if targetItem.durability >= maxDur then
+				return { success = false, errorCode = "ALREADY_MAX_DURABILITY" }
+			end
+			
+			-- 3. 내구도 복구 연산
+			local repairAmt = ticketData.repairAmount or 30
+			local newDur = math.min(maxDur, targetItem.durability + repairAmt)
+			
+			-- 4. 재료 소모 및 내구도 적용
+			InventoryService.removeItemFromSlot(userId, ticketSlot, 1)
+			InventoryService.setDurability(userId, targetSlot, newDur)
+			
+			return { success = true, newDurability = newDur }
 		end,
 	}
 end

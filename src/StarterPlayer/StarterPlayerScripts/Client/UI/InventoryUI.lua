@@ -1206,7 +1206,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			end
 		else
 			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
-			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD))
+			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM))
 			local isCaptureBox = (itemData and itemData.type == Enums.ItemType.CAPTURE_BOX)
 			
 			if isArmor then

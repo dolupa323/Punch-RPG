@@ -307,6 +307,31 @@ function SkillController.requestReset(callback: ((boolean) -> ())?)
 			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
 			playerLevel = data.level or 1
 			_fireListeners()
+			
+			local UIManager = require(script.Parent.Parent.UIManager)
+			if UIManager and UIManager.notify then
+				UIManager.notify("스킬 트리 초기화 완료! 소모 SP가 모두 환급되었습니다.", Color3.fromRGB(100, 255, 100))
+			end
+		else
+			if data == "NO_ITEM" or (type(data) == "table" and data.errorCode == "NO_ITEM") then
+				local UIManager = require(script.Parent.Parent.UIManager)
+				if UIManager and UIManager.notify then
+					UIManager.notify("스킬초기화권이 필요합니다.", Color3.fromRGB(255, 120, 120))
+				end
+				if callback then callback(false) end
+				return
+			end
+			
+			local UIManager = require(script.Parent.Parent.UIManager)
+			if UIManager and UIManager.notify then
+				local errMsg = "스킬 초기화에 실패했습니다."
+				if type(data) == "table" and data.message then
+					errMsg = data.message
+				elseif type(data) == "string" then
+					errMsg = data
+				end
+				UIManager.notify(errMsg, Color3.fromRGB(255, 120, 120))
+			end
 		end
 		if callback then callback(ok) end
 	end)

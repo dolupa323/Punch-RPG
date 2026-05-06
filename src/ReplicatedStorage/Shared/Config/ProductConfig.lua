@@ -27,6 +27,21 @@ local ProductConfig = {
 			amount = 1,
 			name = "파괴방지권",
 		},
+		["3586927639"] = {
+			itemId = "REPAIR_TICKET_HIGH",
+			amount = 1,
+			name = "상급 수리 키트",
+		},
+		["3587361918"] = {
+			itemId = "3587361918",
+			amount = 1,
+			name = "스킬초기화권",
+		},
+		["3587362100"] = {
+			itemId = "3587362100",
+			amount = 1,
+			name = "스텟초기화권",
+		},
 	}
 }
 

@@ -162,7 +162,39 @@ function InventoryController.requestUse(slot: number)
 		local ok, data = NetClient.Request("Inventory.Use.Request", {
 			slot = slot
 		})
-		if not ok then
+		if ok and data and data.action == "USE_REPAIR_TICKET" then
+			local UIManager = require(script.Parent.Parent.UIManager)
+			if UIManager and UIManager.openItemSelector then
+				UIManager.openItemSelector("REPAIR", function(targetSlot)
+					if not targetSlot then return end
+					
+					local repOk, repData = NetClient.Request("Durability.Repair.Request", {
+						ticketSlot = slot,
+						targetSlot = targetSlot
+					})
+					
+					if repOk then
+						if UIManager.notify then
+							UIManager.notify("수리가 완료되었습니다!")
+						end
+					else
+						local err = "알 수 없는 오류"
+						if type(repData) == "table" then
+							err = repData.errorCode or repData.err or err
+						elseif type(repData) == "string" then
+							err = repData
+						end
+						
+						-- [예외 처리 강화] 내구도가 이미 꽉 차 있는 상태일 때 예외 및 사용 복구 대응
+						if err == "ALREADY_MAX_DURABILITY" or tostring(err):find("ALREADY") then
+							UIManager.notify("내구도가 이미 가득 차 있습니다.")
+						else
+							UIManager.notify("수리에 실패했습니다: " .. tostring(err))
+						end
+					end
+				end)
+			end
+		elseif not ok then
 			warn("[InventoryController] Use failed:", data)
 		end
 	end)

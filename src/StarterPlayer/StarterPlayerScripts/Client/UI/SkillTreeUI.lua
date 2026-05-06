@@ -1009,11 +1009,9 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 					currentUIManager.notify("SP 초기화 요청 중...", Color3.fromRGB(255, 255, 150))
 				end
 				skillController.requestReset(function(ok)
-					if currentUIManager and currentUIManager.notify then
-						if ok then
+					if ok then
+						if currentUIManager and currentUIManager.notify then
 							currentUIManager.notify("SP 초기화 완료!", Color3.fromRGB(100, 255, 100))
-						else
-							currentUIManager.notify("SP 초기화 실패 (서버 오류)", Color3.fromRGB(255, 100, 100))
 						end
 					end
 				end)

@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
 local QuestData = require(ReplicatedStorage.Data.QuestData)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local QuestService = {}
 

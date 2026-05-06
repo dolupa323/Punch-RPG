@@ -139,6 +139,7 @@ NPCShopData.ISLAND_TRADER_GRASSLAND = {
 	},
 	buyList = {
 		{ itemId = "ALCHEMY_STONE_LOW", price = 100, stock = -1 },
+		{ itemId = "REPAIR_TICKET_LOW", price = 120, stock = -1 },
 	},
 	sellList = {
 		{ itemId = "MEAT", price = 9 },
@@ -171,6 +172,7 @@ NPCShopData.ISLAND_TRADER_TROPICAL = {
 	},
 	buyList = {
 		{ itemId = "ALCHEMY_STONE_LOW", price = 120, stock = -1 },
+		{ itemId = "REPAIR_TICKET_LOW", price = 150, stock = -1 },
 	},
 	sellList = {
 		{ itemId = "MEAT", price = 11 },
