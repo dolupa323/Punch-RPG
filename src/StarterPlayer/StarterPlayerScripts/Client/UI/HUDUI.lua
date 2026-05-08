@@ -451,15 +451,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.staminaBar.label.TextSize = isSmall and 9 or 8
 	Utils.mkLabel({text = "스태미너", size = UDim2.new(0, 32, 1, 0), pos = UDim2.new(1, -32, 0, 0), ts = isSmall and 9 or 8, font = F.TITLE, color = C.GOLD, ax = Enum.TextXAlignment.Right, parent = staRow})
 
-	-- [Below STA] - Hunger bar
+	-- [무협 RPG 대전환] 배고픔 UI 바 영구 비활성화 처리
 	HUDUI.Refs.hungerBar = Utils.mkBar({
 		name = "HUNGER",
 		size = UDim2.new(1, 0, 0, 5),
 		fillC = C.HUNGER,
 		r = 2,
+		vis = false, -- [비활성화]
 		parent = statFrame
 	})
 	HUDUI.Refs.hungerBar.container.LayoutOrder = 3
+	HUDUI.Refs.hungerBar.container.Visible = false -- [비활성화]
 	HUDUI.Refs.hungerBar.label.Visible = false
 
 	-- Level-up alert (below hunger)
@@ -733,13 +735,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateTutorialLayout)
 	end
 
-	-- [Bottom Right Area] - Action / Hexagon Buttons
+	-- [Bottom Right Area] - Action / Hexagon Buttons (무공/대시 기폭 허니콤 UI 전격 폐기)
 	local actionArea = Utils.mkFrame({
 		name = "ActionArea",
 		size = UDim2.new(0, isSmall and 300 or 240, 0, isSmall and 150 or 120),
 		pos = UDim2.new(1, -20, 1, -20),
 		anchor = Vector2.new(1, 1),
 		bgT = 1,
+		vis = false, -- [비활성화]
 		parent = parent
 	})
 	
@@ -813,6 +816,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		pos = UDim2.new(0.5, 0, 1, -40),
 		anchor = Vector2.new(0.5, 1),
 		bgT = 1,
+		vis = false, -- [비활성화]
 		parent = parent
 	})
 	HUDUI.Refs.hotbarSlots = {}
@@ -1564,17 +1568,16 @@ function HUDUI.UpdateStatusEffects(debuffList)
 			if slot then triggerScale(slot.frame) end
 		end
 
-		-- 사이드 메뉴 (Tab, B, E, K, J)
+		-- 사이드 메뉴 (Tab)
 		if input.KeyCode == Enum.KeyCode.Tab then
 			triggerScale(HUDUI.Refs.InventoryTabButton)
-		elseif input.KeyCode == Enum.KeyCode.B then
-			triggerScale(HUDUI.Refs.BuildTabButton)
-		elseif input.KeyCode == Enum.KeyCode.E then
-			triggerScale(HUDUI.Refs.EquipTabButton)
-		elseif input.KeyCode == Enum.KeyCode.K then
-			triggerScale(HUDUI.Refs.SkillTabButton)
-		elseif input.KeyCode == Enum.KeyCode.J then
-			triggerScale(HUDUI.Refs.QuestTabButton)
+		-- elseif input.KeyCode == Enum.KeyCode.B then
+		-- 	triggerScale(HUDUI.Refs.BuildTabButton)
+		-- 	triggerScale(HUDUI.Refs.EquipTabButton)
+		-- elseif input.KeyCode == Enum.KeyCode.K then
+		-- 	triggerScale(HUDUI.Refs.SkillTabButton)
+		-- elseif input.KeyCode == Enum.KeyCode.J then
+		-- 	triggerScale(HUDUI.Refs.QuestTabButton)
 		end
 
 		-- 액션 버튼 (Space: 점프, Mouse1: 공격, LeftControl: 구르기)

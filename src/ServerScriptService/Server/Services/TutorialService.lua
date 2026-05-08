@@ -33,39 +33,11 @@ local function getOrCreateProgress(userId, waitIfNull)
 	
 	if type(state) ~= "table" then return nil end
 
-	if type(state.introTutorial) ~= "table" then
-		state.introTutorial = {
-			stepIndex = 0, -- 0: 시작 전, 1~N: 진행 중, -1: 완료
-			completed = false,
-		}
-	end
-
-	local progress = state.introTutorial
-	
-	-- [수정] 신규 데이터 상태(stepIndex == 0)일 때만 레벨에 따른 분기 처리
-	if progress.stepIndex == 0 and not progress.completed then
-		if PlayerStatService and PlayerStatService.getLevel then
-			-- getLevel은 내부적으로 waitForPlayerState를 수행하므로 안전함
-			local level = PlayerStatService.getLevel(userId)
-			print(string.format("[TutorialService] Checking level for %d: Current Level = %d", userId, level))
-			
-			if level > 1 then
-				-- 레벨 2 이상인데 튜토리얼 기록이 없다면 -> 이미 진행한 플레이어로 간주하여 스킵
-				progress.stepIndex = -1
-				progress.completed = true
-				print(string.format("[TutorialService] Skipped tutorial for existing player %d (Level %d)", userId, level))
-			else
-				-- 레벨 1이고 기록이 없다면 -> 신규 플레이어이므로 튜토리얼 시작
-				progress.stepIndex = 1
-				progress.completed = false
-				print(string.format("[TutorialService] Auto-started tutorial for new player %d", userId))
-			end
-		else
-			warn("[TutorialService] PlayerStatService not ready for " .. userId)
-		end
-	end
-
-	return progress
+	state.introTutorial = {
+		stepIndex = -1, -- [무협 RPG 대전환] 공룡게임 가이드 영구 비활성화 (완료 고정)
+		completed = true,
+	}
+	return state.introTutorial
 end
 
 -- 튜토리얼 중인지 확인 (CreatureService에서 참조)

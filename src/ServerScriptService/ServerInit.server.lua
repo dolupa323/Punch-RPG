@@ -249,11 +249,12 @@ end
 
 StorageService.Init(NetController, SaveService, InventoryService, BuildService, BaseClaimService)
 
-local AutoHarvestService = require(Services.AutoHarvestService)
-AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, PalboxService, DataService, BuildService, PalAIService)
+-- [무협 RPG 대전환] 공룡 부족 자동 수납/채집 백그라운드 스케줄 연산 영구 비활성화
+-- local AutoHarvestService = require(Services.AutoHarvestService)
+-- AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, PalboxService, DataService, BuildService, PalAIService)
 
-local AutoDepositService = require(Services.AutoDepositService)
-AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
+-- local AutoDepositService = require(Services.AutoDepositService)
+-- AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
 
 -- NPCShopService 초기화
 local NPCShopService = require(Services.NPCShopService)

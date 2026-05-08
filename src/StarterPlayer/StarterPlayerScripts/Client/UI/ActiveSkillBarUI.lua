@@ -170,8 +170,10 @@ local function createBar(parent)
 		pos = UDim2.new(1, isMobile and -10 or -8, 1, isMobile and -95 or -160), -- PC 모드 높이 추가 상향
 		anchor = Vector2.new(1, 1),
 		bgT = 1,
+		vis = false, -- [비활성화]
 		parent = parent,
 	})
+	barFrame.Visible = false -- [비활성화]
 
 	-- 기존 스킬 역삼각형 배치 (Cap은 Q자리 좌하단)
 	local positions = {

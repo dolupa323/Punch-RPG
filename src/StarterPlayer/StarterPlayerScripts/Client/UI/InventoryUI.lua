@@ -121,8 +121,8 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, isSmall and 10 or 20); titleList.Parent=leftHeader
 	
 	InventoryUI.Refs.TabBag = Utils.mkBtn({text="INVENTORY [Tab]", size=UDim2.new(0, isSmall and 120 or 150, 0, isSmall and 32 or 35), bg=C.GOLD_SEL, bgT=0.2, font=F.TITLE, ts=TS_TAB, color=C.WHITE, noHover=true, parent=leftHeader})
-	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, parent=leftHeader})
-	InventoryUI.Refs.TabAnimal = Utils.mkBtn({text="동물 관리", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, parent=leftHeader})
+	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
+	InventoryUI.Refs.TabAnimal = Utils.mkBtn({text="동물 관리", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
 	
 	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 60", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), ts=TS_SMALL, color=C.GRAY, parent=leftHeader})
 
@@ -220,49 +220,49 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		local slot = Utils.mkSlot({name="Slot"..i, parent=scroll})
 		slot.frame.LayoutOrder = i
 		
-		-- 핫바 배지 추가 (HOTBAR 전용 디자인)
-		if i <= 8 then
-			local vividHotbarYellow = C.GOLD
-			local badgeSize = isSmall and 14 or 16
-			local badge = Utils.mkFrame({
-				name = "HotbarBadge",
-				size = UDim2.new(0, badgeSize, 0, badgeSize),
-				pos = UDim2.new(0, 2, 0, 2),
-				bg = vividHotbarYellow,
-				bgT = 0,
-				r = 3,
-				z = slot.frame.ZIndex + 9,
-				parent = slot.frame
-			})
-			local badgeStroke = Instance.new("UIStroke")
-			badgeStroke.Thickness = 1.5
-			badgeStroke.Color = C.WOOD_DARK
-			badgeStroke.Parent = badge
-			Utils.mkLabel({
-				text = tostring(i),
-				ts = isSmall and 10 or 12,
-				bold = true,
-				color = C.BG_DARK,
-				z = slot.frame.ZIndex + 10,
-				parent = badge
-			})
-			local hotbarTag = Utils.mkLabel({
-				text = "HOT",
-				size = UDim2.new(0, isSmall and 16 or 20, 0, isSmall and 8 or 9),
-				pos = UDim2.new(1, -1, 0, 1),
-				anchor = Vector2.new(1, 0),
-				ts = isSmall and 6 or 7,
-				bold = true,
-				color = vividHotbarYellow,
-				ax = Enum.TextXAlignment.Right,
-				z = slot.frame.ZIndex + 10,
-				parent = slot.frame
-			})
-			hotbarTag.TextStrokeTransparency = 0.35
-			hotbarTag.TextStrokeColor3 = C.BG_DARK
-			local stk = slot.frame:FindFirstChildOfClass("UIStroke")
-			if stk then stk.Color = vividHotbarYellow; stk.Thickness = 1.2 end -- 핫바 슬롯은 상시 강조
-		end
+		-- [무협 RPG 대전환] 인벤토리 상의 핫바 뱃지 마킹 제거
+		-- if i <= 8 then
+		-- 	local vividHotbarYellow = C.GOLD
+		-- 	local badgeSize = isSmall and 14 or 16
+		-- 	local badge = Utils.mkFrame({
+		-- 		name = "HotbarBadge",
+		-- 		size = UDim2.new(0, badgeSize, 0, badgeSize),
+		-- 		pos = UDim2.new(0, 2, 0, 2),
+		-- 		bg = vividHotbarYellow,
+		-- 		bgT = 0,
+		-- 		r = 3,
+		-- 		z = slot.frame.ZIndex + 9,
+		-- 		parent = slot.frame
+		-- 	})
+		-- 	local badgeStroke = Instance.new("UIStroke")
+		-- 	badgeStroke.Thickness = 1.5
+		-- 	badgeStroke.Color = C.WOOD_DARK
+		-- 	badgeStroke.Parent = badge
+		-- 	Utils.mkLabel({
+		-- 		text = tostring(i),
+		-- 		ts = isSmall and 10 or 12,
+		-- 		bold = true,
+		-- 		color = C.BG_DARK,
+		-- 		z = slot.frame.ZIndex + 10,
+		-- 		parent = badge
+		-- 	})
+		-- 	local hotbarTag = Utils.mkLabel({
+		-- 		text = "HOT",
+		-- 		size = UDim2.new(0, isSmall and 16 or 20, 0, isSmall and 8 or 9),
+		-- 		pos = UDim2.new(1, -1, 0, 1),
+		-- 		anchor = Vector2.new(1, 0),
+		-- 		ts = isSmall and 6 or 7,
+		-- 		bold = true,
+		-- 		color = vividHotbarYellow,
+		-- 		ax = Enum.TextXAlignment.Right,
+		-- 		z = slot.frame.ZIndex + 10,
+		-- 		parent = slot.frame
+		-- 	})
+		-- 	hotbarTag.TextStrokeTransparency = 0.35
+		-- 	hotbarTag.TextStrokeColor3 = C.BG_DARK
+		-- 	local stk = slot.frame:FindFirstChildOfClass("UIStroke")
+		-- 	if stk then stk.Color = vividHotbarYellow; stk.Thickness = 1.2 end -- 핫바 슬롯은 상시 강조
+		-- end
 		
 		-- Hover Effect (PC Highlight)
 		slot.click.MouseEnter:Connect(function()

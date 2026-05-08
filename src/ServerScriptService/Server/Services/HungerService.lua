@@ -119,38 +119,13 @@ end
 --========================================
 
 function HungerService._tickLoop()
+	-- [무협 RPG 대전환] 배고픔 시스템 영구 비활성화 처리로 아무런 감소나 데미지 연산을 수행하지 않습니다.
 	for _, player in ipairs(Players:GetPlayers()) do
 		local userId = player.UserId
-		local character = player.Character
-		local humanoid = character and character:FindFirstChild("Humanoid")
-		
 		local data = playerHunger[userId]
-		if not data then continue end
-		
-		-- 살아있는 경우에만 감소 (사망 시에는 멈춤)
-		if humanoid and humanoid.Health > 0 then
-			if data.current > 0 then
-				data.current = math.max(0, data.current - Balance.HUNGER_DECREASE_RATE)
-			end
-			
-			if data.current <= 0 then
-				-- 아사 데미지 적용
-				humanoid.Health = math.max(0, humanoid.Health - Balance.HUNGER_STARVATION_DAMAGE)
-			end
-			
-			-- Throttled sync: 단계 변화 또는 5초 경과 시에만 전송
-			local stage = _getHungerStage(data.current, data.max)
-			local prevStage = lastSyncStage[userId]
-			local now = os.clock()
-			if stage ~= prevStage or (now - (lastSyncTime[userId] or 0)) >= HUNGER_SYNC_INTERVAL then
-				syncHungerToClient(player)
-			end
-		else
-			-- 죽었거나 스폰 중이면 배고픔 리셋
-			if data.current < data.max then
-				data.current = data.max
-				syncHungerToClient(player)
-			end
+		if data then
+			data.current = data.max
+			syncHungerToClient(player)
 		end
 	end
 end
@@ -165,15 +140,7 @@ function HungerService.getHunger(userId: number): (number, number)
 end
 
 function HungerService.consumeHunger(userId: number, amount: number)
-	local data = getHungerData(userId)
-	
-	if data.current > 0 then
-		data.current = math.max(0, data.current - amount)
-		local player = Players:GetPlayerByUserId(userId)
-		if player then
-			syncHungerToClient(player)
-		end
-	end
+	-- [무협 RPG 대전환] 허기 감소가 발생하지 않도록 비워 둡니다.
 end
 
 function HungerService.eatFood(userId: number, foodValue: number): boolean

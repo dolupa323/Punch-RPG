@@ -616,10 +616,10 @@ if success then
 	-- 키 바인딩 설정
 	-- [Key Bindings] Tab = 인벤토리, C = 건축, E = 장비창, P = 도감, B = 귀환
 	InputManager.bindKey(Enum.KeyCode.Tab, "ToggleInventory_Tab", function() UIManager.toggleInventory() end)
-	InputManager.bindKey(Enum.KeyCode.C, "ToggleBuilding", function() UIManager.toggleBuild() end)
-	InputManager.bindKey(Enum.KeyCode.E, "ToggleEquipment", function() UIManager.toggleEquipment() end)
-
-	InputManager.bindKey(Enum.KeyCode.K, "ToggleSkillTree", function() UIManager.toggleSkillTree() end)
+	-- [무협 RPG 대전환] 레거시 서바이벌 단축키 무력화 처리
+	-- InputManager.bindKey(Enum.KeyCode.C, "ToggleBuilding", function() UIManager.toggleBuild() end)
+	-- InputManager.bindKey(Enum.KeyCode.E, "ToggleEquipment", function() UIManager.toggleEquipment() end)
+	-- InputManager.bindKey(Enum.KeyCode.K, "ToggleSkillTree", function() UIManager.toggleSkillTree() end)
 
 	-- [Active Skills] Q / F / V = 액티브 스킬 슬롯 1/2/3
 	local ActiveSkillBarUI = require(Client:WaitForChild("UI"):WaitForChild("ActiveSkillBarUI"))
