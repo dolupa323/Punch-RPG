@@ -50,11 +50,11 @@ function InventoryController.setMaxSlots(value: number)
 end
 
 function InventoryController.getEquipment()
-	return {
-		HEAD = equipmentCache.HEAD,
-		SUIT = equipmentCache.SUIT,
-		HAND = inventoryCache[1], -- 도구/무기 표시는 핫바 1번 기준
-	}
+	local copy = {}
+	for k, v in pairs(equipmentCache) do
+		copy[k] = v
+	end
+	return copy
 end
 
 function InventoryController.requestEquip(fromSlot: number, toSlotName: string)

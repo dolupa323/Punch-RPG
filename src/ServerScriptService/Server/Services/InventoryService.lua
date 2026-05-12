@@ -262,10 +262,13 @@ local function _emitChanged(player: Player, changes: {{slot: number, itemId: str
 			break
 		end
 	end
+	-- [DISABLED LEGACY] Hotbar no longer drives the visual model! Driven by Equipment tab.
+	--[[
 	if activeSlotChanged and EquipService then
 		local item = inv.slots[active]
 		EquipService.equipItem(player, item and item.itemId)
 	end
+	]]--
 
 	if NetController then
 		local usedSlots = _getUsedSlots(inv)
@@ -402,11 +405,24 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	
 	-- ?�롯 ?�??체크
 	local targetSlot = equipmentSlotName:upper()
-	if targetSlot ~= "HEAD" and targetSlot ~= "SUIT" and targetSlot ~= "HAND" then
+	local isValidSlot = (targetSlot == "HEAD" or targetSlot == "SUIT" or targetSlot == "HAND" or 
+	                    targetSlot == "RUNE1" or targetSlot == "RUNE2" or targetSlot == "RUNE3")
+	if not isValidSlot then
 		return false, Enums.ErrorCode.BAD_REQUEST
 	end
-	if itemData.slot and itemData.slot:upper() ~= targetSlot then
-		warn(string.format("[InventoryService] Slot mismatch: %s vs %s", itemData.slot, targetSlot))
+	
+	local itemSlot = itemData.slot and itemData.slot:upper()
+	local isRuneSlot = (targetSlot:sub(1, 4) == "RUNE")
+	
+	local isMatch = false
+	if isRuneSlot and itemSlot == "RUNE" then
+		isMatch = true
+	elseif not isRuneSlot and itemSlot == targetSlot then
+		isMatch = true
+	end
+
+	if not isMatch then
+		warn(string.format("[InventoryService] Slot mismatch: %s vs %s", itemSlot or "NIL", targetSlot))
 		return false, Enums.ErrorCode.BAD_REQUEST
 	end
 
@@ -679,6 +695,8 @@ function InventoryService.setActiveSlot(userId: number, slot: number)
 	print(string.format("[InventoryService] Player %d active slot set to %d", userId, slot))
 	
 	-- ?�각???�착 ?�데?�트
+	-- [DISABLED LEGACY] Hotbar switching no longer forces visual weapon updates!
+	--[[
 	if EquipService then
 		local player = Players:GetPlayerByUserId(userId)
 		if player then
@@ -686,6 +704,7 @@ function InventoryService.setActiveSlot(userId: number, slot: number)
 			EquipService.equipItem(player, item and item.itemId)
 		end
 	end
+	]]--
 	
 	-- ?�라?�언?�에 ?�림
 	local player = Players:GetPlayerByUserId(userId)
@@ -1384,7 +1403,7 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 	return remaining <= 0
 end
 
---- ?�이??보유 ?��? ?�인 (?�수 ?�수)
+--- ?이??보유 ?? ?인 (?수 ?수)
 function InventoryService.hasItem(userId: number, itemId: string, count: number): boolean
 	local inv = playerInventories[userId]
 	if not inv then return false end
@@ -1402,8 +1421,8 @@ function InventoryService.hasItem(userId: number, itemId: string, count: number)
 	return total >= count
 end
 
---- ?�이???�거 (?�러 ?�롯?�서 분산 ?�거)
---- 반환: ?�거???�량
+--- ?이???거 (?러 ?롯?서 분산 ?거)
+--- 반환: ?거???량
 function InventoryService.removeItem(userId: number, itemId: string, count: number): number
 	local inv = playerInventories[userId]
 	if not inv then return 0 end
@@ -1412,7 +1431,7 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 	local removed = 0
 	local changedSlots = {}
 	
-	-- ?�롯 ?�회?�며 ?�거
+	-- ?롯 ?회?며 ?거
 	for slot = 1, Balance.MAX_INV_SLOTS do
 		if remaining <= 0 then break end
 		
@@ -1426,7 +1445,7 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 		end
 	end
 	
-	-- ?�벤??발생
+	-- ?벤??발생
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
 		local changes = {}
@@ -1439,7 +1458,7 @@ function InventoryService.removeItem(userId: number, itemId: string, count: numb
 	return removed
 end
 
---- ?�정 ?�롯?�서 ?�이???�거
+--- ?정 ?롯?서 ?이???거
 function InventoryService.removeItemFromSlot(userId: number, slot: number, count: number): number
 	local inv = playerInventories[userId]
 	if not inv then return 0 end
@@ -1508,6 +1527,10 @@ end
 --- ?�구??감소 (0 ?�하 ?�괴)
 --- 반환: success, errorCode, currentDurability(or 0)
 function InventoryService.decreaseDurability(userId: number, slot: number, amount: number)
+	-- [MODIFIED] DEACTIVATED SYSTEM-WIDE: Items are now unbreakable!
+	-- [MODIFIED] Wrapped in do-end to satisfy Luau grammar syntax requirement
+	do return true, nil, 100 end
+	
 	local inv = playerInventories[userId]
 	if not inv then return false, Enums.ErrorCode.NOT_FOUND end
 	
@@ -1536,10 +1559,12 @@ end
 
 --- ?�비 ?�롯 ?�구??감소
 function InventoryService.decreaseEquipmentDurability(userId: number, equipmentSlotName: string, amount: number)
-	local inv = playerInventories[userId]
-	if not inv or not inv.equipment then return false, Enums.ErrorCode.NOT_FOUND end
-	
-	local slotData = inv.equipment[equipmentSlotName]
+	-- [MODIFIED] DEACTIVATED SYSTEM-WIDE: Weapons are now unbreakable!
+	-- [MODIFIED] Wrapped in do-end to satisfy Luau grammar syntax requirement
+	do return true, nil, 100 end
+
+	-- local inv = playerInventories[userId]
+	-- local slotData = inv.equipment[equipmentSlotName]
 	if not slotData then return false, Enums.ErrorCode.SLOT_EMPTY end
 	if not slotData.durability then return false, Enums.ErrorCode.INVALID_ITEM end
 	
@@ -2102,30 +2127,52 @@ end
 
 local function onPlayerAdded(player: Player)
 	local userId = player.UserId
-	InventoryService.getOrCreateInventory(userId)
-	InventoryService.setActiveSlot(userId, 1) -- 초기 ?�성 ?�롯 1�?
 	
-	-- [FIX] 리스?????�비 ?�형 �??�구 ?�동 복구
+	-- [MODIFIED] Race Condition Fix: Connect IMMEDIATELY
 	player.CharacterAdded:Connect(function(character)
 		local humanoid = character:WaitForChild("Humanoid", 10)
 		if not humanoid then return end
 		
-		-- 캐릭???�업(?��????????�료???�까지 ?�간??지??(Race Condition 방�?)
-		task.delay(0.1, function()
+		-- Ensures inventory data loads from state
+		local inv = InventoryService.getOrCreateInventory(userId)
+		
+		-- Stabilization delay for Roblox character rig + welds
+		task.delay(1.5, function()
+			if not player.Parent or not character.Parent then return end
+			
 			if EquipService then
 				EquipService.updateAppearance(player)
 				
-				-- ?�에 ?�고 ?�던 ?�이???�착 (?�성 ?�롯 기�?)
-				local activeSlot = InventoryService.getActiveSlot(userId)
-				local inv = playerInventories[userId]
-				if inv and inv.slots[activeSlot] then
-					EquipService.equipItem(player, inv.slots[activeSlot].itemId)
+				if inv and inv.equipment and inv.equipment.HAND and inv.equipment.HAND.itemId ~= "" then
+					print(string.format("[InventoryService] Restoring persistent weapon '%s' for %s", inv.equipment.HAND.itemId, player.Name))
+					EquipService.equipItem(player, inv.equipment.HAND.itemId)
 				end
 			end
 		end)
 	end)
 	
+	-- Studio instant spawn fallback
+	if player.Character then
+		task.spawn(function()
+			local inv = InventoryService.getOrCreateInventory(userId)
+			task.delay(1.5, function()
+				if EquipService and player.Parent then
+					EquipService.updateAppearance(player)
+					if inv and inv.equipment and inv.equipment.HAND and inv.equipment.HAND.itemId ~= "" then
+						EquipService.equipItem(player, inv.equipment.HAND.itemId)
+					end
+				end
+			end)
+		end)
+	end
+
+	-- Trigger background load
+	task.spawn(function()
+		InventoryService.getOrCreateInventory(userId)
+		InventoryService.setActiveSlot(userId, 1) 
+	end)
 end
+
 
 -- onPlayerRemoving moved to SaveService to prevent Race Condition
 

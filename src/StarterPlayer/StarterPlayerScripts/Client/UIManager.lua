@@ -602,6 +602,7 @@ end
 function UIManager.updateGold(amt)
 	InventoryUI.UpdateCurrency(amt)
 	ShopUI.UpdateGold(amt)
+	if HUDUI.UpdateGold then HUDUI.UpdateGold(amt) end
 	if WindowManager.isOpen("STORAGE") then
 		UIManager.refreshStorage()
 	end
@@ -636,7 +637,7 @@ local ICON_FOLDERS = {}
 task.spawn(function()
 	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
 	if assets then
-		local folderNames = {"ItemIcons", "UIIcons", "Images", "Icons"}
+		local folderNames = {"UI", "ItemIcons", "UIIcons", "Images", "Icons"}
 		for _, name in ipairs(folderNames) do
 			local f = assets:FindFirstChild(name)
 			if f then
@@ -711,7 +712,7 @@ local function getItemIcon(itemId: string): string
 	for _, folder in ipairs(ICON_FOLDERS) do
 		local iconObj = nil
 		for _, candidate in ipairs(expandedCandidates) do
-			iconObj = folder:FindFirstChild(candidate)
+			iconObj = folder:FindFirstChild(candidate, true) -- [MODIFIED] Set recursive to true!
 			if iconObj then
 				break
 			end
@@ -723,7 +724,7 @@ local function getItemIcon(itemId: string): string
 			for _, candidate in ipairs(expandedCandidates) do
 				targetMap[candidate:lower():gsub("_", "")] = true
 			end
-			for _, child in ipairs(folder:GetChildren()) do
+			for _, child in ipairs(folder:GetDescendants()) do -- [MODIFIED] Use GetDescendants for nested subfolders!
 				local cname = child.Name:lower():gsub("_", "")
 				if targetMap[cname] then
 					iconObj = child
@@ -770,7 +771,8 @@ function UIManager.refreshHotbar()
 				
 				local itemData = DataHelper.GetData("ItemData", item.itemId)
 				
-				if item.durability and itemData and itemData.durability then
+				-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+				if false and item.durability and itemData and itemData.durability then
 					local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
 					s.durBg.Visible = true
 					s.durFill.Size = UDim2.new(ratio, 0, 1, 0)
@@ -910,10 +912,7 @@ function UIManager.onEquipmentSlotClick(slotName)
 end
 
 function UIManager.onEquipmentSlotRightClick(slotName)
-	if slotName == "HAND" then
-		UIManager.notify("도구/무기 표시는 핫바 1번 슬롯 기준입니다.", C.WHITE)
-		return
-	end
+	-- [MODIFIED] Removed legacy blocker preventing right-click unequip on Hand slot.
 	local equip = InventoryController.getEquipment()
 	if equip[slotName] then
 		InventoryController.requestUnequip(slotName)
@@ -932,6 +931,7 @@ function UIManager.isDragging() return DragDropController.isDragging() end
 function UIManager.getInvSlots() return invSlots end
 function UIManager.getHotbarSlots() return hotbarSlots end
 function UIManager.getEquipSlots() return equipSlots end
+function UIManager.getRuneSlots() return SkillTreeUI and SkillTreeUI.GetSlots and SkillTreeUI.GetSlots() or {} end
 function UIManager.isWindowOpen(winId) return WindowManager.isOpen(winId) end
 function UIManager.getIsMobile() return isMobile end
 
@@ -1118,7 +1118,8 @@ function UIManager._onInvSlotDoubleClick(idx)
 		end
 		InventoryController.requestEquip(idx, slot)
 	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		UIManager.notify("무기/도구는 핫바(1~8)를 통해 장착하세요.", C.YELLOW)
+		-- [MODIFIED] Now successfully forwards weapon double-click to the Equipment HAND slot!
+		InventoryController.requestEquip(idx, "HAND")
 	elseif itemData.type == "FOOD" or itemData.type == "CONSUMABLE" or itemData.type == "REPAIR_ITEM" then
 		InventoryController.requestUse(idx)
 	end
@@ -1141,7 +1142,8 @@ function UIManager.onUseItem()
 		InventoryController.requestEquip(selectedInvSlot, slot)
 		return
 	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		UIManager.notify("무기/도구는 핫바(1~8)를 통해 사용하세요.", C.YELLOW)
+		-- [MODIFIED] Forwards direct Use Button press to Equipment system
+		InventoryController.requestEquip(selectedInvSlot, "HAND")
 		return
 	end
 
@@ -1162,7 +1164,8 @@ function UIManager.onInventorySlotRightClick(idx)
 	UIManager._onInvSlotClick(idx)
 	
 	if itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		UIManager.notify("무기/도구는 핫바(1~8)에 배치하여 사용하세요.", C.YELLOW)
+		-- [MODIFIED] Forwards Right-Click to automatic Equip request
+		InventoryController.requestEquip(idx, "HAND")
 		return
 	elseif itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM then
 		-- 수리 키트는 우클릭 단축 사용을 완전히 제거 및 금지합니다
@@ -2734,15 +2737,27 @@ local function setupEventListeners()
 	-- (Redundant bindings removed to avoid conflicts)
 
 	-- Hotbar number keys / Touch selection
+	-- Hotbar number keys / Touch selection
 	local hotbarKeys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight}
 	for i = 1, 8 do
-		InputManager.bindKey(hotbarKeys[i], "HB"..i, function() UIManager.selectHotbarSlot(i) end)
+		InputManager.bindKey(hotbarKeys[i], "HB"..i, function()
+			if i <= 3 then
+				-- For slots 1,2,3: Use the item directly
+				InventoryController.requestUse(i)
+			else
+				-- For others: Standard select (legacy compatibility)
+				UIManager.selectHotbarSlot(i)
+			end
+		end)
 		
-		-- [추가] 모바일 터치 및 마우스 클릭 선택 지원
 		local s = hotbarSlots[i]
 		if s and s.click then
 			s.click.MouseButton1Click:Connect(function()
-				UIManager.selectHotbarSlot(i)
+				if i <= 3 then
+					InventoryController.requestUse(i)
+				else
+					UIManager.selectHotbarSlot(i)
+				end
 			end)
 		end
 	end

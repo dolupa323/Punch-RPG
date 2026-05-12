@@ -25,7 +25,7 @@ local SaveService = {}
 local AUTOSAVE_INTERVAL = 30  -- 초 (데이터 유실 방지용, 60 → 30으로 단축)
 local SNAPSHOT_INTERVAL = 300 -- 초 (5분마다 스냅샷 생성 - 연산 부하 경감)
 local MAX_SNAPSHOTS = 3       -- 롤백 스냅샷 수
-local SAVE_VERSION = 1        -- 스키마 버전
+local SAVE_VERSION = 3        -- 스키마 버전
 local PLAYER_LOAD_RETRY_WINDOW = RunService:IsStudio() and 25 or 45
 local PLAYER_LOAD_RETRY_INTERVAL = 2
 local SESSION_LOCK_FORCE_ACQUIRE_DELAY = RunService:IsStudio() and 4 or 10
@@ -55,7 +55,7 @@ local function _getDefaultEquipment()
 	return {
 		HEAD = nil,
 		SUIT = nil,
-		HAND = nil,
+		HAND = { itemId = "WOODEN_STAFF", durability = 999 }, -- [MODIFIED] Starter Weapon!
 	}
 end
 
@@ -237,6 +237,12 @@ local function _normalizeEquipment(equipment: any): any
 	normalized.SUIT = equipment.SUIT or equipment.Suit
 	normalized.HAND = equipment.HAND or equipment.Hand
 
+	-- [STARTER WEAPON BACKFILL] Resilience Check: If no valid weapon data exists, force-inject the WOODEN_STAFF
+	local handValid = type(normalized.HAND) == "table" and normalized.HAND.itemId and normalized.HAND.itemId ~= ""
+	if not handValid then
+		normalized.HAND = { itemId = "WOODEN_STAFF", durability = 999 }
+	end
+
 	return normalized
 end
 
@@ -355,8 +361,12 @@ function SaveService.loadPlayer(userId: number, forceAcquire: boolean?): (boolea
 		}
 	end
 	
-	-- 데이터 전처리
-	local state = _normalizePlayerState(Serialization.deserialize(data))
+	-- 데이터 전처리 및 버전 업그레이드 마이그레이션 (LiveOpsManager 이식)
+	local deserialized = Serialization.deserialize(data)
+	local LiveOpsManager = require(ReplicatedStorage.Shared.Config.LiveOpsManager)
+	deserialized = LiveOpsManager.MigrateState(deserialized, SAVE_VERSION)
+	
+	local state = _normalizePlayerState(deserialized)
 	state.stats.lastLogin = os.time()
 	
 	-- 메모리에 캐시
@@ -664,14 +674,24 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	local state = playerStates[userId]
 	local spawnPos = nil
 
-	-- 우선순위 1: lastPosition (간이천막 취침 시 저장, 0,0,0은 무효)
-	if state and state.lastPosition then
+	-- [MODIFIED] RPG 패러다임에 맞춰, 이전 생존 위치(lastPosition) 강제 복구 로직을 비활성화합니다.
+	-- 이제 모든 플레이어는 접속 시 튜토리얼 여부와 관계없이 SpawnLocation(우선순위 3)에서 스폰됩니다.
+	--[[
+	local isIntroTutorial = state and state.introTutorial and not state.introTutorial.completed
+	if state and state.lastPosition and not isIntroTutorial then
 		local lx = state.lastPosition.x or 0
 		local ly = state.lastPosition.y or 0
 		local lz = state.lastPosition.z or 0
-		if math.abs(lx) > 1 or math.abs(ly) > 1 or math.abs(lz) > 1 then
-			-- ★ Y좌표 안전 검증: 지하(음수)로 저장된 위치는 무시
-			if ly < 0 then
+		-- X, Z 축 기준 원점 주변(무효한 폴백) 검사
+		if math.abs(lx) > 1 or math.abs(lz) > 1 then
+			-- 구역 유효성 검증: 아무 Zone에도 속하지 않으면 (예: 아웃랜드/허공) 스폰 불가 처리
+			local checkPos = Vector3.new(lx, ly, lz)
+			local SpawnConfig = require(game:GetService("ReplicatedStorage").Shared.Config.SpawnConfig)
+			local zone = SpawnConfig.GetZoneAtPosition(checkPos)
+			if not zone then
+				print(string.format("[SaveService] lastPosition (%.1f, %.1f, %.1f) is outside of any valid zone, ignoring", lx, ly, lz))
+				state.lastPosition = nil
+			elseif ly < 0 then
 				print(string.format("[SaveService] lastPosition Y=%.1f is underground, clearing", ly))
 				state.lastPosition = nil
 			else
@@ -679,9 +699,10 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 				print(string.format("[SaveService] Spawn from lastPosition: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
 			end
 		else
-			print("[SaveService] lastPosition is near origin (0,0,0), ignoring")
+			print("[SaveService] lastPosition is near origin (0,0,0) in X/Z, ignoring")
 		end
 	end
+	]]
 
 	-- 우선순위 2: respawnStructureId → BuildService에서 구조물 위치 조회
 	if not spawnPos and state and state.respawnStructureId then
@@ -707,7 +728,15 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 
 	-- 우선순위 3: SpawnLocation 모델 (신규/데이터없음)
 	if not spawnPos then
-		local spawnModel = workspace:FindFirstChild("SpawnLocation")
+		local spawnModel = workspace:FindFirstChildOfClass("SpawnLocation") or workspace:FindFirstChild("SpawnLocation", true)
+		if not spawnModel then
+			for _, descendant in ipairs(workspace:GetDescendants()) do
+				if descendant:IsA("SpawnLocation") then
+					spawnModel = descendant
+					break
+				end
+			end
+		end
 		if spawnModel and spawnModel:IsA("Model") then
 			local cf, size = spawnModel:GetBoundingBox()
 			spawnPos = cf.Position + Vector3.new(0, size.Y / 2 + 5, 0)
@@ -748,6 +777,13 @@ end
 
 --- PlayerAdded 이벤트
 local function onPlayerAdded(player: Player)
+	local LiveOpsManager = require(ReplicatedStorage.Shared.Config.LiveOpsManager)
+	local allowed, reason = LiveOpsManager.CheckLoginAllowed(player.UserId)
+	if not allowed then
+		player:Kick(reason)
+		return
+	end
+
 	task.spawn(function()
 		local userId = player.UserId
 		local deadline = os.clock() + PLAYER_LOAD_RETRY_WINDOW

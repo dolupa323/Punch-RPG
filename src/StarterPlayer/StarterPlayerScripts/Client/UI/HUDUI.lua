@@ -29,6 +29,17 @@ local questTokenNameCache = {}
 local TOOLTIP_WIDTH = 280
 local TOOLTIP_MARGIN = 14
 
+-- [UX] 버튼 클릭/터치/키보드 시각 피드백 (스케일 애니메이션)
+local function triggerScale(btn)
+	if not btn then return end
+	local uiScale = btn:FindFirstChild("UIScale") or Instance.new("UIScale", btn)
+	TweenService:Create(uiScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.85}):Play()
+	task.delay(0.05, function()
+		if not uiScale or not uiScale.Parent then return end
+		TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+	end)
+end
+
 local function buildIdLookup(tableModule)
 	local out = {}
 	if type(tableModule) ~= "table" then
@@ -283,198 +294,145 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	local isSmall = isMobile 
 	
-	-- [Bottom Center] - HP, Stamina bars above hotbar (Reference Style)
-	local statBarWidth = 200
-	local statFrame = Utils.mkFrame({
-		name = "StatBars",
-		size = UDim2.new(0, statBarWidth, 0, 0),
-		pos = UDim2.new(0.5, 0, 1, -100),
+	-- [FIX] Moved OUT of the MainHUDContainer to solve the total container height stacking bug!
+	local debuffRow = Utils.mkFrame({
+		name = "DebuffRow",
+		size = UDim2.new(0.42, 0, 0.04, 0),
+		pos = UDim2.new(0.5, 0, 0.98 - 0.09, 0), -- Position directly above main frame
 		anchor = Vector2.new(0.5, 1),
 		bgT = 1,
 		parent = parent
 	})
-	statFrame.AutomaticSize = Enum.AutomaticSize.Y
-	HUDUI.Refs.statusPanel = statFrame
+	local dLayout = Instance.new("UIListLayout")
+	dLayout.FillDirection = Enum.FillDirection.Horizontal; dLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; dLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom; dLayout.Padding = UDim.new(0.02, 0); dLayout.Parent = debuffRow
+	HUDUI.Refs.effectList = debuffRow
 
-	local statLayout = Instance.new("UIListLayout")
-	statLayout.Padding = UDim.new(0, 2)
-	statLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	statLayout.Parent = statFrame
-
-	-- ============ [Hamburger Side Menu] ============
-	local menuAnchor = Utils.mkFrame({
-		name = "MenuAnchor",
-		size = UDim2.new(0, 180, 0, 400),
-		pos = UDim2.new(0, 12, 0, 120), -- Below Roblox standard buttons
-		bgT = 1,
+	-- [Punch-RPG Master Bounding Reference]
+	-- This invisible container enforces constraints while providing an absolute coordinate space
+	-- for adjacent floating components like the Hotbar to attach without colliding with UIListLayout.
+	local mainAnchor = Utils.mkFrame({
+		name = "MainHUDAnchor",
+		size = UDim2.new(0.42, 0, 0.08, 0), 
+		pos = UDim2.new(0.5, 0, 0.98, 0), 
+		anchor = Vector2.new(0.5, 1),
+		bgT = 1, -- Invisible root
 		parent = parent
 	})
+	HUDUI.Refs.mainAnchor = mainAnchor
 
-	local hamburgerBtn = Utils.mkBtn({
-		name = "Hamburger",
-		text = "", -- Icon only
-		size = UDim2.new(0, 40, 0, 40),
-		bg = C.BG_DARK,
-		bgT = 0.4,
-		r = 6,
-		parent = menuAnchor
+	local mainAR = Instance.new("UIAspectRatioConstraint")
+	mainAR.AspectRatio = 4.8
+	mainAR.AspectType = Enum.AspectType.ScaleWithParentSize
+	mainAR.DominantAxis = Enum.DominantAxis.Width
+	mainAR.Parent = mainAnchor
+	
+	local szConstraint = Instance.new("UISizeConstraint")
+	szConstraint.MinSize = Vector2.new(340, 70); szConstraint.MaxSize = Vector2.new(780, 160); szConstraint.Parent = mainAnchor
+	
+	-- Actual visual container, child of the anchor
+	local mainContainer = Utils.mkFrame({
+		name = "MainHUDContainer",
+		size = UDim2.new(1, 0, 1, 0), -- Fully conform to constrained anchor bounds
+		pos = UDim2.new(0, 0, 0, 0), 
+		bg = Color3.fromRGB(12, 12, 12),
+		bgT = 1, -- Fully transparent background for clean floating components
+		r = 0, 
+		parent = mainAnchor
 	})
-	HUDUI.Refs.MenuButton = hamburgerBtn
+	HUDUI.Refs.statusPanel = mainContainer
 
-	local hamIcon = Instance.new("ImageLabel")
-	hamIcon.Size = UDim2.new(0.65, 0, 0.65, 0); hamIcon.Position = UDim2.new(0.5, 0, 0.5, 0); hamIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	hamIcon.BackgroundTransparency = 1; hamIcon.Image = UIManager.getItemIcon("Icon_Hamburger")
-	hamIcon.Parent = hamburgerBtn
+	-- Vertical stacking logic: SUM of all sub-element heights MUST EQUAL exactly 1.00
+	local mainStack = Instance.new("UIListLayout")
+	mainStack.FillDirection = Enum.FillDirection.Vertical; mainStack.Padding = UDim.new(0, 0); mainStack.SortOrder = Enum.SortOrder.LayoutOrder; mainStack.Parent = mainContainer
 
-	local sideMenu = Utils.mkFrame({
-		name = "SideMenu",
-		size = UDim2.new(1, 0, 0, 0),
-		pos = UDim2.new(0, 0, 0, 48),
-		bgT = 1,
-		vis = false, -- Hidden by default
-		parent = menuAnchor
+	-- 1. Stat Row (Top 31%)
+	local statRow = Utils.mkFrame({name = "StatRow", size = UDim2.new(1, 0, 0.31, 0), bgT = 1, r = 0, parent = mainContainer})
+	statRow.LayoutOrder = 1
+	local statHList = Instance.new("UIListLayout")
+	statHList.FillDirection = Enum.FillDirection.Horizontal; statHList.HorizontalAlignment = Enum.HorizontalAlignment.Center; statHList.Padding = UDim.new(0, 0); statHList.Parent = statRow
+
+	-- Health Bar (Left 43%)
+	local hpSeg = Utils.mkFrame({name="HPSegment", size = UDim2.new(0.43, 0, 1, 0), bgT=1, r=0, parent=statRow})
+	hpSeg.LayoutOrder = 1
+	local hpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(200, 25, 25), r=0, parent=hpSeg})
+	local hpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5,0,0.4,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=hpSeg})
+	hpLabel.TextScaled = true
+	local hpSub = Utils.mkLabel({text="HP", size = UDim2.new(0.9, 0, 0.25, 0), pos = UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5), font=F.TITLE, color=Color3.new(0.9,0.9,0.9), st=0.5, parent=hpSeg})
+	hpSub.TextScaled = true
+	HUDUI.Refs.healthBar = {container = hpSeg, fill = hpFill, label = hpLabel}
+
+	-- Level Segment (Center 14%) 
+	local lvSeg = Utils.mkFrame({name="LvSeg", size = UDim2.new(0.14, 0, 1, 0), bg = Color3.new(0,0,0), bgT=0.7, r=0, parent=statRow})
+	lvSeg.LayoutOrder = 2
+	local lvLabel = Utils.mkLabel({
+		text = "1", size = UDim2.new(0.85, 0, 0.85, 0), pos = UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5),
+		font = Enum.Font.GothamBlack, bold = true, color = Color3.new(1, 1, 1), st = 0, parent = lvSeg
 	})
-	sideMenu.AutomaticSize = Enum.AutomaticSize.Y
-	HUDUI.Refs.sideMenu = sideMenu
+	lvLabel.TextScaled = true
+	-- Heavy contrast text outline for professional polished typography
+	local lvTextStr = Instance.new("UIStroke")
+	lvTextStr.Thickness = 2.5; lvTextStr.Color = Color3.new(0,0,0); lvTextStr.Parent = lvLabel
+	HUDUI.Refs.levelLabel = lvLabel
 
-	local sList = Instance.new("UIListLayout")
-	sList.Padding = UDim.new(0, 6)
-	sList.FillDirection = Enum.FillDirection.Vertical
-	sList.Parent = sideMenu
+	-- Mana Bar (Right 43%)
+	local mpSeg = Utils.mkFrame({name="MPSegment", size = UDim2.new(0.43, 0, 1, 0), bgT=1, r=0, parent=statRow})
+	mpSeg.LayoutOrder = 3
+	local mpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(0, 102, 204), r=0, parent=mpSeg})
+	local mpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5,0,0.4,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=mpSeg})
+	mpLabel.TextScaled = true
+	local mpSub = Utils.mkLabel({text="Mana", size = UDim2.new(0.9, 0, 0.25, 0), pos = UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5), font=F.TITLE, color=Color3.new(0.9,0.9,0.9), st=0.5, parent=mpSeg})
+	mpSub.TextScaled = true
+	HUDUI.Refs.staminaBar = {container = mpSeg, fill = mpFill, label = mpLabel}
 
-	hamburgerBtn.MouseButton1Click:Connect(function()
-		sideMenu.Visible = not sideMenu.Visible
-		if sideMenu.Visible then
-			UIManager.fireMenuOpened()
-		end
-	end)
+	-- 2. EXP Row (Middle 19% height)
+	local expRow = Utils.mkFrame({name = "EXPRow", size = UDim2.new(1, 0, 0.19, 0), bg = Color3.new(0,0,0), bgT=0.8, r=0, parent = mainContainer})
+	expRow.LayoutOrder = 3
+	local expFill = Utils.mkFrame({name="Fill", size = UDim2.new(0, 0, 1, 0), bg = Color3.fromRGB(255, 180, 0), r=0, parent=expRow})
+	HUDUI.Refs.xpBar = expFill
+	local expLabel = Utils.mkLabel({text="0/0", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5, 0, 0.35, 0), anchor = Vector2.new(0.5, 0.5), font = F.NUM, color = C.WHITE, st = 1, parent = expRow})
+	expLabel.TextScaled = true
+	HUDUI.Refs.xpValueLabel = expLabel
+	local expSub = Utils.mkLabel({text="EXP", size = UDim2.new(0.9, 0, 0.3, 0), pos = UDim2.new(0.5, 0, 0.85, 0), anchor = Vector2.new(0.5, 0.5), font = F.TITLE, color = Color3.new(0.8,0.8,0.8), st = 0.5, parent = expRow})
+	expSub.TextScaled = true
 
-	local function mkMenuBtn(name, iconId, label, fn)
-		local btn = Utils.mkFrame({
-			name = name,
-			size = UDim2.new(1, 0, 0, 44),
-			bg = C.BG_DARK,
-			bgT = 0.45,
-			r = 6,
-			parent = sideMenu
-		})
-		local icon = Instance.new("ImageLabel")
-		icon.Size = UDim2.new(0, 24, 0, 24); icon.Position = UDim2.new(0, 10, 0.5, 0); icon.AnchorPoint = Vector2.new(0, 0.5)
-		icon.BackgroundTransparency = 1; icon.Image = iconId; icon.Parent = btn
-		
-		local txt = Utils.mkLabel({
-			text = label, size = UDim2.new(1, -44, 1, 0), pos = UDim2.new(0, 40, 0, 0),
-			ts = 15, font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, parent = btn
-		})
-		
-		local click = Instance.new("TextButton")
-		click.Size = UDim2.new(1, 0, 1, 0); click.BackgroundTransparency = 1; click.Text = ""; click.Parent = btn
-		
-		-- [추가] 시각적 피드백
-		local uiScale = Instance.new("UIScale")
-		uiScale.Parent = btn
-		
-		click.MouseEnter:Connect(function()
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = C.BG_PANEL_L, BackgroundTransparency = 0.2}):Play()
-		end)
-		click.MouseLeave:Connect(function()
-			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = C.BG_DARK, BackgroundTransparency = 0.45}):Play()
-		end)
-		click.MouseButton1Down:Connect(function()
-			TweenService:Create(uiScale, TweenInfo.new(0.05), {Scale = 0.85}):Play()
-		end)
-		click.MouseButton1Up:Connect(function()
-			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
-		end)
+	-- 3. Menu Row (Bottom 50% height maximizing icon clarity)
+	local menuRow = Utils.mkFrame({name = "MenuRow", size = UDim2.new(1, 0, 0.50, 0), bgT=1, r=0, parent = mainContainer})
+	menuRow.LayoutOrder = 5
+	local menuGrid = Instance.new("UIGridLayout")
+	menuGrid.CellSize = UDim2.new(0.16, 0, 0.95, 0) -- Perfect maximizing fit
+	menuGrid.CellPadding = UDim2.new(0.006, 0, 0, 0); menuGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; menuGrid.VerticalAlignment = Enum.VerticalAlignment.Center; menuGrid.SortOrder = Enum.SortOrder.LayoutOrder; menuGrid.Parent = menuRow
 
-		click.MouseButton1Click:Connect(function()
-			fn()
-			sideMenu.Visible = false -- Close menu after click
-		end)
+	local function mkMenuCell(name, iconId, label, order, fn)
+		local btn = Utils.mkFrame({name=name, size=UDim2.new(1,0,1,0), bg=Color3.fromRGB(28,28,28), bgT=1, r=0, parent=menuRow})
+		btn.LayoutOrder = order
+		local inner = Instance.new("ImageLabel")
+		inner.Size = UDim2.new(0.4, 0, 0.6, 0); inner.Position = UDim2.new(0.5, 0, 0.35, 0); inner.AnchorPoint = Vector2.new(0.5, 0.5); inner.BackgroundTransparency = 1; inner.ScaleType = Enum.ScaleType.Fit; inner.Image = iconId; inner.Parent = btn
+		local asp = Instance.new("UIAspectRatioConstraint"); asp.AspectRatio = 1; asp.Parent = inner
+		local txt = Utils.mkLabel({text=label, size=UDim2.new(0.9, 0, 0.3, 0), pos=UDim2.new(0.5, 0, 0.8, 0), anchor=Vector2.new(0.5, 0.5), font=F.TITLE, color=C.WHITE, st=1, parent=btn})
+		txt.TextScaled = true
+		local clk = Instance.new("TextButton")
+		clk.Size = UDim2.new(1,0,1,0); clk.BackgroundTransparency=1; clk.Text=""; clk.Parent=btn
+		local sc = Instance.new("UIScale", btn)
+		clk.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(65,65,65)}):Play() end)
+		clk.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28,28,28)}):Play() end)
+		clk.MouseButton1Down:Connect(function() TweenService:Create(sc, TweenInfo.new(0.05), {Scale = 0.9}):Play() end)
+		clk.MouseButton1Up:Connect(function() TweenService:Create(sc, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play() end)
+		clk.MouseButton1Click:Connect(fn)
 		return btn
 	end
 
-	HUDUI.Refs.InventoryTabButton = mkMenuBtn("Btn_Inv", UIManager.getItemIcon("Icon_Inventory"), "가방 (Tab)", function() 
-		UIManager.toggleInventory() 
-	end)
-	HUDUI.Refs.BuildTabButton = mkMenuBtn("Btn_Build", UIManager.getItemIcon("Icon_Build"), "건축 (C)", function() UIManager.toggleBuild() end)
-	HUDUI.Refs.EquipTabButton = mkMenuBtn("Btn_Equip", UIManager.getItemIcon("Icon_Equipment"), "장비 (E)", function() UIManager.toggleEquipment() end)
-	HUDUI.Refs.SkillTabButton = mkMenuBtn("Btn_Skill", UIManager.getItemIcon("Icon_Skill"), "스킬 (K)", function() UIManager.toggleSkillTree() end)
-	HUDUI.Refs.QuestTabButton = mkMenuBtn("Btn_Quest", UIManager.getItemIcon("Icon_Quest"), "임무 (J)", function() 
-		if UIManager.toggleQuest then UIManager.toggleQuest() end 
-	end)
-	HUDUI.Refs.ShopTabButton = mkMenuBtn("Btn_Shop", UIManager.getItemIcon("Icon_Shop"), "상점", function()
-		if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end
-	end)
+	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function() UIManager.toggleInventory() end)
+	HUDUI.Refs.EquipTabButton = mkMenuCell("BtnStats", UIManager.getItemIcon("Icon_Equipment"), "스탯", 2, function() UIManager.toggleEquipment() end)
+	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "룬", 3, function() UIManager.toggleSkillTree() end)
+	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "게임 패스", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
+	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
+	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function() end)
 
-	-- Debuff display row (above HP bar)
-	local debuffRow = Utils.mkFrame({name = "DebuffRow", size = UDim2.new(1, 0, 0, 0), bgT = 1, parent = statFrame})
-	debuffRow.LayoutOrder = 0
-	debuffRow.AutomaticSize = Enum.AutomaticSize.Y
-	local dLayout = Instance.new("UIListLayout")
-	dLayout.FillDirection = Enum.FillDirection.Horizontal
-	dLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	dLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	dLayout.Padding = UDim.new(0, 5)
-	dLayout.Parent = debuffRow
-	HUDUI.Refs.effectList = debuffRow
-
-	-- HP Row: [===== bar 120/120 =====] 체력
-	local hpRow = Utils.mkFrame({name = "HPRow", size = UDim2.new(1, 0, 0, 15), bgT = 1, parent = statFrame})
-	hpRow.LayoutOrder = 1
-	HUDUI.Refs.healthBar = Utils.mkBar({
-		name = "HP",
-		size = UDim2.new(1, -40, 0, 15),
-		fillC = C.HP,
-		bg = C.HP_BG,
-		r = 3,
-		parent = hpRow
-	})
-	HUDUI.Refs.healthBar.label.TextColor3 = C.WHITE
-	HUDUI.Refs.healthBar.label.Font = F.NUM
-	HUDUI.Refs.healthBar.label.TextSize = 10
-	Utils.mkLabel({text = "체력", size = UDim2.new(0, 36, 1, 0), pos = UDim2.new(1, -36, 0, 0), ts = 10, font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Right, parent = hpRow})
-
-	-- Stamina Row: [===== bar 100/100 =====] 스태미너
-	local staRow = Utils.mkFrame({name = "STARow", size = UDim2.new(1, 0, 0, isSmall and 14 or 12), bgT = 1, parent = statFrame})
-	staRow.LayoutOrder = 2
-	HUDUI.Refs.staminaBar = Utils.mkBar({
-		name = "STA",
-		size = UDim2.new(1, -36, 0, isSmall and 14 or 12),
-		fillC = C.STA,
-		bg = C.STA_BG,
-		r = 3,
-		parent = staRow
-	})
-	HUDUI.Refs.staminaBar.label.TextColor3 = C.WHITE
-	HUDUI.Refs.staminaBar.label.Font = F.NUM
-	HUDUI.Refs.staminaBar.label.TextSize = isSmall and 9 or 8
-	Utils.mkLabel({text = "스태미너", size = UDim2.new(0, 32, 1, 0), pos = UDim2.new(1, -32, 0, 0), ts = isSmall and 9 or 8, font = F.TITLE, color = C.GOLD, ax = Enum.TextXAlignment.Right, parent = staRow})
-
-	-- [무협 RPG 대전환] 배고픔 UI 바 영구 비활성화 처리
-	HUDUI.Refs.hungerBar = Utils.mkBar({
-		name = "HUNGER",
-		size = UDim2.new(1, 0, 0, 5),
-		fillC = C.HUNGER,
-		r = 2,
-		vis = false, -- [비활성화]
-		parent = statFrame
-	})
-	HUDUI.Refs.hungerBar.container.LayoutOrder = 3
-	HUDUI.Refs.hungerBar.container.Visible = false -- [비활성화]
-	HUDUI.Refs.hungerBar.label.Visible = false
-
-	-- Level-up alert (below hunger)
-	HUDUI.Refs.statPointAlert = Utils.mkLabel({
-		text = "▲ 레벨업 가능",
-		size = UDim2.new(1, 0, 0, 16),
-		ts = 12,
-		color = C.GOLD,
-		ax = Enum.TextXAlignment.Center,
-		vis = false,
-		parent = statFrame
-	})
-	HUDUI.Refs.statPointAlert.LayoutOrder = 4
+	HUDUI.Refs.hungerBar = {container = Instance.new("Frame"), fill = Instance.new("Frame"), label = Instance.new("TextLabel")}
+	HUDUI.Refs.xpPctLabel = Instance.new("TextLabel")
+	HUDUI.Refs.bottomEdge = mainContainer 
+	HUDUI.Refs.statPointAlert = Utils.mkLabel({text = "▲ UP", size = UDim2.new(0.8, 0, 0.25, 0), pos = UDim2.new(1, 2, 0, 0), font = F.TITLE, color = C.GOLD, vis = false, parent = lvSeg})
+	HUDUI.Refs.statPointAlert.TextScaled = true
 
 	-- Tutorial quest: ultra-minimalist responsive HUD panel
 	local tutorialFrame = Utils.mkFrame({
@@ -735,7 +693,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateTutorialLayout)
 	end
 
-	-- [Bottom Right Area] - Action / Hexagon Buttons (무공/대시 기폭 허니콤 UI 전격 폐기)
+	--[[ [LEGACY DELETED] Action / Hexagon Buttons disabled completely
 	local actionArea = Utils.mkFrame({
 		name = "ActionArea",
 		size = UDim2.new(0, isSmall and 300 or 240, 0, isSmall and 150 or 120),
@@ -775,80 +733,119 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		iconLbl.Parent = btn
 		HUDUI.Refs["hex_"..hb.id] = btn
 	end
+	]]
 
 	-- [X] Redundant interact prompt removed (Using InteractUI instead)
 
-	-- [Bottom Edge] - Level & XP Bar (thin)
-	local bottomEdge = Utils.mkFrame({
-		name = "BottomEdge",
-		size = UDim2.new(1, 0, 0, isSmall and 28 or 24),
-		pos = UDim2.new(0, 0, 1, 0),
-		anchor = Vector2.new(0, 1),
-		bg = C.BG_DARK,
-		bgT = 0.45,
-		parent = parent
-	})
-	
-	-- 레벨 바 (XP 통합) — 전체 하단바가 레벨+XP 바 역할
-	HUDUI.Refs.xpBar = Utils.mkFrame({name = "XPBar", size = UDim2.new(0, 0, 1, 0), bg = Color3.fromRGB(160, 230, 100), bgT = 0.55, r = 0, parent = bottomEdge})
-	HUDUI.Refs.bottomEdge = bottomEdge
-
-	-- 레벨 라벨 (정중앙)
-	HUDUI.Refs.levelLabel = Utils.mkLabel({text = "Lv.1", size = UDim2.new(0, isSmall and 60 or 50, 0, isSmall and 26 or 22), pos = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), ts = isSmall and 14 or 12, font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Center, st = 1, parent = bottomEdge})
-
-	-- XP 퍼센트 라벨 (좌하단)
-	HUDUI.Refs.xpPctLabel = Utils.mkLabel({text = "0%", size = UDim2.new(0, 40, 1, 0), pos = UDim2.new(0, 8, 0, 0), ts = isSmall and 10 or 9, font = F.TITLE, color = Color3.fromRGB(180, 240, 120), ax = Enum.TextXAlignment.Left, st = 1, parent = bottomEdge})
-
-	-- XP 수치 라벨 (퍼센트 옆)
-	HUDUI.Refs.xpValueLabel = Utils.mkLabel({text = "0/100", size = UDim2.new(0, isSmall and 80 or 75, 1, 0), pos = UDim2.new(0, isSmall and 42 or 38, 0, 0), ts = isSmall and 9 or 8, font = F.NUM, color = C.INK, ax = Enum.TextXAlignment.Left, st = 1, parent = bottomEdge})
-
-	-- [Menu Row] - Removed as per refactor to Hamburger side menu
-	-- (Previously here: bagBtn, buildBtn, equipBtn, skillBtn)
-	HUDUI.Refs.menuRow = nil
-
-	-- [Hotbar] (Center Bottom, 8 slots)
-	local slotSize = 46
-	local slotGap = 8
-	local hotbarSize = 8 * slotSize + 7 * slotGap + 24
-	local hotbarFrame = Utils.mkFrame({
-		name = "Hotbar",
-		size = UDim2.new(0, hotbarSize, 0, 50),
-		pos = UDim2.new(0.5, 0, 1, -40),
-		anchor = Vector2.new(0.5, 1),
+	-- [Punch-RPG Hotbar & Gold] (Right Side, Responsive)
+	local rightArea = Utils.mkFrame({
+		name = "RightHUDArea",
+		size = UDim2.new(0.10, 0, 0.42, 0), -- Sleeker percent-based bounding container
+		pos = UDim2.new(0.98, 0, 0.98, 0), 
+		anchor = Vector2.new(1, 1),
 		bgT = 1,
-		vis = false, -- [비활성화]
 		parent = parent
 	})
-	HUDUI.Refs.hotbarSlots = {}
-	local hList = Instance.new("UIListLayout")
-	hList.FillDirection = Enum.FillDirection.Horizontal; hList.HorizontalAlignment = Enum.HorizontalAlignment.Center; hList.Padding = UDim.new(0, slotGap); hList.Parent = hotbarFrame
+	local rightConstraint = Instance.new("UISizeConstraint")
+	rightConstraint.MinSize = Vector2.new(60, 220); rightConstraint.MaxSize = Vector2.new(110, 460); rightConstraint.Parent = rightArea
 
-	for i=1, 8 do
+	-- 1. Gold Display (Attached perfectly to bottom right)
+	local moneyFrame = Utils.mkFrame({
+		name = "MoneyFrame",
+		size = UDim2.new(1, 0, 0.08, 0), 
+		pos = UDim2.new(1, 0, 1, 0),
+		anchor = Vector2.new(1, 1),
+		bgT = 1,
+		parent = rightArea
+	})
+	local goldLabel = Utils.mkLabel({
+		text = "0 G",
+		size = UDim2.new(1, 0, 1, 0),
+		font = F.TITLE,
+		color = Color3.fromRGB(255, 215, 0),
+		bold = true,
+		ax = Enum.TextXAlignment.Right,
+		st = 1,
+		parent = moneyFrame
+	})
+	goldLabel.TextScaled = true
+	HUDUI.Refs.goldLabel = goldLabel
+	
+	task.spawn(function()
+		local ShopCtrl = require(Controllers.ShopController)
+		if ShopCtrl and ShopCtrl.getGold then HUDUI.UpdateGold(ShopCtrl.getGold()) end
+	end)
+
+	-- 2. Usable Hotbar (Dynamically bonded to the Main HUD's right periphery)
+	local hotbarFrame = Utils.mkFrame({
+		name = "HotbarFrame",
+		size = UDim2.new(0.12, 0, 2.3, 0), 
+		pos = UDim2.new(0, 0, 0, 0), -- Will be dynamically calculated below to avoid boundary clicks blocking
+		anchor = Vector2.new(0, 1), 
+		bgT = 1,
+		parent = parent -- CRITICAL: Parent directly to ScreenGui to guarantee clicks work!
+	})
+
+	-- Dynamically lock Hotbar precisely to Main HUD edge without boundary clipping issues
+	local function syncHotbarPosition()
+		if not mainAnchor or not hotbarFrame then return end
+		local ap = mainAnchor.AbsolutePosition
+		local as = mainAnchor.AbsoluteSize
+		-- UI scale normalization
+		local scale = parent:FindFirstChildOfClass("UIScale") and parent:FindFirstChildOfClass("UIScale").Scale or 1
+		
+		hotbarFrame.Position = UDim2.new(
+			0, (ap.X + as.X) / scale + 15, 
+			0, (ap.Y + as.Y) / scale
+		)
+	end
+	mainAnchor:GetPropertyChangedSignal("AbsolutePosition"):Connect(syncHotbarPosition)
+	mainAnchor:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncHotbarPosition)
+	task.spawn(function() task.wait(0.1); syncHotbarPosition() end)
+	
+	-- Add constraint to keep hotbar from getting comically huge on ultra-wide screens
+	local hotConstraint = Instance.new("UISizeConstraint")
+	hotConstraint.MinSize = Vector2.new(35, 100); hotConstraint.MaxSize = Vector2.new(70, 250); hotConstraint.Parent = hotbarFrame
+
+	-- Top-to-bottom vertical flow matching user 1->2->3 descending request
+	local hotVList = Instance.new("UIListLayout")
+	hotVList.FillDirection = Enum.FillDirection.Vertical
+	hotVList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	hotVList.VerticalAlignment = Enum.VerticalAlignment.Bottom -- Fills from bottom up to stay attached to HUD edge
+	hotVList.Padding = UDim.new(0, 8) -- Standard relative gap matching Rune Slots
+	hotVList.SortOrder = Enum.SortOrder.LayoutOrder
+	hotVList.Parent = hotbarFrame
+	
+	HUDUI.Refs.hotbarSlots = {}
+	
+	for i = 1, 3 do 
 		local slot = Utils.mkSlot({
 			name = "Slot"..i,
-			size = UDim2.new(0, slotSize, 0, slotSize),
-			bg = C.BG_SLOT,
-			bgT = 0.4,
-			r = 6,
-			stroke = 1.5,
-			strokeC = C.BORDER,
-			parent = hotbarFrame
+			size = UDim2.new(0, 48, 0, 48), -- Set to fixed size exactly matching Rune (E, R, T) slots
+			bg = C.BG_SLOT, bgT = 0.3, r = 4, parent = hotbarFrame
 		})
+		slot.frame.LayoutOrder = i -- 1 is Top, 2 Middle, 3 Bottom
 		
-		-- Number indicator
-		Utils.mkLabel({
-			text = tostring(i),
-			size = UDim2.new(0, 12, 0, 12),
-			pos = UDim2.new(0, 2, 0, 2),
-			ts = 10,
-			color = C.WHITE,
-			ax = Enum.TextXAlignment.Left,
-			ay = Enum.TextYAlignment.Top,
-			st = 1,
-			parent = slot.frame
+		-- Force square slots cross-resolution
+		local sq = Instance.new("UIAspectRatioConstraint")
+		sq.AspectRatio = 1; sq.Parent = slot.frame
+
+		local numLabel = Utils.mkLabel({
+			text = tostring(i), size = UDim2.new(0.3, 0, 0.3, 0), pos = UDim2.new(0.06, 0, 0.06, 0),
+			font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, ay = Enum.TextYAlignment.Top, st = 1, parent = slot.frame
 		})
-		
+		numLabel.TextScaled = true
 		HUDUI.Refs.hotbarSlots[i] = slot
+		
+		-- [추가] 슬롯 직접 클릭 시 애니메이션 발동
+		if slot.click then
+			slot.click.MouseButton1Down:Connect(function() triggerScale(slot.frame) end)
+		end
+	end
+	
+	local hiddenContainer = Instance.new("Frame"); hiddenContainer.Visible = false; hiddenContainer.Parent = parent
+	for i = 4, 8 do
+		HUDUI.Refs.hotbarSlots[i] = Utils.mkSlot({name="HiddenSlot"..i, parent=hiddenContainer})
 	end
 
 	-- Top Right: Minimap
@@ -889,6 +886,49 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		parent = minimap
 	})
 	HUDUI.Refs.coordLabel = coordLabel
+	
+	-- 3. Rune Hotbar (E, R, T) - Decoupled parent to guarantee clicks work
+	local runeFrame = Utils.mkFrame({
+		name = "RuneHotbarFrame",
+		size = UDim2.new(0, 52, 0, 200), 
+		-- Map center is at right margin -80. 180px down puts it right below map and coord text.
+		pos = UDim2.new(1, -80, 0, 180), 
+		anchor = Vector2.new(0.5, 0),
+		bgT = 1,
+		parent = parent -- CRITICAL: Parent to ScreenGui ensures slots can accept click events
+	})
+
+	local runeVList = Instance.new("UIListLayout")
+	runeVList.FillDirection = Enum.FillDirection.Vertical
+	runeVList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	runeVList.VerticalAlignment = Enum.VerticalAlignment.Top
+	runeVList.Padding = UDim.new(0, 8) 
+	runeVList.SortOrder = Enum.SortOrder.LayoutOrder
+	runeVList.Parent = runeFrame
+	
+	HUDUI.Refs.runeSlots = {}
+	local runeKeys = {"E", "R", "T"}
+	
+	for i, keyName in ipairs(runeKeys) do
+		local slot = Utils.mkSlot({
+			name = "RuneSlot_"..keyName,
+			size = UDim2.new(0, 48, 0, 48), -- Fixed sizing matches rigid minimap behavior
+			bg = C.BG_SLOT, bgT = 0.4, r = 6, parent = runeFrame
+		})
+		slot.frame.LayoutOrder = i
+		
+		local keyLabel = Utils.mkLabel({
+			text = keyName, size = UDim2.new(0.4, 0, 0.4, 0), pos = UDim2.new(0.06, 0, 0.06, 0),
+			font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, ay = Enum.TextYAlignment.Top, st = 1, parent = slot.frame
+		})
+		keyLabel.TextScaled = true
+		HUDUI.Refs.runeSlots[i] = slot
+		
+		-- [추가] 슬롯 직접 클릭 시 애니메이션 발동
+		if slot.click then
+			slot.click.MouseButton1Down:Connect(function() triggerScale(slot.frame) end)
+		end
+	end
 
 	local dayNightRing = Utils.mkFrame({
 		name = "DayNightRing",
@@ -946,18 +986,24 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.dayNightMoon = moonMarker
 	HUDUI.Refs.phaseLabel = phaseLabel
 	
-	HUDUI.Refs.hex_Attack.MouseButton1Click:Connect(function() local CC = require(Controllers.CombatController); if CC.attack then CC.attack() end end)
+	if HUDUI.Refs.hex_Attack then
+		HUDUI.Refs.hex_Attack.MouseButton1Click:Connect(function() local CC = require(Controllers.CombatController); if CC.attack then CC.attack() end end)
+	end
 
 	-- Dodge & Jump (Mobile Bindings)
-	HUDUI.Refs.hex_Dodge.MouseButton1Click:Connect(function() 
-		local MC = require(Controllers.MovementController)
-		if MC.performDodge then MC.performDodge() end -- Ensure function exists or use shared trigger
-	end)
+	if HUDUI.Refs.hex_Dodge then
+		HUDUI.Refs.hex_Dodge.MouseButton1Click:Connect(function() 
+			local MC = require(Controllers.MovementController)
+			if MC.performDodge then MC.performDodge() end -- Ensure function exists or use shared trigger
+		end)
+	end
 	
-	HUDUI.Refs.hex_Jump.MouseButton1Click:Connect(function()
-		local hum = player.Character and player.Character:FindFirstChild("Humanoid")
-		if hum then hum.Jump = true end
-	end)
+	if HUDUI.Refs.hex_Jump then
+		HUDUI.Refs.hex_Jump.MouseButton1Click:Connect(function()
+			local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+			if hum then hum.Jump = true end
+		end)
+	end
 
 	-- [UX] UI Toggle Key Bindings moved to ClientInit for consistency
 
@@ -1198,6 +1244,44 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 				0,
 				math.floor(math.clamp(desiredY, TOOLTIP_MARGIN, math.max(TOOLTIP_MARGIN, maxY)))
 			)
+		end
+	end)
+	
+	-- [UX] 입력 리스너 통합 관리 (Init 시점에 딱 한 번만 연결하여 누수 방지)
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			local focused = UserInputService:GetFocusedTextBox()
+			if focused then return end
+		end
+
+		-- 1~8 숫자 키 처리
+		local kc = input.KeyCode.Value
+		if kc >= Enum.KeyCode.One.Value and kc <= Enum.KeyCode.Eight.Value then
+			local slotIdx = kc - Enum.KeyCode.One.Value + 1
+			local slot = HUDUI.Refs.hotbarSlots and HUDUI.Refs.hotbarSlots[slotIdx]
+			if slot then triggerScale(slot.frame) end
+		end
+		
+		-- E, R, T 룬 키 처리
+		local rKeys = { [Enum.KeyCode.E] = 1, [Enum.KeyCode.R] = 2, [Enum.KeyCode.T] = 3 }
+		local rIdx = rKeys[input.KeyCode]
+		if rIdx and HUDUI.Refs.runeSlots then
+			local slot = HUDUI.Refs.runeSlots[rIdx]
+			if slot then triggerScale(slot.frame) end
+		end
+
+		-- 기타 UI 트리거 (Tab 등)
+		if input.KeyCode == Enum.KeyCode.Tab then
+			triggerScale(HUDUI.Refs.InventoryTabButton)
+		end
+
+		-- 액션 버튼 시각 효과
+		if input.KeyCode == Enum.KeyCode.Space then
+			triggerScale(HUDUI.Refs.hex_Jump)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+			triggerScale(HUDUI.Refs.hex_Attack)
+		elseif input.KeyCode == Enum.KeyCode.LeftControl then
+			triggerScale(HUDUI.Refs.hex_Dodge)
 		end
 	end)
 end
@@ -1543,52 +1627,7 @@ function HUDUI.UpdateStatusEffects(debuffList)
 		end)
 	end
 
-	-- [추가] 키보드/마우스 입력 시 시각적 피드백 동기화
-	local function triggerScale(btn)
-		if not btn then return end
-		local uiScale = btn:FindFirstChild("UIScale") or Instance.new("UIScale", btn)
-		TweenService:Create(uiScale, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.85}):Play()
-		task.delay(0.05, function()
-			TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
-		end)
-	end
-
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		-- 채팅 등 UI 포커스 상태면 무시
-		if gameProcessed then
-			local focused = UserInputService:GetFocusedTextBox()
-			if focused then return end
-		end
-
-		-- 핫바 (1-8)
-		local kc = input.KeyCode.Value
-		if kc >= Enum.KeyCode.One.Value and kc <= Enum.KeyCode.Eight.Value then
-			local slotIdx = kc - Enum.KeyCode.One.Value + 1
-			local slot = HUDUI.Refs.hotbarSlots and HUDUI.Refs.hotbarSlots[slotIdx]
-			if slot then triggerScale(slot.frame) end
-		end
-
-		-- 사이드 메뉴 (Tab)
-		if input.KeyCode == Enum.KeyCode.Tab then
-			triggerScale(HUDUI.Refs.InventoryTabButton)
-		-- elseif input.KeyCode == Enum.KeyCode.B then
-		-- 	triggerScale(HUDUI.Refs.BuildTabButton)
-		-- 	triggerScale(HUDUI.Refs.EquipTabButton)
-		-- elseif input.KeyCode == Enum.KeyCode.K then
-		-- 	triggerScale(HUDUI.Refs.SkillTabButton)
-		-- elseif input.KeyCode == Enum.KeyCode.J then
-		-- 	triggerScale(HUDUI.Refs.QuestTabButton)
-		end
-
-		-- 액션 버튼 (Space: 점프, Mouse1: 공격, LeftControl: 구르기)
-		if input.KeyCode == Enum.KeyCode.Space then
-			triggerScale(HUDUI.Refs.hex_Jump)
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-			triggerScale(HUDUI.Refs.hex_Attack)
-		elseif input.KeyCode == Enum.KeyCode.LeftControl then
-			triggerScale(HUDUI.Refs.hex_Dodge)
-		end
-	end)
+	-- [정리] 누수 방지를 위해 입력 리스너 관련 코드가 Init으로 안정적으로 이전되었습니다.
 end
 
 function HUDUI.UpdateCoordinates(x, z)
@@ -1734,7 +1773,21 @@ function HUDUI.UpdateCombatUI(currentHP, maxHP)
 end
 
 function HUDUI.isSideMenuVisible()
-	return HUDUI.Refs.sideMenu and HUDUI.Refs.sideMenu.Visible == true
+	return false -- Side menu fully replaced by bottom menu row
+end
+
+function HUDUI.UpdateGold(val)
+	if not HUDUI.Refs or not HUDUI.Refs.goldLabel then return end
+	local goldVal = tonumber(val) or 0
+	local txt = ""
+	if goldVal >= 1000000 then
+		txt = string.format("%.2fM G", goldVal / 1000000)
+	elseif goldVal >= 1000 then
+		txt = string.format("%.2fK G", goldVal / 1000)
+	else
+		txt = string.format("%d G", goldVal)
+	end
+	HUDUI.Refs.goldLabel.Text = txt
 end
 
 return HUDUI

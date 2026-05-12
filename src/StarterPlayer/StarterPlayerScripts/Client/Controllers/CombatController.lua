@@ -1125,17 +1125,210 @@ local function getDistanceToTarget(targetPos: Vector3): number
 end
 
 --========================================
+local function findTarget()
+	local creaturesFolder = workspace:FindFirstChild("ActiveCreatures") or workspace:FindFirstChild("Creatures")
+	local nodesFolder = workspace:FindFirstChild("ResourceNodes")
+	local facilitiesFolder = workspace:FindFirstChild("Facilities")
+
+	local function checkModel(part)
+		if not part then return nil, nil end
+		
+		local current = part
+		while current and current ~= workspace do
+			if current:IsA("Model") then
+				-- 자원 노드 체크
+				local nodeUID = current:GetAttribute("NodeUID")
+				if nodeUID then
+					return current, nodeUID, "resource"
+				end
+
+				-- 크리처 체크
+				local instanceId = current:GetAttribute("InstanceId")
+				if instanceId then
+					return current, instanceId, "creature"
+				end
+
+				-- 구조물 체크
+				local structureId = current:GetAttribute("StructureId")
+				if structureId then
+					return current, structureId, "structure"
+				end
+
+				-- 플레이어 체크 (추가)
+				local targetPlr = Players:GetPlayerFromCharacter(current)
+				if targetPlr and targetPlr ~= player then
+					return current, current:GetAttribute("InstanceId") or targetPlr.Name, "player"
+				end
+			end
+
+			local structureIdFromPart = current:GetAttribute("StructureId")
+			if structureIdFromPart then
+				local model = current:FindFirstAncestorWhichIsA("Model")
+				return model or current, structureIdFromPart, "structure"
+			end
+			current = current.Parent
+		end
+		
+		return nil, nil
+	end
+
+	local char = player.Character
+	if not char or not char.PrimaryPart then return nil end
+	
+	-- 도구별 사거리 결정
+	local toolType = getEquippedToolType()
+	local equippedItem = getEquippedItemData()
+	local reach = Balance.REACH_BAREHAND or 10
+	if toolType == "SWORD" then
+		reach = Balance.REACH_SWORD or 16
+	elseif toolType == "AXE" or toolType == "PICKAXE" or toolType == "CLUB" then
+		reach = Balance.REACH_TOOL or 12
+	end
+	if equippedItem and equippedItem.range then
+		reach = math.max(reach, equippedItem.range)
+	elseif isBowWeapon(equippedItem, toolType) then
+		reach = math.max(reach, 120)
+	end
+
+	-- 1. 캐릭터 주변 엔티티 탐색 (Sphere) — 건축물(Facilities)은 공격 대상에서 제외
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Include
+	local filterInstances = {}
+	if creaturesFolder then table.insert(filterInstances, creaturesFolder) end
+	if nodesFolder then table.insert(filterInstances, nodesFolder) end
+	-- 플레이어 추가
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player and p.Character then
+			table.insert(filterInstances, p.Character)
+		end
+	end
+	overlap.FilterDescendantsInstances = filterInstances
+
+	
+	-- 판정 반경은 리치보다 넉넉하게 (각도/정밀 사거리 판정 전 단계)
+	local scanRadius = reach + 15
+	local parts = workspace:GetPartBoundsInRadius(char.PrimaryPart.Position, scanRadius, overlap)
+	local reachableTargets = {}
+
+	for _, p in ipairs(parts) do
+		local model, id, tType = checkModel(p)
+		if model then
+			-- [개선] 모든 파트를 검사하여 가장 가까운 지점을 찾음 (히트박스 전영역화)
+			local targetPos = p.Position
+			local toTarget = (targetPos - char.PrimaryPart.Position)
+			-- ★ XZ 평면 거리 사용 (큰 공룡의 높이 차이로 인한 히트 실패 방지)
+			local flatDist = Vector2.new(toTarget.X, toTarget.Z).Magnitude
+			
+			-- 현재 모델에 대해 더 가까운 파트가 있으면 갱신
+			if not reachableTargets[id] or flatDist < reachableTargets[id].dist then
+				-- Y축 무시한 방향 벡터 (평면 판정)
+				local toTargetFlat = Vector3.new(toTarget.X, 0, toTarget.Z)
+				if toTargetFlat.Magnitude < 0.01 then toTargetFlat = Vector3.new(0, 0, 1) end
+				toTargetFlat = toTargetFlat.Unit
+				local lookFlat = Vector3.new(char.PrimaryPart.CFrame.LookVector.X, 0, char.PrimaryPart.CFrame.LookVector.Z).Unit
+				local dot = lookFlat:Dot(toTargetFlat)
+				local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+				
+				-- ★ 초근접 사각지대 방지: 거리가 리치의 30% 이내(또는 3스터드)이면
+				-- 대형 공룡 다리 사이 등에서 각도 왜곡이 극심하므로 각도 검증 생략
+				local closeThreshold = math.max(reach * 0.3, 3)
+				local angleOk = flatDist <= closeThreshold or angle <= (Balance.REACH_ANGLE or 75)
+				
+				-- 사거리 이내 & (초근접 or 정면 부근)인 것들만 수집
+				if flatDist <= reach + 5 and angleOk then
+					reachableTargets[id] = {model=model, pos=targetPos, id=id, type=tType, dist=flatDist, angle=angle}
+				end
+			end
+		end
+	end
+
+	-- 2. 타겟 우선순위 결정
+	-- [우선순위 1] 마우스가 가리키는 대상 (에임)
+	local mousePart = InputManager.getMouseTarget()
+	if mousePart then
+		local mModel, mId, mType = checkModel(mousePart)
+		if mId and mType ~= "structure" then
+			local mPos = mousePart.Position
+			-- ★ XZ 평면 거리 사용 (머리/꼬리 등 높은 파트도 타격 가능)
+			local mToTarget = mPos - char.PrimaryPart.Position
+			local mDist = Vector2.new(mToTarget.X, mToTarget.Z).Magnitude
+			
+			-- 마우스로 직접 찍은 경우 정면 판정 완화 (히트박스 우선)
+			if mDist <= reach + 8 then
+				if mType ~= "creature" and mType ~= "player" then
+					local nearestCreature = nil
+					local nearestDist = math.huge
+					for _, data in pairs(reachableTargets) do
+						if (data.type == "creature" or data.type == "player") and data.dist < nearestDist then
+							nearestDist = data.dist
+							nearestCreature = data
+						end
+					end
+					if nearestCreature then
+						return nearestCreature.model, nearestCreature.pos, nearestCreature.id, nearestCreature.type
+					end
+				end
+				return mModel, mPos, mId, mType
+			end
+		end
+	end
+
+	-- [우선순위 2] 정면에서 가장 가깝거나 점수가 높은 대상
+	local bestCreature = nil
+	local bestCreatureScore = math.huge
+	local bestOther = nil
+	local bestOtherScore = math.huge
+	
+	for id, data in pairs(reachableTargets) do
+		local score = data.dist * (1 + data.angle / 45)
+		if data.type == "creature" or data.type == "player" then
+			if score < bestCreatureScore then
+				bestCreatureScore = score
+				bestCreature = data
+			end
+		else
+			if score < bestOtherScore then
+				bestOtherScore = score
+				bestOther = data
+			end
+		end
+	end
+
+	if bestCreature then
+		return bestCreature.model, bestCreature.pos, bestCreature.id, bestCreature.type
+	end
+
+	if bestOther then
+		return bestOther.model, bestOther.pos, bestOther.id, bestOther.type
+	end
+
+	return nil
+end
+
+local function getDistanceToTarget(targetPos: Vector3): number
+	local character = player.Character
+	if not character then return math.huge end
+	
+	local hrp = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+	if not hrp then return math.huge end
+	
+	-- Y축 차이를 줄인 평면 거리로 계산 (거대 공룡/나무 대응)
+	local p1 = Vector3.new(hrp.Position.X, 0, hrp.Position.Z)
+	local p2 = Vector3.new(targetPos.X, 0, targetPos.Z)
+	return (p1 - p2).Magnitude
+end
+
+--========================================
 -- Public API
 --========================================
 
 --- 공격 실행
 function CombatController.attack(attackMeta)
-	attackMeta = attackMeta or {}
-	-- UI가 열려있으면 무시
-	if InputManager.isUIOpen() then
+	-- [무협 아바타 RPG] 속성 목봉(WOODEN_STAFF)을 들었을 때는 레거시 맨손 타격 코드가 이중 작동하지 않도록 차단
+	if player:GetAttribute("EquippedWeapon") == "WOODEN_STAFF" then
 		return
 	end
-	
+	attackMeta = attackMeta or {}
 	-- 1. 선택된 슬롯 및 아이템 데이터 가져오기 (쿨다운, 음식 섭취, 사거리 등)
 	local selectedSlot = UIManager.getSelectedSlot()
 	local InventoryController = require(Client.Controllers.InventoryController)

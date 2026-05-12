@@ -306,6 +306,26 @@ function DragDropController.handleDragUpdate()
 		end
 	end
 	
+	-- 2.5. 룬 슬롯 확인
+	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("SKILL") then
+		local runeSlots = UIManager.getRuneSlots and UIManager.getRuneSlots() or {}
+		for _, s in pairs(runeSlots) do
+			if isMouseOverSlot(mousePos, s.frame) then
+				local absPos = s.frame.AbsolutePosition
+				local absSize = s.frame.AbsoluteSize
+				local slotCenterX = absPos.X + absSize.X * 0.5
+				local slotCenterY = absPos.Y + absSize.Y * 0.5
+				local distX = mousePos.X - slotCenterX
+				local distY = mousePos.Y - slotCenterY
+				local distance = math.sqrt(distX * distX + distY * distY)
+				if distance < minDistance then
+					minDistance = distance
+					foundSlotFrame = s.frame
+				end
+			end
+		end
+	end
+	
 	setHoverHighlight(foundSlotFrame)
 end
 
@@ -429,6 +449,27 @@ function DragDropController.handleDragEnd()
 					minDistance = distance
 					foundSlot = slotName
 					foundType = "equip"
+				end
+			end
+		end
+	end
+
+	-- 4. 룬 슬롯 확인
+	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("SKILL") then
+		local runeSlots = UIManager.getRuneSlots and UIManager.getRuneSlots() or {}
+		for slotName, s in pairs(runeSlots) do
+			if isMouseOverSlot(mousePos, s.frame) then
+				local absPos = s.frame.AbsolutePosition
+				local absSize = s.frame.AbsoluteSize
+				local slotCenterX = absPos.X + absSize.X * 0.5
+				local slotCenterY = absPos.Y + absSize.Y * 0.5
+				local distX = mousePos.X - slotCenterX
+				local distY = mousePos.Y - slotCenterY
+				local distance = math.sqrt(distX * distX + distY * distY)
+				if distance < minDistance then
+					minDistance = distance
+					foundSlot = slotName
+					foundType = "equip" -- Type is still equip, handled by server equipItem
 				end
 			end
 		end

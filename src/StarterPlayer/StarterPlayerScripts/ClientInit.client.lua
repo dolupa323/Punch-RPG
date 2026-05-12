@@ -874,4 +874,9 @@ if success then
 	-- R, T, Escape 키는 InteractController.rebindDefaultKeys()에서 통합 관리됨
 end
 
-print("[ClientInit] Client initialized")
+-- [무협 아바타 RPG] 클라이언트 아바타 컨트롤러 전격 가동
+local AvatarController = require(Controllers.AvatarController)
+AvatarController.Init()
+
+print("[ClientInit] Client initialized with Avatar Controller")
+

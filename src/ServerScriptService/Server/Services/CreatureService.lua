@@ -1540,8 +1540,19 @@ function CreatureService._replenishLoop()
 			if not pos then
 				local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
 				if zoneInfo then
-					local fallbackRadius = getZoneCreatureSpawnRadius(zoneInfo, Balance.CREATURE_INITIAL_SPAWN_RADIUS or 300)
-					pos = CreatureService._findMapSpawnPosition(zoneInfo.center, math.min(fallbackRadius, zoneInfo.radius))
+					local zoneMin, zoneMax = zoneInfo.min, zoneInfo.max
+					local zoneCenter, zoneRadius
+					
+					if zoneMin and zoneMax then
+						zoneCenter = Vector3.new((zoneMin.X + zoneMax.X)/2, 20, (zoneMin.Y + zoneMax.Y)/2)
+						zoneRadius = math.min((zoneMax.X - zoneMin.X)/2, (zoneMax.Y - zoneMin.Y)/2)
+					else
+						zoneCenter = zoneInfo.center or Vector3.new(0, 0, 0)
+						zoneRadius = zoneInfo.radius or (Balance.CREATURE_INITIAL_SPAWN_RADIUS or 300)
+					end
+					
+					local fallbackRadius = getZoneCreatureSpawnRadius(zoneInfo, zoneRadius)
+					pos = CreatureService._findMapSpawnPosition(zoneCenter, math.min(fallbackRadius, zoneRadius))
 				end
 			end
 			if pos then

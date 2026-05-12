@@ -119,13 +119,42 @@ end
 --========================================
 
 function HungerService._tickLoop()
-	-- [무협 RPG 대전환] 배고픔 시스템 영구 비활성화 처리로 아무런 감소나 데미지 연산을 수행하지 않습니다.
+	if not Balance.ENABLE_SURVIVAL_STATS then
+		-- [템플릿 가이드] 생존 시스템 비활성화 시 즉각 만땅 충전 후 스킵
+		for _, player in ipairs(Players:GetPlayers()) do
+			local userId = player.UserId
+			local data = playerHunger[userId]
+			if data then
+				data.current = data.max
+				syncHungerToClient(player)
+			end
+		end
+		return
+	end
+
+	-- 생존 시스템이 활성화되었을 때만 작동할 허기 감쇠 및 굶주림 도트 대미지 복구
 	for _, player in ipairs(Players:GetPlayers()) do
 		local userId = player.UserId
 		local data = playerHunger[userId]
 		if data then
-			data.current = data.max
-			syncHungerToClient(player)
+			data.current = math.max(0, data.current - Balance.HUNGER_DECREASE_RATE)
+			
+			-- 허기 0일 시 생존 대미지 차감
+			if data.current <= 0 then
+				local char = player.Character
+				local hum = char and char:FindFirstChild("Humanoid")
+				if hum then
+					hum:TakeDamage(Balance.HUNGER_STARVATION_DAMAGE)
+				end
+			end
+
+			-- Sync throttle 판단
+			local stage = _getHungerStage(data.current, data.max)
+			local lastStage = lastSyncStage[userId] or -1
+			local elapsed = os.clock() - (lastSyncTime[userId] or 0)
+			if stage ~= lastStage or elapsed >= HUNGER_SYNC_INTERVAL then
+				syncHungerToClient(player)
+			end
 		end
 	end
 end
@@ -140,7 +169,14 @@ function HungerService.getHunger(userId: number): (number, number)
 end
 
 function HungerService.consumeHunger(userId: number, amount: number)
-	-- [무협 RPG 대전환] 허기 감소가 발생하지 않도록 비워 둡니다.
+	if not Balance.ENABLE_SURVIVAL_STATS then return end
+	local data = getHungerData(userId)
+	data.current = math.max(0, data.current - amount)
+	
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		syncHungerToClient(player)
+	end
 end
 
 function HungerService.eatFood(userId: number, foodValue: number): boolean

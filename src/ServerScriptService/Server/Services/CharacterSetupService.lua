@@ -41,7 +41,8 @@ local function applyPrehistoricStyle(player, character)
 	
 	-- 2. 기존 액세서리, 의상, 패키지 파트 삭제 (시스템 장비는 제외)
 	for _, child in ipairs(character:GetChildren()) do
-		if (child:IsA("Accessory") and not child:GetAttribute("IsArmor")) or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
+		local isSafe = child:GetAttribute("IsArmor") or child:GetAttribute("IsWeaponAccessory")
+		if (child:IsA("Accessory") and not isSafe) or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
 			child:Destroy()
 		end
 	end
@@ -97,7 +98,8 @@ local function applyPrehistoricStyle(player, character)
 	-- 5. ChildAdded 감시: 로블록스 엔진이 나중에 유저 액세서리를 다시 끼우려 하면 즉시 삭제
 	local conn
 	conn = character.ChildAdded:Connect(function(child)
-		if child:IsA("Accessory") and not child:GetAttribute("IsArmor") then
+		local isSafe = child:GetAttribute("IsArmor") or child:GetAttribute("IsWeaponAccessory")
+		if child:IsA("Accessory") and not isSafe then
 			child:Destroy()
 		end
 	end)
@@ -173,10 +175,10 @@ local function onCharacterAdded(player: Player, character)
 		local targetPos = Vector3.new(spawnX, spawnY, spawnZ)
 		local hrp = character:WaitForChild("HumanoidRootPart", 5)
 		if hrp then
-			-- ★ [FIX] Y좌표 강제 보정: 항상 최소 15 이상 보장 (respawn 팅김 방지)
-			if targetPos.Y < 15 then
-				print(string.format("[CharacterSetupService] Y=%.1f is unsafe, enforcing Y=%.1f", targetPos.Y, targetPos.Y + 20))
-				targetPos = Vector3.new(targetPos.X, targetPos.Y + 20, targetPos.Z)
+			-- ★ [FIX] Y좌표 강제 보정: Void 수준(음수 깊은 곳)으로 떨어지는 것만 방어하도록 기준 완화
+			if targetPos.Y < -200 then
+				print(string.format("[CharacterSetupService] Y=%.1f is unsafe (VOID), enforcing Y=%.1f", targetPos.Y, targetPos.Y + 220))
+				targetPos = Vector3.new(targetPos.X, targetPos.Y + 220, targetPos.Z)
 			end
 			
 			-- Anchor로 Roblox 엔진의 위치 덮어쓰기를 차단한 뒤 즉시 PivotTo
@@ -200,9 +202,9 @@ local function onCharacterAdded(player: Player, character)
 		-- 최종 위치 재확인 후 해제
 		if spawnX and spawnY and spawnZ then
 			local finalPos = Vector3.new(spawnX, spawnY, spawnZ)
-			-- 최종 보정도 적용
-			if finalPos.Y < 15 then
-				finalPos = Vector3.new(finalPos.X, finalPos.Y + 20, finalPos.Z)
+			-- 최종 보정도 동일 완화 기준 적용
+			if finalPos.Y < -200 then
+				finalPos = Vector3.new(finalPos.X, finalPos.Y + 220, finalPos.Z)
 			end
 			character:PivotTo(CFrame.new(finalPos))
 		end

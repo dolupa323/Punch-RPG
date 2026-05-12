@@ -15,6 +15,8 @@ local PhysicsService = game:GetService("PhysicsService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
+local ServiceRegistry = require(Shared:WaitForChild("Utils"):WaitForChild("ServiceRegistry"))
+local GameEventBus = require(Shared:WaitForChild("Utils"):WaitForChild("GameEventBus"))
 
 local function initCollisionGroups()
 	local groups = {"Players", "Creatures", "CombatCreatures", "Structures", "Resources"}
@@ -33,42 +35,50 @@ initCollisionGroups()
 
 local DataService = require(Services.DataService)
 DataService.Init()
+ServiceRegistry.Register("DataService", DataService)
 
 local NetController = require(Controllers.NetController)
 NetController.Init()
+ServiceRegistry.Register("NetController", NetController)
 
 local RecipeService = require(Services.RecipeService)
 RecipeService.Init(DataService)
 for command, handler in pairs(RecipeService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("RecipeService", RecipeService)
 
 local TimeService = require(Services.TimeService)
 TimeService.Init(NetController)
 for command, handler in pairs(TimeService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("TimeService", TimeService)
 
 local SaveService = require(Services.SaveService)
 SaveService.Init(NetController)
 for command, handler in pairs(SaveService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("SaveService", SaveService)
 
 local InventoryService = require(Services.InventoryService)
 for command, handler in pairs(InventoryService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("InventoryService", InventoryService)
 
 local DurabilityService = require(Services.DurabilityService)
 for command, handler in pairs(DurabilityService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("DurabilityService", DurabilityService)
 
 local WorldDropService = require(Services.WorldDropService)
 for command, handler in pairs(WorldDropService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("WorldDropService", WorldDropService)
 
 local function handleInventoryDropWithWorldDrop(player, payload)
 	local slot = payload.slot
@@ -232,6 +242,7 @@ PartyService.Init(NetController, PalboxService, CreatureService, SaveService)
 for command, handler in pairs(PartyService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("PartyService", PartyService)
 
 local HarvestService = require(Services.HarvestService)
 HarvestService.Init(NetController, DataService, InventoryService, PlayerStatService, DurabilityService, WorldDropService, TechService)
@@ -239,6 +250,7 @@ for command, handler in pairs(HarvestService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 CreatureService.SetHarvestService(HarvestService)
+ServiceRegistry.Register("HarvestService", HarvestService)
 
 local BaseClaimService = require(Services.BaseClaimService)
 BaseClaimService.Init(NetController, SaveService, BuildService)
@@ -246,8 +258,10 @@ BuildService.SetBaseClaimService(BaseClaimService)
 for command, handler in pairs(BaseClaimService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("BaseClaimService", BaseClaimService)
 
 StorageService.Init(NetController, SaveService, InventoryService, BuildService, BaseClaimService)
+ServiceRegistry.Register("StorageService", StorageService)
 
 -- [무협 RPG 대전환] 공룡 부족 자동 수납/채집 백그라운드 스케줄 연산 영구 비활성화
 -- local AutoHarvestService = require(Services.AutoHarvestService)
@@ -262,21 +276,26 @@ NPCShopService.Init(NetController, DataService, InventoryService, TimeService)
 for command, handler in pairs(NPCShopService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("NPCShopService", NPCShopService)
 
--- QuestService Remastered Init
-local TutorialQuestService = require(Services.TutorialQuestService)
-TutorialQuestService.Init(NetController, SaveService, PlayerStatService, InventoryService, NPCShopService)
-for command, handler in pairs(TutorialQuestService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
+-- QuestService Remastered Init (조건부 피처 토글 구동)
+local TutorialQuestService
+if Balance.ENABLE_QUEST_SYSTEM then
+	TutorialQuestService = require(Services.TutorialQuestService)
+	TutorialQuestService.Init(NetController, SaveService, PlayerStatService, InventoryService, NPCShopService)
+	for command, handler in pairs(TutorialQuestService.GetHandlers()) do
+		NetController.RegisterHandler(command, handler)
+	end
+	ServiceRegistry.Register("TutorialQuestService", TutorialQuestService)
+
+	-- 액션 콜백 연결
+	InventoryService.SetQuestItemCallback(function(userId, itemId, count) TutorialQuestService.onItemAdded(userId, itemId, count) end)
+	HarvestService.SetQuestCallback(function(userId, nodeType) TutorialQuestService.onHarvest(userId, nodeType) end)
+	CraftingService.SetQuestCallback(function(userId, recipeId) TutorialQuestService.onCrafted(userId, recipeId) end)
+	BuildService.SetQuestCallback(function(userId, facilityId) TutorialQuestService.onBuilt(userId, facilityId) end)
+	CombatService.SetQuestCallback(function(userId, creatureId) TutorialQuestService.onKilled(userId, creatureId) end)
+	InventoryService.SetQuestFoodEatenCallback(function(userId, itemId) TutorialQuestService.onFoodEaten(userId, itemId) end)
 end
-
--- 액션 콜백 연결
-InventoryService.SetQuestItemCallback(function(userId, itemId, count) TutorialQuestService.onItemAdded(userId, itemId, count) end)
-HarvestService.SetQuestCallback(function(userId, nodeType) TutorialQuestService.onHarvest(userId, nodeType) end)
-CraftingService.SetQuestCallback(function(userId, recipeId) TutorialQuestService.onCrafted(userId, recipeId) end)
-BuildService.SetQuestCallback(function(userId, facilityId) TutorialQuestService.onBuilt(userId, facilityId) end)
-CombatService.SetQuestCallback(function(userId, creatureId) TutorialQuestService.onKilled(userId, creatureId) end)
-InventoryService.SetQuestFoodEatenCallback(function(userId, itemId) TutorialQuestService.onFoodEaten(userId, itemId) end)
 
 local TotemService = require(Services.TotemService)
 TotemService.Init(NetController, SaveService, BaseClaimService, BuildService, NPCShopService)
@@ -287,6 +306,7 @@ BuildService.SetTotemService(TotemService)
 StorageService.SetTotemService(TotemService)
 FacilityService.SetTotemService(TotemService)
 CreatureService.SetProtectedZoneChecker(function(position) return TotemService.getProtectionInfoAt(position) end)
+ServiceRegistry.Register("TotemService", TotemService)
 
 local BlockBuildService = require(Services.BlockBuildService)
 BlockBuildService.Init(NetController, DataService, InventoryService, SaveService, PlayerStatService)
@@ -294,10 +314,13 @@ BlockBuildService.SetBaseClaimService(BaseClaimService)
 BlockBuildService.SetTotemService(TotemService)
 BlockBuildService.SetWorldDropService(WorldDropService)
 BlockBuildService.SetDurabilityService(DurabilityService)
-BlockBuildService.SetQuestCallback(function(userId, blockTypeId) TutorialQuestService.onBuilt(userId, blockTypeId) end)
+if Balance.ENABLE_QUEST_SYSTEM and TutorialQuestService then
+	BlockBuildService.SetQuestCallback(function(userId, blockTypeId) TutorialQuestService.onBuilt(userId, blockTypeId) end)
+end
 for command, handler in pairs(BlockBuildService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("BlockBuildService", BlockBuildService)
 
 for command, handler in pairs(StaminaService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
@@ -306,12 +329,14 @@ CombatService.SetStaminaService(StaminaService)
 
 local CharacterSetupService = require(Services.CharacterSetupService)
 CharacterSetupService.Init()
+ServiceRegistry.Register("CharacterSetupService", CharacterSetupService)
 
 local PortalService = require(Services.PortalService)
 PortalService.Init(NetController, SaveService, InventoryService, HarvestService, CreatureService, NPCShopService)
 for command, handler in pairs(PortalService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
+ServiceRegistry.Register("PortalService", PortalService)
 
 local TutorialService = require(Services.TutorialService)
 TutorialService.Init(NetController, SaveService, PlayerStatService, InventoryService)
@@ -319,11 +344,23 @@ for command, handler in pairs(TutorialService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 CreatureService.SetTutorialService(TutorialService)
+ServiceRegistry.Register("TutorialService", TutorialService)
 
 local AdminCommandService = require(Services.AdminCommandService)
 AdminCommandService.Init(NetController, PlayerStatService, InventoryService, TechService, TutorialService, SaveService)
+ServiceRegistry.Register("AdminCommandService", AdminCommandService)
 
 local BotService = require(Services.BotService)
 BotService.Init()
+ServiceRegistry.Register("BotService", BotService)
 
-print("[ServerInit] Server initialized (No-BOM) - AdminCommandService & BotService Ready")
+-- [무협 아바타 RPG] 코어 서비스 전격 초기화
+local AvatarService = require(Services.AvatarService)
+AvatarService.Init()
+ServiceRegistry.Register("AvatarService", AvatarService)
+
+local MobSpawnService = require(Services.MobSpawnService)
+MobSpawnService.Init()
+ServiceRegistry.Register("MobSpawnService", MobSpawnService)
+
+print("[ServerInit] Server initialized (No-BOM) - AdminCommandService, BotService & Avatar Elements Ready")

@@ -4,7 +4,18 @@
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local C = Theme.Colors
+-- Local Color Override for Navy + Black Theme
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+C.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+C.BG_SLOT = Color3.fromRGB(15, 20, 35)  -- Deep Navy
+C.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White!
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+
 local F = Theme.Fonts
 local T = Theme.Transp
 
@@ -144,6 +155,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	goldBtn.Font = F.NUM
 	goldBtn.TextXAlignment = Enum.TextXAlignment.Right
 	goldBtn.Parent = rightHeader
+	goldBtn.Visible = false -- [MODIFIED] 인벤토리 내 골드 표기 비활성화
 	goldBtn.MouseButton1Click:Connect(function()
 		if UIManager.openGoldDropModal then
 			UIManager.openGoldDropModal()
@@ -343,8 +355,8 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local bgGradient = Instance.new("UIGradient")
 	bgGradient.Rotation = 90
 	bgGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 48, 55)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 30, 35))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 28, 50)), -- [MODIFIED] Navy
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 10, 15))   -- [MODIFIED] Black
 	})
 	bgGradient.Parent = detail
 
@@ -488,7 +500,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local attrArea = Utils.mkFrame({
 		name = "AttrArea",
 		size = UDim2.new(0.95, 0, 0, 0),
-		bg = Color3.fromRGB(35, 38, 45),
+		bg = Color3.fromRGB(20, 30, 50), -- [MODIFIED] Deep Navy
 		bgT = 0.4, r = 6, stroke = 1, strokeC = C.BORDER_DIM,
 		vis = false,
 		parent = detailScroll
@@ -500,7 +512,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local attrHeader = Utils.mkLabel({
 		text = "아이템 효과",
 		size = UDim2.new(1, 0, 0, 26),
-		bg = Color3.fromRGB(60, 75, 95),
+		bg = Color3.fromRGB(35, 55, 90), -- [MODIFIED] Accent Navy
 		bgT = 0.2, color = C.WHITE, ts = TS_SMALL, font = F.TITLE,
 		parent = attrArea
 	})
@@ -860,7 +872,8 @@ function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper, maxSlots)
 				st.Thickness = 1
 			end
 			
-			if item.durability and itemData and itemData.durability then
+			-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+			if false and item.durability and itemData and itemData.durability then
 				local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
 				s.durBg.Visible = true
 				s.durFill.Size = UDim2.new(ratio, 0, 1, 0)
@@ -1229,7 +1242,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		end
 		
 		-- Durability Display
-		if data.durability and itemData and itemData.durability then
+		-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+		if false and data.durability and itemData and itemData.durability then
 			local maxDur = itemData.durability
 			local curDur = data.durability
 			local ratio = math.clamp(curDur / maxDur, 0, 1)

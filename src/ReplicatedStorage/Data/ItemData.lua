@@ -1355,6 +1355,61 @@ local ItemData = {
 		iconName = "RESET_TICKET_STAT",
 		modelName = "RESET_TICKET_STAT",
 	},
+	{
+		id = "WOODEN_STAFF", -- [MODIFIED] Standardized to UpperCase Snake Case
+		name = "나무봉",
+		type = "WEAPON",
+		rarity = "COMMON",
+		maxStack = 1,
+		weight = 1.0,
+		durability = 999,
+		damage = 10,
+		attackSpeed = 0.5,
+		slot = "HAND",
+		description = "기본으로 지급되는 튼튼한 나무봉입니다.",
+		modelName = "WoodenStaff", -- [PRESERVED] Maps directly to Roblox hierarchy asset name
+		iconName = "WoodenStaff", -- [ADDED] Force Maps to icon asset named WoodenStaff
+	},
+
+	--========================================
+	-- 룬 시스템 (Rune System)
+	--========================================
+	{
+		id = "RUNE_LIFE_FORCE",
+		name = "생명의 룬",
+		type = "RUNE",
+		runeType = "PASSIVE",
+		rarity = "UNCOMMON",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		description = "장착 시 최대 체력을 증가시켜주는 생명의 룬입니다.",
+		iconName = "RUNE_HEALTH", -- Placeholder icon name
+	},
+	{
+		id = "RUNE_POWER",
+		name = "힘의 룬",
+		type = "RUNE",
+		runeType = "PASSIVE",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		description = "장착 시 공격력을 증가시켜주는 강력한 룬입니다.",
+		iconName = "RUNE_ATTACK",
+	},
+	{
+		id = "RUNE_FIREBALL",
+		name = "화염의 룬",
+		type = "RUNE",
+		runeType = "ACTIVE",
+		rarity = "EPIC",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		description = "장착 시 '파이어볼' 스킬을 사용할 수 있게 되는 액티브 룬입니다.",
+		iconName = "RUNE_FIRE",
+	},
 }
 
 return ItemData

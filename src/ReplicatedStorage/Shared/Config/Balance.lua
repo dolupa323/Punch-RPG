@@ -182,8 +182,15 @@ Balance.REACH_SWORD = 16               -- 검 (근접 무기)
 Balance.REACH_ANGLE = 75               -- 공격 인정 각도 (정면 기준 +-75도)
 
 --========================================
--- 배고픔 (생존) 시스템
+-- 🛠️ 범용 RPG 템플릿 마스터 피처 토글 (Feature Toggles)
 --========================================
+Balance.ENABLE_SURVIVAL_STATS   = false  -- Hunger/Stamina 허기 및 스태미나 지속 감쇠 작동 스위치 (false 시 감쇠 정지)
+Balance.ENABLE_PAL_SYSTEM       = false  -- 팰(Palbox, 파티, 포획, 팰 AI) 활성화 스위치 (false 시 로딩 스킵)
+Balance.ENABLE_BUILD_SYSTEM     = true   -- 제작대, 상자 등 거점 건축 시스템 활성화 스위치
+Balance.ENABLE_BLOCK_BUILD     = false  -- 복셀/마인크래프트식 블록 조립 시스템 활성화 스위치
+Balance.ENABLE_DURABILITY_DECAY = true   -- 도구 및 장비 타격 시 내구도 감소 소모 여부 스위치
+Balance.ENABLE_QUEST_SYSTEM     = true   -- 튜토리얼 퀘스트 및 업적 추적 시스템 활성화 스위치
+Balance.ENABLE_SHOP_SYSTEM      = true   -- 골드 기반 상인 거래 경제 시스템 활성화 스위치
 Balance.HUNGER_MAX = 100               -- 최대 배고픔 수치
 Balance.HUNGER_DECREASE_RATE = 0.08     -- 초당 배고픔 감소량 (0.5 -> 0.08 완화)
 Balance.HUNGER_STARVATION_DAMAGE = 1   -- 배고픔이 0일 때 초당 잃는 체력

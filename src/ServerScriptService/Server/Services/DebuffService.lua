@@ -473,9 +473,8 @@ function DebuffService._environmentCheck()
 			DebuffService.removeDebuff(userId, "WARMTH")
 		end
 
-		-- 3. 추위 판정 (조건부)
-		-- 물에 있거나, 밤인데 실내가 아니고 온기 수단도 없을 때
-		local reallyChilly = inWater or (isNight and not indoors and not nearHeat)
+		-- [MODIFIED] 밤 디버프(추위) 비활성화 요청 반영
+		local reallyChilly = false
 		
 		if reallyChilly then
 			if not DebuffService.hasDebuff(userId, "CHILLY") then

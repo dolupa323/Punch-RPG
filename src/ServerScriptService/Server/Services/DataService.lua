@@ -29,6 +29,9 @@ local TABLE_NAMES = {
 	"DropTableData",      -- Item 참조
 	"DurabilityProfiles", -- 독립
 	"ResourceNodeData",   -- Phase 7: 자원 노드
+	"ClassData",          -- 신설: 직업/원소 템플릿 데이터
+	"WeaponComboData",    -- 신설: 무기 콤보/Fallback 템플릿 데이터
+	"MobSpawnData",       -- 신설: 몬스터 스폰 배치 템플릿 데이터
 }
 
 --========================================

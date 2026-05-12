@@ -4,7 +4,20 @@
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local C = Theme.Colors
+-- Local Color Override for Navy + Black Theme
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+C.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+C.BG_SLOT = Color3.fromRGB(15, 20, 35)  -- Deep Navy
+C.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White!
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+C.BTN = Color3.fromRGB(40, 80, 160)      -- Action Buttons -> Navy instead of Yellow
+C.BTN_H = Color3.fromRGB(60, 100, 190)   -- Button Hover
+
 local F = Theme.Fonts
 local T = Theme.Transp
 
@@ -59,7 +72,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
 	Utils.mkLabel({text="EQUIPMENT [E]", pos=UDim2.new(0, 15, 0, 0), ts=26, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
-	Utils.mkBtn({text="X", size=UDim2.new(0, 42, 0, 42), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bg=C.BTN, bgT=0.7, ts=24, color=C.WHITE, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 42, 0, 42), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bgT=0.5, ts=24, color=C.WHITE, isNegative=true, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
 	
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
 	content.ClipsDescendants = true -- 캐릭터가 프레임 바깥으로 나가는 것 방지
@@ -225,9 +238,9 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.Tooltip = Utils.mkFrame({
 		name = "Tooltip",
 		size = UDim2.new(0, TT_W, 0, 0),
-		bg = Color3.fromRGB(20, 22, 28),
+		bg = Color3.fromRGB(12, 15, 25), -- [MODIFIED] Deep Navy
 		bgT = 0.05,
-		r = 8, stroke = 1.8, strokeC = C.GOLD,
+		r = 8, stroke = 1.8, strokeC = C.BORDER,
 		vis = false,
 		parent = parent
 	})
@@ -342,8 +355,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				
 				local itemData = DataHelper.GetData("ItemData", item.itemId) or { id = item.itemId, name = item.itemId, type = "UNKNOWN", rarity = "COMMON" }
 				
-				-- 내구도 바
-				if item.durability and itemData and itemData.durability then
+				-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+				if false and item.durability and itemData and itemData.durability then
 					local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
 					slot.durBg.Visible = true
 					slot.durFill.Size = UDim2.new(ratio, 0, 1, 0)
@@ -499,7 +512,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						
 						addRow("공격력", tostring(baseDmg) .. (extraDmg ~= 0 and string.format(" (+%d)", extraDmg) or ""), bonusDmg > 0 and "#8CDC64" or "#FFFFFF")
 						addRow("치명타 확률", math.floor(bonusCrit*100+0.5) .. "%", bonusCrit > 0 and "#8CDC64" or "#FFFFFF")
-						addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
+						-- [MODIFIED] DEACTIVATED durability row
+						-- addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
 						
 					elseif iType == "ARMOR" then
 						local bonusDef, bonusHp, bonusDur = 0, 0, 0
@@ -524,7 +538,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						
 						addRow("방어력", tostring(baseDef) .. (extraDef ~= 0 and string.format(" (+%d)", extraDef) or ""), bonusDef > 0 and "#8CDC64" or "#FFFFFF")
 						addRow("추가 체력", string.format("+%d%%", math.floor(bonusHp*100+0.5)), bonusHp > 0 and "#8CDC64" or "#FFFFFF")
-						addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
+						-- [MODIFIED] DEACTIVATED durability row
+						-- addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
 					end
 					
 					-- =====================

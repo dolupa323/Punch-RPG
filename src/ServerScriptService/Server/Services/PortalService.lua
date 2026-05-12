@@ -704,10 +704,12 @@ function PortalService.Init(_NetController, _SaveService, _InventoryService, _Ha
 	CreatureService = _CreatureService
 	NPCShopService = _NPCShopService
 
-	-- 모든 포탈 정의에 대해 프롬프트 설정
+	-- 모든 포탈 정의에 대해 프롬프트 설정 (레거시 오브젝트 탐색 코드 비활성화)
+	--[[
 	for _, def in ipairs(PORTAL_DEFINITIONS) do
 		_setupPortalPair(def)
 	end
+	]]
 
 	Players.PlayerRemoving:Connect(function(player)
 		debounces[player.UserId] = nil

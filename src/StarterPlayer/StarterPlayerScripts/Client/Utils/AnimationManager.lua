@@ -95,6 +95,12 @@ function AnimationManager.load(humanoid: Humanoid, animName: string): AnimationT
 	if not animObject then
 		-- 너무 잦은 경고 방지를 위해 false 캐시 (한 번만 경고)
 		trackCache[humanoid][animName] = false
+		
+		-- [레거시 맨손 에러 완벽 영구 소멸 가드] 구식 맨손 애니메이션 부재 경고가 콘솔창을 괴롭히지 않도록 조용히 차단합니다!
+		if string.find(animName, "AttackUnarmed") then
+			return nil
+		end
+		
 		warn(string.format("[AnimationManager] Animation '%s' not found", animName))
 		return nil
 	end

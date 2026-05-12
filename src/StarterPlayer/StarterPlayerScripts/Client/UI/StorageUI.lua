@@ -65,7 +65,8 @@ local function describeItem(itemData, item)
 		table.insert(lines, "속성: " .. attrText)
 	end
 
-	if item.durability and itemData and itemData.durability then
+	-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+	if false and item.durability and itemData and itemData.durability then
 		table.insert(lines, string.format("내구도: %d / %d", math.floor(item.durability), math.floor(itemData.durability)))
 	end
 
@@ -220,7 +221,8 @@ local function applyDurability(slot, item)
 	end
 
 	local itemData = item and item.itemId and DataHelper.GetData("ItemData", item.itemId) or nil
-	if item and item.durability and itemData and itemData.durability then
+	-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
+	if false and item and item.durability and itemData and itemData.durability then
 		local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
 		slot.durBg.Visible = true
 		slot.durFill.Size = UDim2.new(ratio, 0, 1, 0)

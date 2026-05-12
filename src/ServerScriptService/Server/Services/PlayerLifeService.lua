@@ -22,7 +22,15 @@ local RESPAWN_DELAY = 5 -- 리스폰까지 대기 시간(초)
 
 --- 기본 리스폰 위치: SpawnLocation 모델 → SpawnConfig 초원 스폰 → 폴백
 local function getDefaultRespawnPos(): Vector3
-	local spawnModel = workspace:FindFirstChild("SpawnLocation")
+	local spawnModel = workspace:FindFirstChildOfClass("SpawnLocation") or workspace:FindFirstChild("SpawnLocation", true)
+	if not spawnModel then
+		for _, descendant in ipairs(workspace:GetDescendants()) do
+			if descendant:IsA("SpawnLocation") then
+				spawnModel = descendant
+				break
+			end
+		end
+	end
 	if spawnModel and spawnModel:IsA("Model") then
 		local cf, size = spawnModel:GetBoundingBox()
 		return cf.Position + Vector3.new(0, size.Y / 2 + 5, 0)
@@ -110,7 +118,9 @@ local function findBedRespawnPoint(userId: number): Vector3?
 		end
 	end
 
-	-- 구조물 매칭 실패 시, 마지막 수면 좌표(lastPosition)를 우선 리스폰 기준점으로 사용.
+	-- [MODIFIED] RPG 패러다임에 맞춰, 구조물 매칭 실패 시 이전 위치(lastPosition) 리스폰을 방지합니다.
+	-- 이제 침대가 없으면 깔끔하게 기본 SpawnLocation으로 리스폰됩니다.
+	--[[
 	do
 		local ok, SaveService = pcall(function()
 			return require(game:GetService("ServerScriptService").Server.Services.SaveService)
@@ -122,14 +132,25 @@ local function findBedRespawnPoint(userId: number): Vector3?
 				state and state.lastPosition and string.format("(%.1f,%.1f,%.1f)", state.lastPosition.x or 0, state.lastPosition.y or 0, state.lastPosition.z or 0) or "nil",
 				state and tostring(state.respawnStructureId) or "nil"))
 			if state and state.lastPosition then
-				local pos = toVector3(state.lastPosition)
-				if pos then
-					print(string.format("[PlayerLifeService] => lastPosition fallback %s", tostring(pos)))
-					return pos
+				local lx = state.lastPosition.x or 0
+				local ly = state.lastPosition.y or 0
+				local lz = state.lastPosition.z or 0
+				local checkPos = Vector3.new(lx, ly, lz)
+				local SpawnConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.SpawnConfig)
+				local zone = SpawnConfig.GetZoneAtPosition(checkPos)
+				if zone and ly >= 0 then
+					local pos = toVector3(state.lastPosition)
+					if pos then
+						print(string.format("[PlayerLifeService] => lastPosition fallback %s", tostring(pos)))
+						return pos
+					end
+				else
+					print(string.format("[PlayerLifeService] lastPosition %s is outside valid zones or underground, ignoring", tostring(checkPos)))
 				end
 			end
 		end
 	end
+	]]
 
 	if BuildService.getStructuresByOwner then
 		local owned = BuildService.getStructuresByOwner(userId)
@@ -322,7 +343,8 @@ function PlayerLifeService._onPlayerDied(player: Player)
 
 	print(string.format("[PlayerLifeService] Player %s (%d) died!", player.Name, userId))
 
-	applyItemLoss(userId)
+	-- [MODIFIED] 사망 시 아이템 유실 비활성화 요청 반영
+	-- applyItemLoss(userId)
 
 	local respawnTarget = findBedRespawnPoint(userId)
 	if not respawnTarget then
@@ -366,12 +388,12 @@ function PlayerLifeService._respawnPlayer(player: Player)
 	local respawnPoint = state.respawnPoint or getDefaultRespawnPos()
 	print(string.format("[PlayerLifeService] _respawnPlayer: calling LoadCharacter for %s (target=%s)", player.Name, tostring(respawnPoint)))
 
-	-- ★ [FIX] Respawn 위치 검증: Y좌표가 비정상이면 강제 보정 (1차 방어)
+	-- ★ [FIX] Respawn 위치 검증: Void 깊은 곳 낙하 방어 (기준 완화)
 	local respawnPosAdjusted = false
 	if typeof(respawnPoint) == "Vector3" then
-		if respawnPoint.Y < 15 then
-			print(string.format("[PlayerLifeService] _respawnPlayer: Y=%.1f is unsafe, enforcing Y+15", respawnPoint.Y))
-			respawnPoint = Vector3.new(respawnPoint.X, respawnPoint.Y + 15, respawnPoint.Z)
+		if respawnPoint.Y < -200 then
+			print(string.format("[PlayerLifeService] _respawnPlayer: Y=%.1f is unsafe (VOID), enforcing Y+200", respawnPoint.Y))
+			respawnPoint = Vector3.new(respawnPoint.X, respawnPoint.Y + 200, respawnPoint.Z)
 			respawnPosAdjusted = true
 		end
 	end

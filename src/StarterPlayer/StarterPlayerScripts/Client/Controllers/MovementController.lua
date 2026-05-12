@@ -293,8 +293,8 @@ local function onInputBegan(input: InputObject, gameProcessed: boolean)
 	-- UI 열림 상태면 무시
 	if InputManager.isUIOpen() then return end
 	
-	-- LeftControl: 구르기
-	if input.KeyCode == Enum.KeyCode.LeftControl then
+	-- LeftControl 또는 Q 키: 대시(구르기)
+	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.Q then
 		performDodge()
 	elseif input.KeyCode == Enum.KeyCode.LeftShift then
 		isShiftDown = true
@@ -306,6 +306,7 @@ local function onInputEnded(input: InputObject, _gameProcessed: boolean)
 		isShiftDown = false
 	end
 end
+
 
 --========================================
 -- Server Event Handlers

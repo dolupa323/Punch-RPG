@@ -87,8 +87,15 @@ function EquipService.unequipAll(player: Player)
 	
 	-- 캐릭터가 현재 들고 있는 도구 제거
 	for _, item in ipairs(player.Character:GetChildren()) do
-		if item:IsA("Tool") then item:Destroy() end
+		if item:IsA("Tool") then 
+			item:Destroy() 
+		-- [MODIFIED] Also clear AvatarService-managed Accessories
+		elseif item:IsA("Accessory") and item:GetAttribute("IsWeaponAccessory") == true then
+			item:Destroy()
+		end
 	end
+	-- [MODIFIED] Clear server combat attribute
+	player:SetAttribute("EquippedWeapon", nil)
 end
 
 --- 특정 아이템을 플레이어에게 장착 (시각화)
@@ -113,13 +120,30 @@ function EquipService.equipItem(player: Player, itemId: string?)
 	isEquipping[player.UserId] = true
 	
 	local success, err = pcall(function()
-		-- 2. 기존 도구 청소
+		-- 2. 기존 도구 및 무기 액세서리 전체 청소
 		EquipService.unequipAll(player)
 		
+		-- [MODIFIED] Check for Special Combo Weapons (Avatar System)
+		local WeaponComboData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("WeaponComboData"))
+		if WeaponComboData[itemId] then
+			-- This weapon runs on the Accessory/Combo system! Set attribute and invoke AvatarService
+			player:SetAttribute("EquippedWeapon", itemId)
+			
+			-- Dynamic require to completely prevent circular dependency with InventoryService -> EquipService
+			local ServerScriptService = game:GetService("ServerScriptService")
+			local AvatarService = require(ServerScriptService.Server.Services.AvatarService)
+			
+			local itemData = DataService.getItem(itemId)
+			local finalModelName = (itemData and itemData.modelName) or itemId
+			
+			AvatarService.equipWeaponAccessory(player, finalModelName)
+			
+			return -- Early Exit: Bypass Standard Tool Spawning!
+		end
+
 		local itemData = DataService.getItem(itemId)
 		if not itemData then 
-			isEquipping[player.UserId] = nil
-			return 
+			return -- Fail silently or handled by caller
 		end
 		local itemType = itemData.type or ""
 		
