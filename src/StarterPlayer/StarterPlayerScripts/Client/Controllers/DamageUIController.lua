@@ -108,6 +108,98 @@ local function playDamageSound(position: Vector3, isCritical: boolean?)
 	Debris:AddItem(sndPart, 2)
 end
 
+--- [디렉티브 반영] 시스템 공용 기본공격 Hit 사운드 재생 (1타당 1회 정확히 동기화)
+local function playHitImpactSound(position: Vector3)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then return end
+	local soundFolder = assets:FindFirstChild("Sounds")
+	local hitFolder = soundFolder and soundFolder:FindFirstChild("Hit")
+	if not hitFolder then return end
+	
+	local soundCandidates = { "Default_Attack_Hit", "Base_Attack_Hit" }
+	local hitSndTemplate = nil
+	for _, name in ipairs(soundCandidates) do
+		hitSndTemplate = hitFolder:FindFirstChild(name)
+		if hitSndTemplate then break end
+	end
+	
+	if not hitSndTemplate then return end
+	
+	local sndPart = Instance.new("Part")
+	sndPart.Size = Vector3.one
+	sndPart.Transparency = 1
+	sndPart.Anchored = true
+	sndPart.CanCollide = false
+	sndPart.CanQuery = false
+	sndPart.CanTouch = false
+	sndPart.Position = position
+	sndPart.Parent = workspace
+	
+	local sfx = hitSndTemplate:Clone()
+	sfx.Volume = (sfx.Volume or 0.5) * 0.35 -- 타격 밸런스 최적화 볼륨 배율
+	sfx.Parent = sndPart
+	sfx:Play()
+	Debris:AddItem(sndPart, 2.0) -- 재생 종료 후 클린업
+end
+
+--- 데미지 틱용 공통 Hit VFX 생성
+local function spawnHitVFX(position: Vector3)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then return end
+	local vfxFolder = assets:FindFirstChild("VFX")
+	local hitFolder = vfxFolder and vfxFolder:FindFirstChild("Hit")
+	if not hitFolder then return end
+	
+	local candidates = { "Default_Attack_Hit", "Base_Attack_Hit" }
+	local template = nil
+	for _, name in ipairs(candidates) do
+		template = hitFolder:FindFirstChild(name)
+		if template then break end
+	end
+	
+	if not template then return end
+	
+	local vfx = template:Clone()
+	if vfx:IsA("BasePart") then
+		vfx.Position = position
+		vfx.Anchored = true
+		vfx.CanCollide = false
+		vfx.CanQuery = false
+		vfx.CanTouch = false
+		if not vfx:IsA("MeshPart") then
+			vfx.Transparency = 1
+		end
+	elseif vfx:IsA("Model") then
+		vfx:PivotTo(CFrame.new(position))
+	end
+	
+	-- 컨테이너 파트 투명도 정리
+	for _, desc in ipairs(vfx:GetDescendants()) do
+		if desc:IsA("Part") and not desc:IsA("MeshPart") then
+			desc.Transparency = 1
+		end
+	end
+	
+	vfx.Parent = workspace
+	
+	-- ParticleEmitter 방출
+	for _, desc in ipairs(vfx:GetDescendants()) do
+		if desc:IsA("ParticleEmitter") then
+			local burstCount = desc:GetAttribute("BurstCount")
+			if burstCount then
+				desc:Emit(burstCount)
+			else
+				desc.Enabled = true
+				task.delay(1.0, function()
+					if desc and desc.Parent then desc.Enabled = false end
+				end)
+			end
+		end
+	end
+	
+	Debris:AddItem(vfx, 2.0)
+end
+
 --- 데미지 텍스트 생성 및 애니메이션 (damageValue → 텍스트 크기 스케일링)
 local function spawnDamageText(position: Vector3, text: string, color: Color3, damageValue: number?, isCritical: boolean?, strokeOverride: Color3?)
 	local dmg = damageValue or 0
@@ -213,9 +305,11 @@ function DamageUIController.Init()
 			return
 		end
 		
-		-- 데미지 사운드 재생 (1타당 1회)
+		-- 데미지 사운드 및 공통 Hit VFX 재생 (데미지 틱마다 실행)
 		if data.damage and data.damage > 0 and spawnPos then
 			playDamageSound(spawnPos, data.isCritical)
+			spawnHitVFX(spawnPos)
+			playHitImpactSound(spawnPos) -- [디렉티브 반영] 데미지 틱당 정확히 1회 어택 히트 물리 타격음 출력
 		end
 		
 		-- 데미지 표시 (치명타 분기)
@@ -248,6 +342,10 @@ function DamageUIController.Init()
 		if not targetModel then return end
 		
 		local spawnPos = targetModel:GetPivot().Position
+		
+		-- 채집 타격 시에도 데미지 틱 단위로 공통 Hit VFX 생성
+		spawnHitVFX(spawnPos)
+		
 		spawnDamageText(spawnPos, dmgText, COLORS.NORMAL, dmgValue)
 	end)
 	

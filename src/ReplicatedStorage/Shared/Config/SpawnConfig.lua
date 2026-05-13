@@ -8,38 +8,95 @@ local SpawnConfig = {}
 -- Zone 정의 (min/max bounds)
 --========================================
 local ZONES = {
+	--========================================
+	-- [NEW RPG WORLD] 신규 구역 설정
+	--========================================
+	CHEONGUN = {
+		min = Vector2.new(-660, 540),
+		max = Vector2.new(-260, 910),
+		spawnPoint = Vector3.new(-327.3, 25, 626.4),
+		displayName = "청운촌",
+		subName = "靑雲村",
+		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
+	},
+	SLIME_HABITAT = {
+		min = Vector2.new(-360, 350), -- MobSpawnData.lua에 명시된 정확한 슬라임 스폰 구역 범위 반영
+		max = Vector2.new(-190, 510),
+		spawnPoint = Vector3.new(-266.5, 10, 498.7),
+		displayName = "슬라임 서식지",
+		subName = "SLIME HABITAT",
+		priority = 10,
+	},
+
+	--========================================
+	-- [LEGACY] 이전 프로젝트 구역 데이터
+	--========================================
 	GRASSLAND = {
 		min = Vector2.new(-532.6, -613.5),
 		max = Vector2.new(1019.5, 187.2),
-		spawnPoint = Vector3.new(-128, 22.9, -278), -- 초원섬 최신 스폰 지점
+		spawnPoint = Vector3.new(-128, 22.9, -278),
+		displayName = "초원섬",
+		subName = "GRASSLAND",
+		priority = 1,
+		isLegacy = true,
 	},
 	TROPICAL = {
 		min = Vector2.new(-194.6, 1390.3),
 		max = Vector2.new(1403.4, 2189.5),
-		spawnPoint = Vector3.new(264.2, 35, 1761.4), -- 열대섬 리턴 포탈 지점
-		portalEntry = Vector3.new(8.6, 20, -16.2), -- 초원섬 내 열대행 포탈 위치
+		spawnPoint = Vector3.new(264.2, 35, 1761.4),
+		portalEntry = Vector3.new(8.6, 20, -16.2),
+		displayName = "열대섬",
+		subName = "TROPICAL ISLAND",
+		priority = 1,
+		isLegacy = true,
 	},
 	DESERT = {
 		min = Vector2.new(2218.5, -706.9),
 		max = Vector2.new(3357.4, 307.3),
-		spawnPoint = Vector3.new(2694.4, 35, 56.9), -- 사막섬 리턴 포탈 지점
-		portalEntry = Vector3.new(-237, 33.3, -524), -- 초원섬 내 사막행 포탈 위치
+		spawnPoint = Vector3.new(2694.4, 35, 56.9),
+		portalEntry = Vector3.new(-237, 33.3, -524),
+		displayName = "사막섬",
+		subName = "DESERT ISLAND",
+		priority = 1,
+		isLegacy = true,
 	},
 	SNOWY = {
 		min = Vector2.new(2142.2, 1674.3),
 		max = Vector2.new(3238.5, 3548.2),
-		spawnPoint = Vector3.new(2473.5, 65, 1839.4), -- 설원섬 리턴 포탈 지점
-		portalEntry = Vector3.new(-430.0, 58, -244.1), -- 초원섬 내 설원행 포탈 위치
+		spawnPoint = Vector3.new(2473.5, 65, 1839.4),
+		portalEntry = Vector3.new(-430.0, 58, -244.1),
+		displayName = "설원섬",
+		subName = "SNOWY LAND",
+		priority = 1,
+		isLegacy = true,
 	},
 }
 
--- 신규 유저가 처음 게임에 접속했을 때 스폰될 기본 절대 좌표
-SpawnConfig.DEFAULT_START_SPAWN = ZONES.GRASSLAND.spawnPoint
+-- 신규 유저가 처음 게임에 접속했을 때 스폰될 기본 절대 좌표 (청운촌 설정)
+SpawnConfig.DEFAULT_START_SPAWN = ZONES.CHEONGUN.spawnPoint
 
 --========================================
 -- Zone별 생태계 설정
 --========================================
 local ZONE_CONFIGS = {
+	CHEONGUN = {
+		Creatures = {}, -- 안전지대: 마을 내 몬스터 없음
+		Harvests = {
+			{ id = "TREE_THIN", weight = 30 },
+			{ id = "GROUND_FIBER", weight = 80 },
+			{ id = "GROUND_BRANCH", weight = 100 },
+		},
+	},
+	SLIME_HABITAT = {
+		Creatures = {
+			{ id = "ARCHAEOPTERYX", weight = 100 }, -- 추후 슬라임 스펙 정의 시 교체
+		},
+		Harvests = {
+			{ id = "ROCK_SOFT", weight = 50 },
+			{ id = "TREE_THIN", weight = 40 },
+			{ id = "BUSH_BERRY", weight = 50 },
+		},
+	},
 	GRASSLAND = {
 		Creatures = {
 			{ id = "ARCHAEOPTERYX", weight = 100 },
@@ -96,6 +153,23 @@ local ZONE_CONFIGS = {
 }
 
 --========================================
+-- 구역 판정을 위한 정렬된 리스트 캐싱
+-- (우선순위가 높은 세부 구역을 먼저 체크하여 대구역과 오버랩 시 우선권 보장)
+--========================================
+local sortedZones = {}
+for zoneName, zone in pairs(ZONES) do
+	table.insert(sortedZones, {
+		name = zoneName,
+		min = zone.min,
+		max = zone.max,
+		priority = zone.priority or 0
+	})
+end
+table.sort(sortedZones, function(a, b)
+	return a.priority > b.priority
+end)
+
+--========================================
 -- 헬퍼 함수
 --========================================
 
@@ -130,9 +204,9 @@ function SpawnConfig.GetZoneAtPosition(position: Vector3): string?
 	
 	local x, z = position.X, position.Z
 	
-	for zoneName, zone in pairs(ZONES) do
+	for _, zone in ipairs(sortedZones) do
 		if x >= zone.min.X and x <= zone.max.X and z >= zone.min.Y and z <= zone.max.Y then
-			return zoneName
+			return zone.name
 		end
 	end
 	

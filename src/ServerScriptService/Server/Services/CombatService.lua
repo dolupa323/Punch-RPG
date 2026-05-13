@@ -969,23 +969,110 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 	
 	if targetType == "CREATURE" then
 		engageCombat(userId, targetId, true)
-		killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
-		if killed then disengageCreature(targetId) end
 		
-		if creature and creature.rootPart then
-			local creaturePos = creature.rootPart.Position
-			if not killed then
-				local knockDir = (creaturePos - hrp.Position)
-				knockDir = Vector3.new(knockDir.X, 0, knockDir.Z).Unit
-				creature.rootPart.AssemblyLinearVelocity = knockDir * (Balance.CREATURE_KNOCKBACK_FORCE or 12) + Vector3.new(0, creature.rootPart.AssemblyLinearVelocity.Y * 0.8, 0)
-				task.delay(0.08, function()
-					if creature and creature.rootPart then
-						creature.rootPart.AssemblyLinearVelocity = Vector3.new(0, creature.rootPart.AssemblyLinearVelocity.Y, 0)
-					end
-				end)
+		if not isBowShot then
+			-- [디렉티브 반영] 근접 평타 다단히트 분할 조율 (1타: 2대, 2타: 1대, 3타: 1대)
+			local comboIndex = attackMeta and attackMeta.combo or 1
+			local numHits = 1
+			if comboIndex == 1 then
+				numHits = 2
+			elseif comboIndex == 2 or comboIndex == 3 then
+				numHits = 1
+			else
+				numHits = 1
 			end
-			if NetController then
-				NetController.FireAllClients("Combat.Creature.Hit", { instanceId = targetId, hitPosition = { x = creaturePos.X, y = creaturePos.Y, z = creaturePos.Z }, damage = hpDamage, killed = killed })
+			
+			local baseHP = math.max(1, math.floor(hpDamage / numHits))
+			local lastHP = math.max(1, hpDamage - (baseHP * (numHits - 1)))
+			local baseTorpor = math.max(1, math.floor(torporDamage / numHits))
+			local lastTorpor = math.max(1, torporDamage - (baseTorpor * (numHits - 1)))
+			
+			task.spawn(function()
+				for i = 1, numHits do
+					local runtime = CreatureService.getCreatureRuntime(targetId)
+					if not runtime or not runtime.model or not runtime.rootPart or (runtime.currentHealth or 0) <= 0 then break end
+					
+					local curHP = (i == numHits) and lastHP or baseHP
+					local curTorpor = (i == numHits) and lastTorpor or baseTorpor
+					local isCurCrit = (i == 1) and isCritical or false
+					
+					local stepKilled, stepDrop = CreatureService.processAttack(targetId, curHP, curTorpor, player)
+					local creaturePos = runtime.rootPart.Position
+					
+					if i == 1 then
+						-- 넉백은 첫 타격시에만 자연스럽게 적용
+						if not stepKilled then
+							local knockDir = (creaturePos - hrp.Position)
+							knockDir = Vector3.new(knockDir.X, 0, knockDir.Z).Unit
+							runtime.rootPart.AssemblyLinearVelocity = knockDir * (Balance.CREATURE_KNOCKBACK_FORCE or 12) + Vector3.new(0, runtime.rootPart.AssemblyLinearVelocity.Y * 0.8, 0)
+							task.delay(0.08, function()
+								if runtime and runtime.rootPart then
+									runtime.rootPart.AssemblyLinearVelocity = Vector3.new(0, runtime.rootPart.AssemblyLinearVelocity.Y, 0)
+								end
+							end)
+						end
+					end
+					
+					-- 매 타격 틱마다 이펙트 및 UI 정보 브로드캐스트 발송!
+					if NetController then
+						NetController.FireAllClients("Combat.Creature.Hit", { 
+							instanceId = targetId, 
+							hitPosition = { x = creaturePos.X, y = creaturePos.Y, z = creaturePos.Z }, 
+							damage = curHP, 
+							killed = stepKilled 
+						})
+						
+						NetController.FireClient(player, "Combat.Hit.Result", {
+							damage = curHP,
+							torporDamage = curTorpor,
+							killed = stepKilled,
+							targetId = targetId,
+							bowShot = false,
+							isCritical = isCurCrit,
+							currentHP = runtime.currentHealth or 0,
+							maxHP = runtime.maxHealth or 100,
+						})
+					end
+					
+					if stepKilled then
+						disengageCreature(targetId)
+						if DebuffService then DebuffService.applyDebuff(userId, "BLOOD_SMELL") end
+						if questCallback and runtime.data then
+							questCallback(userId, runtime.data.id or runtime.data.creatureId)
+						end
+						break
+					end
+					
+					if i < numHits then
+						task.wait(0.06) -- 60ms 초고속 타격 주기
+					end
+				end
+			end)
+		else
+			-- 원거리(Bow) 공격은 투사체 물리성에 기반하여 기존 단일 히트 타격 유지!
+			killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
+			if killed then disengageCreature(targetId) end
+			
+			if creature and creature.rootPart then
+				local creaturePos = creature.rootPart.Position
+				if NetController then
+					NetController.FireAllClients("Combat.Creature.Hit", { instanceId = targetId, hitPosition = { x = creaturePos.X, y = creaturePos.Y, z = creaturePos.Z }, damage = hpDamage, killed = killed })
+					NetController.FireClient(player, "Combat.Hit.Result", {
+						damage = hpDamage,
+						torporDamage = torporDamage,
+						killed = killed,
+						targetId = targetId,
+						bowShot = true,
+						chargeRatio = bowChargeRatio,
+						isCritical = isCritical,
+						currentHP = creature.currentHealth or 0,
+						maxHP = creature.maxHealth or (creature.data and creature.data.maxHealth) or 100,
+					})
+				end
+			end
+			if killed and DebuffService then DebuffService.applyDebuff(userId, "BLOOD_SMELL") end
+			if killed and questCallback and creature and creature.data then
+				questCallback(userId, creature.data.id or creature.data.creatureId)
 			end
 		end
 	elseif targetType == "PLAYER" then
@@ -1012,28 +1099,6 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + (humanoid.MaxHealth * (skillBonuses.HEAL_ON_HIT_PCT or 0)))
 			end
 		end
-	end
-	
-	if killed and targetType == "CREATURE" and DebuffService then
-		DebuffService.applyDebuff(userId, "BLOOD_SMELL")
-	end
-	
-	if killed and targetType == "CREATURE" and questCallback and creature and creature.data then
-		questCallback(userId, creature.data.id or creature.data.creatureId)
-	end
-	
-	if NetController then
-		NetController.FireClient(player, "Combat.Hit.Result", {
-			damage = hpDamage,
-			torporDamage = torporDamage,
-			killed = killed,
-			targetId = targetId,
-			bowShot = isBowShot,
-			chargeRatio = bowChargeRatio,
-			isCritical = isCritical,
-			currentHP = creature and creature.currentHealth or 0,
-			maxHP = creature and (creature.maxHealth or (creature.data and creature.data.maxHealth)) or 100,
-		})
 	end
 	
 	return true, nil, { damage = hpDamage, torporDamage = torporDamage, killed = killed }

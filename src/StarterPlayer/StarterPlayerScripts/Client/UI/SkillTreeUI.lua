@@ -106,18 +106,6 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	end)
 
 	
-	-- Header Label
-	Utils.mkLabel({
-		text = "RUNE SYSTEM",
-		size = UDim2.fromScale(0.6, 0.08), -- Scaled size
-		pos = UDim2.fromScale(0.5, 0.07),
-		anchor = Vector2.new(0.5, 0),
-		ts = 28,
-		font = F.TITLE,
-		color = Color3.new(1, 1, 1), -- White text
-		parent = main,
-		z = 10
-	})
 	
 	-- Close Button (Scaled)
 	Utils.mkBtn({

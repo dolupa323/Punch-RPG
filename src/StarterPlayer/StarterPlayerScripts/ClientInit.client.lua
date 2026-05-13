@@ -468,6 +468,28 @@ if success then
 	-- InputManager 초기화 (키 바인딩)
 	InputManager.Init()
 	
+	-- [추가] 백그라운드 시각/음향 전투 에셋 프리로딩 (VFX/Sounds PreloadAsync)
+	task.spawn(function()
+		local ContentProvider = game:GetService("ContentProvider")
+		local assets = ReplicatedStorage:FindFirstChild("Assets")
+		if not assets then return end
+		
+		local vfx = assets:FindFirstChild("VFX")
+		local sounds = assets:FindFirstChild("Sounds")
+		local preloadTargets = {}
+		
+		if vfx then table.insert(preloadTargets, vfx) end
+		if sounds then table.insert(preloadTargets, sounds) end
+		
+		if #preloadTargets > 0 then
+			local startTime = os.clock()
+			pcall(function()
+				ContentProvider:PreloadAsync(preloadTargets)
+			end)
+			print(string.format("[Preload] Combat VFX & Sounds Preloaded in %.3f seconds!", os.clock() - startTime))
+		end
+	end)
+	
 	-- WorldDropController 초기화 (이벤트 소비자)
 	local WorldDropController = require(Controllers.WorldDropController)
 	WorldDropController.Init()
@@ -572,6 +594,15 @@ if success then
 	-- TotemController 초기화 (거점 토템 유지비/범위 프리뷰)
 	local TotemController = require(Controllers.TotemController)
 	TotemController.Init()
+	
+	-- [추가] ZoneDiscoveryController 초기화 (시작마을 등 지역 발견 연출)
+	local zoneDiscoveryModule = Controllers:WaitForChild("ZoneDiscoveryController", 5)
+	if zoneDiscoveryModule then
+		local ZoneDiscoveryController = require(zoneDiscoveryModule)
+		ZoneDiscoveryController.Init()
+	else
+		warn("⚠️ [Rojo Sync Alert] ZoneDiscoveryController.lua가 아직 스튜디오와 동기화되지 않았습니다! 로블록스 스튜디오의 Rojo 플러그인 'Disconnect -> Connect'를 한 번 실행해 주시거나, 스크립트를 다시 저장해 주세요!")
+	end
 	
 	-- MovementController 스태미나 → UIManager 연동
 	MovementController.onStaminaChanged(function(current, max)

@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
@@ -38,6 +39,222 @@ local comboResetTime = 1.0  -- 1초 내 다음 공격 안하면 콤보 리셋
 -- 애니메이션 트랙
 local currentAttackTrack = nil
 local currentBowDrawTrack = nil
+
+--========================================
+-- [VFX] 속성 기본 공격 이펙트 유틸리티
+--========================================
+local function getElementVFXFolder(category: string) -- "Cast" or "Hit"
+	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
+	if not assets then 
+		warn("[VFX ERROR] 'Assets' folder not found in ReplicatedStorage!")
+		return nil 
+	end
+	local vfxRoot = assets:FindFirstChild("VFX")
+	if not vfxRoot then 
+		warn("[VFX ERROR] 'VFX' folder not found in ReplicatedStorage.Assets!")
+		return nil 
+	end
+	local sub = vfxRoot:FindFirstChild(category)
+	if not sub then
+		warn(string.format("[VFX ERROR] '%s' subfolder not found in ReplicatedStorage.Assets.VFX!", category))
+	end
+	return sub
+end
+
+local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: number, parentPart: BasePart?, scaleFactor: number?, moveForwardDist: number?)
+	if not template then return end
+	local vfx = template:Clone()
+	
+	scaleFactor = scaleFactor or 1.0
+	if scaleFactor ~= 1.0 then
+		-- 1. 모델 또는 파트 물리 스케일링
+		if vfx:IsA("Model") then
+			pcall(function() vfx:ScaleTo(scaleFactor) end)
+		elseif vfx:IsA("BasePart") then
+			vfx.Size = vfx.Size * scaleFactor
+		end
+		
+		-- 2. 내부 파티클 및 어태치먼트 비율 보정
+		for _, desc in ipairs(vfx:GetDescendants()) do
+			if desc:IsA("ParticleEmitter") then
+				local originalSeq = desc.Size
+				local keypoints = originalSeq.Keypoints
+				local newKeypoints = {}
+				for _, kp in ipairs(keypoints) do
+					table.insert(newKeypoints, NumberSequenceKeypoint.new(
+						kp.Time, 
+						kp.Value * scaleFactor, 
+						kp.Envelope * scaleFactor
+					))
+				end
+				desc.Size = NumberSequence.new(newKeypoints)
+				desc.Speed = NumberRange.new(desc.Speed.Min * scaleFactor, desc.Speed.Max * scaleFactor)
+			elseif desc:IsA("Attachment") and not vfx:IsA("Model") then
+				desc.Position = desc.Position * scaleFactor
+			end
+		end
+	end
+	
+	-- [디렉티브 반영] 앞으로 투사(Tween)해야하는지 여부 판별
+	local shouldTweenForward = (moveForwardDist and moveForwardDist > 0)
+	
+	if vfx:IsA("BasePart") then
+		vfx.CFrame = cframe
+		-- 앞으로 뻗어나갈 때는 물리 낙하 방지를 위해 무조건 고정(Anchored) 처리
+		vfx.Anchored = (parentPart == nil) or shouldTweenForward
+		vfx.CanCollide = false
+		vfx.CanQuery = false
+		vfx.CanTouch = false
+		
+		-- 날아가는 투사체 형태가 아닐 때만 원래대로 캐릭터 본드 고정(Weld)
+		if parentPart and not shouldTweenForward then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = vfx
+			weld.Part1 = parentPart
+			weld.Parent = vfx
+		end
+		-- MeshPart가 아닌 단순 컨테이너 파트는 투명화
+		if not vfx:IsA("MeshPart") then
+			vfx.Transparency = 1
+		end
+	elseif vfx:IsA("Model") then
+		vfx:PivotTo(cframe)
+		if parentPart and not shouldTweenForward then
+			local root = vfx.PrimaryPart or vfx:FindFirstChildWhichIsA("BasePart")
+			if root then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = root
+				weld.Part1 = parentPart
+				weld.Parent = root
+				-- 웰드 시 물리 거동을 위해 언앵커
+				for _, d in ipairs(vfx:GetDescendants()) do
+					if d:IsA("BasePart") then d.Anchored = false end
+				end
+			end
+		elseif shouldTweenForward then
+			-- 모델 투사체 연출 시 낙하 방지를 위해 전부 고정
+			for _, d in ipairs(vfx:GetDescendants()) do
+				if d:IsA("BasePart") then d.Anchored = true end
+			end
+		end
+	end
+
+	-- 하위 파트 투명도 정리
+	for _, desc in ipairs(vfx:GetDescendants()) do
+		if desc:IsA("Part") and not desc:IsA("MeshPart") then
+			desc.Transparency = 1
+		end
+	end
+
+	-- [긴급 교정 디렉티브 반영] 에셋 자체에 내포되어있던 로컬 오프셋(Attachment Offset 또는 Pivot Offset) 강제 영점(Zeroing) 보정!
+	-- 아티스트가 로블록스 스튜디오에서 파티클 위치나 피벗을 임의로 밀어서 제작했더라도, 강제로 몸통 중심으로 결속시킵니다.
+	if shouldTweenForward then
+		-- 1. 어태치먼트 오프셋 제거 (Z축 강제 정렬)
+		for _, desc in ipairs(vfx:GetDescendants()) do
+			if desc:IsA("Attachment") then
+				-- 기존 X(가로), Y(높이) 레이아웃만 보존하고 Z(전후방) 오프셋을 0으로 밀어버려 완벽한 몸통 생성 강제!
+				desc.Position = Vector3.new(desc.Position.X, desc.Position.Y, 0)
+			end
+		end
+		
+		-- 2. 모델 피벗 정렬 (만약 모델 자체가 기하학적으로 중심에서 밀려있는 경우)
+		if vfx:IsA("Model") then
+			pcall(function()
+				local currentBoundingCF, _ = vfx:GetBoundingBox()
+				-- 모델의 피벗을 내부 구성물들의 기하학적 정중앙으로 강제 귀속
+				vfx.WorldPivot = currentBoundingCF
+				-- 바뀐 중앙 피벗 기준으로 몸통 중심(cframe)에 재배치
+				vfx:PivotTo(cframe)
+			end)
+		end
+	end
+
+	vfx.Parent = workspace
+
+	-- [디렉티브 반영] 1단계: 파티클 이미터를 즉시 가동하여 '몸통 고정 지점'에서 무조건 첫 출력을 완료합니다.
+	-- 파트가 트윈으로 전진을 시작하기 전에, 몸통 자리에서 먼저 번쩍이거나 첫 이미트가 발생하도록 보장합니다.
+	for _, desc in ipairs(vfx:GetDescendants()) do
+		if desc:IsA("ParticleEmitter") then
+			local burstCount = desc:GetAttribute("BurstCount")
+			if burstCount then
+				desc:Emit(burstCount)
+			else
+				-- 연속 방출형일 경우에도 스폰 순간 첫 발을 강제 이미트(Emit)하여 몸체 빈 공간 제거!
+				pcall(function() desc:Emit(math.max(1, math.floor(desc.Rate * 0.1))) end)
+				desc.Enabled = true
+				task.delay(lifetime * 0.5, function()
+					if desc and desc.Parent then desc.Enabled = false end
+				end)
+			end
+		end
+	end
+	
+	-- [디렉티브 반영] 2단계: 0.06초(약 4프레임) 간 몸체 자리에 확고한 앵커링을 통해 시각적 각인을 준 후 전방 고속 비행을 개시합니다.
+	if shouldTweenForward then
+		task.delay(0.06, function()
+			if not vfx or not vfx.Parent then return end
+			
+			local targetCF = cframe * CFrame.new(0, 0, -moveForwardDist)
+			local tweenDur = math.min(lifetime * 0.65, 0.45)
+			local info = TweenInfo.new(tweenDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			
+			if vfx:IsA("BasePart") then
+				TweenService:Create(vfx, info, {CFrame = targetCF}):Play()
+			elseif vfx:IsA("Model") then
+				-- 모델 최적화 피벗 보간을 위해 CFrameValue 보간법 활용
+				local val = Instance.new("CFrameValue")
+				val.Value = cframe
+				val.Changed:Connect(function(currentCF)
+					if vfx and vfx.Parent then
+						vfx:PivotTo(currentCF)
+					end
+				end)
+				local t = TweenService:Create(val, info, {Value = targetCF})
+				t:Play()
+				t.Completed:Once(function()
+					val:Destroy()
+				end)
+			end
+		end)
+	end
+	
+	Debris:AddItem(vfx, lifetime)
+end
+
+--========================================
+-- [Sound] 기본 공격 사운드 유틸리티
+--========================================
+local function getCombatSoundFolder(category: string) -- "Cast" or "Hit"
+	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
+	if not assets then 
+		warn("[SOUND ERROR] 'Assets' folder not found in ReplicatedStorage!")
+		return nil 
+	end
+	local soundRoot = assets:FindFirstChild("Sounds")
+	if not soundRoot then 
+		warn("[SOUND ERROR] 'Sounds' folder not found in ReplicatedStorage.Assets!")
+		return nil 
+	end
+	local sub = soundRoot:FindFirstChild(category)
+	if not sub then
+		warn(string.format("[SOUND ERROR] '%s' subfolder not found in ReplicatedStorage.Assets.Sounds!", category))
+	end
+	return sub
+end
+
+local SOUND_VOLUME_SCALE = 0.3
+local function playCombatSound(template: Sound, parent: BasePart?)
+	if not template or not parent then return end
+	local sfx = template:Clone()
+	sfx.Volume = (sfx.Volume or 0.5) * SOUND_VOLUME_SCALE
+	sfx.Parent = parent
+	sfx:Play()
+	sfx.Ended:Once(function()
+		if sfx and sfx.Parent then
+			sfx:Destroy()
+		end
+	end)
+end
 
 local function flashBlockHit(blockId: string, newHealth: number?)
 	local blocksFolder = workspace:FindFirstChild("BlockStructures")
@@ -149,7 +366,6 @@ local function getDominantAxis(size: Vector3): Vector3
 	end
 	return Vector3.new(0, 0, 1)
 end
-
 --========================================
 -- Internal Functions
 --========================================
@@ -893,7 +1109,63 @@ playAttackAnimation = function(isHit: boolean)
 		track.Looped = false
 		currentAttackTrack = track
 	end
-	
+
+	-- [Sound] 기본 공격 Cast 사운드 재생 (공기 가르기)
+	local castSoundFolder = getCombatSoundFolder("Cast")
+	if castSoundFolder then
+		local soundName = string.format("Default_Attack_Cast_%d", currentComboIndex)
+		local template = castSoundFolder:FindFirstChild(soundName)
+		if template then
+			local hrp = character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				playCombatSound(template, hrp)
+			end
+		else
+			warn(string.format("[SOUND INFO] '%s' sound not found in Assets.Sounds.Cast (Skipping)", soundName))
+		end
+	end
+
+	-- [VFX] 기본 공격 Cast VFX 재생 (스윙 즉시 캐릭터 위치 생성)
+	local castVFXFolder = getElementVFXFolder("Cast")
+	if castVFXFolder then
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local targetCFrame = hrp.CFrame * CFrame.new(0, 0, 0.2) -- [디렉티브 반영] 완벽하게 캐릭터 몸통 중심(Torso) 안에서 생성되어 뿜어짐
+			
+			-- [디렉티브 반영] 속성이 선택되어 있다면 '속성 CAST'만 출력, 아무 속성도 없을 때(디폴트)만 '디폴트 CAST' 출력!
+			local currentElement = player and player:GetAttribute("Element")
+			local hasElement = currentElement and currentElement ~= "" and currentElement ~= "None"
+			
+			if hasElement then
+				-- 1. 속성 레이어 전용 출력
+				local vfxName = string.format("%s_Attack_Cast_%d", currentElement, currentComboIndex)
+				local elementTemplate = castVFXFolder:FindFirstChild(vfxName)
+				if elementTemplate then
+					-- 완벽히 속성 파티클 단독으로 9.5스터드 전방 고속 비행!
+					spawnCombatVFX(elementTemplate, targetCFrame, 2.0, hrp, 1.0, 9.5)
+				else
+					warn(string.format("[VFX INFO] '%s' not found in Assets.VFX.Cast (Skipping element cast)", vfxName))
+				end
+			else
+				-- 2. 디폴트 레이어 전용 출력 (무속성 상태)
+				local baseCandidates = {
+					string.format("Default_Attack_Cast_%d", currentComboIndex),
+					string.format("Base_Attack_Cast_%d", currentComboIndex),
+				}
+				local baseTemplate = nil
+				for _, candidate in ipairs(baseCandidates) do
+					baseTemplate = castVFXFolder:FindFirstChild(candidate)
+					if baseTemplate then break end
+				end
+				if baseTemplate then
+					spawnCombatVFX(baseTemplate, targetCFrame, 2.0, hrp, 1.0, 9.5)
+				else
+					warn(string.format("[VFX INFO] '%s' not found in Assets.VFX.Cast (Skipping base cast)", string.format("Default_Attack_Cast_%d", currentComboIndex)))
+				end
+			end
+		end
+	end
+
 	-- 콤보 증가 (다음 공격시 다른 모션)
 	currentComboIndex = currentComboIndex + 1
 	if currentComboIndex > #animNames then
@@ -1365,14 +1637,14 @@ function CombatController.attack(attackMeta)
 		return
 	end
 	
-	-- 2. 대상 검색
+	-- 2. 대상 검색 및 유효 타격 확인
 	local targetModel, targetPos, targetId, targetType = findTarget()
+	local isValidHit = false
 	
 	if targetModel and targetPos and targetId then
 		local distance = getDistanceToTarget(targetPos)
 		
-		-- 도구별 사거리 결정 (서버와 싱크)
-		-- 도구별 사거리 결정 (findTarget과 동일하게)
+		-- 도구별 사거리 결정
 		local toolType = getEquippedToolType()
 		local reach = Balance.REACH_BAREHAND or 10
 		if toolType == "SWORD" then
@@ -1387,53 +1659,55 @@ function CombatController.attack(attackMeta)
 		end
 		
 		local maxRange = reach + 4 -- 서버 오차 보정용 여유분
-		
-		-- 최종 공격 범위 체크
-		if distance > maxRange then
-			-- 범위 밖 - 공기 가르기 (빈 스윙)
-			playAttackAnimation(false)
-			return
+		if distance <= maxRange then
+			isValidHit = true
 		end
-		
-		-- [FIX] 타격 타이밍(Windup) 보정: 애니메이션 피격 시점에 맞춰 Request 전송
-		playAttackAnimation(true)
-		
-		local toolType = getEquippedToolType() -- 도구 타입 (windup 계산용)
-		local windupTime = 0.2 -- 기본 0.2초 딜레이
-		if itm and itm.windup then
-			windupTime = itm.windup
-		elseif toolType == "SWORD" then
-			windupTime = 0.2
-		elseif toolType == "CLUB" or toolType == "AXE" then
-			windupTime = 0.4
-		end
-		
-		-- 애니메이션 트랙에서 직접 'Hit' 마커를 기다리거나, 타임아웃 딜레이 사용
-		task.spawn(function()
-			local hitTriggered = false
-			local conn
-			
-			if currentAttackTrack then
-				conn = currentAttackTrack:GetMarkerReachedSignal("Hit"):Connect(function()
-					hitTriggered = true
-					if conn then conn:Disconnect(); conn = nil end
-				end)
-			end
-			
-			-- 마커가 없거나 안 불릴 경우를 대비해 windup만큼 대기 (또는 마커 불릴 때까지 대기)
-			local startWait = tick()
-			while tick() - startWait < windupTime and not hitTriggered do
-				task.wait()
-			end
-			
-			if conn then conn:Disconnect() end
+	end
 
-			-- [FX] 타격 피드백 (카메라 쉐이크 & Highlight 플래시)
-			playHitShake(0.5) -- 더욱 강한 쉐이크 (기존 0.3)
-			-- ★ PivotTo 제거: 서버 소유(SetNetworkOwner(nil)) 크리처를 클라이언트에서
-			-- 움직이면 서버 물리 롤백으로 극심한 떨림(Rubberbanding)이 발생하므로
-			-- Highlight 플래시로 대체하여 물리 간섭 없이 시각적 피드백 제공
-			if ACTION_EFFECTS_ENABLED and targetType ~= "structure" and targetModel then
+	-- 3. 애니메이션 및 콤보 상태 업데이트
+	local attackCombo = currentComboIndex -- 현재 발동되는 콤보 인덱스 보존
+	playAttackAnimation(isValidHit)
+
+	-- 4. 공통 타격감 타이밍 처리 (VFX, 쉐이크, 서버 전송)
+	local toolType = getEquippedToolType()
+	local windupTime = 0.2 -- 기본 0.2초 딜레이
+	if itm and itm.windup then
+		windupTime = itm.windup
+	elseif toolType == "SWORD" then
+		windupTime = 0.2
+	elseif toolType == "CLUB" or toolType == "AXE" then
+		windupTime = 0.4
+	end
+
+	task.spawn(function()
+		local hitTriggered = false
+		local conn
+		
+		if currentAttackTrack then
+			conn = currentAttackTrack:GetMarkerReachedSignal("Hit"):Connect(function()
+				hitTriggered = true
+				if conn then conn:Disconnect(); conn = nil end
+			end)
+		end
+		
+		-- 마커 대기 또는 windup 타임아웃 대기
+		local startWait = tick()
+		while tick() - startWait < windupTime and not hitTriggered do
+			task.wait()
+		end
+		
+		if conn then conn:Disconnect() end
+
+		-- 5. 타격 피드백 (카메라 쉐이크 & VFX)
+		-- 타겟 유무와 관계없이 항상 카메라 쉐이크 재생
+		playHitShake(0.5) 
+
+		-- [시스템화 반영] 서버 데미지 틱 단위 재생을 위해, 기존 클라이언트 애니메이션 이벤트 단일 사운드/VFX 로직 삭제 및 DamageUIController로 대통합.
+
+		-- 6. 타겟 전용 처리 (하이라이트 플래시 & 서버 패킷 전송)
+		if isValidHit and targetModel and targetId then
+			-- ★ Highlight 플래시
+			if ACTION_EFFECTS_ENABLED and targetType ~= "structure" then
 				task.spawn(function()
 					local highlight = Instance.new("Highlight")
 					highlight.Name = "HitFlash"
@@ -1449,13 +1723,12 @@ function CombatController.attack(attackMeta)
 				end)
 			end
 
-			if targetType == "resource" then
-				-- 채집은 R키 UI로 전환됨 — 좌클릭은 무시
-			else
-				-- 크리처 공격 처리
+			-- 서버 데미지 처리 전송 (리소스 채집이 아닐 경우)
+			if targetType ~= "resource" then
 				local ok, errorOrData = NetClient.Request("Combat.Hit.Request", {
 					targetId = targetId,
 					toolSlot = UIManager.getSelectedSlot(),
+					combo = currentComboIndex, -- [디렉티브 반영] 서버 다단히트 수 제어용 콤보 인덱스 전달
 				})
 				
 				if not ok then
@@ -1466,11 +1739,8 @@ function CombatController.attack(attackMeta)
 					end
 				end
 			end
-		end)
-	else
-		-- 대상 없이 빈 공격 (공기 스윙)
-		playAttackAnimation(false)
-	end
+		end
+	end)
 end
 
 --========================================

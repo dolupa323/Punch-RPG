@@ -538,20 +538,52 @@ function AvatarService.Init()
 					end
 				end
 
-				local dmg = math.max(1, math.floor(finalDamage))
-				print(string.format("[AvatarService] Combat Hit: Player %s -> %s | Dmg=%d | Crit=%s", player.Name, targetModel.Name, dmg, tostring(isCritical)))
+				local dmgTotal = math.max(1, math.floor(finalDamage))
+				print(string.format("[AvatarService] Combat Hit Request (Multi-Hit Activated): Player %s -> %s | TotalDmg=%d | Crit=%s", player.Name, targetModel.Name, dmgTotal, tostring(isCritical)))
 
-				local hum = targetModel:FindFirstChild("Humanoid")
-				hum:TakeDamage(dmg)
+				-- [디렉티브 반영] 기본 공격 다단히트 배분 조율 (1타: 2대, 2타: 1대, 3타: 1대)
+				local comboIndex = data and data.combo or 1
+				local numHits = 1
+				if comboIndex == 1 then
+					numHits = 2
+				elseif comboIndex == 2 or comboIndex == 3 then
+					numHits = 1
+				else
+					numHits = 1 -- Fallback
+				end
+				
+				local baseDmg = math.max(1, math.floor(dmgTotal / numHits))
+				local lastDmg = math.max(1, dmgTotal - (baseDmg * (numHits - 1)))
 
-				-- 타격 성공 VFX 및 대미지 표기 정보 모든 클라이언트 전파 브로드캐스트
-				vfxRemote:FireAllClients({
-					target = targetModel,
-					element = element or "None",
-					position = targetHrp.Position,
-					damage = dmg,
-					isCritical = isCritical
-				})
+				task.spawn(function()
+					local hum = targetModel:FindFirstChild("Humanoid")
+					for i = 1, numHits do
+						if not targetModel or not hum or hum.Health <= 0 then break end
+						
+						local curDmg = (i == numHits) and lastDmg or baseDmg
+						-- 시각적 명시성을 위해 1타 시점에만 Critical 판정을 표시
+						local isCurCrit = (i == 1) and isCritical or false 
+						
+						hum:TakeDamage(curDmg)
+						
+						-- 각 틱마다 VFX/대미지 숫자를 뿌려주어 타격 쾌감 극대화
+						pcall(function()
+							-- 타격 좌표에 약간의 난수를 부여해 다단히트 숫자가 겹치지 않고 예쁘게 흩뿌려지도록 처리
+							local hitPos = targetHrp.Position + Vector3.new((math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5)
+							vfxRemote:FireAllClients({
+								target = targetModel,
+								element = element or "None",
+								position = hitPos,
+								damage = curDmg,
+								isCritical = isCurCrit
+							})
+						end)
+						
+						if i < numHits then
+							task.wait(0.06) -- 초고속 타다닥 타격 딜레이 (60ms)
+						end
+					end
+				end)
 			end
 		end
 	end)
