@@ -154,72 +154,8 @@ local function setSprintState(shouldSprint: boolean)
 	end
 end
 
-local function resetAutoSprintTracking()
-	autoMoveHoldTime = 0
-	autoMoveDirection = nil
-end
-
 local function updateAutoSprint(dt: number)
-	local shouldSprint = false
-
-	if isDodging or currentStamina < Balance.SPRINT_MIN_STAMINA then
-		resetAutoSprintTracking()
-		setSprintState(false)
-		return
-	end
-
-	local character = player.Character
-	local humanoid = character and character:FindFirstChild("Humanoid")
-	if not humanoid then
-		resetAutoSprintTracking()
-		setSprintState(false)
-		return
-	end
-
-	local state = humanoid:GetState()
-	if state == Enum.HumanoidStateType.Jumping
-		or state == Enum.HumanoidStateType.Freefall
-		or state == Enum.HumanoidStateType.FallingDown
-		or state == Enum.HumanoidStateType.Ragdoll
-		or state == Enum.HumanoidStateType.Climbing
-		or state == Enum.HumanoidStateType.Swimming
-		or state == Enum.HumanoidStateType.Seated then
-		resetAutoSprintTracking()
-		setSprintState(false)
-		return
-	end
-
-	if InputManager.isUIOpen() then
-		resetAutoSprintTracking()
-		setSprintState(false)
-		return
-	end
-
-	local moveDir = humanoid.MoveDirection
-	if moveDir.Magnitude < AUTO_SPRINT_MIN_MOVE then
-		resetAutoSprintTracking()
-		setSprintState(false)
-		return
-	end
-
-	local currentDir = moveDir.Unit
-	if autoMoveDirection then
-		local dot = currentDir:Dot(autoMoveDirection)
-		if dot < AUTO_SPRINT_DIRECTION_DOT then
-			resetAutoSprintTracking()
-			autoMoveDirection = currentDir
-			setSprintState(false)
-			return
-		end
-		autoMoveHoldTime += dt
-		autoMoveDirection = ((autoMoveDirection * 0.7) + (currentDir * 0.3)).Unit
-	else
-		autoMoveDirection = currentDir
-		autoMoveHoldTime = 0
-	end
-
-	shouldSprint = (autoMoveHoldTime >= AUTO_SPRINT_HOLD_TIME) or isShiftDown
-	setSprintState(shouldSprint)
+	-- [래거시 삭제됨] 자동 달리기 로직 삭제
 end
 
 --========================================
@@ -227,84 +163,15 @@ end
 --========================================
 
 local function performDodge()
-	local now = tick()
-	
-	-- 쿨다운 체크 (클라이언트 사전 검사)
-	if now - lastDodgeTime < Balance.DODGE_COOLDOWN then
-		return
-	end
-	
-	-- 스태미나 체크 (클라이언트 사전 검사)
-	if currentStamina < Balance.DODGE_STAMINA_COST then
-		return
-	end
-	
-	-- [FIX] 공중 구르기 방지 (클라이언트 사전 검사)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChild("Humanoid")
-	if not humanoid or humanoid.FloorMaterial == Enum.Material.Air then
-		return
-	end
-
-	-- 이미 구르기 중
-	if isDodging then
-		return
-	end
-	
-	-- UI 열림 상태면 불가
-	if InputManager.isUIOpen() then
-		return
-	end
-	
-	-- 방향 계산
-	local direction = getMoveDirection()
-	
-	-- 서버에 구르기 요청
-	isDodging = true -- 즉시 상태 변경 (스프린트 중단용)
-	resetAutoSprintTracking()
-	setSprintState(false)
-	
-	task.spawn(function()
-		local success, result = NetClient.Request("Movement.Dodge", { direction = direction })
-		
-		if success and result and result.success then
-			lastDodgeTime = now
-			-- 클라이언트 측 애니메이션 즉시 재생
-			playDodgeAnimation()
-			
-			-- 구르기 종료
-			task.delay(Balance.DODGE_DURATION or 0.5, function()
-				isDodging = false
-			end)
-		else
-			lastDodgeTime = 0 -- [FIX] 실패 시 쿨다운 리셋하여 서버와 동기화
-			isDodging = false -- 실패 시 복구
-		end
-	end)
+	-- [래거시 삭제됨] 구르기는 이제 Platformer의 Roll.lua / Dash.lua에서 처리합니다.
 end
 
---========================================
--- Input Handling
---========================================
-
 local function onInputBegan(input: InputObject, gameProcessed: boolean)
-	if gameProcessed then return end
-	
-	-- UI 열림 상태면 무시
-	if InputManager.isUIOpen() then return end
-	
-	-- LeftControl 또는 Q 키: 대시(구르기)
-	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.Q then
-		performDodge()
-	elseif input.KeyCode == Enum.KeyCode.LeftShift then
-		isShiftDown = true
-	end
+	-- [래거시 삭제됨]
 end
 
 local function onInputEnded(input: InputObject, _gameProcessed: boolean)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
-		isShiftDown = false
-	end
+	-- [래거시 삭제됨]
 end
 
 
@@ -338,21 +205,10 @@ function MovementController.Init()
 		return
 	end
 	
-	-- 입력 연결
-	UserInputService.InputBegan:Connect(onInputBegan)
-	UserInputService.InputEnded:Connect(onInputEnded)
+	-- [래거시 삭제됨] 입력 연결 및 자동가속루프 비활성화
 	
-	-- 서버 이벤트 리스너
+	-- 스태미나 UI 업데이트를 위해 서버 이벤트 리스너는 유지
 	NetClient.On("Stamina.Update", onStaminaUpdate)
-	NetClient.On("Movement.DodgeStarted", onDodgeStarted)
-	
-	-- 키 바인딩 안내 추가
-	InputManager.bindKey(Enum.KeyCode.LeftControl, "Dodge", performDodge)
-	
-	-- 프레임 업데이트 (직진 유지 기반 자동 가속)
-	RunService.Heartbeat:Connect(function(dt)
-		updateAutoSprint(dt)
-	end)
 	
 	-- 초기 스태미나 요청
 	task.spawn(function()

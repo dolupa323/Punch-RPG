@@ -26,87 +26,15 @@ local function randomChoice(tbl)
 	return tbl[math.random(1, #tbl)]
 end
 
---- 선사시대 스타일 적용
-local function applyPrehistoricStyle(player, character)
+--- 물리 설정 및 체력 재생 적용 (외형 래거시 제거)
+local function applyCharacterPhysics(player, character)
 	-- 한 프레임 양보: 캐릭터가 Workspace에 완전히 parent된 후 작업
 	task.wait()
 
 	local humanoid = character:WaitForChild("Humanoid", 15)
 	if not humanoid then return end
 	
-	-- 1. 플레이어 UserId 기반 랜덤 시드
-	local rng = Random.new(player.UserId)
-	local skinTone = Appearance.SKIN_TONES[rng:NextInteger(1, #Appearance.SKIN_TONES)]
-	local clothingColor = Appearance.CLOTHING_COLORS[rng:NextInteger(1, #Appearance.CLOTHING_COLORS)]
-	
-	-- 2. 기존 액세서리, 의상, 패키지 파트 삭제 (시스템 장비는 제외)
-	for _, child in ipairs(character:GetChildren()) do
-		local isSafe = child:GetAttribute("IsArmor") or child:GetAttribute("IsWeaponAccessory")
-		if (child:IsA("Accessory") and not isSafe) or child:IsA("ShirtGraphic") or child:IsA("CharacterMesh") then
-			child:Destroy()
-		end
-	end
-	
-	-- 3. 신체 부위별 색상 적용 (피부 VS 의상 구분)
-	-- 피부 영역: Head, 양팔
-	local skinParts = {
-		"Head",
-		"Left Arm", "Right Arm",
-		"LeftUpperArm", "LeftLowerArm", "LeftHand",
-		"RightUpperArm", "RightLowerArm", "RightHand",
-	}
-	-- 의상 영역: 몸통, 다리 (가죽 의상이 덮는 부분)
-	local clothingParts = {
-		"Torso", "UpperTorso", "LowerTorso",
-		"Left Leg", "Right Leg",
-		"LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
-		"RightUpperLeg", "RightLowerLeg", "RightFoot",
-	}
-	
-	for _, name in ipairs(skinParts) do
-		local part = character:FindFirstChild(name)
-		if part and part:IsA("BasePart") then
-			part.Color = skinTone
-		end
-	end
-	
-	for _, name in ipairs(clothingParts) do
-		local part = character:FindFirstChild(name)
-		if part and part:IsA("BasePart") then
-			part.Color = clothingColor
-		end
-	end
-	
-	-- 4. 클래식 의상 강제 주입 (Shirt/Pants Instance 직접 수정)
-	-- 기존 Shirt/Pants가 있으면 재사용, 없으면 새로 생성
-	local shirt = character:FindFirstChildOfClass("Shirt")
-	if not shirt then
-		shirt = Instance.new("Shirt")
-		shirt.Name = "Shirt"
-		shirt.Parent = character
-	end
-	shirt.ShirtTemplate = Appearance.CLOTHING_IDS.DEFAULT_SHIRT
-	
-	local pants = character:FindFirstChildOfClass("Pants")
-	if not pants then
-		pants = Instance.new("Pants")
-		pants.Name = "Pants"
-		pants.Parent = character
-	end
-	pants.PantsTemplate = Appearance.CLOTHING_IDS.DEFAULT_PANTS
-	
-	-- 5. ChildAdded 감시: 로블록스 엔진이 나중에 유저 액세서리를 다시 끼우려 하면 즉시 삭제
-	local conn
-	conn = character.ChildAdded:Connect(function(child)
-		local isSafe = child:GetAttribute("IsArmor") or child:GetAttribute("IsWeaponAccessory")
-		if child:IsA("Accessory") and not isSafe then
-			child:Destroy()
-		end
-	end)
-	-- 5초 후 감시 해제 (무한 감시 방지)
-	task.delay(5, function()
-		if conn then conn:Disconnect() end
-	end)
+	-- [원시인 외형 덮어쓰기 래거시 삭제됨]
 	
 	-- 4. 물리적 보정 및 직립 유지 설정
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
@@ -145,7 +73,7 @@ local function applyPrehistoricStyle(player, character)
 		end
 	end)
 	
-	print(string.format("[CharacterSetupService] Applied prehistoric style & Upright Physics to %s", character.Name))
+	print(string.format("[CharacterSetupService] Applied Upright Physics & Health Regen to %s", character.Name))
 end
 
 --========================================
@@ -192,11 +120,11 @@ local function onCharacterAdded(player: Player, character)
 		print(string.format("[CharacterSetupService] %s: No spawn attributes set (new player or data not loaded)", player.Name))
 	end
 
-	-- 외형 + 속성 적용 (위치가 이미 확정된 후, Anchor 상태에서 안전하게 처리)
-	applyPrehistoricStyle(player, character)
+	-- 물리 및 속성 적용 (위치가 이미 확정된 후, Anchor 상태에서 안전하게 처리)
+	applyCharacterPhysics(player, character)
 	setupCharacterAttributes(player, character)
 
-	-- applyPrehistoricStyle 완료 후 Anchor 해제 (applyPrehistoricStyle 내부에 task.wait()이 있음)
+	-- applyCharacterPhysics 완료 후 Anchor 해제 (내부에 task.wait()이 있음)
 	local hrpFinal = character:FindFirstChild("HumanoidRootPart")
 	if hrpFinal and hrpFinal.Anchored then
 		-- 최종 위치 재확인 후 해제
@@ -218,9 +146,9 @@ local function onPlayerAdded(player: Player)
 		onCharacterAdded(player, character)
 	end)
 	
-	-- [FIX] 로블록스 기본 외형 로딩 후 우리 스타일로 덮어쓰기
+	-- [FIX] 로블록스 기본 외형 로딩 후 커스텀 물리/재생 설정 (외형 덮어쓰기 삭제됨)
 	player.CharacterAppearanceLoaded:Connect(function(character)
-		applyPrehistoricStyle(player, character)
+		applyCharacterPhysics(player, character)
 	end)
 	
 	-- 이 시점에 이미 캐릭터가 존재하는 경우 즉시 처리
@@ -244,10 +172,10 @@ function CharacterSetupService.Init()
 	print("[CharacterSetupService] Initialized")
 end
 
---- 수동으로 스타일 재적용
+--- 수동으로 설정 재적용
 function CharacterSetupService.refreshStyle(player: Player)
 	if player.Character then
-		applyPrehistoricStyle(player, player.Character)
+		applyCharacterPhysics(player, player.Character)
 	end
 end
 

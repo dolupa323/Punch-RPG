@@ -369,11 +369,11 @@ function StaminaService.performDodge(player: Player, direction: Vector3?): { suc
 		return { success = false, reason = "no_stamina" }
 	end
 	
-	-- [FIX] 공중 구르기(Air Dash) 방지
+	-- [수정] 공중 대시(Air Dash)를 허용하기 위해 지면(FloorMaterial) 체크 조건 삭제
 	local character = player.Character
 	local humanoid = character and character:FindFirstChild("Humanoid")
-	if not humanoid or humanoid.FloorMaterial == Enum.Material.Air then
-		return { success = false, reason = "not_grounded" }
+	if not humanoid then
+		return { success = false, reason = "no_humanoid" }
 	end
 
 	-- 이미 구르기 중
