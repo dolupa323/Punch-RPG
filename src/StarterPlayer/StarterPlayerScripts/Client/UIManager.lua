@@ -1189,7 +1189,7 @@ function UIManager.toggleCrafting()
 end
 
 function UIManager.closeCrafting()
-	UIManager.closeBuild()
+	WindowManager.close("CRAFTING")
 end
 
 --- [제거] 작업대라는 개념은 존재하지 않습니다. 모든 아이템 제작은 인벤토리에서 진행됩니다.
@@ -1643,6 +1643,31 @@ end
 function UIManager._onCloseShop()
 	activeShopId = nil
 	ShopUI.SetVisible(false)
+end
+
+-- [NEW] CraftingUI 전용 핸들러
+function UIManager.openWeaponCrafting(recipes)
+	WindowManager.open("CRAFTING", recipes)
+end
+
+function UIManager._onOpenCrafting(recipes)
+	CraftingUI.UpdateTitle(UILocalizer.Localize("무기 제작 (Weapon Crafting)"))
+	CraftingUI.SetVisible(true)
+	
+	-- 아이템 개수 캐시 (재료 체크용)
+	local playerItemCounts = {}
+	local invCache = InventoryController.getInventoryCache()
+	for _, slot in pairs(invCache) do
+		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+	end
+	
+	CraftingUI.Refresh(recipes or {}, playerItemCounts, UIManager.getItemIcon, "CRAFTING", UIManager)
+	updateUIMode()
+end
+
+function UIManager._onCloseCrafting()
+	CraftingUI.SetVisible(false)
+	updateUIMode()
 end
 
 function UIManager.refreshShop(shopId)
@@ -3263,6 +3288,21 @@ local function setupEventListeners()
 				UIManager.notify(data.text, color)
 			end
 		end)
+
+		-- [NEW] 무기 장인 UI 오픈 이벤트
+		NetClient.On("WeaponCrafter.OpenUI", function(data)
+			local RecipeData = require(ReplicatedStorage.Data.RecipeData)
+			local weaponRecipes = {}
+			for _, r in ipairs(RecipeData) do
+				-- [수정] 래거시 제거: 오직 "말랑봉"만 포함 (필요 시 추후 확장이 용이하도록 ID 체크)
+				if r.id == "CRAFT_SOFT_CLUB" then
+					table.insert(weaponRecipes, r)
+				end
+			end
+			
+			-- 제작창 열기
+			UIManager.openWeaponCrafting(weaponRecipes)
+		end)
 	end
 
 	-- Drag & Drop global listeners
@@ -3405,6 +3445,7 @@ function UIManager.Init()
 	WindowManager.register("BUILD", UIManager._onOpenBuild, UIManager._onCloseBuild)
 	WindowManager.register("STORAGE", UIManager._onOpenStorage, UIManager._onCloseStorage)
 	WindowManager.register("FACILITY", UIManager._onOpenFacility, UIManager._onCloseFacility)
+	WindowManager.register("CRAFTING", UIManager._onOpenCrafting, UIManager._onCloseCrafting)
 
 	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
@@ -3440,6 +3481,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("BUILD", findMainPanel(BuildUI.Refs.Frame))
 		WindowManager.registerFrame("STORAGE", findMainPanel(StorageUI.Refs.Frame))
 		WindowManager.registerFrame("FACILITY", findMainPanel(FacilityUI.Refs.Frame))
+		WindowManager.registerFrame("CRAFTING", findMainPanel(CraftingUI.Refs.Frame))
 
 		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
 		WindowManager.registerFrame("QUEST", findMainPanel(QuestUI.Refs.Frame))

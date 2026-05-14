@@ -9,7 +9,18 @@ local Players = game:GetService("Players")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local C = Theme.Colors
+
+-- Local Color Override for Navy + Black Theme (Match Equipment/Inventory)
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(15, 20, 30) -- Deep Navy/Black
+C.BG_DARK = Color3.fromRGB(5, 5, 10)
+C.BG_SLOT = Color3.fromRGB(240, 240, 245) -- Key Icon White
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+C.BORDER_DIM = Color3.fromRGB(40, 60, 90)
+
 local F = Theme.Fonts
 local T = Theme.Transp
 
@@ -19,33 +30,33 @@ local initialized = false
 local function createPromptUI(prompt, inputType, gui)
 	local frame = Utils.mkFrame({
 		name = "PromptFrame",
-		size = UDim2.new(0, 200, 0, 50),
+		size = UDim2.new(0, 220, 0, 56),
 		bg = C.BG_PANEL,
-		bgT = T.PANEL, -- 거의 투명 테마 적용
-		r = 4,
-		stroke = true,
+		bgT = 0.15, -- More solid like the screenshot
+		r = 6,
+		stroke = 1.5,
 		strokeC = C.BORDER_DIM,
-		useCanvas = true, -- GroupTransparency 애니메이션용
+		useCanvas = true,
 		parent = gui
 	})
 	
 	-- 입력키 아이콘
 	local inputIcon = Instance.new("Frame")
-	inputIcon.Size = UDim2.new(0, 32, 0, 32)
+	inputIcon.Size = UDim2.new(0, 36, 0, 36)
 	inputIcon.Position = UDim2.new(0, 10, 0.5, 0)
 	inputIcon.AnchorPoint = Vector2.new(0, 0.5)
-	inputIcon.BackgroundColor3 = C.BG_SLOT
-	inputIcon.BackgroundTransparency = 0.5
+	inputIcon.BackgroundColor3 = C.BG_SLOT -- White background for key
+	inputIcon.BackgroundTransparency = 0
 	inputIcon.Parent = frame
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 4)
+	c.CornerRadius = UDim.new(0, 8)
 	c.Parent = inputIcon
 	
 	local keyText = Utils.mkLabel({
 		text = prompt.KeyboardKeyCode.Name,
-		ts = 14,
+		ts = 18,
 		font = F.TITLE,
-		color = C.WHITE,
+		color = Color3.fromRGB(30, 30, 40), -- Dark text on white key
 		parent = inputIcon
 	})
 	
@@ -58,17 +69,17 @@ local function createPromptUI(prompt, inputType, gui)
 	
 	local objLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(prompt.ObjectText),
-		ts = 12,
+		ts = 13,
 		pos = UDim2.new(0, 0, 0.3, 0),
 		anchor = Vector2.new(0, 0.5),
 		ax = Enum.TextXAlignment.Left,
-		color = C.INK,
+		color = Color3.fromRGB(180, 190, 210), -- Muted blue/gray
 		parent = content
 	})
 	
 	local actLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(prompt.ActionText),
-		ts = 16,
+		ts = 18,
 		font = F.TITLE,
 		pos = UDim2.new(0, 0, 0.7, 0),
 		anchor = Vector2.new(0, 0.5),

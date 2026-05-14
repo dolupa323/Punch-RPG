@@ -6,7 +6,16 @@ local RecipeData = {
 	--========================================
 	-- 1단계: 인벤토리 제작 (Hand Craft)
 	--========================================
-
+	{
+		id = "CRAFT_SOFT_CLUB",
+		name = "말랑봉",
+		category = "WEAPON",
+		requiredFacility = nil,
+		craftTime = 1,
+		techLevel = 1,
+		inputs = { { itemId = "SLIME_MUCUS", count = 10 } },
+		outputs = { { itemId = "SOFT_CLUB", count = 1 } },
+	},
 	{
 		id = "CRAFT_CRUDE_STONE_AXE",
 		name = "조잡한 돌도끼",

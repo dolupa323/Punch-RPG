@@ -363,4 +363,8 @@ local MobSpawnService = require(Services.MobSpawnService)
 MobSpawnService.Init()
 ServiceRegistry.Register("MobSpawnService", MobSpawnService)
 
+local WeaponCrafterService = require(Services.WeaponCrafterService)
+WeaponCrafterService.Init(NetController)
+ServiceRegistry.Register("WeaponCrafterService", WeaponCrafterService)
+
 print("[ServerInit] Server initialized (No-BOM) - AdminCommandService, BotService & Avatar Elements Ready")

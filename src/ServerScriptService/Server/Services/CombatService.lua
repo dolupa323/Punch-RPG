@@ -1001,16 +1001,54 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 					
 					if i == 1 then
 						-- 넉백은 첫 타격시에만 자연스럽게 적용
-						if not stepKilled then
-							local knockDir = (creaturePos - hrp.Position)
-							knockDir = Vector3.new(knockDir.X, 0, knockDir.Z).Unit
-							runtime.rootPart.AssemblyLinearVelocity = knockDir * (Balance.CREATURE_KNOCKBACK_FORCE or 12) + Vector3.new(0, runtime.rootPart.AssemblyLinearVelocity.Y * 0.8, 0)
-							task.delay(0.08, function()
-								if runtime and runtime.rootPart then
-									runtime.rootPart.AssemblyLinearVelocity = Vector3.new(0, runtime.rootPart.AssemblyLinearVelocity.Y, 0)
+							pcall(function()
+								-- 피격 경직(Hit Stun) 부여
+								if CreatureService and CreatureService.applyHitStun then
+									CreatureService.applyHitStun(targetId, 0.4)
+								end
+
+								if hrp and runtime.rootPart and runtime.humanoid then
+									-- 1. 엔진 표준 상태 활용 및 물리 잠금 강제 해제
+									runtime.rootPart.Anchored = false -- 어떤 이유로든 고정되어 있다면 강제 해제
+									for _, part in ipairs(runtime.model:GetDescendants()) do
+										if part:IsA("BasePart") then part.Anchored = false end
+									end
+									
+									runtime.humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+									runtime.humanoid.AutoRotate = false
+									
+									-- AI 루프 중단 시간 대폭 상향 (1초)
+									if CreatureService and CreatureService.applyHitStun then
+										CreatureService.applyHitStun(targetId, 1.0)
+									end
+									
+									local creaturePos = runtime.rootPart.Position
+									local knockDir = (creaturePos - hrp.Position)
+									
+									if knockDir.Magnitude > 0.001 then
+										knockDir = Vector3.new(knockDir.X, 0, knockDir.Z).Unit
+										
+										-- 2. 실제 물리 루트(AssemblyRootPart)를 찾아 힘 전달
+										local targetPart = runtime.rootPart.AssemblyRootPart or runtime.rootPart
+										
+										local bv = Instance.new("BodyVelocity")
+										bv.Name = "KnockbackForce"
+										bv.MaxForce = Vector3.new(1, 1, 1) * 1e9 -- 1e9 = 1,000,000,000 (매우 큰 수)
+										bv.Velocity = knockDir * (Balance.CREATURE_KNOCKBACK_FORCE or 12) * 10 + Vector3.new(0, 20, 0)
+										bv.Parent = targetPart
+										
+										-- 지속 시간 및 일어서기 관리 (0.4초)
+										task.delay(0.4, function()
+											if bv then bv:Destroy() end
+											if runtime and runtime.humanoid then
+												runtime.humanoid.AutoRotate = true
+												runtime.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+											end
+										end)
+									end
 								end
 							end)
-						end
+							if not success then warn("CombatService Knockback Error: ", err) end
 					end
 					
 					-- 매 타격 틱마다 이펙트 및 UI 정보 브로드캐스트 발송!
@@ -1051,6 +1089,48 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		else
 			-- 원거리(Bow) 공격은 투사체 물리성에 기반하여 기존 단일 히트 타격 유지!
 			killed, dropPos = CreatureService.processAttack(targetId, hpDamage, torporDamage, player)
+			if not killed and creature and creature.rootPart and creature.humanoid then
+				pcall(function()
+					if CreatureService and CreatureService.applyHitStun then
+						CreatureService.applyHitStun(targetId, 0.4)
+					end
+					
+					-- 1. 물리 잠금 강제 해제 및 상태 변화
+					if creature.rootPart then 
+						creature.rootPart.Anchored = false 
+						for _, p in ipairs(creature.model:GetDescendants()) do
+							if p:IsA("BasePart") then p.Anchored = false end
+						end
+					end
+					creature.humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+					creature.humanoid.AutoRotate = false
+					if CreatureService and CreatureService.applyHitStun then
+						CreatureService.applyHitStun(targetId, 1.0)
+					end
+					
+					-- 2. 원거리 파격적 넉백 (AssemblyRootPart 대상)
+					local targetPos = creature.rootPart.Position
+					local knockDir = (targetPos - bowOrigin)
+					if knockDir.Magnitude > 0.001 then
+						knockDir = knockDir.Unit
+						
+						local targetPart = creature.rootPart.AssemblyRootPart or creature.rootPart
+						local bv = Instance.new("BodyVelocity")
+						bv.Name = "KnockbackForce"
+						bv.MaxForce = Vector3.new(1, 1, 1) * 1e9
+						bv.Velocity = knockDir * (Balance.CREATURE_KNOCKBACK_FORCE or 12) * 10 + Vector3.new(0, 20, 0)
+						bv.Parent = targetPart
+						
+						task.delay(0.4, function()
+							if bv then bv:Destroy() end
+							if creature and creature.humanoid then
+								creature.humanoid.AutoRotate = true
+								creature.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+							end
+						end)
+					end
+				end)
+			end
 			if killed then disengageCreature(targetId) end
 			
 			if creature and creature.rootPart then

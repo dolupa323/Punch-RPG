@@ -59,18 +59,14 @@ local function getItemDisplayName(itemId: string, dropType: string?): string
 end
 
 local function findLootModel(itemId: string): (Instance?, boolean)
-	-- 0. DNA 타입 체크: 전용 모델 사용
+	-- 0. DNA 타입 체크
 	local itemData = DataHelper.GetData("ItemData", itemId:upper())
 	local isDna = itemData and itemData.type == "DNA"
-	local modelTarget = isDna and "DNA_Sample" or nil
 	
 	-- 1. 검색 시작 지점 (Assets 우선, 없으면 ReplicatedStorage 전체)
 	local root = ReplicatedStorage:FindFirstChild("Assets") or ReplicatedStorage
 	
-	-- 2. 검색 대상 이름 (기본 POUCH)
-	local modelName = (Balance and Balance.DROP_MODEL_DEFAULT) or "POUCH"
-	
-	-- 3. 재귀 검색 함수
+	-- 2. 재귀 검색 함수
 	local function searchRecursive(folder, target)
 		if not folder then return nil end
 		
@@ -108,24 +104,17 @@ local function findLootModel(itemId: string): (Instance?, boolean)
 		return nil
 	end
 	
-	-- 4. DNA는 전용 모델, 일반은 POUCH
-	if modelTarget then
-		local template = searchRecursive(root, modelTarget)
+	-- 3. DNA는 전용 모델 우선 검색
+	if isDna then
+		local template = searchRecursive(root, "DNA_Sample")
 		if template then return template, true end
 	end
 	
-	-- 4.5 CAPTURE_BOX는 전용 박스 모델 사용 (POUCH 아님)
-	if itemData and itemData.type == "CAPTURE_BOX" and itemData.modelName then
-		local boxTemplate = searchRecursive(root, itemData.modelName)
-		if boxTemplate then return boxTemplate, false end
-	end
+	-- 4. 실제 3D 모델 검색 (modelName 우선, 없으면 itemId)
+	local targetName = (itemData and itemData.modelName) or itemId
+	local template = searchRecursive(root, targetName)
 	
-	-- 5. POUCH 최우선 검색 (일반 드롭아이템은 POUCH로 통일)
-	local template = searchRecursive(root, modelName)
-	if template then return template, false end
-	
-	-- 6. POUCH가 없는 경우에만 원래 아이템 모델 검색 (폴백)
-	return searchRecursive(root, itemId), false
+	return template, isDna
 end
 
 local function createDropModel(dropData)
@@ -268,8 +257,6 @@ local function createDropModel(dropData)
 	prompt.HoldDuration = 0
 	prompt.KeyboardKeyCode = Enum.KeyCode.Z
 	prompt.RequiresLineOfSight = false
-	prompt.Style = Enum.ProximityPromptStyle.Custom
-	prompt.UIOffset = Vector2.new(0, 0) -- PromptUI에서 BillboardGui offset으로 제어
 	prompt.Parent = attachmentPoint
 	
 	-- 줍기 이벤트

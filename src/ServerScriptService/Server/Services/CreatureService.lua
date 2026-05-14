@@ -653,16 +653,20 @@ function CreatureService.spawn(creatureId, position)
 	model:SetAttribute("CreatureId", creatureId)
 	model:SetAttribute("Behavior", data.behavior or "NEUTRAL")
 	
-	-- Collision Group 설정
+	-- Collision Group 설정 및 Anchored 해제 (물리 엔진 작동 보장)
+	model.PrimaryPart = rootPart
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.CollisionGroup = "Creatures"
+			part.Anchored = false -- 모든 파트의 고정을 해제해야 물리 넉백이 작동함
 		end
 	end
 	
-	-- ★ 서버 물리 권한 고정: 클라이언트 물리 간섭 완전 차단
+	-- ★ 서버 물리 권한 고정
 	pcall(function()
-		rootPart:SetNetworkOwner(nil) -- nil = 서버 소유
+		if rootPart then
+			rootPart:SetNetworkOwner(nil)
+		end
 	end)
 	
 	-- ★ 개선: StreamingEnabled 대응 지형 로딩 감지 → 정확한 높이 배치 후 Anchored 해제
@@ -744,6 +748,76 @@ function CreatureService.spawn(creatureId, position)
 	return instanceId
 end
 
+--- 외부에서 생성된 모델을 크리처 시스템에 등록 (MobSpawnService 연동용)
+function CreatureService.registerCreature(model: Model, creatureId: string, behavior: string)
+	if not model or not model.PrimaryPart then return nil end
+	
+	local data = DataService.getCreature(creatureId)
+	if not data then
+		data = {
+			name = creatureId,
+			behavior = behavior or "NEUTRAL",
+			walkSpeed = 12,
+			baseHealth = 100,
+			damage = 10,
+		}
+	end
+	
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local rootPart = model.PrimaryPart
+	if not humanoid or not rootPart then return nil end
+	
+	-- [핵심] 부모 객체가 Creatures가 아니면 강제 설정
+	local creatureFolder = workspace:FindFirstChild("Creatures")
+	if model.Parent ~= creatureFolder then
+		model.Parent = creatureFolder
+	end
+
+	local instanceId = model:GetAttribute("InstanceId") or game:GetService("HttpService"):GenerateGUID(false)
+	model:SetAttribute("InstanceId", instanceId)
+	model:SetAttribute("CreatureId", creatureId)
+	model:SetAttribute("Behavior", behavior or data.behavior or "NEUTRAL")
+	
+	-- 물리 및 충돌 설정 강제 적용
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CollisionGroup = "Creatures"
+			part.Anchored = false
+		end
+	end
+	
+	-- 서버 물리 권한 확보
+	pcall(function()
+		rootPart:SetNetworkOwner(nil)
+	end)
+	
+	activeCreatures[instanceId] = {
+		id = instanceId,
+		creatureId = creatureId,
+		model = model,
+		humanoid = humanoid,
+		rootPart = rootPart,
+		data = data,
+		currentHealth = humanoid.Health,
+		maxHealth = humanoid.MaxHealth,
+		level = model:GetAttribute("Level") or 1,
+		damage = data.damage or 10,
+		maxTorpor = 100,
+		currentTorpor = 0,
+		state = "IDLE",
+		labelVisibleUntil = 0,
+		targetPosition = nil,
+		lastStateChange = os.clock(),
+		lastUpdate = os.clock(),
+		lastUpdateAt = os.clock(),
+	}
+	
+	creatureCount = creatureCount + getCapWeight(data)
+	model:SetAttribute("State", "IDLE")
+	
+	return instanceId
+end
+
 --- 크리처 런타임 조회 (CombatService 연동용)
 function CreatureService.getCreatureRuntime(instanceId: string)
 	return activeCreatures[instanceId]
@@ -812,6 +886,14 @@ function CreatureService.applyStunEffect(instanceId: string, duration: number)
 			end
 		end
 	end)
+end
+
+function CreatureService.applyHitStun(instanceId: string, duration: number)
+	local creature = activeCreatures[instanceId]
+	if not creature or not creature.humanoid then return end
+	
+	-- ★ 중요: AI 루프와 동일하게 os.clock()을 사용하여 시간 비교가 정확하게 이루어지도록 함
+	creature.hitStunEnd = os.clock() + (duration or 0.8)
 end
 
 --- 크리처 강제 제거 (포획 등 특수 상황용)
@@ -1773,6 +1855,11 @@ function CreatureService._updateAILoop()
 		end
 
 		if (creature.currentHealth or 0) <= 0 or creature.state == "DEAD" then
+			continue
+		end
+		
+		-- 피격 경직(Hit Stun) 체크: 경직 중에는 AI 연산 스킵
+		if creature.hitStunEnd and now < creature.hitStunEnd then
 			continue
 		end
 		
