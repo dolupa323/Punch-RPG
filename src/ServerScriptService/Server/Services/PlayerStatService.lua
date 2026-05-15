@@ -237,6 +237,7 @@ end
 -- XP Addition
 --========================================
 function PlayerStatService.addXP(userId: number, amount: number, source: string?): (boolean, number)
+	print(string.format("[PlayerStatService] addXP called: User %d, Amount %d, Source %s", userId, amount, tostring(source)))
 	_initPlayerStats(userId)
 	
 	local stats = playerStats[userId]
@@ -294,7 +295,9 @@ function PlayerStatService.addXP(userId: number, amount: number, source: string?
 end
 
 function PlayerStatService.grantActionXP(userId: number, baseAmount: number, payload: any?): (boolean, number, number)
+	print(string.format("[PlayerStatService] grantActionXP called: User %d, BaseAmount %d", userId, baseAmount))
 	if typeof(baseAmount) ~= "number" or baseAmount <= 0 then
+		warn("[PlayerStatService] grantActionXP failed: Invalid baseAmount")
 		return false, PlayerStatService.getLevel(userId), 0
 	end
 

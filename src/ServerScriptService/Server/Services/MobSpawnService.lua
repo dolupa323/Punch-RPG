@@ -6,9 +6,41 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Services = ServerScriptService:WaitForChild("Server"):WaitForChild("Services")
 local DataService = require(Services:WaitForChild("DataService"))
+local WorldDropService = require(Services:WaitForChild("WorldDropService"))
+local PlayerStatService = require(Services:WaitForChild("PlayerStatService"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
 
 local MobSpawnService = {}
 local activeMobs = {} -- areaId_index -> Model Instance
+
+--========================================
+-- Internal: Loot 생성
+--========================================
+local function spawnLoot(mobName: string, pos: Vector3)
+	if not WorldDropService or not DataService then return end
+	
+	-- 드롭 테이블 조회 (대문자로 변환하여 매칭)
+	local dropTableId = string.upper(mobName)
+	local dropTable = DataService.getDropTable(dropTableId)
+	
+	if not dropTable then
+		-- warn("[MobSpawnService] No drop table found for:", dropTableId)
+		return
+	end
+	
+	for _, entry in ipairs(dropTable) do
+		if math.random() <= (entry.chance or 1.0) then
+			local count = math.random(entry.min or 1, entry.max or 1)
+			
+			if entry.itemId == "GOLD" or entry.itemId == "GOLD_COIN" then
+				WorldDropService.spawnGoldDrop(pos, count)
+			else
+				WorldDropService.spawnDrop(pos, entry.itemId, count)
+			end
+		end
+	end
+end
 
 local function getRandomPosInPart(part)
 	local size = part.Size
@@ -107,12 +139,21 @@ local function createMobModel(areaId, index, config)
 		model.PrimaryPart = hrp
 
 		local hum = Instance.new("Humanoid")
-		hum.MaxHealth = config.maxHealth or 30
-		hum.Health = config.maxHealth or 30
 		hum.Parent = model
 		
 		warn(string.format("[MobSpawnService] %s Asset NOT found. Generated temp visual for %s_%d at %s.", config.mobModelName, areaId, index, tostring(spawnPos)))
 	end
+
+	-- ★ 모든 몬스터(실물/임시) 공통 속성 설정
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.MaxHealth = config.maxHealth or 100
+		humanoid.Health = humanoid.MaxHealth
+	end
+	model:SetAttribute("MaxHealth", config.maxHealth or 100)
+	model:SetAttribute("CurrentHealth", config.maxHealth or 100)
+	model:SetAttribute("MobId", config.mobModelName or "Slime")
+	model:SetAttribute("XPReward", config.xpReward or 25)
 
 	-- [핵심 결정타] 계산 전 Workspace 부모화 강제!!
 	-- 부모가 nil일 때 ScaleTo를 하면 하위 파트들의 Position이 갱신되지 않아 이전 값이 수집되는 버그 방지!
@@ -445,6 +486,11 @@ local function createMobModel(areaId, index, config)
 
 		humanoid.Died:Connect(function()
 			isAlive = false
+			
+			-- ★ 사망 시 아이템 드롭 처리
+			local deathPos = model:GetPivot().Position
+			spawnLoot(config.mobModelName or "Slime", deathPos)
+			
 			local respawnDelay = config.respawnDelay or 1.0
 			task.wait(respawnDelay)
 			if model then model:Destroy() end

@@ -561,10 +561,22 @@ function AvatarService.Init()
 						if not targetModel or not hum or hum.Health <= 0 then break end
 						
 						local curDmg = (i == numHits) and lastDmg or baseDmg
-						-- 시각적 명시성을 위해 1타 시점에만 Critical 판정을 표시
 						local isCurCrit = (i == 1) and isCritical or false 
 						
 						hum:TakeDamage(curDmg)
+						
+						-- [XP Granting] 처치 시 경험치 지급 로직 직접 구현 (래거시 의존성 제거)
+						if hum.Health <= 0 then
+							local xpReward = targetModel:GetAttribute("XPReward") or 25
+							if PlayerStatService and PlayerStatService.grantActionXP then
+								local mobId = targetModel:GetAttribute("MobId") or targetModel.Name
+								PlayerStatService.grantActionXP(player.UserId, xpReward, {
+									source = "CREATURE_KILL",
+									actionKey = "MOB:" .. tostring(mobId)
+								})
+								print(string.format("[AvatarService] Player %s killed %s! XP Granted: %d", player.Name, targetModel.Name, xpReward))
+							end
+						end
 						
 						-- 각 틱마다 VFX/대미지 숫자를 뿌려주어 타격 쾌감 극대화
 						pcall(function()

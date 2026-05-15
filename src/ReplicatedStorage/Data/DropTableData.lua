@@ -73,6 +73,13 @@ local DropTableData = {
 		{ itemId = "LEATHER", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BONE", chance = 0.5, min = 1, max = 1 },
 	},
+
+	--========================================
+	-- RPG MOBS / NEW
+	--========================================
+	["SLIME"] = {
+		{ itemId = "SLIME_MUCUS", chance = 1.0, min = 1, max = 3 },
+	},
 }
 
 return DropTableData

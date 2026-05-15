@@ -820,7 +820,34 @@ end
 
 --- 크리처 런타임 조회 (CombatService 연동용)
 function CreatureService.getCreatureRuntime(instanceId: string)
-	return activeCreatures[instanceId]
+	local creature = activeCreatures[instanceId]
+	if not creature then
+		-- ★ [추가] RPG 몬스터 (MobSpawnService) 처리 지원
+		-- MobSpawnService는 model.Name을 InstanceId와 동일하게 설정함
+		local model = workspace:FindFirstChild(tostring(instanceId), true)
+		if model and model:GetAttribute("InstanceId") == instanceId then
+			local hum = model:FindFirstChildOfClass("Humanoid")
+			if hum then
+				return {
+					instanceId = instanceId,
+					model = model,
+					humanoid = hum,
+					rootPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart"),
+					currentHealth = hum.Health,
+					maxHealth = hum.MaxHealth,
+					isMob = true, -- RPG 몬스터 구분자
+					data = {
+						id = model:GetAttribute("MobId") or model.Name,
+						name = model:GetAttribute("DisplayName") or model.Name,
+						maxHealth = hum.MaxHealth,
+						xpReward = model:GetAttribute("XPReward") or 25,
+						behavior = "PASSIVE", -- 기본값 (FLEE/CHASE 로직 미적용 시)
+					}
+				}
+			end
+		end
+	end
+	return creature
 end
 
 --- 전체 활성 크리처 런타임 맵 반환 (AOE 스킬용)
@@ -1021,9 +1048,46 @@ end
 
 --- 공격 처리 (데미지 및 기절 수치 적용)
 function CreatureService.processAttack(instanceId: string, hpDamage: number, torporDamage: number, attacker: Player): (boolean, Vector3?)
-	local creature = activeCreatures[instanceId]
-	if not creature or not creature.humanoid or creature.currentHealth <= 0 then
+	local creature = CreatureService.getCreatureRuntime(instanceId)
+	if not creature or not creature.humanoid or (creature.currentHealth or creature.humanoid.Health) <= 0 then
 		return false, nil
+	end
+
+	-- ★ RPG 몬스터 (MobSpawnService) 전용 데미지 처리
+	if creature.isMob then
+		local hum = creature.humanoid
+		-- 경험치 보상을 위한 크리에이터 태그 추가
+		local tag = hum:FindFirstChild("creator")
+		if tag then tag:Destroy() end
+		tag = Instance.new("ObjectValue")
+		tag.Name = "creator"
+		tag.Value = attacker
+		tag.Parent = hum
+		game:GetService("Debris"):AddItem(tag, 5) -- 태그 수명 연장 (2 -> 5)
+		
+		print(string.format("[CreatureService] Tagged MOB %s with attacker %s", instanceId, attacker.Name))
+		hum:TakeDamage(hpDamage)
+		creature.currentHealth = hum.Health
+		local killed = (hum.Health <= 0)
+		print(string.format("[CreatureService] MOB Hit! Damage: %.1f, Remaining Health: %.1f, Killed: %s", hpDamage, hum.Health, tostring(killed)))
+		
+		-- ★ [추가] 몬스터 처치 시 즉시 경험치 지급 (이벤트 지연 방지)
+		if killed and PlayerStatService and attacker then
+			local xpAmount = creature.data.xpReward or 25
+			PlayerStatService.grantActionXP(attacker.UserId, xpAmount, {
+				source = Enums.XPSource.CREATURE_KILL,
+				actionKey = "MOB:" .. tostring(creature.data.id or "Unknown"),
+			})
+			
+			-- 처치 알림
+			if NetController then
+				NetController.FireClient(attacker, "Notify.Message", {
+					text = (creature.data.name or "몬스터") .. "을(를) 처치하여 " .. xpAmount .. " XP를 획득했습니다!",
+				})
+			end
+		end
+
+		return killed, creature.model:GetPivot().Position
 	end
 
 	creature.lastDamagedAt = tick()

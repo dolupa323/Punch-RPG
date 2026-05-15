@@ -833,6 +833,18 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 		end
 	end
 	
+	-- ★ RPG 몬스터 (MobSpawnService) 감지 로직 추가
+	if targetType == "NONE" and targetId ~= nil then
+		-- Workspace에서 InstanceId를 가진 모델 검색 (MobSpawnService에서 Name을 InstanceId로 설정함)
+		local model = workspace:FindFirstChild(tostring(targetId), true)
+		if model and model:GetAttribute("InstanceId") == targetId then
+			targetObject = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+			if targetObject then
+				targetType = "MOB"
+			end
+		end
+	end
+	
 	if targetType == "NONE" then
 		local BuildService = require(game:GetService("ServerScriptService").Server.Services.BuildService)
 		local structure = BuildService.get(targetId)
@@ -1154,6 +1166,32 @@ function CombatService.processPlayerAttack(player: Player, targetId: string?, at
 			if killed and questCallback and creature and creature.data then
 				questCallback(userId, creature.data.id or creature.data.creatureId)
 			end
+		end
+	elseif targetType == "MOB" then
+		local model = targetObject.Parent
+		local hum = model:FindFirstChildOfClass("Humanoid")
+		if hum then
+			killed, dropPos = CreatureService.processAttack(targetId, hpDamage, 0, player)
+			
+			-- 피격 연출 및 UI 동기화 (기존 크리처 시스템과 호환)
+			if NetController and dropPos then
+				NetController.FireAllClients("Combat.Creature.Hit", {
+					instanceId = targetId,
+					hitPosition = { x = dropPos.X, y = dropPos.Y, z = dropPos.Z },
+					damage = hpDamage,
+					killed = killed,
+					isMob = true
+				})
+				NetController.FireClient(player, "Combat.Hit.Result", {
+					damage = hpDamage,
+					killed = killed,
+					targetId = targetId,
+					currentHP = hum.Health,
+					maxHP = hum.MaxHealth,
+				})
+			end
+			
+			if killed and DebuffService then DebuffService.applyDebuff(userId, "BLOOD_SMELL") end
 		end
 	elseif targetType == "PLAYER" then
 		local targetPlayer = Players:GetPlayerFromCharacter(targetObject.Parent)
