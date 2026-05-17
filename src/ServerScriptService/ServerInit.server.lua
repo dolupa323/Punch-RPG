@@ -217,6 +217,10 @@ local WeaponCrafterService = require(Services.WeaponCrafterService)
 WeaponCrafterService.Init(NetController)
 ServiceRegistry.Register("WeaponCrafterService", WeaponCrafterService)
 
+local EnhanceMasterService = require(Services.EnhanceMasterService)
+EnhanceMasterService.Init(NetController)
+ServiceRegistry.Register("EnhanceMasterService", EnhanceMasterService)
+
 local SkillService = require(Services.SkillService)
 SkillService.Init(NetController, PlayerStatService, SaveService)
 for command, handler in pairs(SkillService.GetHandlers()) do

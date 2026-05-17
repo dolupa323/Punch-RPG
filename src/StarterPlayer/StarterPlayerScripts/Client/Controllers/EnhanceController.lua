@@ -40,7 +40,7 @@ end
 
 function EnhanceController.Init(uiManager)
 	if initialized then return end
-	_UIManager = uiManager
+	_UIManager = uiManager or require(script.Parent.Parent.UIManager)
 	
 	-- 서버로부터 UI 오픈 요청 수신 (NPC ProximityPrompt 연동)
 	NetClient.On("Enhance.OpenUI", function()

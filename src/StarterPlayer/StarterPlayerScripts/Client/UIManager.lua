@@ -44,6 +44,7 @@ local SkillTreeUI = require(UI.SkillTreeUI)
 local PromptUI = require(UI.PromptUI)
 local PortalUI = require(UI.PortalUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
+local EnhanceUI = require(UI.EnhanceUI)
 local NPCRadialUI = require(UI.NPCRadialUI)
 
 local WindowManager = require(Client.Utils.WindowManager)
@@ -125,6 +126,23 @@ function UIManager._onClosePremiumShop()
 	PremiumShopUI.SetVisible(false)
 end
 
+function UIManager._onOpenEnhance()
+	EnhanceUI.SetVisible(true)
+	EnhanceUI.Refresh()
+end
+
+function UIManager._onCloseEnhance()
+	EnhanceUI.SetVisible(false)
+end
+
+function UIManager.openEnhance()
+	WindowManager.open("ENHANCE")
+end
+
+function UIManager.closeEnhance()
+	WindowManager.close("ENHANCE")
+end
+
 
 -- Signals for Internal Use
 local menuOpenedEvent = Instance.new("BindableEvent")
@@ -136,6 +154,9 @@ function UIManager.fireMenuOpened() menuOpenedEvent:Fire() end
 function UIManager.fireInventoryOpened() inventoryOpenedEvent:Fire() end
 
 function UIManager.getInventorySlot(slot)
+	if slot == "HAND" then
+		return InventoryController.getEquipment().HAND
+	end
 	local cache = InventoryController.getInventoryCache()
 	return cache[slot]
 end
@@ -2226,6 +2247,7 @@ function UIManager.Init()
 
 	PortalUI.Init(mainGui, UIManager, isMobile)
 	PortalRadialUI:Init(UIManager)
+	EnhanceUI.Init(mainGui, UIManager)
 	NPCRadialUI.Init(UIManager)
 	SkillTreeUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.SetController(SkillController)
@@ -2271,6 +2293,7 @@ function UIManager.Init()
 	WindowManager.register("CRAFTING", UIManager._OnOpenCrafting, UIManager._OnCloseCrafting)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
+	WindowManager.register("ENHANCE", UIManager._onOpenEnhance, UIManager._onCloseEnhance)
 
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
@@ -2303,6 +2326,7 @@ function UIManager.Init()
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
 		WindowManager.registerFrame("PREMIUM_SHOP", PremiumShopUI.Refs.Frame)
+		WindowManager.registerFrame("ENHANCE", EnhanceUI.Refs.Frame)
 	end)
 
 	-- [Refactor] DragDropController 초기화
@@ -2465,6 +2489,87 @@ function UIManager.openItemSelector(mode, callback)
 	-- 2. 아이템 필터링 및 생성
 	local cache = InventoryController.getInventoryCache()
 	local found = false
+	
+	-- [장착 장비 HAND 특화 지원]
+	if mode == "WEAPON" or mode == "REPAIR" then
+		local equipHand = InventoryController.getEquipment().HAND
+		if equipHand and equipHand.itemId then
+			local itemData = DataHelper.GetData("ItemData", equipHand.itemId)
+			local isValid = false
+			if mode == "WEAPON" then
+				if itemData and (itemData.type == "WEAPON" or itemData.type == "TOOL") then
+					isValid = true
+				end
+			elseif mode == "REPAIR" then
+				if itemData and (itemData.type == "WEAPON" or itemData.type == "TOOL" or itemData.type == "ARMOR") then
+					isValid = true
+				end
+			end
+			
+			if isValid then
+				found = true
+				local btn = Utils.mkFrame({
+					name = "Slot_HAND",
+					size = UDim2.new(0, 80, 0, 80),
+					bg = C.BG_SLOT,
+					bgT = 0.2,
+					r = 6,
+					stroke = 2,
+					strokeC = C.GOLD, -- Styled with gold border for equipped item
+					parent = scroll
+				})
+				
+				local icon = Instance.new("ImageLabel")
+				icon.Size = UDim2.new(0.8, 0, 0.8, 0)
+				icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+				icon.AnchorPoint = Vector2.new(0.5, 0.5)
+				icon.BackgroundTransparency = 1
+				icon.Image = UIManager.getItemIcon(equipHand.itemId)
+				icon.Parent = btn
+				
+				-- Equipped badge
+				Utils.mkLabel({
+					text = UILocalizer.Localize("[장착중]"),
+					size = UDim2.new(1, 0, 0, 20),
+					pos = UDim2.new(0, 0, 0, 2),
+					ts = 11,
+					font = Theme.Fonts.TITLE,
+					color = C.GOLD,
+					ax = Enum.TextXAlignment.Center,
+					parent = btn
+				})
+				
+				-- Enhance level indicator
+				if equipHand.attributes and equipHand.attributes.enhanceLevel and equipHand.attributes.enhanceLevel > 0 then
+					Utils.mkLabel({
+						text = "+" .. equipHand.attributes.enhanceLevel,
+						size = UDim2.new(0, 30, 0, 20),
+						pos = UDim2.new(1, -2, 1, -2),
+						anchor = Vector2.new(1, 1),
+						ts = 14,
+						font = Theme.Fonts.TITLE,
+						color = C.GOLD,
+						parent = btn
+					})
+				end
+				
+				local click = Instance.new("TextButton")
+				click.Size = UDim2.new(1, 0, 1, 0)
+				click.BackgroundTransparency = 1
+				click.Text = ""
+				click.Parent = btn
+				
+				click.MouseButton1Click:Connect(function()
+					selectorOverlay:Destroy()
+					selectorOverlay = nil
+					local cb = activeSelectorCallback
+					activeSelectorCallback = nil
+					activeSelectorMode = nil
+					cb("HAND", equipHand)
+				end)
+			end
+		end
+	end
 	
 	for slot, data in pairs(cache) do
 		local isValid = false

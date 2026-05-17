@@ -487,7 +487,14 @@ function AvatarService.Init()
 			if distance <= 18 then -- [상향] 사거리 12 -> 18 스터드 물리 판정 확대
 				-- [Data-Driven 무기 대미지 데이터화]
 				-- [최종 고도화] 스텟/치명타 연동 대미지 공식 가동 (PlayerStatService 동적 연동)
-				local finalDamage = weaponData and weaponData.baseDamage or 10
+				local equipment = InventoryService and InventoryService.getEquipment(userId)
+				local equippedWeapon = equipment and equipment.HAND
+				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
+				local baseDamage = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
+				
+				-- Apply +15% damage bonus per enhancement level
+				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
+				local finalDamage = baseDamage * (1 + enhanceLevel * 0.15)
 				
 				-- 1. 스탯 보너스 (공격력 배율) 적용
 				local success, PlayerStatService = pcall(function()

@@ -496,6 +496,29 @@ function InventoryService.unequipItem(player: Player, equipmentSlotName: string)
 	if PlayerStatService then
 		PlayerStatService.applyStats(userId)
 	end
+	return true
+end
+
+function InventoryService.updateEquipmentAttributes(userId: number, equipmentSlotName: string, attributes: any)
+	local inv = playerInventories[userId]
+	if not inv or not inv.equipment then return false end
+	
+	local slotData = inv.equipment[equipmentSlotName]
+	if not slotData then return false end
+	
+	slotData.attributes = attributes
+	
+	-- Notify client of equipment change
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		NetController.FireClient(player, "Inventory.Equipment.Changed", {
+			equipment = inv.equipment
+		})
+	end
+	
+	if PlayerStatService then
+		PlayerStatService.applyStats(userId)
+	end
 	
 	return true
 end

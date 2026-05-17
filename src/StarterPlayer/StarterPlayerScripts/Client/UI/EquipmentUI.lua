@@ -353,6 +353,31 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				slot.icon.Image = getItemIcon(item.itemId)
 				slot.icon.Visible = true
 				
+				-- Enhancement level text indicator on the slot itself
+				local levelText = slot.frame:FindFirstChild("EnhanceLevelText")
+				local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
+				if enhanceLevel > 0 then
+					if not levelText then
+						levelText = Utils.mkLabel({
+							name = "EnhanceLevelText",
+							text = "+" .. enhanceLevel,
+							size = UDim2.new(0, 30, 0, 20),
+							pos = UDim2.new(1, -2, 1, -2),
+							anchor = Vector2.new(1, 1),
+							ts = 14,
+							font = F.TITLE,
+							color = Color3.fromRGB(255, 215, 0), -- Bright Gold
+							parent = slot.frame
+						})
+						levelText.ZIndex = slot.icon.ZIndex + 1
+					else
+						levelText.Text = "+" .. enhanceLevel
+						levelText.Visible = true
+					end
+				else
+					if levelText then levelText.Visible = false end
+				end
+				
 				local itemData = DataHelper.GetData("ItemData", item.itemId) or { id = item.itemId, name = item.itemId, type = "UNKNOWN", rarity = "COMMON" }
 				
 				-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
@@ -471,7 +496,10 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 					local iType = itemData.type
 					
 					-- 아이템 이름
-					addName(itemData.name, rarityColor)
+					local baseName = UILocalizer.LocalizeDataText("ItemData", tostring(itemData.id or item.itemId), "name", itemData.name or item.itemId)
+					local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
+					local displayName = baseName .. (enhanceLevel > 0 and (" +" .. enhanceLevel) or "")
+					addName(displayName, rarityColor)
 					addSep()
 					
 					-- 아이콘 (미리보기) - 작게 표시
@@ -503,14 +531,18 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						end
 						
 						local baseDmg = itemData.damage or 0
+						local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
 						local finalDmg = math.floor(baseDmg * (1 + bonusDmg) + 0.5)
+						if enhanceLevel > 0 then
+							finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * 0.15) + 0.5)
+						end
 						local extraDmg = finalDmg - baseDmg
 						
 						local baseDur = itemData.durability or 0
 						local curDur = item.durability or baseDur
 						local maxDur = math.floor(baseDur * (1 + bonusDur) + 0.5)
 						
-						addRow("공격력", tostring(baseDmg) .. (extraDmg ~= 0 and string.format(" (+%d)", extraDmg) or ""), bonusDmg > 0 and "#8CDC64" or "#FFFFFF")
+						addRow("공격력", tostring(baseDmg) .. (extraDmg ~= 0 and string.format(" (+%d)", extraDmg) or ""), (bonusDmg > 0 or enhanceLevel > 0) and "#8CDC64" or "#FFFFFF")
 						addRow("치명타 확률", math.floor(bonusCrit*100+0.5) .. "%", bonusCrit > 0 and "#8CDC64" or "#FFFFFF")
 						-- [MODIFIED] DEACTIVATED durability row
 						-- addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
@@ -615,6 +647,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				slot.icon.Image = ""
 				slot.icon.Visible = false
 				if slot.durBg then slot.durBg.Visible = false end
+				local levelText = slot.frame:FindFirstChild("EnhanceLevelText")
+				if levelText then levelText.Visible = false end
 			end
 		end
 	end
@@ -633,7 +667,20 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 		if statId == Enums.StatId.MAX_HEALTH then baseValue = calc.maxHealth or 100; valText = string.format("%d HP", baseValue)
 		elseif statId == Enums.StatId.MAX_STAMINA then baseValue = calc.maxStamina or 100; valText = string.format("%d STA", baseValue)
 		elseif statId == Enums.StatId.INV_SLOTS then baseValue = calc.maxSlots or 60; valText = string.format("%d 칸", baseValue)
-		elseif statId == Enums.StatId.ATTACK then baseValue = (calc.attackMult or 1.0) * 100; valText = string.format("%.0f%%", baseValue)
+		elseif statId == Enums.StatId.ATTACK then
+			local mult = calc.attackMult or 1.0
+			local wData = equipmentData and equipmentData.HAND
+			if wData then
+				local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+				local itemData = DataHelper.GetData("ItemData", wData.itemId)
+				local baseDmg = itemData and itemData.damage or 0
+				local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
+				local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * 0.15) + 0.5)
+				local charDmg = math.floor(finalDmg * mult + 0.5)
+				valText = string.format("%.0f%% (%d DMG)", mult * 100, charDmg)
+			else
+				valText = string.format("%.0f%%", mult * 100)
+			end
 		elseif statId == Enums.StatId.DEFENSE then baseValue = calc.defense or 0; valText = string.format("%d", baseValue) end
 		
 		-- PendingStats: 저장된 UIManager 참조 사용

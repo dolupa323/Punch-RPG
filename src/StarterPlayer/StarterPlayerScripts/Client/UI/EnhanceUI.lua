@@ -1,16 +1,38 @@
 -- EnhanceUI.lua
--- 무기 강화(연금) 전용 UI 모듈
--- 갱신: 듀얼 주문서 슬롯 지원 (하락방지 + 파괴방지 동시 사용 가능)
+-- 무기 강화 전용 UI 모듈 (1개 무기 슬롯 + 골드 비용 기반)
+-- 듀랑고 스타일의 프리미엄 Standalone 창 레이아웃
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(script.Parent.UITheme)
 local Utils = require(script.Parent.UIUtils)
 local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
 local NetClient = require(script.Parent.Parent.NetClient)
-local C = Theme.Colors
+local ShopController = require(script.Parent.Parent.Controllers.ShopController)
+
+-- Local Color Override for Navy + Black Theme (Match Equipment/Inventory/WeaponCraft)
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+C.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+C.BG_SLOT = Color3.fromRGB(12, 12, 15) -- Near Black (Matches Inventory)
+C.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White!
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+C.BTN = Color3.fromRGB(40, 80, 160)      -- Action Buttons -> Navy
+
 local F = Theme.Fonts
 
 local EnhanceUI = {}
+
+EnhanceUI.State = {
+	selectedWeaponSlot = nil, -- "HAND" 또는 인벤토리 인덱스 번호
+	isProcessing = false
+}
+EnhanceUI.Refs = {}
+
+local UI_MANAGER = nil
 
 -- 아이콘 이미지 설정 헬퍼
 local function setIconImage(uiObject, icon)
@@ -29,320 +51,247 @@ local function setIconImage(uiObject, icon)
 	end
 end
 
-EnhanceUI.State = {
-	selectedWeaponSlot = nil,
-	selectedStoneSlot = nil,
-	selectedDownSlot = nil,
-	selectedDestroySlot = nil,
-	isProcessing = false
-}
-EnhanceUI.Refs = {}
+-- 강화 비용 공식 (서버와 동기화)
+local function getEnhanceCost(level: number): number
+	if level < 5 then
+		return 100 + level * 100
+	elseif level < 10 then
+		return 1000 + (level - 5) * 500
+	elseif level < 15 then
+		return 5000 + (level - 10) * 2000
+	elseif level < 20 then
+		return 20000 + (level - 15) * 5000
+	else
+		return 50000 + (level - 20) * 10000
+	end
+end
 
-local UI_MANAGER = nil
-
--- 클라이언트 측 확률 데이터 (서버와 동기화 필요)
-local CLIENT_PROBS = {
-	BASE_SUCCESS = { [0]=1.00, [1]=0.90, [2]=0.80, [3]=0.60, [4]=0.40, [5]=0.25, [6]=0.15, [7]=0.10, [8]=0.05, [9]=0.03 },
-	STONES = { ALCHEMY_STONE_LOW=0.00, ALCHEMY_STONE_MID=0.10, ALCHEMY_STONE_HIGH=0.25 },
-	SCROLLS = { 
-		ENHANCE_SCROLL_NORMAL=0.05, 
-		ENHANCE_SCROLL_SURE=0.15,
-		["3586927112"] = { isDownProtect = true },    -- 하락방지권
-		["3586927381"] = { isDestroyProtect = true }, -- 파괴방지권
-	},
-	RISKS = {
-		SAFE = { stay=100, down=0, destroy=0 },
-		MID  = { stay=70, down=25, destroy=5 },
-		HIGH = { stay=40, down=40, destroy=20 }
-	}
-}
+-- 계단식 성공 확률 곡선 (서버와 동기화)
+local function getSuccessRate(level: number): number
+	if level == 0 then
+		return 1.00
+	elseif level < 5 then
+		return 0.90 - (level - 1) * 0.10
+	elseif level < 10 then
+		return 0.50 - (level - 5) * 0.06
+	elseif level < 15 then
+		return 0.20 - (level - 10) * 0.03
+	elseif level < 20 then
+		return 0.05 - (level - 15) * 0.008
+	elseif level < 30 then
+		return 0.01
+	else
+		return 0.002
+	end
+end
 
 function EnhanceUI.Init(parent, manager)
 	UI_MANAGER = manager
-	local frame = Utils.mkFrame({
-		name = "EnhanceContainer",
-		size = UDim2.new(1, 0, 1, 0),
-		bgT = 1,
+	
+	-- Standalone Window Frame
+	local window = Utils.mkWindow({
+		name = "EnhanceWindow",
+		size = UDim2.new(0, 400, 0, 480),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		bgT = 0.15, -- glassmorphism
+		stroke = 2,
+		strokeC = C.BORDER,
+		r = 10,
 		vis = false,
 		parent = parent
 	})
-	EnhanceUI.Refs.Main = frame
-
-	local list = Instance.new("UIListLayout")
-	list.FillDirection = Enum.FillDirection.Vertical
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Padding = UDim.new(0.015, 0)
-	list.Parent = frame
+	EnhanceUI.Refs.Frame = window
+	EnhanceUI.Refs.Main = window
 	
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0.04, 0); pad.PaddingBottom = UDim.new(0.04, 0)
-	pad.Parent = frame
-
-	-- 1. 무기 선택 영역
-	local weaponArea = Utils.mkFrame({
-		name = "WeaponArea",
-		size = UDim2.new(0.95, 0, 0.22, 0),
-		bg = C.BG_DARK,
-		bgT = 0.5,
-		r = 6,
-		z = 1,
-		parent = frame
-	})
-	weaponArea.LayoutOrder = 1
-	
-	Utils.mkLabel({
-		text = UILocalizer.Localize("강화할 무기"),
-		size = UDim2.new(1, 0, 0, 20),
-		pos = UDim2.new(0, 0, 0, 4),
-		ts = 15,
+	-- Header Title
+	EnhanceUI.Refs.Title = Utils.mkLabel({
+		text = UILocalizer.Localize("무기 강화"),
+		size = UDim2.new(1, -60, 0, 40),
+		pos = UDim2.new(0, 20, 0, 10),
 		font = F.TITLE,
-		color = C.GOLD,
-		parent = weaponArea
+		ts = 20,
+		color = C.WHITE,
+		ax = Enum.TextXAlignment.Left,
+		parent = window
 	})
+	
+	-- Close Button
+	local closeBtn = Utils.mkBtn({
+		text = "X",
+		size = UDim2.new(0, 32, 0, 32),
+		pos = UDim2.new(1, -12, 0, 12),
+		anchor = Vector2.new(1, 0),
+		bg = C.BG_SLOT,
+		color = C.WHITE,
+		ts = 16,
+		font = F.TITLE,
+		r = 6,
+		fn = function()
+			UI_MANAGER.closeEnhance()
+		end,
+		parent = window
+	})
+	
+	-- Main body area
+	local body = Utils.mkFrame({
+		name = "Body",
+		size = UDim2.new(1, -40, 1, -70),
+		pos = UDim2.new(0, 20, 0, 60),
+		bgT = 1,
+		parent = window
+	})
+	EnhanceUI.Refs.Body = body
 
+	-- 1. Weapon Selector Slot
 	local wSlot = Utils.mkFrame({
 		name = "WeaponSlot",
-		size = UDim2.new(0, 56, 0, 56),
-		pos = UDim2.new(0.5, 0, 0.45, 0),
-		anchor = Vector2.new(0.5, 0.5),
+		size = UDim2.new(0, 88, 0, 88),
+		pos = UDim2.new(0.5, 0, 0, 10),
+		anchor = Vector2.new(0.5, 0),
 		bg = C.BG_SLOT,
-		r = 8,
+		bgT = 0.3,
+		r = 12,
 		stroke = 2,
 		strokeC = C.BORDER,
-		parent = weaponArea
+		parent = body
 	})
-	Instance.new("UIAspectRatioConstraint", wSlot).AspectRatio = 1
-
 	EnhanceUI.Refs.WeaponSlot = wSlot
-	EnhanceUI.Refs.WeaponIcon = Instance.new("ImageLabel", wSlot)
-	EnhanceUI.Refs.WeaponIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
-	EnhanceUI.Refs.WeaponIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	EnhanceUI.Refs.WeaponIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	EnhanceUI.Refs.WeaponIcon.BackgroundTransparency = 1
-
-	EnhanceUI.Refs.WeaponName = Utils.mkLabel({
-		text = UILocalizer.Localize("무기를 선택하세요"),
-		size = UDim2.new(1, 0, 0, 18),
-		pos = UDim2.new(0, 0, 1, -4),
-		anchor = Vector2.new(0, 1),
-		ts = 12,
-		color = C.WHITE,
-		parent = weaponArea
-	})
-
-	-- 2. 연금석 선택 영역
-	local stoneArea = Utils.mkFrame({
-		name = "StoneArea",
-		size = UDim2.new(0.95, 0, 0.22, 0),
-		bg = C.BG_DARK,
-		bgT = 0.5,
-		r = 6,
-		z = 1,
-		parent = frame
-	})
-	stoneArea.LayoutOrder = 2
-
-	Utils.mkLabel({
-		text = UILocalizer.Localize("연금석 선택"),
-		size = UDim2.new(1, 0, 0, 20),
-		pos = UDim2.new(0, 0, 0, 4),
-		ts = 15,
-		font = F.TITLE,
-		color = C.GOLD,
-		parent = stoneArea
-	})
-
-	local sSlot = Utils.mkFrame({
-		name = "StoneSlot",
-		size = UDim2.new(0, 56, 0, 56),
-		pos = UDim2.new(0.5, 0, 0.45, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		bg = C.BG_SLOT,
-		r = 8,
-		stroke = 2,
-		strokeC = C.BORDER,
-		parent = stoneArea
-	})
-	Instance.new("UIAspectRatioConstraint", sSlot).AspectRatio = 1
-
-	EnhanceUI.Refs.StoneSlot = sSlot
-	EnhanceUI.Refs.StoneIcon = Instance.new("ImageLabel", sSlot)
-	EnhanceUI.Refs.StoneIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
-	EnhanceUI.Refs.StoneIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	EnhanceUI.Refs.StoneIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	EnhanceUI.Refs.StoneIcon.BackgroundTransparency = 1
-
-	EnhanceUI.Refs.StoneName = Utils.mkLabel({
-		text = UILocalizer.Localize("연금석을 선택하세요"),
-		size = UDim2.new(1, 0, 0, 18),
-		pos = UDim2.new(0, 0, 1, -4),
-		anchor = Vector2.new(0, 1),
-		ts = 12,
-		color = C.WHITE,
-		parent = stoneArea
-	})
 	
-	-- 3. 주문서 선택 영역 (2개 슬롯)
-	local scrollArea = Utils.mkFrame({
-		name = "ScrollArea",
-		size = UDim2.new(0.95, 0, 0.28, 0),
-		bg = C.BG_DARK,
-		bgT = 0.5,
-		r = 6,
-		z = 1,
-		parent = frame
-	})
-	scrollArea.LayoutOrder = 3
-
-	Utils.mkLabel({
-		text = UILocalizer.Localize("보호 주문서 (선택 사항)"),
-		size = UDim2.new(1, 0, 0, 20),
-		pos = UDim2.new(0, 0, 0, 4),
-		ts = 15,
-		font = F.TITLE,
-		color = C.GOLD,
-		parent = scrollArea
-	})
-
-	local scrollContainer = Instance.new("Frame", scrollArea)
-	scrollContainer.Size = UDim2.new(1, 0, 1, -25)
-	scrollContainer.Position = UDim2.new(0, 0, 0, 25)
-	scrollContainer.BackgroundTransparency = 1
+	local wIcon = Instance.new("ImageLabel", wSlot)
+	wIcon.Size = UDim2.new(0.7, 0, 0.7, 0)
+	wIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+	wIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+	wIcon.BackgroundTransparency = 1
+	wIcon.Visible = false
+	EnhanceUI.Refs.WeaponIcon = wIcon
 	
-	local sList = Instance.new("UIListLayout", scrollContainer)
-	sList.FillDirection = Enum.FillDirection.Horizontal
-	sList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	sList.VerticalAlignment = Enum.VerticalAlignment.Center
-	sList.Padding = UDim.new(0, 40)
-
-	-- 하락방지 슬롯
-	local dSlot = Utils.mkFrame({
-		name = "DownSlot",
-		size = UDim2.new(0, 56, 0, 56),
-		bg = C.BG_SLOT,
-		r = 8,
-		stroke = 2,
-		strokeC = C.BORDER,
-		parent = scrollContainer
-	})
-	EnhanceUI.Refs.DownSlot = dSlot
-	EnhanceUI.Refs.DownIcon = Instance.new("ImageLabel", dSlot)
-	EnhanceUI.Refs.DownIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
-	EnhanceUI.Refs.DownIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	EnhanceUI.Refs.DownIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	EnhanceUI.Refs.DownIcon.BackgroundTransparency = 1
-	Utils.mkLabel({text=UILocalizer.Localize("하락방지"), size=UDim2.new(1.5,0,0,15), pos=UDim2.new(0.5,0,1,10), anchor=Vector2.new(0.5,0), ts=10, color=C.WHITE, parent=dSlot})
-
-	-- 파괴방지 슬롯
-	local dsSlot = Utils.mkFrame({
-		name = "DestroySlot",
-		size = UDim2.new(0, 56, 0, 56),
-		bg = C.BG_SLOT,
-		r = 8,
-		stroke = 2,
-		strokeC = C.BORDER,
-		parent = scrollContainer
-	})
-	EnhanceUI.Refs.DestroySlot = dsSlot
-	EnhanceUI.Refs.DestroyIcon = Instance.new("ImageLabel", dsSlot)
-	EnhanceUI.Refs.DestroyIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
-	EnhanceUI.Refs.DestroyIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	EnhanceUI.Refs.DestroyIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	EnhanceUI.Refs.DestroyIcon.BackgroundTransparency = 1
-	Utils.mkLabel({text=UILocalizer.Localize("파괴방지"), size=UDim2.new(1.5,0,0,15), pos=UDim2.new(0.5,0,1,10), anchor=Vector2.new(0.5,0), ts=10, color=C.WHITE, parent=dsSlot})
-
-	-- 4. 확률 및 리스크 영역
-	local riskArea = Utils.mkFrame({
-		name = "RiskArea",
-		size = UDim2.new(0.95, 0, 0.1, 0),
-		bgT = 1,
-		parent = frame
-	})
-	riskArea.LayoutOrder = 4
-
-	EnhanceUI.Refs.ChanceLabel = Utils.mkLabel({
-		text = "",
+	local wPlus = Utils.mkLabel({
+		text = "+",
 		size = UDim2.new(1, 0, 1, 0),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
+		ts = 36,
+		color = C.INK,
+		parent = wSlot
+	})
+	EnhanceUI.Refs.WeaponPlus = wPlus
+	
+	local wName = Utils.mkLabel({
+		text = UILocalizer.Localize("강화할 무기를 선택하세요"),
+		size = UDim2.new(1, 0, 0, 24),
+		pos = UDim2.new(0.5, 0, 0, 105),
+		anchor = Vector2.new(0.5, 0),
 		ts = 14,
+		font = F.TITLE,
+		color = C.WHITE,
+		parent = body
+	})
+	EnhanceUI.Refs.WeaponName = wName
+	
+	-- Interactive text button inside the slot
+	local wClick = Instance.new("TextButton")
+	wClick.Name = "Click"
+	wClick.Size = UDim2.new(1, 0, 1, 0)
+	wClick.BackgroundTransparency = 1
+	wClick.Text = ""
+	wClick.Parent = wSlot
+	wClick.MouseButton1Click:Connect(function()
+		if EnhanceUI.State.isProcessing then return end
+		EnhanceUI.OpenSelector("WEAPON")
+	end)
+
+	-- 2. Enhancement Specifications Panel (Comparison)
+	local specPanel = Utils.mkFrame({
+		name = "SpecPanel",
+		size = UDim2.new(1, 0, 0, 85),
+		pos = UDim2.new(0.5, 0, 0, 140),
+		anchor = Vector2.new(0.5, 0),
+		bg = C.BG_DARK,
+		bgT = 0.5,
+		r = 8,
+		parent = body
+	})
+	
+	local specLabel = Utils.mkLabel({
+		text = UILocalizer.Localize("무기를 선택하면 공격력 및 강화 스펙 변화가 표시됩니다."),
+		size = UDim2.new(1, -20, 1, -10),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 13,
+		color = C.INK,
+		rich = true,
+		wrap = true,
+		parent = specPanel
+	})
+	EnhanceUI.Refs.SpecLabel = specLabel
+
+	-- 3. Cost & Success Rates Panel
+	local costPanel = Utils.mkFrame({
+		name = "CostPanel",
+		size = UDim2.new(1, 0, 0, 85),
+		pos = UDim2.new(0.5, 0, 0, 235),
+		anchor = Vector2.new(0.5, 0),
+		bg = C.BG_DARK,
+		bgT = 0.3,
+		r = 8,
+		parent = body
+	})
+	
+	local costLabel = Utils.mkLabel({
+		text = "",
+		size = UDim2.new(1, -20, 1, -10),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 13,
 		color = C.WHITE,
 		rich = true,
 		wrap = true,
-		parent = riskArea
+		parent = costPanel
 	})
+	EnhanceUI.Refs.CostLabel = costLabel
 
-	-- 5. 버튼 영역
-	local btnArea = Utils.mkFrame({
-		name = "BtnArea",
-		size = UDim2.new(0.95, 0, 0.12, 0),
-		bgT = 1,
-		parent = frame
-	})
-	btnArea.LayoutOrder = 10
-
+	-- 4. Action Button (Start Enhance)
 	local startBtn = Utils.mkBtn({
-		text = UILocalizer.Localize("연금 시도"),
-		size = UDim2.new(1, 0, 1, 0),
-		pos = UDim2.new(0.5, 0, 0.5, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		bg = C.GOLD,
-		color = C.BG_DARK,
-		ts = 20,
+		text = UILocalizer.Localize("강화 시도"),
+		size = UDim2.new(1, 0, 0, 44),
+		pos = UDim2.new(0.5, 0, 1, 0),
+		anchor = Vector2.new(0.5, 1),
+		bg = C.GOLD_SEL,
+		color = C.WHITE,
+		ts = 18,
 		font = F.TITLE,
-		r = 6,
-		parent = btnArea
+		r = 8,
+		parent = body
 	})
 	EnhanceUI.Refs.StartBtn = startBtn
-
-	-- 클릭 핸들러 연동
-	local function addClick(obj, mode)
-		local btn = Instance.new("TextButton")
-		btn.Name = "Click"
-		btn.Size = UDim2.new(1, 0, 1, 0)
-		btn.BackgroundTransparency = 1
-		btn.Text = ""
-		btn.Parent = obj
-		btn.MouseButton1Click:Connect(function()
-			EnhanceUI.OpenSelector(mode)
-		end)
-	end
-
-	addClick(wSlot, "WEAPON")
-	addClick(sSlot, "ALCHEMY_STONE")
-	addClick(dSlot, "DOWN_PROTECT")
-	addClick(dsSlot, "DESTROY_PROTECT")
-
+	
 	startBtn.MouseButton1Click:Connect(function()
 		if EnhanceUI.State.isProcessing then return end
-		if not EnhanceUI.State.selectedWeaponSlot or not EnhanceUI.State.selectedStoneSlot then
-			UI_MANAGER.notify(UILocalizer.Localize("무기와 연금석을 모두 선택해야 합니다."), C.RED)
+		if not EnhanceUI.State.selectedWeaponSlot then
+			UI_MANAGER.notify(UILocalizer.Localize("강화할 무기를 선택해야 합니다."), C.RED)
 			return
 		end
 		
 		EnhanceUI.StartEnhance()
 	end)
 
-	return frame
+	-- Real-time Gold Update Listener
+	ShopController.onGoldChanged(function(newGold)
+		if EnhanceUI.Refs.Frame and EnhanceUI.Refs.Frame.Visible then
+			EnhanceUI.UpdateChances()
+		end
+	end)
+
+	return window
 end
 
 function EnhanceUI.OpenSelector(mode)
-	UI_MANAGER.openItemSelector(mode, function(slotIndex, itemData)
-		if mode == "WEAPON" then
-			EnhanceUI.State.selectedWeaponSlot = slotIndex
-			EnhanceUI.UpdateWeapon(itemData)
-		elseif mode == "ALCHEMY_STONE" then
-			EnhanceUI.State.selectedStoneSlot = slotIndex
-			EnhanceUI.UpdateStone(itemData)
-		elseif mode == "DOWN_PROTECT" then
-			EnhanceUI.State.selectedDownSlot = slotIndex
-			EnhanceUI.UpdateDownProtect(itemData)
-		elseif mode == "DESTROY_PROTECT" then
-			EnhanceUI.State.selectedDestroySlot = slotIndex
-			EnhanceUI.UpdateDestroyProtect(itemData)
-		end
-		
+	if mode ~= "WEAPON" then return end
+	UI_MANAGER.openItemSelector("WEAPON", function(slotIndex, itemData)
+		EnhanceUI.State.selectedWeaponSlot = slotIndex
+		EnhanceUI.UpdateWeapon(itemData)
 		EnhanceUI.UpdateChances()
 	end)
 end
@@ -351,171 +300,172 @@ function EnhanceUI.UpdateWeapon(item)
 	if not item then
 		EnhanceUI.Refs.WeaponIcon.Image = ""
 		EnhanceUI.Refs.WeaponIcon.Visible = false
-		EnhanceUI.Refs.WeaponName.Text = UILocalizer.Localize("무기를 선택하세요")
+		EnhanceUI.Refs.WeaponPlus.Visible = true
+		EnhanceUI.Refs.WeaponName.Text = UILocalizer.Localize("강화할 무기를 선택하세요")
+		EnhanceUI.Refs.WeaponSlot.BorderColor3 = C.BORDER
 		return
 	end
+	
 	setIconImage(EnhanceUI.Refs.WeaponIcon, UI_MANAGER.getItemIcon(item.itemId))
 	EnhanceUI.Refs.WeaponIcon.Visible = true
+	EnhanceUI.Refs.WeaponPlus.Visible = false
+	
 	local level = (item.attributes and item.attributes.enhanceLevel) or 0
-	EnhanceUI.Refs.WeaponName.Text = UI_MANAGER.getItemName(item.itemId) .. (level > 0 and " +" .. level or "")
-end
-
-function EnhanceUI.UpdateStone(item)
-	if not item then
-		EnhanceUI.Refs.StoneIcon.Image = ""
-		EnhanceUI.Refs.StoneIcon.Visible = false
-		EnhanceUI.Refs.StoneName.Text = UILocalizer.Localize("연금석을 선택하세요")
-		return
-	end
-	setIconImage(EnhanceUI.Refs.StoneIcon, UI_MANAGER.getItemIcon(item.itemId))
-	EnhanceUI.Refs.StoneIcon.Visible = true
-	EnhanceUI.Refs.StoneName.Text = UI_MANAGER.getItemName(item.itemId)
-end
-
-function EnhanceUI.UpdateDownProtect(item)
-	EnhanceUI.State.selectedDownProtect = item
-	if item then
-		setIconImage(EnhanceUI.Refs.DownIcon, UI_MANAGER.getItemIcon(item.itemId))
-		EnhanceUI.Refs.DownIcon.Visible = true
-	else
-		EnhanceUI.Refs.DownIcon.Image = ""
-		EnhanceUI.Refs.DownIcon.Visible = false
-	end
-	EnhanceUI.UpdateChances()
-end
-
-function EnhanceUI.UpdateDestroyProtect(item)
-	EnhanceUI.State.selectedDestroyProtect = item
-	if item then
-		setIconImage(EnhanceUI.Refs.DestroyIcon, UI_MANAGER.getItemIcon(item.itemId))
-		EnhanceUI.Refs.DestroyIcon.Visible = true
-	else
-		EnhanceUI.Refs.DestroyIcon.Image = ""
-		EnhanceUI.Refs.DestroyIcon.Visible = false
-	end
-	EnhanceUI.UpdateChances()
+	local isEquipped = (EnhanceUI.State.selectedWeaponSlot == "HAND")
+	local equippedTag = isEquipped and string.format("<font color='#%s'>[장착중]</font> ", C.GOLD:ToHex()) or ""
+	
+	EnhanceUI.Refs.WeaponName.Text = equippedTag .. UI_MANAGER.getItemName(item.itemId) .. (level > 0 and " +" .. level or "")
+	EnhanceUI.Refs.WeaponSlot.BorderColor3 = C.GOLD
 end
 
 function EnhanceUI.UpdateChances()
 	if not UI_MANAGER then return end
-	local wData = EnhanceUI.State.selectedWeaponSlot and UI_MANAGER.getInventorySlot(EnhanceUI.State.selectedWeaponSlot)
-	local sData = EnhanceUI.State.selectedStoneSlot and UI_MANAGER.getInventorySlot(EnhanceUI.State.selectedStoneSlot)
-	local dData = EnhanceUI.State.selectedDownSlot and UI_MANAGER.getInventorySlot(EnhanceUI.State.selectedDownSlot)
-	local dsData = EnhanceUI.State.selectedDestroySlot and UI_MANAGER.getInventorySlot(EnhanceUI.State.selectedDestroySlot)
+	local wSlot = EnhanceUI.State.selectedWeaponSlot
+	local wData = nil
+	if wSlot == "HAND" then
+		local equipment = UI_MANAGER.getEquipment and UI_MANAGER.getEquipment() or {}
+		wData = equipment.HAND
+	elseif type(wSlot) == "number" then
+		wData = UI_MANAGER.getInventorySlot(wSlot)
+	end
 	
-	if wData and sData then
+	if wData then
 		local level = (wData.attributes and wData.attributes.enhanceLevel) or 0
-		local base = CLIENT_PROBS.BASE_SUCCESS[level] or 0.01
-		local sBonus = CLIENT_PROBS.STONES[sData.itemId] or 0
+		local maxLevel = 50
 		
-		-- 두 주문서의 효과를 각각 체크
-		local isDownProtected = dData ~= nil
-		local isDestroyProtected = dsData ~= nil
-		
-		local finalRate = math.min(1, base + sBonus)
-		local failRate = 1 - finalRate
-		
-		local risk
-		if level <= 2 then risk = CLIENT_PROBS.RISKS.SAFE
-		elseif level <= 5 then risk = CLIENT_PROBS.RISKS.MID
-		else risk = CLIENT_PROBS.RISKS.HIGH end
-		
-		local successStr = string.format("<font color='#ffcc00' size='16'><b>성공: %d%%</b></font>", math.floor(finalRate * 100))
-		local failStr = ""
-		
-		if failRate > 0 then
-			local stayP = math.floor(failRate * risk.stay)
-			local downP = math.floor(failRate * risk.down)
-			local destP = math.floor(failRate * risk.destroy)
-			
-			-- 방지권 처리
-			local downText = isDownProtected and "<font color='#88ff88'>하락 방지됨</font>" or string.format("<font color='#ff8800'>하락: %d%%</font>", downP)
-			local destText = isDestroyProtected and "<font color='#88ff88'>파괴 방지됨</font>" or string.format("<font color='#ff4444'>파괴: %d%%</font>", destP)
-			
-			failStr = string.format("\n<font size='13'>유지: %d%% | %s | %s</font>", stayP, downText, destText)
+		if level >= maxLevel then
+			EnhanceUI.Refs.SpecLabel.Text = string.format("<font color='#%s'><b>최대 강화 단계(+50)에 도달했습니다!</b></font>", C.GOLD:ToHex())
+			EnhanceUI.Refs.CostLabel.Text = UILocalizer.Localize("더 이상 강화를 진행할 수 없습니다.")
+			EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("강화 완료")
+			Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
+			return
 		end
 		
-		EnhanceUI.Refs.ChanceLabel.Text = successStr .. failStr
+		local baseDmg = 10
+		local success, DataHelper = pcall(function()
+			return require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+		end)
+		if success and DataHelper then
+			local baseItem = DataHelper.GetData("ItemData", wData.itemId)
+			if baseItem then
+				baseDmg = baseItem.damage or baseItem.baseDamage or baseDmg
+			end
+		end
+		
+		-- Spec Comparison
+		local curBonusPct = level * 15
+		local nextBonusPct = (level + 1) * 15
+		local curDmg = math.floor(baseDmg * (1 + level * 0.15) + 0.5)
+		local nextDmg = math.floor(baseDmg * (1 + (level + 1) * 0.15) + 0.5)
+		
+		local specText = string.format(
+			"<b>%s</b>\n- %s: Lv.%d → <font color='#%s'>Lv.%d</font>\n- %s: %d <font color='#%s'>(+%d%%)</font> → <b>%d <font color='#%s'>(+%d%%)</font></b>",
+			UILocalizer.Localize("[ 공격력 스펙 변화 ]"),
+			UILocalizer.Localize("강화 단계"), level, C.GOLD:ToHex(), level + 1,
+			UILocalizer.Localize("무기 공격력"), curDmg, C.INK:ToHex(), curBonusPct, nextDmg, C.GOLD:ToHex(), nextBonusPct
+		)
+		EnhanceUI.Refs.SpecLabel.Text = specText
+		
+		-- Cost & Success Rates
+		local cost = getEnhanceCost(level)
+		local successRate = getSuccessRate(level)
+		local myGold = ShopController.getGold()
+		
+		local goldColor = (myGold >= cost) and C.GOLD:ToHex() or C.RED:ToHex()
+		local rateText = string.format(
+			"<b>%s</b>\n- %s: <font color='#%s'><b>%d%%</b></font> | %s: <font color='#%s'><b>%d%%</b> (-1 Lv)</font>\n- %s: <font color='#%s'>%d</font> / %d Gold",
+			UILocalizer.Localize("[ 강화 요건 및 확률 ]"),
+			UILocalizer.Localize("성공 확률"), C.GOLD:ToHex(), math.floor(successRate * 100),
+			UILocalizer.Localize("실패 패널티"), C.RED:ToHex(), math.floor((1 - successRate) * 100),
+			UILocalizer.Localize("필요 골드"), goldColor, cost, myGold
+		)
+		EnhanceUI.Refs.CostLabel.Text = rateText
+		
+		if myGold >= cost then
+			EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("강화 시도")
+			Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.GOLD_SEL, 0)
+			EnhanceUI.Refs.StartBtn.TextColor3 = C.WHITE
+		else
+			EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("골드 부족")
+			Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
+			EnhanceUI.Refs.StartBtn.TextColor3 = C.GRAY
+		end
 	else
-		EnhanceUI.Refs.ChanceLabel.Text = UILocalizer.Localize("무기와 연금석을 선택하여 확률을 확인하세요.")
+		EnhanceUI.Refs.SpecLabel.Text = UILocalizer.Localize("무기를 선택하면 공격력 및 강화 스펙 변화가 표시됩니다.")
+		EnhanceUI.Refs.CostLabel.Text = UILocalizer.Localize("소지한 골드와 강화 성공률을 여기에 표시합니다.")
+		EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("무기 선택 필요")
+		Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
+		EnhanceUI.Refs.StartBtn.TextColor3 = C.GRAY
 	end
 end
 
 function EnhanceUI.StartEnhance()
 	if not UI_MANAGER then return end
 	local wSlot = EnhanceUI.State.selectedWeaponSlot
-	local sSlot = EnhanceUI.State.selectedStoneSlot
-	local dSlot = EnhanceUI.State.selectedDownSlot
-	local dsSlot = EnhanceUI.State.selectedDestroySlot
-	
-	local wData = wSlot and UI_MANAGER.getInventorySlot(wSlot)
-	local sData = sSlot and UI_MANAGER.getInventorySlot(sSlot)
-	
-	if not wData or not sData then return end
+	if not wSlot then return end
 	
 	EnhanceUI.State.isProcessing = true
-	EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("연금 진행 중...")
-	
-	local scrolls = {}
-	if dSlot then table.insert(scrolls, dSlot) end
-	if dsSlot then table.insert(scrolls, dsSlot) end
+	EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("강화 진행 중...")
+	Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
 	
 	local ok, result = NetClient.Request("Enhance.Request", {
-		weaponSlot = wSlot,
-		stoneSlot = sSlot,
-		scrollSlots = scrolls
+		slot = wSlot
 	})
 	
 	EnhanceUI.State.isProcessing = false
-	EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("연금 시도")
 	
-	if ok and result then
+	if ok and result and result.success then
 		if result.result == "SUCCESS" then
-			UI_MANAGER.notify(UILocalizer.Localize("강화 성공!"), Color3.fromRGB(100, 255, 100))
+			UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 성공! +%d 단계가 되었습니다."), result.newLevel), Color3.fromRGB(100, 255, 100))
 		else
-			local msg = result.isDestroyed and "아이템이 파괴되었습니다..." or (result.isDown and "강화 단계가 하락했습니다." or "강화에 실패했습니다.")
-			UI_MANAGER.notify(UILocalizer.Localize(msg), result.isDestroyed and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(255, 200, 50))
+			UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 실패... +%d 단계로 하락했습니다."), result.newLevel), Color3.fromRGB(255, 100, 100))
 		end
 		
-		-- 선택 초기화 (파괴되지 않은 경우 무기는 유지)
-		EnhanceUI.State.selectedStoneSlot = nil
-		EnhanceUI.State.selectedDownSlot = nil
-		EnhanceUI.State.selectedDestroySlot = nil
-		
-		if result.isDestroyed then
-			EnhanceUI.State.selectedWeaponSlot = nil
-			EnhanceUI.UpdateWeapon(nil)
+		-- Update slot state and re-sync
+		local updatedWeapon = nil
+		if wSlot == "HAND" then
+			local equipment = UI_MANAGER.getEquipment and UI_MANAGER.getEquipment() or {}
+			updatedWeapon = equipment.HAND
 		else
-			local updatedWeapon = UI_MANAGER.getInventorySlot(EnhanceUI.State.selectedWeaponSlot)
-			EnhanceUI.UpdateWeapon(updatedWeapon)
+			updatedWeapon = UI_MANAGER.getInventorySlot(wSlot)
 		end
 		
-		EnhanceUI.UpdateStone(nil)
-		EnhanceUI.UpdateDownProtect(nil)
-		EnhanceUI.UpdateDestroyProtect(nil)
+		if updatedWeapon then
+			if not updatedWeapon.attributes then
+				updatedWeapon.attributes = {}
+			end
+			updatedWeapon.attributes.enhanceLevel = result.newLevel
+		end
+		
+		EnhanceUI.UpdateWeapon(updatedWeapon)
 		EnhanceUI.UpdateChances()
 	else
-		UI_MANAGER.notify(UILocalizer.Localize("서버 통신 오류가 발생했습니다."), Color3.fromRGB(255, 50, 50))
+		local errMsg = result and result.error or "NETWORK_ERROR"
+		local text = UILocalizer.Localize("서버 통신 오류가 발생했습니다.")
+		if errMsg == "NOT_ENOUGH_GOLD" then
+			text = UILocalizer.Localize("골드가 부족합니다.")
+		elseif errMsg == "MAX_LEVEL_REACHED" then
+			text = UILocalizer.Localize("이미 최대 강화 단계입니다.")
+		end
+		UI_MANAGER.notify(text, Color3.fromRGB(255, 50, 50))
+		EnhanceUI.UpdateChances()
 	end
+end
+
+function EnhanceUI.Refresh()
+	EnhanceUI.UpdateChances()
 end
 
 function EnhanceUI.Reset()
 	EnhanceUI.State.selectedWeaponSlot = nil
-	EnhanceUI.State.selectedStoneSlot = nil
-	EnhanceUI.State.selectedDownSlot = nil
-	EnhanceUI.State.selectedDestroySlot = nil
 	EnhanceUI.State.isProcessing = false
-	
 	EnhanceUI.UpdateWeapon(nil)
-	EnhanceUI.UpdateStone(nil)
-	EnhanceUI.UpdateDownProtect(nil)
-	EnhanceUI.UpdateDestroyProtect(nil)
 	EnhanceUI.UpdateChances()
 end
 
 function EnhanceUI.SetVisible(vis)
-	if EnhanceUI.Refs.Main then
-		EnhanceUI.Refs.Main.Visible = vis
+	if EnhanceUI.Refs.Frame then
+		EnhanceUI.Refs.Frame.Visible = vis
 		if not vis then
 			EnhanceUI.Reset()
 		end
