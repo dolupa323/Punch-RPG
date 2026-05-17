@@ -59,22 +59,7 @@ Enums.ErrorCode = {
 	INTERNAL_ERROR = "INTERNAL_ERROR",
 	NOT_SUPPORTED = "NOT_SUPPORTED",       -- 미지원 기능
 	
-	-- 포획/팰 관련 (Phase 5)
-	PALBOX_FULL = "PALBOX_FULL",           -- 팰 보관함 가득 참
-	PARTY_FULL = "PARTY_FULL",             -- 파티 가득 참
-	NOT_CAPTURABLE = "NOT_CAPTURABLE",     -- 포획 불가 대상
-	CAPTURE_FAILED = "CAPTURE_FAILED",     -- 포획 실패 (확률 탈락)
-	PAL_ALREADY_ASSIGNED = "PAL_ALREADY_ASSIGNED", -- 이미 배치됨
-	PAL_IN_PARTY = "PAL_IN_PARTY",         -- 파티 편성 중
-	NO_CAPTURE_ITEM = "NO_CAPTURE_ITEM",   -- 포획 아이템 없음
-	ALREADY_IN_COMBAT = "ALREADY_IN_COMBAT", -- 이미 다른 대상과 전투 중
-	
 	-- 기술/레벨 관련 (Phase 6)
-	TECH_ALREADY_UNLOCKED = "TECH_ALREADY_UNLOCKED", -- 이미 해금됨
-	TECH_NOT_FOUND = "TECH_NOT_FOUND",               -- 기술 없음
-	INSUFFICIENT_TECH_POINTS = "INSUFFICIENT_TECH_POINTS", -- 기술 포인트 부족
-	PREREQUISITES_NOT_MET = "PREREQUISITES_NOT_MET", -- 선행 기술 미해금
-	RECIPE_LOCKED = "RECIPE_LOCKED",                 -- 레시피 미해금
 	INSUFFICIENT_STAT_POINTS = "INSUFFICIENT_STAT_POINTS", -- 스탯 포인트 부족
 	
 	-- 수확/노드 관련 (Phase 7)
@@ -82,16 +67,6 @@ Enums.ErrorCode = {
 	WRONG_TOOL = "WRONG_TOOL",                       -- 잘못된 도구
 	NODE_DEPLETED = "NODE_DEPLETED",                 -- 노드 고갈됨
 	NODE_NOT_FOUND = "NODE_NOT_FOUND",               -- 노드 없음
-	
-	-- 퀘스트 관련 (Phase 8)
-	QUEST_NOT_FOUND = "QUEST_NOT_FOUND",             -- 퀘스트 없음
-	QUEST_PREREQ_NOT_MET = "QUEST_PREREQ_NOT_MET",   -- 선행 퀘스트 미완료
-	QUEST_LEVEL_NOT_MET = "QUEST_LEVEL_NOT_MET",     -- 필요 레벨 미충족
-	QUEST_ALREADY_ACTIVE = "QUEST_ALREADY_ACTIVE",   -- 이미 진행 중
-	QUEST_NOT_COMPLETED = "QUEST_NOT_COMPLETED",     -- 미완료 상태에서 보상 요청
-	QUEST_ALREADY_CLAIMED = "QUEST_ALREADY_CLAIMED", -- 이미 보상 수령
-	QUEST_MAX_ACTIVE = "QUEST_MAX_ACTIVE",           -- 동시 진행 한도 초과
-	QUEST_NOT_REPEATABLE = "QUEST_NOT_REPEATABLE",   -- 비반복 퀘스트 재수락
 	
 	-- 상점 관련 (Phase 9)
 	SHOP_NOT_FOUND = "SHOP_NOT_FOUND",               -- 상점 없음
@@ -144,8 +119,6 @@ Enums.ItemType = {
 	CONSUMABLE = "CONSUMABLE",
 	FOOD = "FOOD",
 	PLACEABLE = "PLACEABLE",
-	DNA = "DNA",
-	CAPTURE_BOX = "CAPTURE_BOX",
 	MISC = "MISC",
 }
 
@@ -203,17 +176,6 @@ Enums.FacilityState = {
 }
 
 --========================================
--- 팰(Pal) 상태 (Phase 5)
---========================================
-Enums.PalState = {
-	STORED = "STORED",         -- 보관함에 저장
-	IN_PARTY = "IN_PARTY",     -- 파티에 편성 (미소환)
-	SUMMONED = "SUMMONED",     -- 월드에 소환됨
-	WORKING = "WORKING",       -- 시설에서 작업 중
-	FAINTED = "FAINTED",       -- 기절 (HP 0, 회복 필요)
-}
-
---========================================
 -- XP 획득 원천 (Phase 6)
 --========================================
 Enums.XPSource = {
@@ -221,24 +183,10 @@ Enums.XPSource = {
 	CRAFT_ITEM = "CRAFT_ITEM",           -- 아이템 제작
 	COOK_ITEM = "COOK_ITEM",             -- 요리
 	PROCESS_ITEM = "PROCESS_ITEM",       -- 가공/제련
-	CAPTURE_PAL = "CAPTURE_PAL",         -- 팰 포획
 	HARVEST_RESOURCE = "HARVEST_RESOURCE", -- 자원 채집
 	BUILD = "BUILD",                     -- 건축/배치
 }
 
---========================================
--- 기술 카테고리 (Phase 6)
---========================================
-Enums.TechCategory = {
-	BASICS = "BASICS",           -- 기초
-	TOOLS = "TOOLS",             -- 도구
-	WEAPONS = "WEAPONS",         -- 무기
-	ARMOR = "ARMOR",             -- 방어구
-	STRUCTURES = "STRUCTURES",   -- 구조물
-	FACILITIES = "FACILITIES",   -- 시설
-	CRAFTING = "CRAFTING",       -- 제작
-	PAL = "PAL",                 -- 팰 관련
-}
 --========================================
 -- 자원 노드 타입 (Phase 7)
 --========================================
@@ -249,8 +197,6 @@ Enums.NodeType = {
 	FIBER = "FIBER",             -- 섬유/풀
 	ORE = "ORE",                 -- 광석
 }
-
--- (Quest 시스템 삭제됨)
 
 --========================================
 -- 장비 슬롯 (Phase 11)

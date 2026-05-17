@@ -46,6 +46,7 @@ Protocol.Commands = {
 	
 	-- WorldDrop 명령어
 	["WorldDrop.Loot.Request"] = true,
+	["WorldDrop.GetActiveDrops"] = true,
 	
 	-- Storage 명령어
 	["Storage.Open.Request"] = true,

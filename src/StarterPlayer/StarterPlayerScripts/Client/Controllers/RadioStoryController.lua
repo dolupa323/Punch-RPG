@@ -173,30 +173,35 @@ do
 	local dataFolder = ReplicatedStorage:FindFirstChild("Data")
 	if dataFolder then
 		local okItem, itemData = pcall(function()
-			return require(dataFolder:WaitForChild("ItemData"))
+			local module = dataFolder:FindFirstChild("ItemData")
+			return module and require(module)
 		end)
-		if okItem then
+		if okItem and itemData then
 			itemLookup = buildIdLookup(itemData)
 		end
 
 		local okFacility, facilityData = pcall(function()
-			return require(dataFolder:WaitForChild("FacilityData"))
+			local module = dataFolder:FindFirstChild("FacilityData")
+			return module and require(module)
 		end)
-		if okFacility then
+		if okFacility and facilityData then
 			facilityLookup = buildIdLookup(facilityData)
 		end
 
 		local okRecipe, recipeData = pcall(function()
-			return require(dataFolder:WaitForChild("RecipeData"))
+			local module = dataFolder:FindFirstChild("RecipeData")
+			return module and require(module)
 		end)
-		if okRecipe then
+		if okRecipe and recipeData then
 			recipeLookup = buildIdLookup(recipeData)
 		end
 
+		-- CreatureData는 미구현 파일이므로 FindFirstChild로 안전 우회 처리하여 무한 대기(Infinite Yield) 락 방지
 		local okCreature, creatureData = pcall(function()
-			return require(dataFolder:WaitForChild("CreatureData"))
+			local module = dataFolder:FindFirstChild("CreatureData")
+			return module and require(module)
 		end)
-		if okCreature then
+		if okCreature and creatureData then
 			creatureLookup = buildIdLookup(creatureData)
 		end
 	end

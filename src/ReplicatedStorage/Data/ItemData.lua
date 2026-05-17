@@ -26,6 +26,7 @@ local ItemData = {
 		weight = 0.1,
 		description = "슬라임이 드롭하는 끈적한 점액. 말랑말랑한 무기를 만들 수 있다.",
 		dropDespawn = "GATHER",
+		iconName = "SlimeMucus",
 		modelName = "SlimeMucus",
 	},
 	{
@@ -398,7 +399,7 @@ local ItemData = {
 		passiveDurabilityDrain = 1,
 	},
 	{
-		id = "SOFT_CLUB",
+		id = "SoftClub",
 		name = "말랑봉",
 		type = "WEAPON",
 		rarity = "UNCOMMON",
@@ -410,6 +411,7 @@ local ItemData = {
 		slot = "HAND",
 		description = "슬라임 점액으로 만든 말랑말랑한 봉. 생각보다 아프다.",
 		optimalTool = "CLUB",
+		iconName = "SoftClub",
 		modelName = "SoftClub",
 	},
 	{
@@ -1395,6 +1397,20 @@ local ItemData = {
 		description = "기본으로 지급되는 튼튼한 나무봉입니다.",
 		modelName = "WoodenStaff", -- [PRESERVED] Maps directly to Roblox hierarchy asset name
 		iconName = "WoodenStaff", -- [ADDED] Force Maps to icon asset named WoodenStaff
+	},
+	{
+		id = "Dobok",
+		name = "도복",
+		type = "ARMOR",
+		rarity = "COMMON",
+		maxStack = 1,
+		weight = 1.0,
+		durability = 999,
+		slot = "SUIT",
+		description = "기본으로 지급되는 튼튼한 도복입니다. 가벼운 악세서리입니다.",
+		modelName = "Dobok",
+		modelId = "Dobok",
+		iconName = "Dobok",
 	},
 
 	--========================================

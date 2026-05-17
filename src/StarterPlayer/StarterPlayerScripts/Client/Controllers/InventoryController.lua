@@ -157,6 +157,29 @@ function InventoryController.requestDropGold(count: number)
 	end)
 end
 
+function InventoryController.requestEquip(fromSlot: number, toSlot: string)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Inventory.Equip.Request", {
+			fromSlot = fromSlot,
+			toSlot = toSlot
+		})
+		if not ok then
+			warn("[InventoryController] Equip failed:", data)
+		end
+	end)
+end
+
+function InventoryController.requestUnequip(slotName: string)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Inventory.Unequip.Request", {
+			slot = slotName
+		})
+		if not ok then
+			warn("[InventoryController] Unequip failed:", data)
+		end
+	end)
+end
+
 function InventoryController.requestUse(slot: number)
 	task.spawn(function()
 		local ok, data = NetClient.Request("Inventory.Use.Request", {
@@ -319,6 +342,18 @@ local function onInventoryChanged(data)
 	end
 	
 	-- 콜백 호출
+	print("[InventoryController] Inventory cache updated. Current Items:")
+	local hasAny = false
+	for slot, data in pairs(inventoryCache) do
+		if data then
+			hasAny = true
+			print(string.format("  Slot %d: %s x%d (Dur: %s)", slot, tostring(data.itemId), tostring(data.count), tostring(data.durability)))
+		end
+	end
+	if not hasAny then
+		print("  (Inventory is completely empty)")
+	end
+	
 	fireChangeListeners()
 end
 

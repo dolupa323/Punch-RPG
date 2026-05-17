@@ -257,11 +257,10 @@ function PlayerStatService.addXP(userId: number, amount: number, source: string?
 		stats.level = newLevel
 		stats.currentXP = _getCurrentLevelXP(stats.totalXP, newLevel)
 		
-		local techPointsGained = (newLevel - oldLevel) * Balance.TECH_POINTS_PER_LEVEL
 		local statPointsGained = (newLevel - oldLevel) * Balance.STAT_POINTS_PER_LEVEL
 		
-		print(string.format("[PlayerStatService] Player %d leveled up: %d \226\134\146 %d (gained %d TP, %d SP)", 
-			userId, oldLevel, newLevel, techPointsGained, statPointsGained))
+		print(string.format("[PlayerStatService] Player %d leveled up: %d \226\134\146 %d (gained %d SP)", 
+			userId, oldLevel, newLevel, statPointsGained))
 		
 		if levelUpCallback then
 			for reachedLevel = oldLevel + 1, newLevel do
@@ -287,7 +286,6 @@ function PlayerStatService.addXP(userId: number, amount: number, source: string?
 			leveledUp = leveledUp,
 			source = source,
 			statPointsAvailable = PlayerStatService.getStatPoints(userId),
-			techPointsAvailable = PlayerStatService.getTechPoints(userId),
 		})
 	end
 	
@@ -325,17 +323,6 @@ function PlayerStatService.grantActionXP(userId: number, baseAmount: number, pay
 	local finalAmount = math.max(1, math.floor(baseAmount * multiplier + 0.0001))
 	local leveledUp, level = PlayerStatService.addXP(userId, finalAmount, source)
 	return leveledUp, level, finalAmount
-end
-
---========================================
--- Public API: Tech & Stat Points
---========================================
-
-function PlayerStatService.getTechPoints(userId: number): number
-	_initPlayerStats(userId)
-	local stats = playerStats[userId]
-	local totalEarned = _getTotalEarnedPoints(stats.level, Balance.TECH_POINTS_PER_LEVEL)
-	return math.max(0, totalEarned - stats.techPointsSpent)
 end
 
 function PlayerStatService.getStatPoints(userId: number): number
@@ -526,7 +513,6 @@ function PlayerStatService.getStats(userId: number): { [string]: any }
 		currentXP = currentInLevel,
 		requiredXP = required,
 		totalXP = stats.totalXP,
-		techPointsAvailable = PlayerStatService.getTechPoints(userId),
 		statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		statInvested = stats.statInvested,
 		calculated = PlayerStatService.GetCalculatedStats(userId),
@@ -550,24 +536,6 @@ function PlayerStatService.getXP(userId: number): (number, number)
 	local currentInLevel = _getCurrentLevelXP(stats.totalXP, stats.level)
 	local required = _getXPForNextLevel(stats.level)
 	return currentInLevel, required
-end
-
---- 기술 포인트 소모
-function PlayerStatService.spendTechPoints(userId: number, amount: number): boolean
-	_initPlayerStats(userId)
-	local available = PlayerStatService.getTechPoints(userId)
-	if available < amount then return false end
-	playerStats[userId].techPointsSpent = playerStats[userId].techPointsSpent + amount
-	_savePlayerStats(userId)
-	return true
-end
-
---- 기술 포인트 환급
-function PlayerStatService.refundTechPoints(userId: number, amount: number)
-	_initPlayerStats(userId)
-	local currentSpent = playerStats[userId].techPointsSpent or 0
-	playerStats[userId].techPointsSpent = math.max(0, currentSpent - amount)
-	_savePlayerStats(userId)
 end
 
 --========================================

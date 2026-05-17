@@ -54,7 +54,7 @@ local NetController = nil
 local function _getDefaultEquipment()
 	return {
 		HEAD = nil,
-		SUIT = nil,
+		SUIT = { itemId = "Dobok", durability = 999 }, -- [MODIFIED] Starter Dobok (Accessory)!
 		HAND = { itemId = "WOODEN_STAFF", durability = 999 }, -- [MODIFIED] Starter Weapon!
 	}
 end
@@ -237,10 +237,15 @@ local function _normalizeEquipment(equipment: any): any
 	normalized.SUIT = equipment.SUIT or equipment.Suit
 	normalized.HAND = equipment.HAND or equipment.Hand
 
-	-- [STARTER WEAPON BACKFILL] Resilience Check: If no valid weapon data exists, force-inject the WOODEN_STAFF
+	-- [STARTER WEAPON/DOBOK BACKFILL] Resilience Check: If no valid equipment exists, force-inject standard items
 	local handValid = type(normalized.HAND) == "table" and normalized.HAND.itemId and normalized.HAND.itemId ~= ""
 	if not handValid then
 		normalized.HAND = { itemId = "WOODEN_STAFF", durability = 999 }
+	end
+
+	local suitValid = type(normalized.SUIT) == "table" and normalized.SUIT.itemId and normalized.SUIT.itemId ~= ""
+	if not suitValid then
+		normalized.SUIT = { itemId = "Dobok", durability = 999 }
 	end
 
 	return normalized

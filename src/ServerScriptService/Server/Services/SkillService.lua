@@ -15,9 +15,13 @@ local SkillService = {}
 local NetController
 local PlayerStatService
 local SaveService
+local StaminaService
+local InventoryService
+local DataService
 
 -- 유저별 런타임 캐시 { [userId] = { unlockedSkills={}, combatTreeId=nil, skillPointsSpent=0, activeSkillSlots={} } }
 local playerSkillCache = {}
+local skillCooldowns = {} -- [userId][itemId] = endTime
 
 --========================================
 -- Internal Helpers
@@ -417,6 +421,123 @@ local function handleResetSkills(player: Player, _payload: any)
 	}
 end
 
+--- 스킬 실행 로직
+local function executeSkillEffect(player: Player, itemId: string, payload: any)
+	local char = player.Character
+	if not char then return end
+	
+	if itemId == "RUNE_FIREBALL" then
+		-- Fireball VFX & Damage logic
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+		
+		local dir = payload.aimDirection or { x = 0, y = 0, z = 0 }
+		local look = Vector3.new(dir.x, dir.y, dir.z)
+		if look.Magnitude < 0.1 then look = hrp.CFrame.LookVector end
+		
+		-- Simple placeholder for VFX: Fire fireball from remote
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+		local NetEvt = ReplicatedStorage:FindFirstChild("NetEvt")
+		if NetEvt then
+			NetEvt:FireAllClients("VFX.Play", {
+				name = "Fireball",
+				origin = hrp.Position + look * 3,
+				direction = look,
+				ownerId = player.UserId
+			})
+		end
+		
+		-- Damage logic: Sphere-cast or Area check
+		task.delay(0.2, function()
+			local hitPos = hrp.Position + look * 15
+			local radius = 8
+			
+			local params = OverlapParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = {char}
+			
+			local nearbyParts = workspace:GetPartBoundsInRadius(hitPos, radius, params)
+			local hitHumanoids = {}
+			
+			for _, part in ipairs(nearbyParts) do
+				local model = part:FindFirstAncestorOfClass("Model")
+				if model then
+					local hum = model:FindFirstChildOfClass("Humanoid")
+					if hum and hum.Health > 0 and not hitHumanoids[hum] then
+						hitHumanoids[hum] = true
+						
+						-- Tag for XP (Standard Roblox CreatorTag)
+						local tag = hum:FindFirstChild("creator")
+						if tag then tag:Destroy() end
+						
+						tag = Instance.new("ObjectValue")
+						tag.Name = "creator"
+						tag.Value = player
+						tag.Parent = hum
+						game:GetService("Debris"):AddItem(tag, 2)
+						
+						hum:TakeDamage(25) -- Fireball Base Damage
+						print("[SkillService] Fireball hit:", model.Name)
+					end
+				end
+			end
+			
+			print("[SkillService] Fireball exploded at", hitPos)
+		end)
+	end
+end
+
+--- 스킬 사용 요청 처리
+local function handleUseSkill(player: Player, payload: any)
+	local userId = player.UserId
+	local slot = payload and payload.slot -- "RUNE1", "RUNE2", "RUNE3"
+	local itemId = payload and payload.itemId
+	
+	if not slot or not itemId then return { success = false, errorCode = "BAD_REQUEST" } end
+	
+	-- 1. 장착 확인
+	local equip = InventoryService.getEquipment(userId)
+	local equippedItem = equip[slot]
+	
+	if not equippedItem or equippedItem.itemId ~= itemId then
+		return { success = false, errorCode = "NOT_EQUIPPED" }
+	end
+	
+	-- 2. 아이템 데이터 확인 (ACTIVE 룬인지)
+	local itemData = DataService.getItem(itemId)
+	if not itemData or itemData.runeType ~= "ACTIVE" then
+		return { success = false, errorCode = "INVALID_SKILL" }
+	end
+	
+	-- 3. 쿨다운 확인
+	local now = tick()
+	if not skillCooldowns[userId] then skillCooldowns[userId] = {} end
+	if skillCooldowns[userId][itemId] and now < skillCooldowns[userId][itemId] then
+		return { success = false, errorCode = "COOLDOWN" }
+	end
+	
+	-- 4. 기력(마나) 소모 확인
+	local cost = 15 -- Default rune cost
+	if not StaminaService.hasEnoughStamina(userId, cost) then
+		return { success = false, errorCode = "NOT_ENOUGH_STAMINA" }
+	end
+	StaminaService.consumeStamina(userId, cost)
+	
+	-- 5. 쿨다운 설정 (임시 5초)
+	local cooldown = itemData.cooldown or 5
+	skillCooldowns[userId][itemId] = now + cooldown
+	
+	-- 6. 스킬 실행
+	task.spawn(executeSkillEffect, player, itemId, payload)
+	
+	return {
+		success = true,
+		data = {
+			cooldown = cooldown
+		}
+	}
+end
+
 --========================================
 -- Init / GetHandlers
 --========================================
@@ -427,6 +548,7 @@ function SkillService.GetHandlers()
 		["Skill.GetData.Request"] = handleGetData,
 		["Skill.SetSlot.Request"] = handleSetSlot,
 		["Skill.Reset.Request"] = handleResetSkills,
+		["Skill.Use.Request"] = handleUseSkill,
 	}
 end
 
@@ -434,6 +556,11 @@ function SkillService.Init(_NetController, _PlayerStatService, _SaveService)
 	NetController = _NetController
 	PlayerStatService = _PlayerStatService
 	SaveService = _SaveService
+
+	local Services = game:GetService("ServerScriptService").Server.Services
+	StaminaService = require(Services.StaminaService)
+	InventoryService = require(Services.InventoryService)
+	DataService = require(Services.DataService)
 
 	local Players = game:GetService("Players")
 	
@@ -463,7 +590,7 @@ function SkillService.Init(_NetController, _PlayerStatService, _SaveService)
 		end
 	end
 
-	print("[SkillService] Initialized")
+	print("[SkillService] Initialized with Stamina/Mana integration")
 end
 
 --- 플레이어 정리 (로그아웃 시 캐시 해제)

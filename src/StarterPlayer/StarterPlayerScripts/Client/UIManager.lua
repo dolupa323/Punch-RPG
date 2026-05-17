@@ -1,40 +1,15 @@
--- UIManager.lua
--- WildForge UI — 듀랑고 스타일 레퍼런스 기반
--- HUD(우측) + 원형슬롯 인벤토리 + 풀스크린 제작 + 채집바(상단)
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-
 local GuiService = game:GetService("GuiService")
-local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-local UI_SCALE = isMobile and 1.4 or 1.0
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared.Enums.Enums)
 local Balance = require(Shared.Config.Balance)
 local DataHelper = require(Shared.Util.DataHelper)
-
--- Load Creature Data for combat UI
-local CreatureData = {}
-local function loadCreatureData()
-	local Data = ReplicatedStorage:FindFirstChild("Data")
-	if Data then
-		local ok, result = pcall(function()
-			return require(Data:WaitForChild("CreatureData", 5))
-		end)
-		if ok and result then
-			CreatureData = result
-		end
-	end
-end
-loadCreatureData()
 
 local Client = script.Parent
 local NetClient = require(Client.NetClient)
@@ -45,13 +20,11 @@ local UILocalizer = require(Client.Localization.UILocalizer)
 local Controllers = Client:WaitForChild("Controllers")
 local InventoryController = require(Controllers.InventoryController)
 local ShopController = require(Controllers.ShopController)
-local BuildController = require(Controllers.BuildController)
 local StorageController = require(Controllers.StorageController)
-local FacilityController = require(Controllers.FacilityController)
-local TechController = require(Controllers.TechController)
 local TimeController = require(Controllers.TimeController)
 local DragDropController = require(Controllers.DragDropController)
 local InteractController = require(Controllers.InteractController)
+local SkillController = require(Controllers.SkillController)
 
 -- UI Modules
 local UI = script.Parent.UI
@@ -62,35 +35,98 @@ local InventoryUI = require(UI.InventoryUI)
 local CraftingUI = require(UI.CraftingUI)
 local ShopUI = require(UI.ShopUI)
 local InteractUI = require(UI.InteractUI)
-local BuildUI = require(UI.BuildUI)
 local EquipmentUI = require(UI.EquipmentUI)
 local StorageUI = require(UI.StorageUI)
-local FacilityUI = require(UI.FacilityUI)
 local MaterialSelectUI = require(UI.MaterialSelectUI)
 local PremiumShopUI = require(UI.PremiumShopUI)
 
-local PromptUI = require(UI.PromptUI)
-local TotemUI = require(UI.TotemUI)
-local PortalUI = require(UI.PortalUI)
 local SkillTreeUI = require(UI.SkillTreeUI)
-local ActiveSkillBarUI = require(UI.ActiveSkillBarUI)
-local HarvestUI = require(UI.HarvestUI)
+local PromptUI = require(UI.PromptUI)
+local PortalUI = require(UI.PortalUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
-local QuestUI = require(UI.QuestUI)
-local FacilityRadialUI = require(UI.FacilityRadialUI)
-local PalRadialUI = require(UI.PalRadialUI)
 local NPCRadialUI = require(UI.NPCRadialUI)
 
 local WindowManager = require(Client.Utils.WindowManager)
-local TutorialUI = require(Client.UI.TutorialUI)
 
 local UIManager = {}
 
--- Signals for Tutorial
-UIManager.OnMenuOpened = Instance.new("BindableEvent").Event
-UIManager._fireMenuOpened = function() Instance.new("BindableEvent"):Fire() end -- 임시, 아래에서 교체 예정
-UIManager.OnInventoryOpened = Instance.new("BindableEvent").Event
+-- State
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local initialized = false
+local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+local mainGui = nil
+local blurEffect = nil
+local activeShopId = nil
+local currentStorageData = nil
+local hoveredStorageSlotInfo = nil
+local selectedPersonalRecipeId = nil
+local cachedPersonalRecipes = nil
+local personalCraftNodes = {}
+-- (Building state removed)
+local pendingStats = {}
+local cachedStats = {}
 
+-- Constants
+local C = Theme.Colors
+local F = Theme.Fonts
+local T = Theme.Transp
+
+--========================================
+-- UI Handlers
+--========================================
+function UIManager._onOpenInventory()
+	InventoryUI.SetVisible(true)
+	InventoryUI.Refresh()
+end
+
+function UIManager._onCloseInventory()
+	InventoryUI.SetVisible(false)
+end
+
+function UIManager._onOpenSkillTree()
+	SkillTreeUI.SetVisible(true)
+	SkillTreeUI.Refresh()
+end
+
+function UIManager._onCloseSkillTree()
+	SkillTreeUI.SetVisible(false)
+end
+
+function UIManager._onOpenShop()
+	ShopUI.SetVisible(true)
+end
+
+function UIManager._onCloseShop()
+	ShopUI.SetVisible(false)
+end
+
+function UIManager._onOpenStorage()
+	StorageUI.SetVisible(true)
+end
+
+function UIManager._onCloseStorage()
+	StorageUI.SetVisible(false)
+end
+
+function UIManager._onOpenMaterialSelect()
+	MaterialSelectUI.SetVisible(true)
+end
+
+function UIManager._onCloseMaterialSelect()
+	MaterialSelectUI.SetVisible(false)
+end
+
+function UIManager._onOpenPremiumShop()
+	PremiumShopUI.SetVisible(true)
+end
+
+function UIManager._onClosePremiumShop()
+	PremiumShopUI.SetVisible(false)
+end
+
+
+-- Signals for Internal Use
 local menuOpenedEvent = Instance.new("BindableEvent")
 UIManager.OnMenuOpened = menuOpenedEvent.Event
 local inventoryOpenedEvent = Instance.new("BindableEvent")
@@ -104,235 +140,40 @@ function UIManager.getInventorySlot(slot)
 	return cache[slot]
 end
 
-----------------------------------------------------------------
--- ★ 에러코드 → 사용자 친화적 한글 메시지 변환
--- 이 테이블에 없는 코드는 일반 메시지로 표시 (코드 노출 금지)
-----------------------------------------------------------------
 local ERROR_MESSAGES = {
-	-- 팰/동물 관련
-	PARTY_FULL = "파티가 가득 찼습니다. 먼저 다른 동물을 회수하세요.",
-	FAINTED = "기절한 동물은 소환할 수 없습니다.",
-	PALBOX_FULL = "동물 보관함이 가득 찼습니다.",
-	PAL_IN_PARTY = "이미 파티에 포함된 동물입니다.",
-	PAL_ALREADY_ASSIGNED = "이미 다른 곳에 배치된 동물입니다.",
-	PARTY_ADD_FAILED = "파티에 추가할 수 없습니다.",
-	NO_PARTY = "파티 정보를 찾을 수 없습니다.",
-	NOT_IN_PARTY = "파티에 포함되지 않은 동물입니다.",
-	SUMMON_FAILED = "소환에 실패했습니다. 잠시 후 다시 시도하세요.",
-	
-	-- 공통
 	BAD_REQUEST = "잘못된 요청입니다.",
 	NOT_FOUND = "대상을 찾을 수 없습니다.",
 	INVALID_STATE = "현재 상태에서는 수행할 수 없습니다.",
 	OUT_OF_RANGE = "대상과 거리가 너무 멉니다. 더 가까이 이동하세요.",
 	COOLDOWN = "재사용 대기 중입니다.",
 	UNKNOWN = "알 수 없는 오류가 발생했습니다.",
-	
-	-- 전투/스킬
-	WEAPON_MISMATCH = "해당 스킬에 맞는 무기를 장착해주세요.",
-	SKILL_NOT_IN_SLOT = "스킬이 슬롯에 장착되어 있지 않습니다.",
-	SKILL_NOT_UNLOCKED = "스킬이 해금되지 않았습니다.",
 	NOT_ENOUGH_STAMINA = "스태미나가 부족합니다.",
 	PLAYER_DEAD = "사용할 수 없는 상태입니다.",
-	SKILL_NOT_FOUND = "스킬을 찾을 수 없습니다.",
-	
-	-- 인벤토리/제작
 	INV_FULL = "인벤토리가 가득 찼습니다.",
 	INVENTORY_FULL = "인벤토리가 가득 찼습니다.",
 	NO_ITEM = "재료가 부족합니다.",
 	CRAFT_NOT_FOUND = "제작법을 찾을 수 없습니다.",
-	
-	-- 채집
 	NODE_NOT_FOUND = "채집 대상을 찾을 수 없습니다.",
-	
-	-- 거점/시설
 	NO_PERMISSION = "토템 보호가 활성화된 시설입니다.",
 	INSUFFICIENT_GOLD = "골드가 부족합니다.",
 	TOTEM_NOT_OWNER = "소유한 토템에서만 유지비를 결제할 수 있습니다.",
 	TOTEM_NOT_FOUND = "토템을 찾을 수 없습니다.",
 	INVALID_COUNT = "결제 기간이 올바르지 않습니다.",
-	
-	-- 포획
-	INVALID_TARGET = "포획할 수 없는 대상입니다.",
-	CREATURE_NOT_FOUND = "크리처를 찾을 수 없습니다.",
-	NOT_COLLAPSED = "먼저 크리처를 쓰러뜨려야 합니다.",
-	ALREADY_DEAD = "이미 죽은 크리처입니다.",
-	ALREADY_ATTEMPTED = "이미 포획을 시도한 크리처입니다.",
-	SKILL_LOCKED = "포획 스킬이 해금되지 않았습니다.",
-	NO_BOX_ITEM = "포획 상자가 없습니다.",
-	
-	-- 기타
-	NOTHING_TO_RESET = "초기화할 항목이 없습니다.",
-	MAX_SLOTS_REACHED = "인벤토리 칸 스탯이 최대치에 도달했습니다.",
-	MAX_WORKSPEED_REACHED = "작업속도 스탯이 최대치에 도달했습니다.",
 	INSUFFICIENT_STAT_POINTS = "스탯 포인트가 부족합니다.",
 }
 
-function UIManager.showTutorialGuide(text)
-	TutorialUI.SetMessage(text)
-end
-
-function UIManager.hideTutorialGuide()
-	TutorialUI.SetMessage("")
-end
-
-function UIManager.blinkUIElement(elementName)
-	task.spawn(function()
-		local target = nil
-		local retries = 0
-		while not target and retries < 50 do
-			if elementName:sub(1, 7) == "Recipe:" then
-				local recipeId = elementName:sub(8)
-				if personalCraftNodes and personalCraftNodes[recipeId] then
-					target = personalCraftNodes[recipeId].frame
-				end
-			elseif HUDUI and HUDUI.Refs and HUDUI.Refs[elementName] then
-				target = HUDUI.Refs[elementName]
-			elseif InventoryUI and InventoryUI.Refs and InventoryUI.Refs[elementName] then
-				target = InventoryUI.Refs[elementName]
-			end
-			
-			if not target then
-				retries = retries + 1
-				task.wait(0.1)
-			end
-		end
-		
-		if target then
-			TutorialUI.BlinkElement(target)
-		else
-			warn("[UIManager] Failed to find UI element for blinking:", elementName)
-		end
-	end)
-end
-
-function UIManager.setFocusUIElement(elementName)
-	if not elementName then
-		TutorialUI.SetFocusElement(nil)
-		return
-	end
-	
-	local target = nil
-	if elementName:sub(1, 7) == "Recipe:" then
-		local recipeId = elementName:sub(8)
-		if personalCraftNodes and personalCraftNodes[recipeId] then
-			target = personalCraftNodes[recipeId].frame
-		end
-	elseif elementName:sub(1, 9) == "BuildCat:" then
-		local catId = elementName:sub(10)
-		if BuildUI and BuildUI.Refs and BuildUI.Refs.CategoryBtns then
-			target = BuildUI.Refs.CategoryBtns[catId]
-		end
-	elseif elementName:sub(1, 9) == "Facility:" then
-		local facilityId = elementName:sub(10)
-		if BuildUI and BuildUI.Refs and BuildUI.Refs.Grid then
-			target = BuildUI.Refs.Grid:FindFirstChild(facilityId)
-			if target and target:FindFirstChild("frame") then
-				target = target.frame
-			end
-		end
-	elseif elementName == "QuickCraftTab" then
-		target = InventoryUI.Refs.TabCraft
-	elseif elementName == "CraftStartButton" then
-		target = InventoryUI.Refs.Detail.BtnMain
-	elseif elementName == "InventoryTabButton" then
-		target = HUDUI.Refs.InventoryTabButton
-	elseif elementName == "BuildTabButton" then
-		target = HUDUI.Refs.BuildTabButton
-	elseif elementName == "MenuButton" then
-		target = HUDUI.Refs.MenuButton
-	elseif HUDUI and HUDUI.Refs and HUDUI.Refs[elementName] then
-		target = HUDUI.Refs[elementName]
-	elseif InventoryUI and InventoryUI.Refs and InventoryUI.Refs[elementName] then
-		target = InventoryUI.Refs[elementName]
-	elseif BuildUI and BuildUI.Refs and BuildUI.Refs[elementName] then
-		target = BuildUI.Refs[elementName]
-	elseif BuildUI and BuildUI.Refs and BuildUI.Refs.Detail and BuildUI.Refs.Detail[elementName] then
-		target = BuildUI.Refs.Detail[elementName]
-	end
-	
-	TutorialUI.SetFocusElement(target)
-end
-
-function UIManager.stopAllBlinks()
-	TutorialUI.StopAllBlinks()
-end
-
---- 에러코드를 사용자 친화적 한글 메시지로 변환
---- @param errCode any 서버로부터 받은 에러코드
---- @param fallbackAction string? 행동 설명 (예: "소환", "제작")
---- @return string 사용자에게 보여줄 한글 메시지
-local function friendlyError(errCode, fallbackAction)
+local function friendlyError(errCode)
 	local code = tostring(errCode or "UNKNOWN")
 	local msg = ERROR_MESSAGES[code]
 	if msg then return msg end
-	-- 매핑에 없는 코드 → 일반 메시지 (코드 노출 금지, Output에만 출력)
 	warn("[UIManager] Unmapped error code:", code)
-	if fallbackAction then
-		return fallbackAction .. "에 실패했습니다. 잠시 후 다시 시도하세요."
-	end
 	return "요청을 처리할 수 없습니다. 잠시 후 다시 시도하세요."
 end
-
-
-
-
-
-
-local SkillController = require(Controllers.SkillController)
-
-local C = Theme.Colors
-local F = Theme.Fonts
-local T = Theme.Transp
-
-local mainGui
-
--- HUD refs
-local healthBar, staminaBar, xpBar, levelLabel, statPointAlert
-
--- Hotbar
-local hotbarFrame
-local hotbarSlots = {}
-local selectedSlot = 1
-
--- Panels
-local inventoryFrame, craftingOverlay, shopFrame, techOverlay, interactPrompt
-local actionContainer, hotbarFrame -- Store refs for visibility control
--- [Refactor] 개별 상태 플래그를 WindowManager로 통합 관리 (유지보수 지옥 탈출)
-local cachedStats = {}
-local pendingStats = {}
 local activeDebuffs = {} -- { [debuffId] = {id, name, startTime, duration} }
-local selectedBuildCat = "BUILD_T0"
-local selectedFacilityId = nil -- shared with Crafting or use separate variable
-local selectedBuildId = nil
-local currentFacilityStructureId = nil
-local currentFacilityType = nil
-local currentFacilityId = nil
-local selectedFacilityRecipe = nil
-local currentTotemStructureId = nil
 
--- 0. UI 관리 헬퍼
-local function isAnyWindowOpen()
-	return WindowManager.isAnyOpen()
-end
-
-function UIManager.isMenuOpen()
-	return HUDUI and HUDUI.isSideMenuVisible and HUDUI.isSideMenuVisible()
-end
-
-function UIManager.isBuildOpen()
-	return WindowManager.isOpen("BUILD")
-end
-
-function UIManager.getSelectedBuildId()
-	return selectedBuildId
-end
-
-function UIManager.getSelectedBuildCategory()
-	return selectedBuildCat
-end
-
-
+--========================================
+-- UI Management Helpers
+--========================================
 local function updateUIMode()
 	local anyOpen = WindowManager.isAnyOpen()
 	local hasFullWindow = WindowManager.hasFullWindowOpen()
@@ -340,24 +181,25 @@ local function updateUIMode()
 	InputManager.setUIOpen(anyOpen)
 	
 	-- 전체 화면 창(인벤토리 등)이 열릴 때만 메인 HUD를 숨김
-	UIManager._setMainHUDVisible(not hasFullWindow)
+	HUDUI.SetVisible(not hasFullWindow)
 	
-	-- 액티브 스킬바도 전체 화면 UI가 열릴 때만 숨김
-	if ActiveSkillBarUI and ActiveSkillBarUI.SetVisible then
-		ActiveSkillBarUI.SetVisible(not hasFullWindow)
+	-- 블러 효과 및 마우스 잠금 제어
+	if blurEffect then
+		blurEffect.Enabled = anyOpen
 	end
 	
-	-- 인벤토리가 닫히면 선택 UI 모달도 함께 즉시 닫음
-	if not WindowManager.isOpen("INV") then
-		UIManager.closeItemSelector()
+	if anyOpen then
+		UserInputService.MouseIconEnabled = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	else
+		-- UI가 모두 닫히면 게임 월드 조작 모드로 복귀 (필요시 InteractController에서 추가 처리)
 	end
 end
+UIManager.updateUIMode = updateUIMode
 
-local function closeAllWindows(except)
-	WindowManager.closeOthers(except)
-end
-
--- [중복 제거] openTechTree/closeTechTree/toggleTechTree는 하단에서 올바르게 정의됩니다.
+function UIManager.toggleInventory() WindowManager.toggle("INV") end
+function UIManager.toggleSkillTree() WindowManager.toggle("SKILL") end
+function UIManager.toggleRuneSystem() WindowManager.toggle("SKILL") end
 
 function UIManager._setMainHUDVisible(visible)
 	HUDUI.SetVisible(visible)
@@ -373,8 +215,6 @@ local currentCombatCreatureId = nil
 local invSlots = {}
 local invDetailPanel
 local selectedInvSlot = nil
-local hoveredStorageSlotInfo = nil
-local currentStorageData = nil
 local categoryButtons = {}
 
 -- Crafting / Building
@@ -385,36 +225,11 @@ local equipmentUIFrame
 
 function UIManager.updateHealth(cur, max) HUDUI.UpdateHealth(cur, max) end
 function UIManager.updateStamina(cur, max) HUDUI.UpdateStamina(cur, max) end
-function UIManager.updateHunger(cur, max) HUDUI.UpdateHunger(cur, max) end
 function UIManager.updateXP(cur, max) HUDUI.UpdateXP(cur, max) end
 function UIManager.updateLevel(lvl) HUDUI.UpdateLevel(lvl) end
 function UIManager.updateStatPoints(pts) HUDUI.UpdateStatPoints(pts) end
 function UIManager.setTutorialVisible(visible) HUDUI.SetTutorialVisible(visible) end
 function UIManager.updateTutorialStatus(status) HUDUI.UpdateTutorialStatus(status) end
-
-function UIManager.requestTutorialStepComplete()
-	local ok, data = NetClient.Request("Tutorial.Step.Complete.Request", {})
-	if not ok then
-		local statusOk, statusData = NetClient.Request("Tutorial.GetStatus.Request", {})
-		if statusOk and type(statusData) == "table" then
-			UIManager.updateTutorialStatus(statusData)
-			if statusData.stepReady == true then
-				ok, data = NetClient.Request("Tutorial.Step.Complete.Request", {})
-			end
-		end
-	end
-
-	if not ok then
-		UIManager.notify("완료 조건을 확인할 수 없습니다. 목표를 다시 확인해 주세요.", C.WHITE)
-		return false
-	end
-
-	if type(data) == "table" then
-		UIManager.updateTutorialStatus(data)
-	end
-
-	return true
-end
 
 function UIManager.getPendingStatCount(statId)
 	return pendingStats[statId] or 0
@@ -508,9 +323,6 @@ end
 ----------------------------------------------------------------
 -- Public API: Equipment (장비창)
 ----------------------------------------------------------------
-----------------------------------------------------------------
--- Public API: Equipment (장비창)
-----------------------------------------------------------------
 function UIManager.openEquipment()
 	WindowManager.open("EQUIP")
 end
@@ -554,18 +366,12 @@ local personalCraftNodes = {}
 local selectedPersonalRecipeId = nil
 local bagTabBtn, craftTabBtn
 
--- Tech Tree
-local techNodes = {}
-local selectedTechId = nil
-local techLines = {} -- 연결선용
-
 -- Notification State
 local notifyQueue = {}
 local sideNotifyStack = {} -- [frame] = { startTime, label }
 local sideNotifyContainer = nil
 
 -- Drag & Drop
--- Drag & Drop state managed via DragDropController
 local DRAG_THRESHOLD = 5 -- Lower threshold for easier dragging
 local pendingDragIdx = nil
 local draggingSlotIdx = nil
@@ -573,8 +379,6 @@ local dragStartPos = Vector2.zero
 local dragDummy = nil
 
 local cachedPersonalRecipes = nil
-local activeShopId = nil
-
 
 ----------------------------------------------------------------
 -- UI Helpers (Module Aliases)
@@ -584,12 +388,6 @@ local mkLabel = Utils.mkLabel
 local mkBtn   = Utils.mkBtn
 local mkSlot  = Utils.mkSlot
 local mkBar   = Utils.mkBar
-
-
--- Legacy creation functions removed (moved to UI/ modules)
-
-
--- Notifications are handled by the modern notify() function below.
 
 function UIManager.upgradeStat(statId)
 	UIManager.addPendingStat(statId)
@@ -603,13 +401,6 @@ function UIManager.updateGold(amt)
 	InventoryUI.UpdateCurrency(amt)
 	ShopUI.UpdateGold(amt)
 	if HUDUI.UpdateGold then HUDUI.UpdateGold(amt) end
-	if WindowManager.isOpen("STORAGE") then
-		UIManager.refreshStorage()
-	end
-	if shopFrame then
-		local g = shopFrame:FindFirstChild("TB")
-		if g then g = g:FindFirstChild("Gold"); if g then g.Text = "💰 "..tostring(amt) end end
-	end
 end
 
 ----------------------------------------------------------------
@@ -618,11 +409,6 @@ end
 function UIManager.selectHotbarSlot(idx, skipSync)
 	selectedSlot = idx
 	HUDUI.SelectHotbarSlot(idx, skipSync, UIManager, C)
-
-	-- 채집 중 도구 교체 시 HarvestUI 닫기 (혼동 방지)
-	if HarvestUI.IsOpen() then
-		HarvestUI.Close()
-	end
 
 	if not skipSync then
 		InventoryController.requestSetActiveSlot(idx)
@@ -646,9 +432,9 @@ task.spawn(function()
 		end
 	end
 	
-	-- 아이콘 폴더가 로드되면 UI를 한 번 새로고침 해줍니다. (처음에 안 보이던 아이템 렌더링 복구)
+	-- 아이콘 폴더가 로드되면 UI를 한 번 새로고침 해줍니다.
 	if UIManager.refreshInventory then
-		task.wait(0.5) -- 완전히 복제될 시간을 약간 부여
+		task.wait(0.5)
 		UIManager.refreshInventory()
 		UIManager.refreshHotbar()
 	end
@@ -658,9 +444,7 @@ end)
 local function getItemIcon(itemId: string): string
 	if not itemId then return "" end
 	
-	-- 0. 아이템/시설 데이터 조회 (alias 확인용)
 	local itemDataRef = DataHelper and DataHelper.GetData("ItemData", itemId)
-	local facilityDataRef = DataHelper and DataHelper.GetData("FacilityData", itemId)
 	local searchCandidates = {}
 	local function pushCandidate(value)
 		if type(value) ~= "string" or value == "" then
@@ -675,61 +459,16 @@ local function getItemIcon(itemId: string): string
 	end
 
 	pushCandidate(itemDataRef and itemDataRef.iconName)
+	pushCandidate(itemDataRef and itemDataRef.modelName)
 	pushCandidate(itemId)
 
-	if facilityDataRef then
-		pushCandidate(facilityDataRef.iconName)
-		pushCandidate(facilityDataRef.modelName)
-		pushCandidate(facilityDataRef.id)
-		if type(facilityDataRef.iconAliases) == "table" then
-			for _, alias in ipairs(facilityDataRef.iconAliases) do
-				pushCandidate(alias)
-			end
-		end
-	end
-
-	if itemId == "BASIC_WORKBENCH" then
-		pushCandidate("PRIMITIVE_WORKBENCH")
-		pushCandidate("PrimitiveWorkbench")
-	end
-	if itemId == "BED_T1" then
-		pushCandidate("BED_T1")
-		pushCandidate("LeanTo")
-		pushCandidate("Lean_To")
-	end
-	
-	-- CRAFT_ 나 SMELT_ 접두사가 있으면 제거된 형태도 후보로 추가
-	local expandedCandidates = {}
-	for _, name in ipairs(searchCandidates) do
-		table.insert(expandedCandidates, name)
-		local core = name:gsub("^CRAFT_", ""):gsub("^SMELT_", "")
-		if core ~= name then
-			table.insert(expandedCandidates, core)
-		end
-	end
-	
 	-- 1. 로드된 아이콘 폴더들에서 검색
 	for _, folder in ipairs(ICON_FOLDERS) do
 		local iconObj = nil
-		for _, candidate in ipairs(expandedCandidates) do
-			iconObj = folder:FindFirstChild(candidate, true) -- [MODIFIED] Set recursive to true!
+		for _, candidate in ipairs(searchCandidates) do
+			iconObj = folder:FindFirstChild(candidate, true)
 			if iconObj then
 				break
-			end
-		end
-		
-		if not iconObj then
-			-- Case & Underscore insensitive search
-			local targetMap = {}
-			for _, candidate in ipairs(expandedCandidates) do
-				targetMap[candidate:lower():gsub("_", "")] = true
-			end
-			for _, child in ipairs(folder:GetDescendants()) do -- [MODIFIED] Use GetDescendants for nested subfolders!
-				local cname = child.Name:lower():gsub("_", "")
-				if targetMap[cname] then
-					iconObj = child
-					break
-				end
 			end
 		end
 		
@@ -744,16 +483,12 @@ local function getItemIcon(itemId: string): string
 		end
 	end
 
-	-- 2. ItemData에서 직접 아이콘 ID 확인 (데이터 기반 우선)
 	if itemDataRef and itemDataRef.icon then
 		return itemDataRef.icon
 	end
-	if facilityDataRef and facilityDataRef.icon then
-		return facilityDataRef.icon
-	end
 
-	-- 3. If it's not found in folders or data, we return an empty string or placeholder.
-	return "rbxassetid://0" -- 투명 아이콘
+	-- 아이콘이 아예 지정되지 않았거나 에셋 폴더에 누락된 경우 기본 돌 모양 아이콘("rbxassetid://13515086700")을 폴백으로 노출하여 투명 증발을 방지합니다.
+	return "rbxassetid://13515086700"
 end
 UIManager.getItemIcon = getItemIcon
 
@@ -768,24 +503,7 @@ function UIManager.refreshHotbar()
 				s.icon.Image = icon
 				s.countLabel.Text = (item.count and item.count > 1) and ("x"..item.count) or ""
 				s.icon.Visible = (icon ~= "")
-				
-				local itemData = DataHelper.GetData("ItemData", item.itemId)
-				
-				-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
-				if false and item.durability and itemData and itemData.durability then
-					local ratio = math.clamp(item.durability / itemData.durability, 0, 1)
-					s.durBg.Visible = true
-					s.durFill.Size = UDim2.new(ratio, 0, 1, 0)
-					if ratio > 0.5 then
-						s.durFill.BackgroundColor3 = Color3.fromRGB(150, 255, 150)
-					elseif ratio > 0.2 then
-						s.durFill.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
-					else
-						s.durFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-					end
-				else
-					if s.durBg then s.durBg.Visible = false end
-				end
+				if s.durBg then s.durBg.Visible = false end
 			else
 				s.icon.Image = ""; s.countLabel.Text = ""
 				if s.durBg then s.durBg.Visible = false end
@@ -797,23 +515,13 @@ end
 ----------------------------------------------------------------
 -- Public API: Inventory
 ----------------------------------------------------------------
-----------------------------------------------------------------
--- Public API: Inventory
-----------------------------------------------------------------
 function UIManager.openInventory(startTab)
 	WindowManager.open("INV", startTab)
 end
 
 function UIManager._onOpenInventory(startTab)
-	-- 가방 열 때마다 선택 초기화 (사용자 요청: 선택된 게 있어야 정보창 나옴)
 	selectedInvSlot = nil 
 	
-	-- 만약 단축키 등으로 직접 여는 것이라면 시설 정보 초기화
-	if not startTab or startTab == "BAG" then
-		activeFacilityId = nil
-		activeStructureId = nil
-	end
-
 	InventoryUI.SetVisible(true)
 	InventoryUI.SetTab(startTab or "BAG")
 	InventoryUI.UpdateCurrency(ShopController.getGold())
@@ -825,8 +533,6 @@ function UIManager._onOpenInventory(startTab)
 	UIManager.refreshInventory()
 	if startTab == "CRAFT" then
 		UIManager.refreshPersonalCrafting(true)
-	elseif startTab == "ANIMAL" then
-		UIManager.refreshAnimalManagement()
 	end
 end
 
@@ -835,13 +541,12 @@ function UIManager.closeInventory()
 end
 
 function UIManager._onCloseInventory()
-	-- 드래그 상태 강제 초기화
 	if DragDropController.isDragging() then
 		DragDropController.handleDragEnd()
 	end
 	
 	InventoryUI.SetVisible(false)
-	selectedInvSlot = nil -- 선택 초기화 (사용자 요청: 열 때 선택된 거 없게)
+	selectedInvSlot = nil
 end
 
 function UIManager.toggleInventory(startTab)
@@ -849,28 +554,14 @@ function UIManager.toggleInventory(startTab)
 	UIManager.fireInventoryOpened()
 end
 
-function UIManager.toggleQuest()
-	WindowManager.toggle("QUEST")
-end
-
-function UIManager._onOpenQuest(npcModel)
-	QuestUI:Open(npcModel)
-end
-
-function UIManager._onCloseQuest()
-	QuestUI:Close()
-end
-
 function UIManager.refreshInventory()
 	local items = InventoryController.getItems()
 	local _, currentMaxSlots = InventoryController.getSlotInfo()
 	InventoryUI.RefreshSlots(items, getItemIcon, C, DataHelper, currentMaxSlots)
 	
-	-- 상세창 정보 업데이트 (선택된 슬롯이 있는 경우 실시간 반영, 없으면 숨김)
 	if selectedInvSlot and items[selectedInvSlot] then
 		InventoryUI.UpdateDetail(items[selectedInvSlot], getItemIcon, Enums, DataHelper, InventoryController.getItemCounts())
 	elseif selectedInvSlot == nil and WindowManager.isOpen("INV") and InventoryUI.Refs.CraftFrame and InventoryUI.Refs.CraftFrame.Visible then
-		-- [추가] 제작 탭이 활성화된 상태라면, 소지품 슬롯이 선택되지 않았더라도 상세창을 유지
 		if selectedPersonalRecipeId and cachedPersonalRecipes then
 			for _, r in ipairs(cachedPersonalRecipes) do
 				if r.id == selectedPersonalRecipeId then
@@ -880,7 +571,6 @@ function UIManager.refreshInventory()
 			end
 		end
 	else
-		-- [유지] 선택된 대상이 없으면 상세창 숨김 (사용자 요청 반영)
 		InventoryUI.UpdateDetail(nil) 
 	end
 	
@@ -888,6 +578,13 @@ function UIManager.refreshInventory()
 	InventoryUI.UpdateSlotInfo(usedSlots, maxSlots, C)
 	
 	UIManager.refreshHotbar()
+end
+
+function UIManager.sortInventory()
+	local InventoryController = require(script.Parent.Controllers.InventoryController)
+	if InventoryController and InventoryController.requestSort then
+		InventoryController.requestSort()
+	end
 end
 
 function UIManager.refreshStats()
@@ -912,7 +609,6 @@ function UIManager.onEquipmentSlotClick(slotName)
 end
 
 function UIManager.onEquipmentSlotRightClick(slotName)
-	-- [MODIFIED] Removed legacy blocker preventing right-click unequip on Hand slot.
 	local equip = InventoryController.getEquipment()
 	if equip[slotName] then
 		InventoryController.requestUnequip(slotName)
@@ -927,17 +623,13 @@ function UIManager.handleDragUpdate(input) DragDropController.handleDragUpdate()
 function UIManager.handleDragEnd(input) DragDropController.handleDragEnd() end
 function UIManager.isDragging() return DragDropController.isDragging() end
 
--- Controller에서 UI 요소에 접근하기 위한 Getter들
 function UIManager.getInvSlots() return invSlots end
 function UIManager.getHotbarSlots() return hotbarSlots end
 function UIManager.getEquipSlots() return equipSlots end
-function UIManager.getRuneSlots() return SkillTreeUI and SkillTreeUI.GetSlots and SkillTreeUI.GetSlots() or {} end
 function UIManager.isWindowOpen(winId) return WindowManager.isOpen(winId) end
 function UIManager.getIsMobile() return isMobile end
 
--- UIManager.isDragging()은 이미 위(L456)에서 DragDropController를 통해 정의됨 (중복 제거)
-
-local modalActionType = "DROP" -- DROP, SPLIT, DROP_GOLD, STORAGE_DEPOSIT_GOLD, STORAGE_WITHDRAW_GOLD
+local modalActionType = "DROP" -- DROP, SPLIT, DROP_GOLD
 
 local function openCountModal(title, amount)
 	local safeAmount = math.max(1, math.floor(tonumber(amount) or 1))
@@ -957,7 +649,6 @@ function UIManager.openDropModal()
 	
 	modalActionType = "DROP"
 	
-	-- 동일 itemId를 가진 모든 슬롯의 총 개수 계산
 	local totalCount = 0
 	local items = InventoryController.getItems()
 	for _, slotData in pairs(items) do
@@ -979,30 +670,6 @@ function UIManager.openGoldDropModal()
 
 	modalActionType = "DROP_GOLD"
 	openCountModal("드랍할 골드", currentGold)
-end
-
-function UIManager.openStorageGoldModal(sourceType)
-	if not currentStorageData then
-		return
-	end
-
-	if sourceType == "player" then
-		local currentGold = ShopController.getGold()
-		if currentGold <= 0 then
-			UIManager.notify("보관할 골드가 없습니다.", C.RED)
-			return
-		end
-		modalActionType = "STORAGE_DEPOSIT_GOLD"
-		openCountModal("보관할 골드", currentGold)
-	else
-		local storageGold = tonumber(currentStorageData.gold) or 0
-		if storageGold <= 0 then
-			UIManager.notify("인출할 골드가 없습니다.", C.RED)
-			return
-		end
-		modalActionType = "STORAGE_WITHDRAW_GOLD"
-		openCountModal("인출할 골드", storageGold)
-	end
 end
 
 function UIManager.openSplitModal()
@@ -1029,28 +696,11 @@ function UIManager.confirmModalAction(count)
 		return
 	end
 
-	if modalActionType == "STORAGE_DEPOSIT_GOLD" then
-		local currentGold = ShopController.getGold()
-		local validCount = math.max(1, math.min(count, currentGold))
-		StorageController.moveGold("player", validCount)
-		InventoryUI.Refs.DropModal.Frame.Visible = false
-		return
-	end
-
-	if modalActionType == "STORAGE_WITHDRAW_GOLD" then
-		local storageGold = currentStorageData and (tonumber(currentStorageData.gold) or 0) or 0
-		local validCount = math.max(1, math.min(count, storageGold))
-		StorageController.moveGold("storage", validCount)
-		InventoryUI.Refs.DropModal.Frame.Visible = false
-		return
-	end
-
 	if not selectedInvSlot then return end
 	local item = InventoryController.getSlot(selectedInvSlot)
 	if not item then return end
 	
 	if modalActionType == "DROP" then
-		-- 동일 itemId 총 개수 기준으로 벌크 드랍
 		local totalCount = 0
 		local items = InventoryController.getItems()
 		for _, slotData in pairs(items) do
@@ -1066,7 +716,6 @@ function UIManager.confirmModalAction(count)
 		local maxCount = (item.count or 1) - 1
 		if maxCount >= 1 then
 			local validCount = math.max(1, math.min(count, maxCount))
-			-- Find empty slot
 			local emptySlot = nil
 			local items = InventoryController.getItems()
 			for i=1, Balance.MAX_INV_SLOTS do
@@ -1118,10 +767,15 @@ function UIManager._onInvSlotDoubleClick(idx)
 		end
 		InventoryController.requestEquip(idx, slot)
 	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		-- [MODIFIED] Now successfully forwards weapon double-click to the Equipment HAND slot!
 		InventoryController.requestEquip(idx, "HAND")
 	elseif itemData.type == "FOOD" or itemData.type == "CONSUMABLE" or itemData.type == "REPAIR_ITEM" then
 		InventoryController.requestUse(idx)
+	elseif itemData.type == "RUNE" then
+		local equip = InventoryController.getEquipment()
+		local targetSlot = "RUNE1"
+		if equip.RUNE1 then targetSlot = "RUNE2" end
+		if equip.RUNE1 and equip.RUNE2 then targetSlot = "RUNE3" end
+		InventoryController.requestEquip(idx, targetSlot)
 	end
 end
 
@@ -1142,8 +796,14 @@ function UIManager.onUseItem()
 		InventoryController.requestEquip(selectedInvSlot, slot)
 		return
 	elseif itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		-- [MODIFIED] Forwards direct Use Button press to Equipment system
 		InventoryController.requestEquip(selectedInvSlot, "HAND")
+		return
+	elseif itemData.type == "RUNE" then
+		local equip = InventoryController.getEquipment()
+		local targetSlot = "RUNE1"
+		if equip.RUNE1 then targetSlot = "RUNE2" end
+		if equip.RUNE1 and equip.RUNE2 then targetSlot = "RUNE3" end
+		InventoryController.requestEquip(selectedInvSlot, targetSlot)
 		return
 	end
 
@@ -1160,88 +820,337 @@ function UIManager.onInventorySlotRightClick(idx)
 	local itemData = DataHelper.GetData("ItemData", item.itemId)
 	if not itemData then return end
 	
-	-- 좌클릭 선택 로직 선행 (디테일 뷰 동기화)
 	UIManager._onInvSlotClick(idx)
 	
 	if itemData.type == "TOOL" or itemData.type == "WEAPON" then
-		-- [MODIFIED] Forwards Right-Click to automatic Equip request
 		InventoryController.requestEquip(idx, "HAND")
 		return
 	elseif itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM then
-		-- 수리 키트는 우클릭 단축 사용을 완전히 제거 및 금지합니다
 		return
 	end
 	
-	-- 실제 사용 요청 (방어구 장착 또는 소모품 사용)
 	InventoryController.requestUse(idx)
+end
+
+----------------------------------------------------------------
+-- Public API: Weapon Crafting (NPC) [RESTORED]
+----------------------------------------------------------------
+function UIManager.openWeaponCrafting(recipes)
+	WindowManager.open("CRAFTING", recipes)
+end
+
+local SelectedCraftRecipe = nil
+local SelectedCraftMode = nil
+local ActiveCraftQueue = {} -- 클라이언트 캐시
+local CraftingLoopActive = false
+
+-- 백그라운드 큐 조회 루프 (탭을 닫았다가 다시 열어도 0.5초 안에 완벽 상태 복원!)
+local function StartCraftingMonitorLoop()
+	if CraftingLoopActive then return end
+	CraftingLoopActive = true
+	
+	task.spawn(function()
+		while CraftingLoopActive and WindowManager.isOpen("CRAFTING") do
+			local ok, response = NetClient.Request("Craft.GetQueue.Request", {})
+			if ok and response and response.queue then
+				ActiveCraftQueue = response.queue
+				
+				-- 화면 실시간 갱신
+				UIManager.RefreshWeaponCrafting()
+				
+				-- [NEW] 실시간 진행 모달 실시간 수치 동기화 바인딩
+				if SelectedCraftRecipe then
+					local matchedQueueEntry = nil
+					for _, q in ipairs(ActiveCraftQueue) do
+						if q.recipeId == SelectedCraftRecipe.id then
+							matchedQueueEntry = q
+							break
+						end
+					end
+					
+					if matchedQueueEntry then
+						CraftingUI.ShowProgressModal(
+							SelectedCraftRecipe,
+							matchedQueueEntry.progressRatio,
+							matchedQueueEntry.state,
+							UIManager,
+							matchedQueueEntry.craftId
+						)
+					end
+				end
+			end
+			task.wait(0.5) -- 0.5초 간격으로 동기화하여 초고정밀도 실시간성 보장
+		end
+		CraftingLoopActive = false
+	end)
+end
+
+function UIManager._OnOpenCrafting(recipes)
+	CraftingUI.UpdateTitle(UILocalizer.Localize("무기 제작 (Weapon Crafting)"))
+	CraftingUI.SetVisible(true)
+	
+	-- 아이템 개수 캐시 (재료 체크용)
+	local playerItemCounts = {}
+	local invCache = InventoryController.getInventoryCache()
+	for _, slot in pairs(invCache) do
+		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+	end
+	
+	CraftingUI.Refresh(recipes or {}, playerItemCounts, UIManager.getItemIcon, "CRAFTING", UIManager)
+	updateUIMode()
+	
+	-- [UX 개선] 오픈 시 첫 번째 레시피가 있다면 상세 정보창을 자동으로 로딩/활성화 시켜 무반응 버그 원천 예방
+	if recipes and #recipes > 0 then
+		UIManager._OnCraftSlotClick(recipes[1], "CRAFTING")
+	end
+	
+	-- 진행 모니터링 루프 기동!
+	StartCraftingMonitorLoop()
+end
+
+function UIManager._OnCloseCrafting()
+	CraftingLoopActive = false -- 루프 중단
+	CraftingUI.HideProgressModal() -- 모달 강제 닫기
+	CraftingUI.SetVisible(false)
+	updateUIMode()
+end
+
+function UIManager._OnCraftSlotClick(item, mode)
+	SelectedCraftRecipe = item
+	SelectedCraftMode = mode
+	
+	local playerItemCounts = {}
+	local invCache = InventoryController.getInventoryCache()
+	for _, slot in pairs(invCache) do
+		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+	end
+	
+	local canMake, _ = UIManager.checkMaterials(item, playerItemCounts)
+	
+	-- 큐 매칭 조회
+	local matchedQueueEntry = nil
+	for _, q in ipairs(ActiveCraftQueue) do
+		if q.recipeId == item.id then
+			matchedQueueEntry = q
+			break
+		end
+	end
+	
+	if matchedQueueEntry then
+		CraftingUI.UpdateDetail(
+			item, 
+			mode, 
+			false, -- isLocked
+			canMake, 
+			playerItemCounts, 
+			DataHelper, 
+			UIManager.getItemIcon,
+			matchedQueueEntry.progressRatio,
+			matchedQueueEntry.state
+		)
+		
+		-- [NEW] 이미 제작 진행 중인 경우, 슬롯 클릭 시 실시간 팝업 모달을 즉시 복구/출력해 줌
+		CraftingUI.ShowProgressModal(
+			item,
+			matchedQueueEntry.progressRatio,
+			matchedQueueEntry.state,
+			UIManager,
+			matchedQueueEntry.craftId
+		)
+	else
+		CraftingUI.UpdateDetail(
+			item, 
+			mode, 
+			false, -- isLocked
+			canMake, 
+			playerItemCounts, 
+			DataHelper, 
+			UIManager.getItemIcon,
+			0,
+			nil
+		)
+	end
+end
+
+function UIManager._DoCraft()
+	if not SelectedCraftRecipe then return end
+	
+	-- 캐시된 큐에서 현재 레시피 진행 상황 탐색
+	local matchedQueueEntry = nil
+	for _, q in ipairs(ActiveCraftQueue) do
+		if q.recipeId == SelectedCraftRecipe.id then
+			matchedQueueEntry = q
+			break
+		end
+	end
+	
+	-- 1. 수령 가능한 상태인 경우 바로 수령 요청
+	if matchedQueueEntry and (matchedQueueEntry.state == "PENDING_COLLECT" or matchedQueueEntry.state == "COMPLETED" or matchedQueueEntry.progressRatio >= 1) then
+		UIManager._DoCollect(matchedQueueEntry.craftId)
+		return
+	end
+	
+	-- 2. 이미 제작 중인 경우는 중복 요청 무시
+	if matchedQueueEntry and matchedQueueEntry.state == "CRAFTING" then
+		return
+	end
+	
+	-- 3. 신규 제작 요청
+	local playerItemCounts = {}
+	local invCache = InventoryController.getInventoryCache()
+	for _, slot in pairs(invCache) do
+		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+	end
+	
+	local canMake, msg = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
+	if not canMake then
+		UIManager.notify(msg, Color3.fromRGB(255, 75, 50))
+		return
+	end
+	
+	task.spawn(function()
+		local resultOk, response = NetClient.Request("Craft.Start.Request", {
+			recipeId = SelectedCraftRecipe.id
+		})
+		
+		if resultOk then
+			UIManager.notify("제작 등록 완료! (소요 시간 1분)", Color3.fromRGB(140, 220, 100))
+			-- 즉시 큐 한 번 긁어오기
+			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
+			if ok and qRes and qRes.queue then
+				ActiveCraftQueue = qRes.queue
+				UIManager.RefreshWeaponCrafting()
+				
+				-- [NEW] 제작 성공 즉시 큐를 확인하여 별도 제작 진행 모달을 웅장하게 팝업!
+				if SelectedCraftRecipe then
+					for _, q in ipairs(ActiveCraftQueue) do
+						if q.recipeId == SelectedCraftRecipe.id then
+							CraftingUI.ShowProgressModal(
+								SelectedCraftRecipe,
+								q.progressRatio,
+								q.state,
+								UIManager,
+								q.craftId
+							)
+							break
+						end
+					end
+				end
+			end
+		else
+			UIManager.notify("제작 요청 실패!", Color3.fromRGB(255, 75, 50))
+		end
+	end)
+end
+
+function UIManager._DoCollect(craftId)
+	if not craftId then return end
+	
+	task.spawn(function()
+		local resultOk, response = NetClient.Request("Craft.Collect.Request", {
+			craftId = craftId
+		})
+		
+		if resultOk and response and response.success ~= false then
+			UIManager.notify("말랑봉 제작 완료 및 수령 성공!", Color3.fromRGB(140, 220, 100))
+			UIManager.refreshInventory()
+			
+			-- 모달 숨기기
+			CraftingUI.HideProgressModal()
+			
+			-- 큐 리셋 및 강제 리프레시
+			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
+			if ok and qRes and qRes.queue then
+				ActiveCraftQueue = qRes.queue
+			else
+				ActiveCraftQueue = {}
+			end
+			UIManager.RefreshWeaponCrafting()
+		else
+			UIManager.notify("수령 실패: 인벤토리 공간이 가득 찼습니다", Color3.fromRGB(255, 75, 50))
+		end
+	end)
+end
+
+function UIManager.RefreshWeaponCrafting()
+	if not WindowManager.isOpen("CRAFTING") then return end
+	
+	-- 무기 장인 오픈 시의 레시피 목록(말랑봉 등) 구하기
+	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
+	local weaponRecipes = {}
+	for _, r in ipairs(RecipeData) do
+		if r.id == "CraftSoftClub" then
+			table.insert(weaponRecipes, r)
+		end
+	end
+	
+	local playerItemCounts = {}
+	local invCache = InventoryController.getInventoryCache()
+	for _, slot in pairs(invCache) do
+		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+	end
+	
+	CraftingUI.Refresh(weaponRecipes, playerItemCounts, UIManager.getItemIcon, "CRAFTING", UIManager)
+	
+	-- 상세창도 갱신
+	if SelectedCraftRecipe then
+		-- 캐시된 큐 중에서 선택된 레시피 ID에 대응하는 큐 엔트리 조회
+		local matchedQueueEntry = nil
+		for _, q in ipairs(ActiveCraftQueue) do
+			if q.recipeId == SelectedCraftRecipe.id then
+				matchedQueueEntry = q
+				break
+			end
+		end
+		
+		local canMake, _ = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
+		
+		if matchedQueueEntry then
+			CraftingUI.UpdateDetail(
+				SelectedCraftRecipe, 
+				SelectedCraftMode, 
+				false, 
+				canMake, 
+				playerItemCounts, 
+				DataHelper, 
+				UIManager.getItemIcon,
+				matchedQueueEntry.progressRatio,
+				matchedQueueEntry.state
+			)
+		else
+			CraftingUI.UpdateDetail(
+				SelectedCraftRecipe, 
+				SelectedCraftMode, 
+				false, 
+				canMake, 
+				playerItemCounts, 
+				DataHelper, 
+				UIManager.getItemIcon,
+				0,
+				nil
+			)
+		end
+	end
 end
 
 ----------------------------------------------------------------
 -- Public API: Crafting
 ----------------------------------------------------------------
---- [수정] C키는 건축(건물을 짓는 행위) 전용입니다.
-function UIManager.openCrafting(mode)
-	UIManager.openBuild()
-end
-
-function UIManager.toggleCrafting()
-	UIManager.toggleBuild()
-end
-
-function UIManager.closeCrafting()
-	WindowManager.close("CRAFTING")
-end
-
---- [제거] 작업대라는 개념은 존재하지 않습니다. 모든 아이템 제작은 인벤토리에서 진행됩니다.
-function UIManager.openWorkbench(structureId, facilityId)
-	UIManager.notify("시설에 접근했습니다. (제작은 인벤토리[I]에서 가능합니다)", C.GOLD)
-end
-
--- [Legacy] Removed refreshCrafting and _onCraftSlotClick as all logic moved to refreshPersonalCrafting.
-
--- 재료 체크 헬퍼
 function UIManager.checkMaterials(item, playerItemCounts)
 	playerItemCounts = playerItemCounts or InventoryController.getItemCounts()
 	local inputs = item.inputs or item.requirements
 	if not inputs then return true, "" end
 
-	-- alternateWoodIds 집합 생성
-	local altSet = {}
-	local altList = item.alternateWoodIds
-	if altList then
-		for _, id in ipairs(altList) do
-			altSet[id] = true
-		end
-	end
-
 	local missing = {}
 	for _, inp in ipairs(inputs) do
 		local reqId = inp.itemId or inp.id
 		local req = inp.count or inp.amount or 0
-
-		if altSet[reqId] and altList then
-			-- 대체 재료 중 하나라도 충분하면 OK
-			local found = false
-			for _, altId in ipairs(altList) do
-				if (playerItemCounts[altId] or 0) >= req then
-					found = true
-					break
-				end
-			end
-			if not found then
-				local itemName = reqId
-				local itemData = DataHelper.GetData("ItemData", itemName)
-				if itemData then itemName = itemData.name end
-				table.insert(missing, string.format("%s (%d/%d)", itemName, playerItemCounts[reqId] or 0, req))
-			end
-		else
-			local have = playerItemCounts[reqId] or 0
-			if have < req then
-				local itemName = reqId
-				local itemData = DataHelper.GetData("ItemData", itemName)
-				if itemData then itemName = itemData.name end
-				table.insert(missing, string.format("%s (%d/%d)", itemName, have, req))
-			end
+		local have = playerItemCounts[reqId] or 0
+		if have < req then
+			local itemName = reqId
+			local itemData = DataHelper.GetData("ItemData", itemName)
+			if itemData then itemName = itemData.name end
+			table.insert(missing, string.format("%s (%d/%d)", itemName, have, req))
 		end
 	end
 
@@ -1261,12 +1170,10 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 		for _, ch in pairs(invPersonalCraftGrid:GetChildren()) do if ch:IsA("Frame") then ch:Destroy() end end
 		personalCraftNodes = {}; selectedPersonalRecipeId = nil
 		
-		-- [수정] 인벤토리 제작탭은 '아이템 레시피'만 표시합니다.
 		local allRecipes = require(ReplicatedStorage.Data.RecipeData)
 		cachedPersonalRecipes = {}
 		
 		for _, recipe in ipairs(allRecipes) do
-			-- [필터] 인벤토리 제작탭은 시설이 필요 없는(Hand Craft) 레시피만 보여줍니다.
 			if not recipe.requiredFacility then
 				local r = table.clone(recipe)
 				r._isFacility = false
@@ -1303,7 +1210,6 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 		local playerItemCounts = InventoryController.getItemCounts()
 		
 		for _, recipe in ipairs(recipes) do
-			local isLocked = not TechController.isRecipeUnlocked(recipe.id) -- TechController 사용
 			local canCraft, _ = UIManager.checkMaterials(recipe)
 			local node = personalCraftNodes[recipe.id]
 			
@@ -1318,7 +1224,7 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 					bgT=0.3,
 					r=0,
 					stroke=1,
-					strokeC=isLocked and C.DIM or C.BORDER_DIM,
+					strokeC=C.BORDER_DIM,
 					z=12,
 					parent=invPersonalCraftGrid
 				})
@@ -1327,7 +1233,6 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 				icon.Name="Icon"; icon.Size=UDim2.new(0.7,0,0.7,0); icon.Position=UDim2.new(0.5,0,0.5,0)
 				icon.AnchorPoint=Vector2.new(0.5,0.5); icon.BackgroundTransparency=1; icon.ScaleType=Enum.ScaleType.Fit; icon.ZIndex=13; icon.Parent=nf
 				
-				-- Priority: Output item icon > Recipe ID icon
 				local iconId = ""
 				if recipe.outputs and recipe.outputs[1] then
 					iconId = getItemIcon(recipe.outputs[1].itemId)
@@ -1340,50 +1245,33 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 				
 				local iconLbl = mkLabel({text=recipe.name, size=UDim2.new(0.9,0,0.9,0), pos=UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5), ts=8, color=C.WHITE, wrap=true, z=14, parent=nf})
 				iconLbl.Visible = (iconId == "")
-
-				local lockBG = mkFrame({name="LockBG", size=UDim2.new(1,0,1,0), bg=Color3.new(0.1,0.1,0.1), bgT=0.5, r=0, z=20, parent=nf})
-				local lockIcon = Instance.new("ImageLabel")
-				lockIcon.Name = "LockIcon"; lockIcon.Size = UDim2.new(0.5,0,0.5,0); lockIcon.Position = UDim2.new(0.5,0,0.5,0)
-				lockIcon.AnchorPoint = Vector2.new(0.5,0.5); lockIcon.BackgroundTransparency = 1; lockIcon.ZIndex = 21
-				lockIcon.Image = "rbxassetid://6031084651"; lockIcon.ImageColor3 = Color3.new(1,1,1); lockIcon.Parent = lockBG
 				
 				local btn = mkBtn({name="B", size=UDim2.new(1,0,1,0), bgT=1, z=25, parent=nf})
 				btn.MouseButton1Click:Connect(function()
 				selectedPersonalRecipeId = recipe.id
-					UIManager.refreshPersonalCrafting() -- Refresh strokes
+					UIManager.refreshPersonalCrafting()
 					UIManager._updatePersonalCraftDetail(recipe)
 				end)
 				
-				node = {frame=nf, icon=icon, lockBG=lockBG, nameLabel=iconLbl, recipe=recipe}
+				node = {frame=nf, icon=icon, nameLabel=iconLbl, recipe=recipe}
 				personalCraftNodes[recipe.id] = node
 			end
 			
-			-- Update visual state
 			local nf = node.frame
 			local icon = node.icon
-			local lockBG = node.lockBG
 			local st = nf:FindFirstChildOfClass("UIStroke")
 			
-			if isLocked then
-				icon.ImageColor3 = Color3.fromRGB(100,100,100)
-				nf.BackgroundColor3 = C.BG_DARK
-				nf.BackgroundTransparency = 0.8
-				lockBG.Visible = true
-				if st then st.Color = (recipe.id == selectedPersonalRecipeId) and C.GOLD or C.DIM end
+			nf.BackgroundTransparency = T.SLOT
+			if canCraft then
+				icon.ImageColor3 = Color3.new(1,1,1)
+				nf.BackgroundColor3 = Color3.fromRGB(45, 65, 45)
 			else
-				lockBG.Visible = false
-				nf.BackgroundTransparency = T.SLOT
-				if canCraft then
-					icon.ImageColor3 = Color3.new(1,1,1)
-					nf.BackgroundColor3 = Color3.fromRGB(45, 65, 45) -- Subtle Green Hint
-				else
-					icon.ImageColor3 = Color3.fromRGB(150,150,150)
-					nf.BackgroundColor3 = C.BG_SLOT
-				end
-				if st then 
-					st.Color = (recipe.id == selectedPersonalRecipeId) and C.GOLD or C.BORDER 
-					st.Thickness = (recipe.id == selectedPersonalRecipeId) and 2.5 or 1.5
-				end
+				icon.ImageColor3 = Color3.fromRGB(150,150,150)
+				nf.BackgroundColor3 = C.BG_SLOT
+			end
+			if st then 
+				st.Color = (recipe.id == selectedPersonalRecipeId) and C.GOLD or C.BORDER 
+				st.Thickness = (recipe.id == selectedPersonalRecipeId) and 2.5 or 1.5
 			end
 		end
 		
@@ -1401,12 +1289,8 @@ function UIManager._updatePersonalCraftDetail(recipe)
 		return 
 	end
 	
-	local isLocked = not TechController.isRecipeUnlocked(recipe.id) -- TechController 사용
+	InventoryUI.UpdateDetail(recipe, getItemIcon, Enums, DataHelper, InventoryController.getItemCounts(), false)
 	
-	-- InventoryUI의 공통 UpdateDetail을 사용하여 통일성 및 버그 방지
-	InventoryUI.UpdateDetail(recipe, getItemIcon, Enums, DataHelper, InventoryController.getItemCounts(), isLocked)
-	
-	-- 제작 진행률 UI 초기화 (이전 진행률 잔상 제거)
 	local refs = InventoryUI.Refs.Detail
 	if refs and refs.ProgFill then
 		refs.ProgFill.Size = UDim2.new(0,0,1,0)
@@ -1431,53 +1315,24 @@ function UIManager.isMenuOpen()
 	return HUDUI.Refs.sideMenu and HUDUI.Refs.sideMenu.Visible
 end
 
-
--- [추가] 풀스크린 제작 메뉴용 클라이언트 액션 (CraftingUI 호출용)
-function UIManager._onCraftSlotClick(recipe, mode)
-	if not recipe then return end
-	
-	-- 전역 선택 ID 동기화
-	selectedPersonalRecipeId = recipe.id
-	
-	local playerItemCounts = InventoryController.getItemCounts()
-	local isLocked = not TechController.isRecipeUnlocked(recipe.id) -- TechController 사용
-	local canMake, _ = UIManager.checkMaterials(recipe, playerItemCounts)
-	
-	-- 풀스크린 상세창 업데이트
-	CraftingUI.UpdateDetail(recipe, mode, isLocked, canMake, playerItemCounts, DataHelper, getItemIcon)
-	
-	-- 인벤토리 상세창도 만약 열려있다면 동기화
-	if WindowManager.isOpen("INV") then
-		UIManager._updatePersonalCraftDetail(recipe)
-	end
-end
-
 local isCrafting = false
 local spinnerTween = nil
 local progConn = nil
 
 function UIManager.isCrafting()
-	-- 상호작용 차단은 제작 UI가 열린 상태에서만 적용
-	return isCrafting and (WindowManager.isOpen("INV") or WindowManager.isOpen("CRAFT"))
+	return isCrafting and WindowManager.isOpen("INV")
 end
 
 function UIManager.showCraftingProgress(duration)
 	if isCrafting then return end
 	isCrafting = true
 	
-	-- 1. 상단 채집바 표시 (사용자 요청으로 제거: UI 내부 바 사용)
-	-- HUDUI.ShowHarvestProgress(duration, "제작 중...")
-	
-	-- 2. 상세 정보창 내부 진행률 표시 (돌아가는 표시)
-	local isInvOpen = WindowManager.isOpen("INV")
-	local isCraftOpen = WindowManager.isOpen("CRAFT")
-	local refs = (isInvOpen and InventoryUI.Refs.Detail) or (isCraftOpen and CraftingUI.Refs.Detail)
+	local refs = InventoryUI.Refs.Detail
 	
 	if refs and refs.ProgWrap then
 		refs.ProgWrap.Visible = true
 		if refs.ProgBar then refs.ProgBar.Visible = true end
 		
-		-- 스피너 회전 루프 (Durango 스타일)
 		if spinnerTween then spinnerTween:Cancel() end
 		if refs.Spinner then
 			refs.Spinner.Rotation = 0
@@ -1485,7 +1340,6 @@ function UIManager.showCraftingProgress(duration)
 			spinnerTween:Play()
 		end
 		
-		-- 프로그레스바 루프
 		if progConn then progConn:Disconnect() end
 		local start = tick()
 		progConn = RunService.RenderStepped:Connect(function()
@@ -1497,14 +1351,11 @@ end
 
 function UIManager.stopCraftingProgress()
 	isCrafting = false
-	HUDUI.HideHarvestProgress()
 	
 	if spinnerTween then spinnerTween:Cancel(); spinnerTween = nil end
 	if progConn then progConn:Disconnect(); progConn = nil end
 	
-	local isInvOpen = WindowManager.isOpen("INV")
-	local isCraftOpen = WindowManager.isOpen("CRAFT")
-	local refs = (isInvOpen and InventoryUI.Refs.Detail) or (isCraftOpen and CraftingUI.Refs.Detail)
+	local refs = InventoryUI.Refs.Detail
 	if refs and refs.ProgWrap then
 		refs.ProgWrap.Visible = false
 		if refs.ProgBar then refs.ProgBar.Visible = false end
@@ -1513,9 +1364,7 @@ end
 
 function UIManager._doCraft()
 	local isInvOpen = WindowManager.isOpen("INV")
-	local isCraftOpen = WindowManager.isOpen("CRAFT")
 	
-	-- 1. 인벤토리 내 제작 탭 처리 (아이템 제작 전용)
 	if isInvOpen and invCraftContainer and invCraftContainer.Visible then
 		if not selectedPersonalRecipeId then return end
 		
@@ -1525,17 +1374,9 @@ function UIManager._doCraft()
 		end
 		if not recipe then return end
 
-		-- [기술 잠금 체크] - 임시 비활성화 (전면 삭제 요청)
-		-- if not TechController.isRecipeUnlocked(recipe.id) then
-		-- 	UIManager.notify("기술 해금이 필요합니다.", C.RED)
-		-- 	return
-		-- end
-
-		-- 재료 체크
 		local ok, msg = UIManager.checkMaterials(recipe)
 		if not ok then UIManager.notify(msg, C.RED); return end
 
-		-- 제작 프로세스 시작
 		local craftTime = recipe.craftTime or 3
 		UIManager.showCraftingProgress(craftTime)
 		
@@ -1552,7 +1393,6 @@ function UIManager._doCraft()
 					UIManager.refreshInventory()
 					UIManager.refreshPersonalCrafting() 
 				else
-					-- 큐 등록형 제작은 즉시 진행 UI를 해제하여 상호작용 잠금이 남지 않게 함
 					UIManager.stopCraftingProgress()
 					UIManager.notify("제작 의뢰 완료!", C.GOLD)
 				end
@@ -1563,54 +1403,6 @@ function UIManager._doCraft()
 		end)
 		return
 	end
-
-	-- 2. 풀스크린 제작 메뉴 처리 (시설 제작 또는 건축)
-	if isCraftOpen then
-		if not selectedPersonalRecipeId then return end
-		-- 현재 풀스크린 제작 메뉴에서도 selectedPersonalRecipeId를 공유하거나, 
-		-- CraftingUI에서 관리하는 별도의 변수가 필요할 수 있음. 
-		-- 일단 로직 흐름상 동일 변수 사용 가정.
-		
-		local recipe = DataHelper.GetData("RecipeData", selectedPersonalRecipeId)
-		if not recipe then return end
-
-		-- [기술 잠금 체크]
-		if not TechController.isRecipeUnlocked(recipe.id) then
-			UIManager.notify("기술 해금이 필요합니다.", C.RED)
-			return
-		end
-		
-		-- 재료 체크
-		local ok, msg = UIManager.checkMaterials(recipe)
-		if not ok then UIManager.notify(msg, C.RED); return end
-		
-		local craftTime = recipe.craftTime or 3
-		UIManager.showCraftingProgress(craftTime)
-		
-		task.spawn(function()
-			local resultOk, response = NetClient.Request("Craft.Start.Request", {
-				recipeId = selectedPersonalRecipeId,
-				structureId = currentFacilityStructureId
-			})
-			
-			if resultOk then
-				if response and response.instant then
-					UIManager.stopCraftingProgress()
-					UIManager.refreshInventory()
-					if currentFacilityStructureId then
-						UIManager.refreshFacilityCrafting(currentFacilityStructureId)
-					end
-				else
-					-- 맡김 제작(비즉시)은 요청 승인 후 진행바 잠금 해제
-					UIManager.stopCraftingProgress()
-					UIManager.notify("제작 의뢰 완료!", C.GOLD)
-				end
-			else
-				UIManager.stopCraftingProgress()
-				UIManager.notify(friendlyError(response, "제작"), C.RED)
-			end
-		end)
-	end
 end
 
 ----------------------------------------------------------------
@@ -1618,10 +1410,6 @@ end
 ----------------------------------------------------------------
 function UIManager.openShop(shopId)
 	WindowManager.open("SHOP", shopId)
-end
-
-function UIManager.openQuestList(npcModel)
-	WindowManager.open("QUEST", npcModel)
 end
 
 function UIManager._onOpenShop(shopId)
@@ -1643,31 +1431,6 @@ end
 function UIManager._onCloseShop()
 	activeShopId = nil
 	ShopUI.SetVisible(false)
-end
-
--- [NEW] CraftingUI 전용 핸들러
-function UIManager.openWeaponCrafting(recipes)
-	WindowManager.open("CRAFTING", recipes)
-end
-
-function UIManager._onOpenCrafting(recipes)
-	CraftingUI.UpdateTitle(UILocalizer.Localize("무기 제작 (Weapon Crafting)"))
-	CraftingUI.SetVisible(true)
-	
-	-- 아이템 개수 캐시 (재료 체크용)
-	local playerItemCounts = {}
-	local invCache = InventoryController.getInventoryCache()
-	for _, slot in pairs(invCache) do
-		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
-	end
-	
-	CraftingUI.Refresh(recipes or {}, playerItemCounts, UIManager.getItemIcon, "CRAFTING", UIManager)
-	updateUIMode()
-end
-
-function UIManager._onCloseCrafting()
-	CraftingUI.SetVisible(false)
-	updateUIMode()
 end
 
 function UIManager.refreshShop(shopId)
@@ -1703,671 +1466,6 @@ function UIManager.requestSell(slotIdx, count)
 end
 
 ----------------------------------------------------------------
--- Public API: Build (건축 설계도)
-----------------------------------------------------------------
-function UIManager.openBuild()
-	WindowManager.open("BUILD")
-end
-
-function UIManager._onOpenBuild()
-	BuildUI.Refs.Frame.Visible = true
-	updateUIMode()
-	
-	if not WindowManager.isOpen("CRAFT") then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-	
-	UIManager.refreshBuild()
-end
-
-function UIManager.closeBuild()
-	WindowManager.close("BUILD")
-end
-
-function UIManager._onCloseBuild()
-	if blurEffect and not WindowManager.isOpen("CRAFT") then blurEffect:Destroy(); blurEffect = nil end
-	BuildUI.Refs.Frame.Visible = false
-end
-
-function UIManager.toggleBuild()
-	WindowManager.toggle("BUILD")
-end
-
-function UIManager.refreshBuild()
-	local allFacilities = require(ReplicatedStorage.Data.FacilityData)
-
-	-- buildTier 기반 필터링 (선택된 카테고리의 시설만 표시)
-	local list = {}
-	for _, f in pairs(allFacilities) do
-		if f.buildTier == selectedBuildCat then
-			local fData = table.clone(f)
-			-- 해당 티어 스킬 해금 여부에 따라 잠금 상태 설정
-			fData.isLocked = not SkillController.isSkillUnlocked(selectedBuildCat)
-			table.insert(list, fData)
-		end
-	end
-
-	-- 스킬 해금 체크 함수를 BuildUI에 전달
-	local function isTierUnlocked(skillId)
-		return SkillController.isSkillUnlocked(skillId)
-	end
-
-	BuildUI.Refresh(list, {}, selectedBuildCat, UIManager.getItemIcon, UIManager, isTierUnlocked)
-end
-
-----------------------------------------------------------------
--- Storage UI
-----------------------------------------------------------------
-
-function UIManager.openStorage(storageId, data)
-	WindowManager.open("STORAGE", storageId, data)
-end
-
-function UIManager._onOpenStorage(storageId, data)
-	currentStorageData = data
-	hoveredStorageSlotInfo = nil
-	StorageUI.Refs.Frame.Visible = true
-	updateUIMode()
-	
-	if not blurEffect then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-	
-	ShopController.requestGold(function()
-		if WindowManager.isOpen("STORAGE") then
-			UIManager.refreshStorage()
-		end
-	end)
-
-	UIManager.refreshStorage()
-end
-
-function UIManager.closeStorage()
-	WindowManager.close("STORAGE")
-end
-
-function UIManager._onCloseStorage()
-	if blurEffect then blurEffect:Destroy(); blurEffect = nil end
-	currentStorageData = nil
-	hoveredStorageSlotInfo = nil
-	StorageUI.Refs.Frame.Visible = false
-	-- 서버에 닫기 요청
-	StorageController.closeStorage()
-end
-
-function UIManager.refreshStorage()
-	if not WindowManager.isOpen("STORAGE") or not currentStorageData then return end
-	
-	local invData = InventoryController.getItems()
-	local playerGold = ShopController.getGold()
-	local _, inventoryMaxSlots = InventoryController.getSlotInfo()
-	StorageUI.Refresh(currentStorageData, invData, playerGold, UIManager.getItemIcon, UIManager, inventoryMaxSlots)
-end
-
-function UIManager._onStorageSlotClick(slot, fromType)
-	StorageController.moveItem(slot, fromType)
-end
-
-function UIManager.onStorageSlotHover(slot, fromType, isHovering)
-	if not isHovering then
-		hoveredStorageSlotInfo = nil
-		StorageUI.HideTooltip()
-		return
-	end
-
-	if fromType == "storage" then
-		hoveredStorageSlotInfo = StorageController.getStorageSlot(slot)
-	else
-		local item = InventoryController.getSlot(slot)
-		hoveredStorageSlotInfo = item and table.clone(item) or nil
-	end
-
-	StorageUI.ShowTooltip(hoveredStorageSlotInfo)
-end
-
-function UIManager.getHoveredStorageSlotInfo()
-	return hoveredStorageSlotInfo
-end
-
-function UIManager.handleStorageDragStart(slot, fromType)
-	DragDropController.handleDragStart(slot, fromType, "storage")
-end
-
-function UIManager.getStorageSlots()
-	return StorageUI.Refs.StorageSlots
-end
-
-function UIManager.getStorageInventorySlots()
-	return StorageUI.Refs.InventorySlots
-end
-
-function UIManager.getStorageDragItem(slot, fromType)
-	if fromType == "storage" then
-		return StorageController.getStorageSlot(slot)
-	end
-	return InventoryController.getSlot(slot)
-end
-
-function UIManager.moveStorageItem(sourceSlot, sourceType, targetSlot, targetType)
-	StorageController.moveItem(sourceSlot, sourceType, targetSlot, targetType)
-end
-
-function UIManager.requestStorageGoldMove(sourceType)
-	if not currentStorageData then return end
-
-	if sourceType == "player" then
-		local amount = ShopController.getGold()
-		if amount <= 0 then
-			UIManager.notify("보관할 골드가 없습니다.", C.RED)
-			return
-		end
-		UIManager.openStorageGoldModal("player")
-	else
-		local amount = tonumber(currentStorageData.gold) or 0
-		if amount <= 0 then
-			UIManager.notify("인출할 골드가 없습니다.", C.RED)
-			return
-		end
-		UIManager.openStorageGoldModal("storage")
-	end
-end
-
-----------------------------------------------------------------
--- Facility UI
-----------------------------------------------------------------
-
-function UIManager.openFacility(structureId, data)
-	WindowManager.open("FACILITY", structureId, data)
-end
-
-function UIManager._onOpenFacility(structureId, data)
-	currentFacilityStructureId = structureId
-	local fId = data and data.facilityId
-	currentFacilityId = fId
-	currentFacilityType = data and data.functionType or (fId and DataHelper.GetData("FacilityData", fId) and DataHelper.GetData("FacilityData", fId).functionType)
-	selectedFacilityRecipe = nil
-	
-	FacilityUI.SetVisible(true)
-	updateUIMode()
-
-	if FacilityUI.Refs and FacilityUI.Refs.Title then
-		if currentFacilityType == "CRAFTING_T1" then
-			if currentFacilityId == "NOVICE_WORKBENCH" then
-				FacilityUI.Refs.Title.Text = UILocalizer.Localize("초급 작업대 제작 / 나무 블럭가공")
-			else
-				FacilityUI.Refs.Title.Text = UILocalizer.Localize("기초 작업대 제작 / 나무 블럭가공")
-			end
-		elseif currentFacilityType == "CRAFTING_T2" then
-			FacilityUI.Refs.Title.Text = UILocalizer.Localize("청동기 작업대 제작 / 뼈 및 금속 가공")
-		elseif currentFacilityType == "CRAFTING_T3" then
-			FacilityUI.Refs.Title.Text = UILocalizer.Localize("철기 작업대 제작")
-		elseif currentFacilityType == "COOKING" then
-			FacilityUI.Refs.Title.Text = UILocalizer.Localize("요리")
-		elseif currentFacilityType and string.find(currentFacilityType, "SMELTING") then
-			if currentFacilityId == "STONE_FURNACE" then
-				FacilityUI.Refs.Title.Text = UILocalizer.Localize("제련 및 요리")
-			else
-				FacilityUI.Refs.Title.Text = UILocalizer.Localize("제련")
-			end
-		else
-			FacilityUI.Refs.Title.Text = UILocalizer.Localize("제작")
-		end
-	end
-	
-	-- [추가] 초기 내구도 정보 반영
-	if data and data.health and data.maxHealth then
-		FacilityUI.UpdateHealth(data.health, data.maxHealth)
-	end
-	
-	if not blurEffect then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-	
-	-- [추가] 시설 유형에 맞는 탭 구성
-	if FacilityUI.SetupTabs then
-		FacilityUI.SetupTabs(currentFacilityType or "", currentFacilityId or "")
-	end
-	
-	UIManager.refreshFacility()
-end
-
-function UIManager._onCraftUpdate()
-	if WindowManager.isOpen("FACILITY") then
-		UIManager.refreshFacility()
-	end
-end
-
-function UIManager.closeFacility()
-	WindowManager.close("FACILITY")
-end
-
-function UIManager._onCloseFacility()
-	if blurEffect then blurEffect:Destroy(); blurEffect = nil end
-	currentFacilityStructureId = nil
-	currentFacilityType = nil
-	currentFacilityId = nil
-	selectedFacilityRecipe = nil
-	FacilityUI.SetVisible(false)
-	UIManager.closeItemSelector() -- Close selection modal if open
-	FacilityController.closeFacility()
-end
-
-----------------------------------------------------------------
--- Totem UI
-----------------------------------------------------------------
-
-function UIManager.openTotem(structureId, data)
-	WindowManager.open("TOTEM", structureId, data)
-end
-
-function UIManager._onOpenTotem(structureId, data)
-	currentTotemStructureId = structureId
-	TotemUI.SetVisible(true)
-	updateUIMode()
-
-	if not blurEffect then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-
-	if data then
-		TotemUI.Refresh(data)
-	else
-		UIManager.refreshTotem()
-	end
-end
-
-function UIManager.closeTotem()
-	WindowManager.close("TOTEM")
-end
-
-function UIManager._onCloseTotem()
-	if blurEffect then blurEffect:Destroy(); blurEffect = nil end
-	currentTotemStructureId = nil
-	TotemUI.SetVisible(false)
-end
-
-function UIManager.refreshTotem()
-	if not currentTotemStructureId then
-		return
-	end
-	local TotemController = require(Controllers.TotemController)
-	TotemController.refreshInfo(currentTotemStructureId, function(ok, data)
-		if ok and type(data) == "table" then
-			TotemUI.Refresh(data)
-		end
-	end)
-end
-
-function UIManager.requestTotemPay(days)
-	if not currentTotemStructureId then
-		UIManager.notify("토템 정보를 먼저 열어주세요.", C.RED)
-		return
-	end
-
-	local TotemController = require(Controllers.TotemController)
-	TotemController.requestPay(days, function(ok, data)
-		if ok then
-			TotemUI.Refresh(data)
-			UIManager.notify(string.format("유지비 결제 완료: %d일 연장", days), C.GOLD)
-		else
-			local code = tostring(data)
-			UIManager.notify(friendlyError(code, "유지비 결제"), C.RED)
-		end
-	end)
-end
-
-function UIManager.requestTotemExpand(direction)
-	if not currentTotemStructureId then
-		UIManager.notify("토템 정보를 먼저 열어주세요.", C.RED)
-		return
-	end
-
-	local directionNames = {
-		NORTH = "북쪽",
-		SOUTH = "남쪽",
-		EAST = "동쪽",
-		WEST = "서쪽",
-	}
-
-	local TotemController = require(Controllers.TotemController)
-	TotemController.requestExpand(direction, function(ok, data)
-		if ok then
-			TotemUI.Refresh(data)
-			UIManager.notify((directionNames[direction] or "선택한 방향") .. " 영토를 확장했습니다.", C.GOLD)
-		else
-			local code = tostring(data)
-			UIManager.notify(friendlyError(code, "영토 확장"), C.RED)
-		end
-	end)
-end
-
-function UIManager.highlightTotemZone()
-	local TotemController = require(Controllers.TotemController)
-	TotemController.flashPreview()
-	UIManager.notify("영역 효과 범위를 확인하세요.", C.WHITE)
-end
-
-----------------------------------------------------------------
--- Portal UI (Radial Menu)
-----------------------------------------------------------------
-
-function UIManager.openPortalRadial(status)
-	WindowManager.open("PORTAL_RADIAL", status)
-end
-
-function UIManager.closePortalRadial()
-	WindowManager.close("PORTAL_RADIAL")
-end
-
-function UIManager._onOpenPortal(data)
-	UIManager.openPortalRadial(data)
-end
-
-function UIManager._onClosePortal()
-	UIManager.closePortalRadial()
-end
-
-function UIManager.refreshPortal(newData)
-	PortalUI.Refresh(newData)
-end
-
-function UIManager.openPortalGoldInput(data)
-	PortalUI.SetData(data)
-	PortalUI.SetVisible(true)
-end
-
-function UIManager.requestPortalDeposit(itemId, amount)
-	-- itemId가 nil 또는 빈 문자열이면 골드로 취급
-	local ok, data = NetClient.Request("Portal.Deposit.Request", {
-		itemId = itemId,
-		amount = amount
-	})
-	if ok then
-		PortalUI.Refresh(data)
-		if data and data.repaired then
-			UIManager.notify("🌀 고대 포탈이 수리되었습니다!", Color3.fromRGB(255, 200, 0))
-		end
-	else
-		UIManager.notify(friendlyError(data, "포탈 활성화"), C.RED)
-	end
-end
-
-function UIManager.sortInventory()
-	InventoryController.requestSort()
-end
-
-function UIManager.requestPortalTeleport()
-	local ok, err = NetClient.Request("Portal.Teleport.Request", {})
-	if not ok then
-		if err == "OUT_OF_RANGE" then
-			UIManager.sideNotify("❌ 포탈에 더 가까이 접근해야 합니다.", C.RED)
-		else
-			warn("[UIManager] Portal teleport failed:", err)
-			UIManager.sideNotify("❌ 포탈을 이용할 수 없습니다. 다시 시도해주세요.", C.RED)
-		end
-	end
-end
-
-
-
--- ============ Skill Tree ============
-function UIManager._onOpenSkillTree()
-	if not blurEffect and not WindowManager.isOpen("INV") then
-		blurEffect = Instance.new("BlurEffect"); blurEffect.Size = 15; blurEffect.Parent = Lighting
-	end
-	-- 열 때마다 서버에서 최신 스킬 데이터 재요청 (SP 소급 반영)
-	SkillController.requestData()
-	SkillTreeUI.SetVisible(true)
-end
-
-function UIManager._onCloseSkillTree()
-	if blurEffect and not WindowManager.isAnyOpen() then blurEffect:Destroy(); blurEffect = nil end
-	SkillTreeUI.SetVisible(false)
-end
-
-function UIManager.toggleSkillTree()
-	WindowManager.toggle("SKILL")
-end
-
-function UIManager.refreshFacility()
-	if not currentFacilityType then return end
-	
-	task.spawn(function()
-		local function recipeMatchesFacilityId(recipe, facilityId)
-			local allowedFacilityIds = recipe and recipe.allowedFacilityIds
-			if type(allowedFacilityIds) ~= "table" or #allowedFacilityIds == 0 then
-				return true
-			end
-			if not facilityId then
-				return false
-			end
-			for _, allowedId in ipairs(allowedFacilityIds) do
-				if allowedId == facilityId then
-					return true
-				end
-			end
-			return false
-		end
-
-		-- 1. Get recipes
-		local allRecipes = require(ReplicatedStorage.Data.RecipeData)
-		local recipes = {}
-		for _, r in pairs(allRecipes) do
-			local typeMatch = (r.requiredFacility == currentFacilityType)
-			local idMatch = false
-			if r.allowedFacilityIds then
-				for _, aid in ipairs(r.allowedFacilityIds) do
-					if aid == currentFacilityId then idMatch = true; break end
-				end
-			end
-
-			-- 타입이 일치하고 ID 제약이 없거나 일치할 때, OR ID가 명시적으로 허용되었을 때
-			if (typeMatch and recipeMatchesFacilityId(r, currentFacilityId)) or idMatch then
-				local buildSkillId = r.buildSkillId
-				if not buildSkillId or SkillController.isSkillUnlocked(buildSkillId) then
-					table.insert(recipes, r)
-				end
-			end
-		end
-
-		if currentFacilityType == "CRAFTING_T1" then
-			local pinnedOrder
-			if currentFacilityId == "NOVICE_WORKBENCH" then
-				pinnedOrder = {
-					CRAFT_SPLIT_LOG_TO_PLANK = 1,
-					CRAFT_SPLIT_PALM_LOG_TO_PLANK = 2,
-					CRAFT_LOG_BLOCK = 3,
-					CRAFT_PALM_BLOCK = 4,
-					CRAFT_REED_BLOCK = 5,
-					CRAFT_OBSIDIAN_AXE = 6,
-					CRAFT_OBSIDIAN_PICKAXE = 7,
-					CRAFT_OBSIDIAN_SWORD = 8,
-					CRAFT_OBSIDIAN_BOW = 9,
-					CRAFT_STONE_ARROW = 10,
-				}
-			else
-				pinnedOrder = {
-					CRAFT_SPLIT_LOG_TO_PLANK = 1,
-					CRAFT_SPLIT_PALM_LOG_TO_PLANK = 2,
-					CRAFT_FIRM_STONE_AXE = 3,
-					CRAFT_FIRM_STONE_PICKAXE = 4,
-					CRAFT_BONE_SWORD = 5,
-					CRAFT_LOG_BLOCK = 6,
-					CRAFT_PALM_BLOCK = 7,
-					CRAFT_REED_BLOCK = 8,
-					CRAFT_LEATHER_ARMOR = 9,
-					CRAFT_FEATHER_HELMET = 10,
-					CRAFT_STONE_ARROW = 11,
-				}
-			end
-			table.sort(recipes, function(a, b)
-				local ap = pinnedOrder[a.id] or 999
-				local bp = pinnedOrder[b.id] or 999
-				if ap ~= bp then
-					return ap < bp
-				end
-				return (a.id or "") < (b.id or "")
-			end)
-		elseif currentFacilityType == "CRAFTING_T2" then
-			local pinnedOrder = {
-				CRAFT_DESERT_PLANK = 1,
-				CRAFT_BONE_BLOCK = 2,
-				CRAFT_BRONZE_BLOCK = 3,
-				CRAFT_BRONZE_PICKAXE = 4,
-				CRAFT_BRONZE_AXE = 5,
-				CRAFT_BRONZE_SWORD = 6,
-				CRAFT_BRONZE_BOW = 7,
-				CRAFT_BRONZE_HELMET = 8,
-				CRAFT_BRONZE_ARMOR = 9,
-				CRAFT_BRONZE_ARROW = 10,
-			}
-			table.sort(recipes, function(a, b)
-				local ap = pinnedOrder[a.id] or 999
-				local bp = pinnedOrder[b.id] or 999
-				if ap ~= bp then
-					return ap < bp
-				end
-				return (a.id or "") < (b.id or "")
-			end)
-		end
-		
-		-- 2. Get current queue for this facility
-		local ok, qData = NetClient.Request("Craft.GetQueue.Request", {})
-		local facilityQueue = {}
-		if ok and qData and qData.queue then
-			for _, entry in ipairs(qData.queue) do
-				-- structureId가 일치하는 항목만 필터링 (CraftingService에서 structureId를 넘겨줌)
-				-- Note: CraftingService entry has 'structureId'
-				-- But 'Craft.GetQueue.Request' handler filtered data might not have it depending on implementation
-				-- Let's check CraftingService.getQueue again.
-				-- It returns craftId, recipeId, state, startedAt, completesAt, remaining.
-				-- It DOES NOT return structureId in the simplified result. I need to fix that.
-			end
-		end
-		
-		-- 3. Get facility info (for health, fuel, etc.)
-		local ok2, fInfo = NetClient.Request("Facility.GetInfo.Request", { structureId = currentFacilityStructureId or "" })
-		if ok2 and fInfo then
-			local d = fInfo
-			if d.health and d.maxHealth then
-				FacilityUI.UpdateHealth(d.health, d.maxHealth)
-			end
-		elseif fInfo == "OUT_OF_RANGE" then
-			UIManager.notify("시설과 거리가 멀어 창을 닫았습니다.", C.RED)
-			UIManager.closeFacility()
-			return
-		end
-
-		FacilityUI.Refresh(recipes, UIManager.getItemIcon, UIManager)
-		
-		-- Also need to update FacilityUI with queue data
-		-- I will also pass the full qData.queue for now and let FacilityUI filter (or I fix CraftingService)
-		FacilityUI.RefreshQueue(qData and qData.queue or {}, currentFacilityStructureId, UIManager.getItemIcon, UIManager)
-
-		if selectedFacilityRecipe then
-			UIManager._onFacilityRecipeClick(selectedFacilityRecipe)
-		else
-			FacilityUI.UpdateDetail(nil)
-		end
-	end)
-end
-
-function UIManager._onFacilityRecipeClick(recipe)
-	selectedFacilityRecipe = recipe
-	local playerItemCounts = InventoryController.getItemCounts()
-	local canCraft, _ = UIManager.checkMaterials(recipe, playerItemCounts)
-	
-	local getItemData = function(id) return DataHelper.GetData("ItemData", id) end
-	FacilityUI.UpdateDetail(recipe, playerItemCounts, getItemData, UIManager.getItemIcon, canCraft)
-end
-
-function UIManager._onStartFacilityCraft(recipe, count)
-	if not currentFacilityStructureId then return end
-	local batchCount = tonumber(count) or 1
-	batchCount = math.max(1, math.floor(batchCount))
-	local structureId = currentFacilityStructureId
-
-	-- 재료 선택 모달 열기
-	MaterialSelectUI.Open(recipe, batchCount, function(materialSlots)
-		task.spawn(function()
-			local success, response = NetClient.Request("Craft.Start.Request", {
-				recipeId = recipe.id,
-				structureId = structureId,
-				count = batchCount,
-				materialSlots = materialSlots,
-			})
-
-			if success then
-				UIManager.notify(string.format("제작 의뢰 완료! x%d", batchCount), C.GOLD)
-				UIManager.refreshFacility()
-			else
-				UIManager.notify(friendlyError(response, "제작"), C.RED)
-			end
-		end)
-	end)
-end
-
-function UIManager._onCollectFacilityCraft(craftId, collectCount)
-	task.spawn(function()
-		local success, response = NetClient.Request("Craft.Collect.Request", {
-			craftId = craftId,
-			count = collectCount,
-		})
-		
-		if success then
-			local data = response
-			local got = tonumber(data and data.collectedCount) or 1
-			UIManager.notify(string.format("수령 완료! x%d", got), C.GOLD)
-			UIManager.refreshFacility()
-			UIManager.refreshInventory()
-		else
-			UIManager.notify(friendlyError(response, "수령"), C.RED)
-		end
-	end)
-end
-
-
-
-function UIManager._onBuildCategoryClick(catId)
-	-- 미해금 탭 클릭 시 알림 표시
-	if not SkillController.isSkillUnlocked(catId) then
-		UIManager.notify("건축 연구에서 해당 스킬을 먼저 해금하세요.", C.RED)
-		return
-	end
-	selectedBuildCat = catId
-	UIManager.refreshBuild()
-end
-
-function UIManager._onBuildItemClick(data)
-	selectedBuildId = data.id
-	local isUnlocked = UIManager.checkFacilityUnlocked(data.id)
-	local playerItemCounts = InventoryController.getItemCounts()
-	local ok, _ = UIManager.checkMaterials(data, playerItemCounts)
-	BuildUI.UpdateDetail(data, ok, UIManager.getItemIcon, isUnlocked, playerItemCounts, DataHelper)
-end
-
-function UIManager._doStartBuild()
-	if not selectedBuildId then return end
-	local data = DataHelper.GetData("FacilityData", selectedBuildId)
-	if not data then return end
-	
-	local ok, msg = UIManager.checkMaterials(data)
-	if not ok then
-		UIManager.notify(msg, C.RED)
-		return
-	end
-
-	-- [기술 잠금 체크] - 임시 비활성화 (전면 삭제 요청)
-	-- if not TechController.isFacilityUnlocked(data.id) then
-	-- 	UIManager.notify("건축 기술이 해금되지 않았습니다.", C.RED)
-	-- 	return
-	-- end
-	
-	UIManager.closeBuild()
-	BuildController.startPlacement(selectedBuildId)
-end
-
-----------------------------------------------------------------
 -- Public API: Interact / Harvest
 ----------------------------------------------------------------
 function UIManager.showInteractPrompt(text, targetName, durability)
@@ -2375,12 +1473,7 @@ function UIManager.showInteractPrompt(text, targetName, durability)
 	local buildingName = targetName and targetName ~= "" and targetName or ""
 
 	InteractUI.UpdatePrompt(buildingName, keyHint)
-	if durability and durability.current ~= nil and durability.max ~= nil then
-		InteractUI.SetDurabilityVisible(true)
-		InteractUI.UpdateDurability(durability.current, durability.max)
-	else
-		InteractUI.SetDurabilityVisible(false)
-	end
+	InteractUI.SetDurabilityVisible(false)
 	InteractUI.SetVisible(true)
 end
 
@@ -2397,33 +1490,21 @@ function UIManager.hideHarvestProgress()
 	HUDUI.HideHarvestProgress()
 end
 
--- 건축 조작 가이드 표시
-function UIManager.showBuildPrompt(visible, mode)
-	if mode == "BLOCK" then
-		InteractUI.SetBuildVisible(false)
-		return
-	end
-	InteractUI.SetBuildMode(mode)
-	InteractUI.SetBuildVisible(visible)
-end
-
 function UIManager.notify(text, color)
 	if not mainGui then return end
 	text = UILocalizer.Localize(text)
 	
-	-- 이전 알림창이 남아있다면 즉시 제거 (글자 겹침 방지)
 	if currentToast and currentToast.Parent then
 		currentToast:Destroy()
 	end
 	
-	-- Toast style (Durango Torn Paper style)
 	local toast = Utils.mkFrame({
 		name = "Toast",
 		size = UDim2.new(0, 320, 0, 45),
 		pos = UDim2.new(0.5, 0, 0.2, -50),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
-		bgT = 0.9, -- 요청 사항: 거의 투명하게
+		bgT = 0.9,
 		r = 4,
 		stroke = false,
 		parent = mainGui
@@ -2432,14 +1513,13 @@ function UIManager.notify(text, color)
 	local label = Utils.mkLabel({
 		text = text,
 		ts = 18,
-		color = color or C.WHITE, -- 컬러 지정 가능하도록 수정
-		ink = not color, -- 컬러가 없을 때만 잉크 스타일 적용
+		color = color or C.WHITE,
+		ink = not color,
 		parent = toast
 	})
 	
 	currentToast = toast
 	
-	-- Animation
 	toast.Position = UDim2.new(0.5, 0, 0.15, 0)
 	local ti = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 	TweenService:Create(toast, ti, {Position = UDim2.new(0.5, 0, 0.2, 0)}):Play()
@@ -2453,141 +1533,7 @@ function UIManager.notify(text, color)
 	end)
 end
 
---- DNA 획득 특별 연출 (화면 중앙 대형 알림)
-function UIManager.showDnaObtained(data)
-	if not mainGui then return end
-	local creatureName = data.creatureId or ""
-	local creatureData = nil
-	pcall(function()
-		local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
-		creatureData = DataHelper.GetData("CreatureData", creatureName)
-	end)
-	local displayName = (creatureData and creatureData.name) or creatureName
-
-	-- 희귀도별 색상
-	local rarityColors = {
-		COMMON = Color3.fromRGB(200, 200, 200),
-		UNCOMMON = Color3.fromRGB(30, 255, 30),
-		RARE = Color3.fromRGB(0, 170, 255),
-		EPIC = Color3.fromRGB(200, 80, 255),
-		LEGENDARY = Color3.fromRGB(255, 200, 0),
-	}
-	local glowColor = rarityColors[data.rarity] or rarityColors.RARE
-
-	-- 전체 화면 오버레이 (살짝 어둡게)
-	local overlay = Utils.mkFrame({
-		name = "DnaOverlay",
-		size = UDim2.new(1, 0, 1, 0),
-		bg = Color3.new(0, 0, 0),
-		bgT = 1,
-		parent = mainGui
-	})
-	overlay.ZIndex = 50
-
-	-- 중앙 컨테이너
-	local container = Utils.mkFrame({
-		name = "DnaContainer",
-		size = UDim2.new(0, 400, 0, 200),
-		pos = UDim2.new(0.5, 0, 0.4, 0),
-		anchor = Vector2.new(0.5, 0.5),
-		bgT = 1,
-		parent = overlay
-	})
-	container.ZIndex = 51
-
-	-- 🧬 DNA 아이콘 텍스트 (이모지 대용)
-	local dnaIcon = Utils.mkLabel({
-		text = "🧬",
-		size = UDim2.new(0, 80, 0, 80),
-		pos = UDim2.new(0.5, 0, 0, 0),
-		anchor = Vector2.new(0.5, 0),
-		ts = 60,
-		color = glowColor,
-		parent = container
-	})
-	dnaIcon.ZIndex = 52
-	dnaIcon.TextTransparency = 1
-
-	-- "DNA 획득!" 타이틀
-	local title = Utils.mkLabel({
-		text = "DNA 획득!",
-		size = UDim2.new(1, 0, 0, 40),
-		pos = UDim2.new(0.5, 0, 0, 85),
-		anchor = Vector2.new(0.5, 0),
-		ts = 28,
-		color = glowColor,
-		parent = container
-	})
-	title.ZIndex = 52
-	title.TextTransparency = 1
-	title.Font = Enum.Font.GothamBold
-
-	-- 크리처 이름
-	local subtitle = Utils.mkLabel({
-		text = displayName .. " DNA",
-		size = UDim2.new(1, 0, 0, 30),
-		pos = UDim2.new(0.5, 0, 0, 130),
-		anchor = Vector2.new(0.5, 0),
-		ts = 20,
-		color = C.WHITE,
-		parent = container
-	})
-	subtitle.ZIndex = 52
-	subtitle.TextTransparency = 1
-
-	-- 희귀도 텍스트
-	local rarityText = Utils.mkLabel({
-		text = "[" .. (data.rarity or "RARE") .. "]",
-		size = UDim2.new(1, 0, 0, 22),
-		pos = UDim2.new(0.5, 0, 0, 165),
-		anchor = Vector2.new(0.5, 0),
-		ts = 16,
-		color = glowColor,
-		parent = container
-	})
-	rarityText.ZIndex = 52
-	rarityText.TextTransparency = 1
-
-	-- 애니메이션 시퀀스
-	local fadeIn = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-	local fadeInSlow = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-
-	-- 1. 오버레이 살짝 어둡게
-	TweenService:Create(overlay, fadeIn, {BackgroundTransparency = 0.7}):Play()
-
-	-- 2. DNA 아이콘 페이드인 + 스케일 팝
-	task.delay(0.1, function()
-		TweenService:Create(dnaIcon, fadeIn, {TextTransparency = 0}):Play()
-		dnaIcon.TextScaled = false
-		dnaIcon.TextSize = 20
-		TweenService:Create(dnaIcon, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextSize = 60}):Play()
-	end)
-
-	-- 3. 타이틀/서브 순차 페이드인
-	task.delay(0.3, function()
-		TweenService:Create(title, fadeInSlow, {TextTransparency = 0}):Play()
-	end)
-	task.delay(0.5, function()
-		TweenService:Create(subtitle, fadeInSlow, {TextTransparency = 0}):Play()
-	end)
-	task.delay(0.7, function()
-		TweenService:Create(rarityText, fadeInSlow, {TextTransparency = 0}):Play()
-	end)
-
-	-- 4. 3초 후 전체 페이드아웃
-	task.delay(3.0, function()
-		if not overlay or not overlay.Parent then return end
-		local fadeOut = TweenInfo.new(0.8, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-		TweenService:Create(overlay, fadeOut, {BackgroundTransparency = 1}):Play()
-		TweenService:Create(dnaIcon, fadeOut, {TextTransparency = 1}):Play()
-		TweenService:Create(title, fadeOut, {TextTransparency = 1}):Play()
-		TweenService:Create(subtitle, fadeOut, {TextTransparency = 1}):Play()
-		TweenService:Create(rarityText, fadeOut, {TextTransparency = 1}):Play()
-		task.delay(1.0, function()
-			if overlay and overlay.Parent then overlay:Destroy() end
-		end)
-	end)
-end
+-- (Legacy DNA display removed)
 
 -- [New] Side Notification (Corner stack)
 function UIManager.sideNotify(text, color, icon)
@@ -2671,9 +1617,7 @@ function UIManager.updateStamina(cur, max)
 	HUDUI.UpdateStamina(cur, max)
 end
 
-function UIManager.updateHunger(cur, max)
-	HUDUI.UpdateHunger(cur, max)
-end
+-- (Hunger system removed)
 
 function UIManager.updateXP(cur, max)
 	HUDUI.UpdateXP(cur, max)
@@ -2687,16 +1631,7 @@ function UIManager.updateStatPoints(available)
 	HUDUI.SetStatPointAlert(available)
 end
 
-function UIManager.checkFacilityUnlocked(facilityId)
-	-- buildTier 기반 스킬 해금 체크
-	local allFacilities = require(ReplicatedStorage.Data.FacilityData)
-	for _, f in ipairs(allFacilities) do
-		if f.id == facilityId and f.buildTier then
-			return SkillController.isSkillUnlocked(f.buildTier)
-		end
-	end
-	return true -- buildTier 없으면 기본 해금
-end
+-- (Facility check removed)
 
 ----------------------------------------------------------------
 -- Event Listeners
@@ -2761,31 +1696,7 @@ local function setupEventListeners()
 	-- [Phase 5] UI Toggle Key Bindings are handled in ClientInit.client.lua
 	-- (Redundant bindings removed to avoid conflicts)
 
-	-- Hotbar number keys / Touch selection
-	-- Hotbar number keys / Touch selection
-	local hotbarKeys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight}
-	for i = 1, 8 do
-		InputManager.bindKey(hotbarKeys[i], "HB"..i, function()
-			if i <= 3 then
-				-- For slots 1,2,3: Use the item directly
-				InventoryController.requestUse(i)
-			else
-				-- For others: Standard select (legacy compatibility)
-				UIManager.selectHotbarSlot(i)
-			end
-		end)
-		
-		local s = hotbarSlots[i]
-		if s and s.click then
-			s.click.MouseButton1Click:Connect(function()
-				if i <= 3 then
-					InventoryController.requestUse(i)
-				else
-					UIManager.selectHotbarSlot(i)
-				end
-			end)
-		end
-	end
+	-- [HOTBAR REMOVED] 핫바 번호 키 바인딩 및 클릭 이벤트 미사용 (핫바 개념 청산)
 
 	-- Mouse Wheel (Hotbar scroll) - DISABLED as per user request to allow zoom only
 	-- UserInputService.InputChanged:Connect(function(input, processed)
@@ -2834,75 +1745,8 @@ local function setupEventListeners()
 
 
 	-- DNA 획득 이벤트
-	if NetClient.On then
-		NetClient.On("DNA.Obtained", function(data)
-			if data then
-				UIManager.showDnaObtained(data)
-			end
-		end)
+	-- (DNA system removed)
 		
-		NetClient.On("DNA.Registered", function(data)
-			if data then
-				local creatureName = data.creatureId or ""
-				local displayName = creatureName
-				pcall(function()
-					local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
-					local cd = DataHelper.GetData("CreatureData", creatureName)
-					if cd and cd.name then displayName = cd.name end
-				end)
-				UIManager.notify("🧬 " .. displayName .. " DNA가 도감에 등록되었습니다!", Color3.fromRGB(0, 255, 180))
-			end
-		end)
-		
-		-- 펫 사망/재소환 알림
-		NetClient.On("Pet.Died", function(data)
-			if data and data.creatureId then
-				local displayName = data.creatureId
-				pcall(function()
-					local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
-					local cd = DataHelper.GetData("CreatureData", data.creatureId)
-					if cd and cd.name then displayName = cd.name end
-				end)
-				UIManager.notify("🐾 " .. displayName .. " 펫이 쓰러졌습니다! (재소환 대기중)", Color3.fromRGB(255, 100, 100))
-			end
-		end)
-		
-		NetClient.On("Pet.Respawned", function(data)
-			if data and data.creatureId then
-				local displayName = data.creatureId
-				pcall(function()
-					local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
-					local cd = DataHelper.GetData("CreatureData", data.creatureId)
-					if cd and cd.name then displayName = cd.name end
-				end)
-				UIManager.notify("🐾 " .. displayName .. " 펫이 재소환되었습니다!", Color3.fromRGB(100, 255, 150))
-			end
-		end)
-
-		-- 팰박스 업데이트 시 동물 관리 탭 자동 갱신
-		NetClient.On("Palbox.Updated", function(data)
-			UIManager.refreshAnimalManagement()
-		end)
-		
-		-- 팰 기절 알림
-		NetClient.On("Party.Pal.Fainted", function(data)
-			if data and data.palName then
-				UIManager.notify("💀 " .. data.palName .. "이(가) 기절했습니다!", Color3.fromRGB(255, 80, 80))
-			end
-			UIManager.refreshAnimalManagement()
-		end)
-
-		NetClient.On("Party.Mounted", function(data)
-			local palName = data and data.palName or "공룡"
-			UIManager.sideNotify(palName .. " 탑승 중", Color3.fromRGB(120, 220, 255))
-		end)
-
-		NetClient.On("Party.Dismounted", function(data)
-			local palName = data and data.palName or "공룡"
-			UIManager.sideNotify(palName .. "에서 내렸습니다.", Color3.fromRGB(180, 220, 255))
-		end)
-	end
-
 	-- Debuff Events
 	if NetClient.On then
 		NetClient.On("Debuff.Applied", function(data)
@@ -3003,14 +1847,7 @@ local function setupEventListeners()
 			end
 		end)
 
-		-- 팰 공격 히트 시 체력바 즉시 반영
-		NetClient.On("Combat.Pal.Hit.Result", function(data)
-			if data and data.currentHP and data.maxHP and currentCombatCreatureId then
-				if data.targetId == currentCombatCreatureId then
-					HUDUI.UpdateCombatUI(data.currentHP, data.maxHP)
-				end
-			end
-		end)
+-- (Pal combat hit removed)
 	end
 
 	-- Portal Events (고대 포탈 시스템)
@@ -3185,19 +2022,12 @@ local function setupEventListeners()
 		end
 	end
 
-	-- Hunger sync 연동
-	NetClient.On("Hunger.Update", function(data)
-		UIManager.updateHunger(data.current, data.max)
-	end)
+-- (Hunger system removed)
 
 	task.spawn(function()
 		setupMovementController()
 		
-		-- 초기 배고픔 요청
-		local okH, dH = NetClient.Request("Hunger.GetState", {})
-		if okH and dH then
-			UIManager.updateHunger(dH.current, dH.max)
-		end
+		-- (Hunger request removed)
 
 		local char = player.Character or player.CharacterAdded:Wait()
 		local hum = char:WaitForChild("Humanoid", 10)
@@ -3225,10 +2055,7 @@ local function setupEventListeners()
 					if d2.statPointsAvailable then UIManager.updateStatPoints(d2.statPointsAvailable) end
 				end
 				
-				local okH2, dH2 = NetClient.Request("Hunger.GetState", {})
-				if okH2 and dH2 then
-					UIManager.updateHunger(dH2.current, dH2.max)
-				end
+-- (Hunger respawn removed)
 			end)
 		end)
 	end)
@@ -3295,7 +2122,7 @@ local function setupEventListeners()
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
 				-- [수정] 래거시 제거: 오직 "말랑봉"만 포함 (필요 시 추후 확장이 용이하도록 ID 체크)
-				if r.id == "CRAFT_SOFT_CLUB" then
+				if r.id == "CraftSoftClub" then
 					table.insert(weaponRecipes, r)
 				end
 			end
@@ -3325,6 +2152,16 @@ function UIManager.Init()
 	mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	mainGui.IgnoreGuiInset = true -- SafeArea 제어를 위해 true 설정
 	mainGui.Parent = playerGui
+	
+	-- 블러 효과 초기화 (Lighting에 추가)
+	blurEffect = Lighting:FindFirstChild("UIBlur")
+	if not blurEffect then
+		blurEffect = Instance.new("BlurEffect")
+		blurEffect.Name = "UIBlur"
+		blurEffect.Size = 12
+		blurEffect.Enabled = false
+		blurEffect.Parent = Lighting
+	end
 
 	-- [Click-Outside-to-Close] 전역 배경용 전용 레이어 (HUD 뒤에 배치하기 위해 분리)
 	local dimGui = Instance.new("ScreenGui")
@@ -3381,34 +2218,21 @@ function UIManager.Init()
 	CraftingUI.Init(mainGui, UIManager, isMobile)
 	ShopUI.Init(mainGui, UIManager, isMobile)
 	InteractUI.Init(mainGui, isMobile)
-	if InteractUI.Refs.PromptFrame then
-		InteractUI.Refs.PromptFrame.MouseButton1Click:Connect(function()
-			if InteractController and InteractController.onFacilityInteractPress then
-				InteractController.onFacilityInteractPress()
-			end
-		end)
-	end
 	EquipmentUI.Init(mainGui, UIManager, Enums, isMobile)
 	equipmentUIFrame = EquipmentUI.Refs.Frame
-	BuildUI.Init(mainGui, UIManager, isMobile)
 	StorageUI.Init(mainGui, UIManager, isMobile)
-	FacilityUI.Init(mainGui, UIManager, isMobile)
 	MaterialSelectUI.Init(mainGui, UIManager)
+	PremiumShopUI.Init(mainGui, UIManager)
 
-	TotemUI.Init(mainGui, UIManager, isMobile)
 	PortalUI.Init(mainGui, UIManager, isMobile)
 	PortalRadialUI:Init(UIManager)
-	QuestUI:Init(UIManager)
+	NPCRadialUI.Init(UIManager)
 	SkillTreeUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.SetController(SkillController)
-	ActiveSkillBarUI.Init(mainGui)
 	PromptUI.Init()
-	HarvestUI.Init(UIManager)
-	TutorialUI.Init(mainGui, isMobile)
 	UILocalizer.StartAuto(mainGui)
 
 	StorageController.Init()
-	FacilityController.Init()
 
 
 	-- 슬롯 참조만 유지 (드래그 앤 드롭 및 리프레시 로직용)
@@ -3442,20 +2266,13 @@ function UIManager.Init()
 	WindowManager.register("INV", UIManager._onOpenInventory, UIManager._onCloseInventory)
 	WindowManager.register("EQUIP", UIManager._onOpenEquipment, UIManager._onCloseEquipment)
 	WindowManager.register("SHOP", UIManager._onOpenShop, UIManager._onCloseShop)
-	WindowManager.register("BUILD", UIManager._onOpenBuild, UIManager._onCloseBuild)
+	WindowManager.register("PREMIUM_SHOP", UIManager._onOpenPremiumShop, UIManager._onClosePremiumShop)
 	WindowManager.register("STORAGE", UIManager._onOpenStorage, UIManager._onCloseStorage)
-	WindowManager.register("FACILITY", UIManager._onOpenFacility, UIManager._onCloseFacility)
-	WindowManager.register("CRAFTING", UIManager._onOpenCrafting, UIManager._onCloseCrafting)
-
-	WindowManager.register("TOTEM", UIManager._onOpenTotem, UIManager._onCloseTotem)
+	WindowManager.register("CRAFTING", UIManager._OnOpenCrafting, UIManager._OnCloseCrafting)
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
-	WindowManager.register("QUEST", UIManager._onOpenQuest, UIManager._onCloseQuest)
 
 	-- [NEW] 상호작용 방사형 UI 등록
-	WindowManager.register("HARVEST", HarvestUI.Open, HarvestUI.Close)
-	WindowManager.register("FACILITY_RADIAL", FacilityRadialUI.Open, FacilityRadialUI.Close)
-	WindowManager.register("PAL_RADIAL", PalRadialUI.Open, PalRadialUI.Close)
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
 	WindowManager.register("NPC_RADIAL", NPCRadialUI.Open, NPCRadialUI.Close)
 
@@ -3478,24 +2295,18 @@ function UIManager.Init()
 		WindowManager.registerFrame("INV", findMainPanel(InventoryUI.Refs.Frame))
 		WindowManager.registerFrame("EQUIP", findMainPanel(EquipmentUI.Refs.Frame))
 		WindowManager.registerFrame("SHOP", findMainPanel(ShopUI.Refs.Frame))
-		WindowManager.registerFrame("BUILD", findMainPanel(BuildUI.Refs.Frame))
 		WindowManager.registerFrame("STORAGE", findMainPanel(StorageUI.Refs.Frame))
-		WindowManager.registerFrame("FACILITY", findMainPanel(FacilityUI.Refs.Frame))
 		WindowManager.registerFrame("CRAFTING", findMainPanel(CraftingUI.Refs.Frame))
 
 		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
-		WindowManager.registerFrame("QUEST", findMainPanel(QuestUI.Refs.Frame))
 
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
-		WindowManager.registerFrame("TOTEM", TotemUI.Refs.Frame)
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
 		WindowManager.registerFrame("PREMIUM_SHOP", PremiumShopUI.Refs.Frame)
 	end)
 
 	-- [Refactor] DragDropController 초기화
 	DragDropController.Init(UIManager, InventoryController, Balance, mainGui)
-	
-	PremiumShopUI.Init(mainGui, UIManager)
 
 	initialized = true
 	print("[UIManager] Initialized — WindowManager & Controllers decoupled")
@@ -3543,60 +2354,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-----------------------------------------------------------------
--- 동물 관리 (Animal Management)
-----------------------------------------------------------------
-
---- 팰 박스 목록을 서버에서 가져와 UI 갱신
-function UIManager.refreshAnimalManagement()
-	local ok, data = NetClient.Request("Palbox.List.Request", {})
-	if ok and data then
-		local palList = data.pals or {}
-		InventoryUI.RefreshAnimalTab(palList)
-	else
-		InventoryUI.RefreshAnimalTab({})
-	end
-end
-
---- 소환하기 / 회수하기 버튼 콜백
-function UIManager.onSummonPal()
-	local uid = InventoryUI.GetSelectedPalUID()
-	if not uid then
-		UIManager.notify("소환할 동물을 선택하세요.", Color3.fromRGB(255, 200, 80))
-		return
-	end
-
-	local ok, data = NetClient.Request("Palbox.QuickSummon.Request", { palUID = uid })
-	if ok and data then
-		local action = data.action
-		if action == "RECALLED" then
-			UIManager.notify("동물을 회수했습니다.", Color3.fromRGB(100, 200, 255))
-		else
-			UIManager.notify("동물을 소환했습니다!", Color3.fromRGB(100, 255, 180))
-		end
-	else
-		local errCode = (type(data) == "table" and data.errorCode) or tostring(data or "UNKNOWN")
-		UIManager.notify(friendlyError(errCode, "소환"), Color3.fromRGB(255, 100, 100))
-	end
-
-	UIManager.refreshAnimalManagement()
-end
-
---- 풀어주기 버튼 콜백
-function UIManager.onReleasePal()
-	local uid = InventoryUI.GetSelectedPalUID()
-	if not uid then
-		UIManager.notify("풀어줄 동물을 선택하세요.", Color3.fromRGB(255, 200, 80))
-		return
-	end
-	local ok, data = NetClient.Request("Palbox.QuickRelease.Request", { palUID = uid })
-	if ok then
-		UIManager.notify("동물을 풀어주었습니다.", Color3.fromRGB(180, 180, 180))
-		UIManager.refreshAnimalManagement()
-	else
-		UIManager.notify(friendlyError(data, "풀어주기"), Color3.fromRGB(255, 100, 100))
-	end
-end
+-- (Animal Management removed)
 
 ----------------------------------------------------------------
 -- 프리미엄 상점 (Premium Shop)

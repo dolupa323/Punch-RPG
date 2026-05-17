@@ -2,8 +2,10 @@
 -- 클라이언트 스킬 트리 컨트롤러
 -- 서버 SkillService와 연동하여 해금 상태 관리 및 UI 데이터 제공
 
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local NetClient = require(script.Parent.Parent.NetClient)
+local InventoryController = require(script.Parent.Parent.Controllers.InventoryController)
 
 local Data = ReplicatedStorage:WaitForChild("Data")
 local SkillTreeData = require(Data.SkillTreeData)
@@ -175,81 +177,64 @@ function SkillController.requestSetSlot(slotIndex: number, skillId: string?, cal
 end
 
 --========================================
--- Active Skill Usage
+-- Active Skill Usage (RUNE System)
 --========================================
 
---- 슬롯 인덱스(1~3)로 스킬 사용
-function SkillController.useSkillBySlot(slotIndex: number, targetId: string?)
-	if slotIndex < 1 or slotIndex > 4 then return end
-	local skillId = activeSkillSlots[slotIndex]
-	if not skillId then return end
-	SkillController.useSkill(skillId, targetId)
-end
-
---- 스킬 ID로 직접 사용
-function SkillController.useSkill(skillId: string, targetId: string?)
-	-- 로컬 쿨다운 프리체크
+--- 룬 슬롯 이름(RUNE1, RUNE2, RUNE3)으로 스킬 사용
+function SkillController.useSkill(slotName: string)
+	-- 1. 장착된 룬 확인
+	local equip = InventoryController.getEquipment()
+	local item = equip[slotName]
+	if not item or not item.itemId then return end
+	
+	local itemId = item.itemId
+	
+	-- 2. 로컬 쿨다운 프리체크
 	local now = tick()
 	if not DEV_NO_COOLDOWN then
 		if skillGCD > now then return end
-		if skillCooldowns[skillId] and skillCooldowns[skillId] > now then return end
+		if skillCooldowns[itemId] and skillCooldowns[itemId] > now then return end
 	end
 	
-	-- 스킬 데이터 조회
-	local skill = SkillTreeData.GetSkill(skillId)
-	if not skill or skill.type ~= "ACTIVE" then return end
-	
-	-- 로컬 쿨다운 즉시 설정 (클라이언트 예측)
-	if not DEV_NO_COOLDOWN then
-		skillCooldowns[skillId] = now + skill.cooldown
-		skillGCD = now + 0.5
-	end
-	_fireCooldownListeners()
-	
-	-- ★ aimDirection 계산: 캐릭터 정면 방향(LookVector) 사용
-	local aimDirection = nil
-	local Players = game:GetService("Players")
-	local lp = Players.LocalPlayer
+	-- 3. 캐릭터 조준 방향 계산 (LookVector)
+	local lp = game:GetService("Players").LocalPlayer
 	local char = lp and lp.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local aimDirection = nil
 	if hrp then
 		local look = hrp.CFrame.LookVector
 		aimDirection = { x = look.X, y = look.Y, z = look.Z }
 	end
-	
+
+	-- 4. 서버 요청
 	task.spawn(function()
-		local payload = { skillId = skillId, targetId = targetId }
-		if aimDirection then
-			payload.aimDirection = aimDirection
-		end
+		local payload = { 
+			slot = slotName, 
+			itemId = itemId,
+			aimDirection = aimDirection
+		}
+		
 		local ok, data = NetClient.Request("Skill.Use.Request", payload)
+		
 		if ok and data then
 			-- 서버에서 받은 쿨다운으로 보정
-			if data.cooldowns then
-				for sid, remaining in pairs(data.cooldowns) do
-					skillCooldowns[sid] = tick() + remaining
-				end
+			if data.cooldown then
+				skillCooldowns[itemId] = tick() + data.cooldown
+				skillGCD = tick() + 0.5 -- Global Cooldown
 			end
 		else
 			-- 실패 시 로컬 쿨다운 롤백
-			skillCooldowns[skillId] = nil
+			skillCooldowns[itemId] = nil
 			skillGCD = 0
-			-- ★ 에러 피드백 표시
-			local errorCode = data -- NetClient는 실패 시 (false, errorCode) 반환
+			
+			-- 에러 피드백
+			local errorCode = data
 			local UIManager = require(script.Parent.Parent.UIManager)
 			if UIManager and UIManager.notify then
-				local SKILL_ERROR_MESSAGES = {
-					WEAPON_MISMATCH = "해당 스킬에 맞는 무기를 장착해주세요.",
-					SKILL_NOT_IN_SLOT = "스킬이 슬롯에 장착되어 있지 않습니다.",
-					SKILL_NOT_UNLOCKED = "스킬이 해금되지 않았습니다.",
-					NOT_ENOUGH_STAMINA = "스태미나가 부족합니다.",
-					PLAYER_DEAD = "사용할 수 없는 상태입니다.",
-					COOLDOWN = "스킬이 재사용 대기 중입니다.",
-				}
-				local msg = SKILL_ERROR_MESSAGES[errorCode]
-				if not msg then
-					msg = "스킬을 사용할 수 없습니다."
-					warn("[SkillController] Unknown skill error:", errorCode)
+				local msg = "스킬을 사용할 수 없습니다."
+				if errorCode == "COOLDOWN" then msg = "재사용 대기 중입니다."
+				elseif errorCode == "NOT_EQUIPPED" then msg = "룬이 장착되어 있지 않습니다."
+				elseif errorCode == "NOT_ENOUGH_STAMINA" then msg = "기력이 부족합니다."
 				end
 				UIManager.notify(msg, Color3.fromRGB(255, 140, 140))
 			end
@@ -363,7 +348,20 @@ function SkillController.Init()
 		end
 	end)
 
-	print("[SkillController] Initialized")
+	-- Key Bindings (E, R, T)
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then return end
+		
+		if input.KeyCode == Enum.KeyCode.E then
+			SkillController.useSkill("RUNE1")
+		elseif input.KeyCode == Enum.KeyCode.R then
+			SkillController.useSkill("RUNE2")
+		elseif input.KeyCode == Enum.KeyCode.T then
+			SkillController.useSkill("RUNE3")
+		end
+	end)
+
+	print("[SkillController] Initialized with RUNE bindings (E, R, T)")
 end
 
 return SkillController

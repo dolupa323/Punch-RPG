@@ -351,7 +351,7 @@ end
 
 statusText.Text = "게임 정보를 동기화 중입니다..."
 local t = 0
-while not player:GetAttribute("InventoryLoaded") and t < 60 do
+while not player:GetAttribute("DataLoaded") and t < 60 do
 	task.wait(0.2)
 	t = t + 0.2
 	-- 프로그레스 강제 업데이트 (90%까지)

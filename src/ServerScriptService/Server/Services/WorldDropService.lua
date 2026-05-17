@@ -606,9 +606,12 @@ function WorldDropService.loot(player: Player, dropId: string): (boolean, string
 
 	-- 일반 아이템: 인벤토리에 추가
 	local dropAttrs2 = (drop.attribute and drop.attributeLevel) and { [drop.attribute] = drop.attributeLevel } or drop.attributes
+	print(string.format("[WorldDropService] Attempting to add item to inventory - Player: %s (%d), ItemId: %s, Count: %s, Durability: %s", player.Name, userId, tostring(drop.itemId), tostring(drop.count), tostring(drop.durability)))
 	local added, remaining = InventoryService.addItem(userId, drop.itemId, drop.count, drop.durability, dropAttrs2)
+	print(string.format("[WorldDropService] AddItem Result - Added: %d, Remaining: %d", added, remaining))
 	
 	if added <= 0 then
+		print("[WorldDropService] AddItem failed - Inventory Full!")
 		return false, Enums.ErrorCode.INV_FULL, nil
 	end
 
@@ -704,6 +707,24 @@ local function handleLoot(player: Player, payload: any)
 	return { success = true, data = data }
 end
 
+local function handleGetActiveDrops(player: Player, payload: any)
+	local result = {}
+	for _, drop in pairs(drops) do
+		table.insert(result, {
+			dropId = drop.dropId,
+			pos = drop.pos,
+			itemId = drop.itemId,
+			dropType = drop.dropType,
+			goldAmount = drop.goldAmount,
+			count = drop.count,
+			despawnAt = drop.despawnAt,
+			inactive = drop.inactive,
+		})
+	end
+	print(string.format("[WorldDropService] handleGetActiveDrops: Returning %d active drops to player %s", #result, player.Name))
+	return { success = true, data = result }
+end
+
 --========================================
 -- Initialization
 --========================================
@@ -731,6 +752,7 @@ end
 function WorldDropService.GetHandlers()
 	return {
 		["WorldDrop.Loot.Request"] = handleLoot,
+		["WorldDrop.GetActiveDrops"] = handleGetActiveDrops,
 	}
 end
 

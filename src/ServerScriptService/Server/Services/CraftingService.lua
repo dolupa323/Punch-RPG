@@ -1017,35 +1017,14 @@ processTick = function()
 			if producedNow > 0 then
 				_syncToSave(userId)
 				if player then
-					if not entry.structureId then
-						task.spawn(function()
-							local success = CraftingService.collect(player, craftId, producedNow)
-							if not success then
-								local recipe = DataService.getRecipe(entry.recipeId)
-								local pPos = getPlayerPosition(player)
-								if recipe and pPos and WorldDropService then
-									for _, output in ipairs(recipe.outputs) do
-										WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, output.count * producedNow)
-									end
-									entry.collectedCount = math.min(getBatchCount(entry), (tonumber(entry.collectedCount) or 0) + producedNow)
-									syncEntryProgress(entry, os.time())
-									if entry.collectedCount >= getBatchCount(entry) and entry.completedCount >= getBatchCount(entry) then
-										queue[craftId] = nil
-									end
-									_syncToSave(userId)
-								end
-							end
-						end)
-					else
-						emitCraftEvent("Craft.Ready", player, {
-							craftId = craftId,
-							recipeId = entry.recipeId,
-							producedCount = producedNow,
-							readyCount = math.max(0, (tonumber(entry.completedCount) or 0) - (tonumber(entry.collectedCount) or 0)),
-							batchCount = getBatchCount(entry),
-							completedCount = tonumber(entry.completedCount) or 0,
-						})
-					end
+					emitCraftEvent("Craft.Ready", player, {
+						craftId = craftId,
+						recipeId = entry.recipeId,
+						producedCount = producedNow,
+						readyCount = math.max(0, (tonumber(entry.completedCount) or 0) - (tonumber(entry.collectedCount) or 0)),
+						batchCount = getBatchCount(entry),
+						completedCount = tonumber(entry.completedCount) or 0,
+					})
 				end
 			end
 			

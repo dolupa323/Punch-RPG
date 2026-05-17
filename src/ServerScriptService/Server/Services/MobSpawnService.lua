@@ -18,26 +18,48 @@ local activeMobs = {} -- areaId_index -> Model Instance
 -- Internal: Loot 생성
 --========================================
 local function spawnLoot(mobName: string, pos: Vector3)
-	if not WorldDropService or not DataService then return end
+	if not WorldDropService then
+		warn("[MobSpawnService] Cannot spawn loot: WorldDropService is not initialized!")
+		return
+	end
+	if not DataService then
+		warn("[MobSpawnService] Cannot spawn loot: DataService is not initialized!")
+		return
+	end
 	
 	-- 드롭 테이블 조회 (대문자로 변환하여 매칭)
 	local dropTableId = string.upper(mobName)
 	local dropTable = DataService.getDropTable(dropTableId)
 	
 	if not dropTable then
-		-- warn("[MobSpawnService] No drop table found for:", dropTableId)
+		warn(string.format("[MobSpawnService] No drop table found for mob '%s' (Table ID: '%s')", mobName, dropTableId))
 		return
 	end
 	
-	for _, entry in ipairs(dropTable) do
-		if math.random() <= (entry.chance or 1.0) then
+	print(string.format("[MobSpawnService] Processing loot drop for '%s' at %s. Table entries: %d", mobName, tostring(pos), #dropTable))
+	
+	for i, entry in ipairs(dropTable) do
+		local roll = math.random()
+		local chance = entry.chance or 1.0
+		if roll <= chance then
 			local count = math.random(entry.min or 1, entry.max or 1)
+			print(string.format("[MobSpawnService] -> Roll success (%.2f <= %.2f): Spawning %d of '%s'", roll, chance, count, entry.itemId))
 			
 			if entry.itemId == "GOLD" or entry.itemId == "GOLD_COIN" then
-				WorldDropService.spawnGoldDrop(pos, count)
+				local ok, err = WorldDropService.spawnGoldDrop(pos, count)
+				if not ok then
+					warn(string.format("[MobSpawnService] Failed to spawn gold drop: %s", tostring(err)))
+				end
 			else
-				WorldDropService.spawnDrop(pos, entry.itemId, count)
+				local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, count)
+				if not ok then
+					warn(string.format("[MobSpawnService] Failed to spawn item drop '%s': %s", entry.itemId, tostring(err)))
+				else
+					print(string.format("[MobSpawnService] Successfully spawned drop '%s' (Count: %d). Details: %s", entry.itemId, count, game:GetService("HttpService"):JSONEncode(data)))
+				end
 			end
+		else
+			print(string.format("[MobSpawnService] -> Roll failed (%.2f > %.2f) for '%s'", roll, chance, entry.itemId))
 		end
 	end
 end
@@ -487,6 +509,17 @@ local function createMobModel(areaId, index, config)
 		humanoid.Died:Connect(function()
 			isAlive = false
 			
+			-- ★ 사망 시 경험치 지급 처리
+			local tag = humanoid:FindFirstChild("creator")
+			local killer = tag and tag.Value
+			if killer and killer:IsA("Player") then
+				local xpReward = config.xpReward or 10
+				if PlayerStatService and PlayerStatService.addXP then
+					PlayerStatService.addXP(killer.UserId, xpReward, "Hunt_" .. (config.mobDisplayName or "Mob"))
+					print(string.format("[MobSpawnService] Awarded %d XP to %s for killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
+				end
+			end
+
 			-- ★ 사망 시 아이템 드롭 처리
 			local deathPos = model:GetPivot().Position
 			spawnLoot(config.mobModelName or "Slime", deathPos)

@@ -127,9 +127,6 @@ NetController.RegisterHandler("Inventory.DropByItemId.Request", handleInventoryD
 local StaminaService = require(Services.StaminaService)
 StaminaService.Init(NetController)
 
-local HungerService = require(Services.HungerService)
-HungerService.Init(NetController)
-
 local PlayerStatService = require(Services.PlayerStatService)
 PlayerStatService.Init(NetController, SaveService, DataService, StaminaService)
 for command, handler in pairs(PlayerStatService.GetHandlers()) do
@@ -138,14 +135,8 @@ end
 
 WorldDropService.Init(NetController, DataService, InventoryService, TimeService, PlayerStatService)
 
-local TechService = require(Services.TechService)
-TechService.Init(NetController, DataService, PlayerStatService, SaveService, InventoryService)
-for command, handler in pairs(TechService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
 local EquipService = require(Services.EquipService)
-EquipService.Init(DataService, TechService)
+EquipService.Init(DataService, nil) -- TechService removed
 
 InventoryService.Init(NetController, DataService, SaveService, PlayerStatService, EquipService)
 
@@ -154,121 +145,33 @@ for command, handler in pairs(StorageService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
-local FacilityService = require(Services.FacilityService)
-FacilityService.Init(NetController, DataService, InventoryService, nil, Balance, RecipeService, WorldDropService, TechService)
-for command, handler in pairs(FacilityService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
-local BuildService = require(Services.BuildService)
-BuildService.Init(NetController, DataService, InventoryService, SaveService, TechService, PlayerStatService)
-BuildService.SetFacilityService(FacilityService)
-BuildService.SetWorldDropService(WorldDropService)
-for command, handler in pairs(BuildService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
 DL = require(Services.DurabilityService)
-DL.Init(NetController, InventoryService, DataService, BuildService, Balance)
+DL.Init(NetController, InventoryService, DataService, nil, Balance) -- BuildService removed
 
 local CraftingService = require(Services.CraftingService)
-CraftingService.Init(NetController, DataService, InventoryService, BuildService, RecipeService, TechService, PlayerStatService, WorldDropService, TimeService)
+CraftingService.Init(NetController, DataService, InventoryService, nil, RecipeService, nil, PlayerStatService, WorldDropService, TimeService) -- BuildService removed
 for command, handler in pairs(CraftingService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
-FacilityService.SetBuildService(BuildService)
-
+-- [RPG CORE] Services
 local DebuffService = require(Services.DebuffService)
-DebuffService.Init(NetController, TimeService, DataService, StaminaService, FacilityService, InventoryService)
+DebuffService.Init(NetController, TimeService, DataService, StaminaService, nil, InventoryService)
 for command, handler in pairs(DebuffService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
-local CreatureService = require(Services.CreatureService)
-CreatureService.Init(NetController, DataService, WorldDropService, DebuffService, PlayerStatService)
-for command, handler in pairs(CreatureService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
-local CombatService = require(Services.CombatService)
-CombatService.Init(NetController, DataService, CreatureService, InventoryService, DurabilityService, DebuffService, WorldDropService, PlayerStatService, HungerService, TechService)
-for command, handler in pairs(CombatService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
 local EnhanceService = require(Services.EnhanceService)
 EnhanceService.Init()
 
-local SkillService = require(Services.SkillService)
-SkillService.Init(NetController, PlayerStatService, SaveService)
-for command, handler in pairs(SkillService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-CombatService.SetSkillService(SkillService)
-
-local ActiveSkillService = require(Services.ActiveSkillService)
-ActiveSkillService.Init(NetController, SkillService, CombatService, CreatureService, InventoryService, DataService, PlayerStatService, DebuffService, StaminaService, HungerService)
-for command, handler in pairs(ActiveSkillService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
 local PlayerLifeService = require(Services.PlayerLifeService)
-PlayerLifeService.Init(NetController, DataService, InventoryService, BuildService)
+PlayerLifeService.Init(NetController, DataService, InventoryService, nil)
 for command, handler in pairs(PlayerLifeService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 
-local PalboxService = require(Services.PalboxService)
-PalboxService.Init(NetController, DataService, SaveService)
-for command, handler in pairs(PalboxService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
-local CaptureService = require(Services.CaptureService)
-CaptureService.Init(NetController, CreatureService, InventoryService, SkillService, PlayerStatService)
-for command, handler in pairs(CaptureService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-
-FacilityService.SetPalboxService(PalboxService)
-
-local PalAIService = require(Services.PalAIService)
-PalAIService.Init(NetController, CreatureService, DataService, PalboxService, BuildService)
-FacilityService.SetPalAIService(PalAIService)
-
-local PartyService = require(Services.PartyService)
-PartyService.Init(NetController, PalboxService, CreatureService, SaveService)
-for command, handler in pairs(PartyService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-ServiceRegistry.Register("PartyService", PartyService)
-
-local HarvestService = require(Services.HarvestService)
-HarvestService.Init(NetController, DataService, InventoryService, PlayerStatService, DurabilityService, WorldDropService, TechService)
-for command, handler in pairs(HarvestService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-CreatureService.SetHarvestService(HarvestService)
-ServiceRegistry.Register("HarvestService", HarvestService)
-
-local BaseClaimService = require(Services.BaseClaimService)
-BaseClaimService.Init(NetController, SaveService, BuildService)
-BuildService.SetBaseClaimService(BaseClaimService)
-for command, handler in pairs(BaseClaimService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-ServiceRegistry.Register("BaseClaimService", BaseClaimService)
-
-StorageService.Init(NetController, SaveService, InventoryService, BuildService, BaseClaimService)
+StorageService.Init(NetController, SaveService, InventoryService)
 ServiceRegistry.Register("StorageService", StorageService)
-
--- [무협 RPG 대전환] 공룡 부족 자동 수납/채집 백그라운드 스케줄 연산 영구 비활성화
--- local AutoHarvestService = require(Services.AutoHarvestService)
--- AutoHarvestService.Init(HarvestService, FacilityService, BaseClaimService, PalboxService, DataService, BuildService, PalAIService)
-
--- local AutoDepositService = require(Services.AutoDepositService)
--- AutoDepositService.Init(FacilityService, StorageService, BaseClaimService, BuildService, DataService, PalboxService, PalAIService)
 
 -- NPCShopService 초기화
 local NPCShopService = require(Services.NPCShopService)
@@ -278,76 +181,23 @@ for command, handler in pairs(NPCShopService.GetHandlers()) do
 end
 ServiceRegistry.Register("NPCShopService", NPCShopService)
 
--- QuestService Remastered Init (조건부 피처 토글 구동)
-local TutorialQuestService
-if Balance.ENABLE_QUEST_SYSTEM then
-	TutorialQuestService = require(Services.TutorialQuestService)
-	TutorialQuestService.Init(NetController, SaveService, PlayerStatService, InventoryService, NPCShopService)
-	for command, handler in pairs(TutorialQuestService.GetHandlers()) do
-		NetController.RegisterHandler(command, handler)
-	end
-	ServiceRegistry.Register("TutorialQuestService", TutorialQuestService)
-
-	-- 액션 콜백 연결
-	InventoryService.SetQuestItemCallback(function(userId, itemId, count) TutorialQuestService.onItemAdded(userId, itemId, count) end)
-	HarvestService.SetQuestCallback(function(userId, nodeType) TutorialQuestService.onHarvest(userId, nodeType) end)
-	CraftingService.SetQuestCallback(function(userId, recipeId) TutorialQuestService.onCrafted(userId, recipeId) end)
-	BuildService.SetQuestCallback(function(userId, facilityId) TutorialQuestService.onBuilt(userId, facilityId) end)
-	CombatService.SetQuestCallback(function(userId, creatureId) TutorialQuestService.onKilled(userId, creatureId) end)
-	InventoryService.SetQuestFoodEatenCallback(function(userId, itemId) TutorialQuestService.onFoodEaten(userId, itemId) end)
-end
-
-local TotemService = require(Services.TotemService)
-TotemService.Init(NetController, SaveService, BaseClaimService, BuildService, NPCShopService)
-for command, handler in pairs(TotemService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-BuildService.SetTotemService(TotemService)
-StorageService.SetTotemService(TotemService)
-FacilityService.SetTotemService(TotemService)
-CreatureService.SetProtectedZoneChecker(function(position) return TotemService.getProtectionInfoAt(position) end)
-ServiceRegistry.Register("TotemService", TotemService)
-
-local BlockBuildService = require(Services.BlockBuildService)
-BlockBuildService.Init(NetController, DataService, InventoryService, SaveService, PlayerStatService)
-BlockBuildService.SetBaseClaimService(BaseClaimService)
-BlockBuildService.SetTotemService(TotemService)
-BlockBuildService.SetWorldDropService(WorldDropService)
-BlockBuildService.SetDurabilityService(DurabilityService)
-if Balance.ENABLE_QUEST_SYSTEM and TutorialQuestService then
-	BlockBuildService.SetQuestCallback(function(userId, blockTypeId) TutorialQuestService.onBuilt(userId, blockTypeId) end)
-end
-for command, handler in pairs(BlockBuildService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-ServiceRegistry.Register("BlockBuildService", BlockBuildService)
-
 for command, handler in pairs(StaminaService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
-CombatService.SetStaminaService(StaminaService)
 
 local CharacterSetupService = require(Services.CharacterSetupService)
 CharacterSetupService.Init()
 ServiceRegistry.Register("CharacterSetupService", CharacterSetupService)
 
 local PortalService = require(Services.PortalService)
-PortalService.Init(NetController, SaveService, InventoryService, HarvestService, CreatureService, NPCShopService)
+PortalService.Init(NetController, SaveService, InventoryService, nil, nil, NPCShopService) -- HarvestService removed
 for command, handler in pairs(PortalService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
 ServiceRegistry.Register("PortalService", PortalService)
 
-local TutorialService = require(Services.TutorialService)
-TutorialService.Init(NetController, SaveService, PlayerStatService, InventoryService)
-for command, handler in pairs(TutorialService.GetHandlers()) do
-	NetController.RegisterHandler(command, handler)
-end
-CreatureService.SetTutorialService(TutorialService)
-ServiceRegistry.Register("TutorialService", TutorialService)
-
 local AdminCommandService = require(Services.AdminCommandService)
-AdminCommandService.Init(NetController, PlayerStatService, InventoryService, TechService, TutorialService, SaveService)
+AdminCommandService.Init(NetController, PlayerStatService, InventoryService, nil, nil, SaveService) -- TechService removed
 ServiceRegistry.Register("AdminCommandService", AdminCommandService)
 
 local BotService = require(Services.BotService)
@@ -367,4 +217,11 @@ local WeaponCrafterService = require(Services.WeaponCrafterService)
 WeaponCrafterService.Init(NetController)
 ServiceRegistry.Register("WeaponCrafterService", WeaponCrafterService)
 
-print("[ServerInit] Server initialized (No-BOM) - AdminCommandService, BotService & Avatar Elements Ready")
+local SkillService = require(Services.SkillService)
+SkillService.Init(NetController, PlayerStatService, SaveService)
+for command, handler in pairs(SkillService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("SkillService", SkillService)
+
+print("[ServerInit] RPG Core initialized - Legacy systems removed")

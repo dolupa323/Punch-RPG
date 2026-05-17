@@ -168,17 +168,13 @@ local function isPlayerUnderCeiling(hrp: BasePart): boolean
 end
 
 local function isPlayerHoldingTorch(userId: number): boolean
-	if not (InventoryService and InventoryService.getActiveSlot and InventoryService.getSlot) then
+	if not (InventoryService and InventoryService.getOrCreateInventory) then
 		return false
 	end
 
-	local activeSlot = InventoryService.getActiveSlot(userId)
-	if not activeSlot then
-		return false
-	end
-
-	local activeItem = InventoryService.getSlot(userId, activeSlot)
-	local activeItemId = activeItem and string.upper(tostring(activeItem.itemId or "")) or ""
+	local inv = InventoryService.getOrCreateInventory(userId)
+	local activeWeapon = inv and inv.equipment and inv.equipment.HAND
+	local activeItemId = activeWeapon and string.upper(tostring(activeWeapon.itemId or "")) or ""
 	return activeItemId == "TORCH"
 end
 

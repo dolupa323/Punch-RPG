@@ -11,7 +11,6 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Enums = require(Shared.Enums.Enums)
 local FacilityData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("FacilityData"))
-local CreatureData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("CreatureData"))
 
 local Server = ServerScriptService:WaitForChild("Server")
 local Services = Server:WaitForChild("Services")
@@ -31,17 +30,12 @@ local playerSessions = {}
 -- [storageId] = { [userId] = true }
 local viewingPlayers = {}
 
--- BuildService 참조 (파티션 조회를 위해 필요)
-local BuildService = nil
-local BaseClaimService = nil
-local TotemService = nil
 local function _getGoldService()
 	return require(Services:WaitForChild("NPCShopService"))
 end
 -- Internal: Storage Management
 --========================================
 
-local PAL_STORAGE_ACCESS_DISTANCE = (Balance.HARVEST_RANGE or 10) + 6
 local MAX_STORAGE_SLOTS = 40
 
 local facilitySlotMap = {}
@@ -51,97 +45,12 @@ for _, entry in ipairs(FacilityData) do
 	end
 end
 
-local creatureBagSlotMap = {}
-for _, entry in ipairs(CreatureData) do
-	if entry and entry.id then
-		creatureBagSlotMap[entry.id] = tonumber(entry.palBagSlots)
-	end
-end
-
-local function _canAccessPalStorage(player: Player, palUID: string): boolean
-	if not palUID or palUID == "" then
-		return false
-	end
-
-	local PalboxService = require(Services:WaitForChild("PalboxService"))
-	local PartyService = require(Services:WaitForChild("PartyService"))
-	if not PalboxService or not PartyService then
-		return false
-	end
-
-	local pal = PalboxService.getPal and PalboxService.getPal(player.UserId, palUID)
-	if not pal or pal.state ~= Enums.PalState.SUMMONED then
-		return false
-	end
-
-	local summon = PartyService.getSummon and PartyService.getSummon(player.UserId)
-	if not summon or summon.palUID ~= palUID then
-		return false
-	end
-
-	local character = player.Character
-	local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
-	local palRoot = summon.rootPart
-	if not playerRoot or not palRoot or not palRoot.Parent then
-		return false
-	end
-
-	return (playerRoot.Position - palRoot.Position).Magnitude <= PAL_STORAGE_ACCESS_DISTANCE
-end
-
 local function _canAccessStorage(player: Player, storageId: string): boolean
-	-- 팰 가방 접근 권한 체크
-	if string.sub(storageId, 1, 4) == "PAL_" then
-		local palUID = string.sub(storageId, 5)
-		return _canAccessPalStorage(player, palUID)
-	end
-
-	if not BuildService or not BuildService.get then
-		return false
-	end
-
-	local structure = BuildService.get(storageId)
-	if not structure then
-		-- 야생/비구조물 창고는 기존처럼 접근 허용
-		return true
-	end
-
-	if structure.ownerId == player.UserId then
-		return true
-	end
-
-	if TotemService and TotemService.canRaidStructure then
-		return TotemService.canRaidStructure(player.UserId, structure)
-	end
-
-	return false
+	-- [Simplified] RPG 모드: 모든 유저 창고 접근 허용
+	return true
 end
 
 local function _getStorageMaxSlots(storageId: string, player: Player?): number
-	if string.sub(storageId, 1, 4) == "PAL_" then
-		local palUID = string.sub(storageId, 5)
-		local ownerId = player and player.UserId
-		if ownerId then
-			local PalboxService = require(Services:WaitForChild("PalboxService"))
-			local pal = PalboxService and PalboxService.getPal and PalboxService.getPal(ownerId, palUID)
-			local configured = pal and creatureBagSlotMap[pal.creatureId]
-			if configured and configured > 0 then
-				return configured
-			end
-		end
-		return Balance.STORAGE_SLOTS
-	end
-
-	if BuildService and BuildService.get then
-		local structure = BuildService.get(storageId)
-		if structure and structure.facilityId then
-			local configured = facilitySlotMap[structure.facilityId]
-			if configured and configured > 0 then
-				return configured
-			end
-		end
-	end
-
 	return Balance.STORAGE_SLOTS
 end
 
@@ -168,9 +77,7 @@ end
 
 --- 특정 창고의 파티션 ID 찾기
 local function _getPartitionIdForStorage(storageId: string): string?
-	if not BuildService then return nil end
-	local struct = BuildService.get(storageId)
-	return struct and struct.partitionId
+	return nil
 end
 
 --- 창고 데이터 참조 가져오기 (파티셔닝 지원)
@@ -565,13 +472,6 @@ function StorageService.getAllStorageIds(): {string}
 	if worldState and worldState.wildernessStorages then
 		for id, _ in pairs(worldState.wildernessStorages) do table.insert(ids, id) end
 	end
-	-- 2. 빌드 서비스 내 모든 구조물 순회 (Storage인 것만)
-	if BuildService then
-		for _, struct in pairs(BuildService.getAll()) do
-			-- 편의상 일단 ID만 수집
-			table.insert(ids, struct.id)
-		end
-	end
 	return ids
 end
 
@@ -690,7 +590,7 @@ end
 -- Initialization
 --========================================
 
-function StorageService.Init(netController: any, saveService: any, inventoryService: any, buildService: any, baseClaimService: any)
+function StorageService.Init(netController: any, saveService: any, inventoryService: any)
 	if initialized then
 		warn("[StorageService] Already initialized")
 		return
@@ -699,8 +599,6 @@ function StorageService.Init(netController: any, saveService: any, inventoryServ
 	NetController = netController
 	SaveService = saveService
 	InventoryService = inventoryService
-	BuildService = buildService
-	BaseClaimService = baseClaimService
 	
 	-- 퇴장 시 시청 세션 정리
 	Players.PlayerRemoving:Connect(function(player)
@@ -718,7 +616,7 @@ function StorageService.Init(netController: any, saveService: any, inventoryServ
 end
 
 function StorageService.SetTotemService(totemService: any)
-	TotemService = totemService
+	-- 제거됨
 end
 
 function StorageService.GetHandlers()

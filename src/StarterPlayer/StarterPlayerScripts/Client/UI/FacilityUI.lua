@@ -94,7 +94,7 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		ts=24, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header
 	})
 	
-	-- [Durability Bar]
+	-- [Durability Bar (HP)]
 	local hpFrame = Utils.mkFrame({
 		name="Durability", size=UDim2.new(0, 150, 0, 16), pos=UDim2.new(0.5, 0, 0.5, 0), anchor=Vector2.new(0.5, 0.5),
 		bg=C.BG_SLOT, r=3, parent=header
@@ -103,7 +103,7 @@ function FacilityUI.Init(parent, UIManager, isMobile)
 		name="Fill", size=UDim2.new(1, 0, 1, 0), bg=C.GREEN, r=3, parent=hpFrame
 	})
 	local hpLabel = Utils.mkLabel({
-		text=UILocalizer.Localize("내구도 100%"), size=UDim2.new(1, 0, 1, 0), ts=12, color=C.WHITE, parent=hpFrame
+		text=UILocalizer.Localize("체력 100%"), size=UDim2.new(1, 0, 1, 0), ts=12, color=C.WHITE, parent=hpFrame
 	})
 	FacilityUI.Refs.HealthBar = { Frame = hpFrame, Fill = hpFill, Label = hpLabel }
 	
@@ -682,7 +682,7 @@ function FacilityUI.UpdateHealth(current, max)
 	
 	local percent = math.clamp(current / (max or 100), 0, 1)
 	h.Fill.Size = UDim2.new(percent, 0, 1, 0)
-	h.Label.Text = UILocalizer.Localize(string.format("내구도 %d%%", math.floor(percent * 100)))
+	h.Label.Text = UILocalizer.Localize(string.format("체력 %d%%", math.floor(percent * 100)))
 	
 	-- 색상 변경
 	if percent < 0.25 then

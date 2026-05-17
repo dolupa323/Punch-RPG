@@ -120,7 +120,8 @@ do
 		end
 
 		local okCreature, creatureData = pcall(function()
-			return require(dataFolder:WaitForChild("CreatureData"))
+			local module = dataFolder:FindFirstChild("CreatureData")
+			return module and require(module)
 		end)
 		if okCreature then
 			creatureLookup = buildIdLookup(creatureData)
@@ -268,6 +269,7 @@ end
 
 -- [에셋 참조] 하드코딩 방지를 위한 폴더 경로
 local StatusIcons = nil
+local _UIManager = nil
 
 HUDUI.Refs = {
 	harvestPct = nil,
@@ -284,6 +286,7 @@ HUDUI.Refs = {
 }
 
 function HUDUI.Init(parent, UIManager, InputManager, isMobile)
+	_UIManager = UIManager
 	-- [수정] 차단성 WaitForChild를 Init 내부로 이동하고 타임아웃 추가
 	task.spawn(function()
 		local Assets = ReplicatedStorage:WaitForChild("Assets", 5)
@@ -783,6 +786,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		pos = UDim2.new(0, 0, 0, 0), -- Will be dynamically calculated below to avoid boundary clicks blocking
 		anchor = Vector2.new(0, 1), 
 		bgT = 1,
+		vis = false, -- [HOTBAR REMOVED] 핫바 UI 완전 비활성화 및 숨김
 		parent = parent -- CRITICAL: Parent directly to ScreenGui to guarantee clicks work!
 	})
 
@@ -1451,6 +1455,25 @@ function HUDUI.UpdateTutorialStatus(status)
 	end
 
 	HUDUI.SetTutorialVisible(true)
+end
+
+function HUDUI.UpdateRuneHotbar(equipment)
+	if not HUDUI.Refs.runeSlots then return end
+	
+	local runeKeys = {"RUNE1", "RUNE2", "RUNE3"}
+	for i, key in ipairs(runeKeys) do
+		local slot = HUDUI.Refs.runeSlots[i]
+		if not slot then continue end
+		
+		local eqItem = equipment[key]
+		if eqItem and eqItem.itemId then
+			slot.icon.Image = _UIManager and _UIManager.getItemIcon(eqItem.itemId) or ""
+			slot.icon.Visible = true
+		else
+			slot.icon.Image = ""
+			slot.icon.Visible = false
+		end
+	end
 end
 
 function HUDUI.UpdateHealth(cur, max)

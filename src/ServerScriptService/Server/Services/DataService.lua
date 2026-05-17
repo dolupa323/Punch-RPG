@@ -21,10 +21,8 @@ local tables = {}  -- 로드된 데이터 테이블 (맵 형태로 변환됨)
 -- 데이터 테이블 목록 (로드 순서 중요: 의존성 순)
 local TABLE_NAMES = {
 	"ItemData",           -- 기본 (참조 대상)
-	"CreatureData",       -- 기본
 	"RecipeData",         -- Item 참조
 	"FacilityData",       -- Recipe 참조 가능
-	"TechUnlockData",     -- 다양한 참조
 	"NPCShopData",        -- Item 참조
 	"DropTableData",      -- Item 참조
 	"DurabilityProfiles", -- 독립
@@ -135,10 +133,6 @@ function DataService.getRecipe(id: string): any
 	return DataService.getById("RecipeData", id)
 end
 
---- 크리처 조회 (단축)
-function DataService.getCreature(id: string): any
-	return DataService.getById("CreatureData", id)
-end
 
 --- 시설 조회 (단축)
 function DataService.getFacility(id: string): any

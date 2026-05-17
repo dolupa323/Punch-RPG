@@ -1077,7 +1077,6 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.StatsGrid.Visible = true
 				createStatRow(d.StatsGrid, "공격력", tostring(baseDmg), (extraDmg ~= 0 and string.format("+%d", extraDmg) or nil), dmgColor, 1, tostring(finalDmg))
 				createStatRow(d.StatsGrid, "치명타 확률", "0%", (finalCrit ~= 0 and string.format("+%d%%", finalCrit) or nil), critColor, 2)
-				createStatRow(d.StatsGrid, "내구도", tostring(baseDur), (bonusDur ~= 0 and string.format("+%d", maxDur - baseDur) or nil), durColor, 3)
 				
 			elseif iType == "ARMOR" then
 				local bonusDef, bonusHp, bonusDur = 0, 0, 0
@@ -1113,7 +1112,6 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				local order = 0
 				order = order + 1; createStatRow(d.StatsGrid, "방어력", tostring(baseDef), (extraDef ~= 0 and string.format("(%+d)", extraDef) or nil), defColor, order)
 				order = order + 1; createStatRow(d.StatsGrid, "추가 체력", "+0%", (finalHp ~= 0 and string.format("(%+d%%)", finalHp) or nil), hpColor, order)
-				order = order + 1; createStatRow(d.StatsGrid, "내구도", tostring(baseDur), (bonusDur ~= 0 and string.format("(%+d)", maxDur - baseDur) or nil), durColor, order)
 			end
 		end
 		

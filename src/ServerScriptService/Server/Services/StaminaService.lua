@@ -186,11 +186,10 @@ function StaminaService._tickLoop()
 				data.lastUseTime = now
 				changed = true
 				
-				-- 달리기 시 배고픔 소모 연동
-				local HSuccess, HungerService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.HungerService) end)
-				if HSuccess and HungerService then
-					HungerService.consumeHunger(userId, Balance.HUNGER_SPRINT_COST * 0.1)
-				end
+				local cost = Balance.SPRINT_STAMINA_COST * 0.1 -- 0.1초 단위
+				data.current = math.max(0, data.current - cost)
+				data.lastUseTime = now
+				changed = true
 			end
 			
 			-- 스태미나 바닥나면 스프린트 중지
@@ -399,13 +398,7 @@ function StaminaService.performDodge(player: Player, direction: Vector3?): { suc
 	-- 락 해제
 	staminaUpdateLocks[userId] = nil
 	
-	-- 구르기 시 배고픔 소모 연동
-	local HSuccess, HungerService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.HungerService) end)
-	if HSuccess and HungerService then
-		HungerService.consumeHunger(userId, Balance.HUNGER_DODGE_COST)
-	end
-	
-	-- 무적 프레임 설정
+	-- 구르기 종료
 	data.isInvulnerable = true
 	task.delay(Balance.DODGE_IFRAMES, function()
 		if playerStamina[userId] then

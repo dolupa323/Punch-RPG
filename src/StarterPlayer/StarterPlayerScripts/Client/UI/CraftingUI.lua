@@ -39,11 +39,21 @@ CraftingUI.Refs = {
 		Desc = nil,
 		MatsText = nil,
 		BtnCraft = nil,
+	},
+	ProgressModal = {
+		Overlay = nil,
+		Window = nil,
+		Icon = nil,
+		NameLabel = nil,
+		BarFill = nil,
+		PctLabel = nil,
+		BtnAction = nil,
 	}
 }
 
 local selectedRecipeId = nil
 local _isSmall = false
+local progressModalCallback = nil -- [NEW] 제작 진행 모달 전용 다이나믹 콜백
 
 ----------------------------------------------------------------
 -- 선택 하이라이트 업데이트
@@ -202,8 +212,132 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	CraftingUI.Refs.Detail.BtnCraft = Utils.mkBtn({
 		text=UILocalizer.Localize("제작 시작"), size=UDim2.new(1, -24, 0, 52), pos=UDim2.new(0, 12, 1, -62),
 		bg=C.GOLD_SEL, color=C.BG_DARK, ts=20, font=F.TITLE, r=5,
-		fn=function() UIManager._doCraft() end, parent=detail
+		fn=function() UIManager._DoCraft() end, parent=detail
 	})
+	
+	----------------------------------------------------------------
+	-- 별도 제작 진행 모달 (Progress Modal Popup) [NEW]
+	----------------------------------------------------------------
+	local overlay = Utils.mkFrame({
+		name = "ProgressOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		pos = UDim2.new(0, 0, 0, 0),
+		bg = Color3.new(0, 0, 0),
+		bgT = 0.65, -- 뒤쪽 무기제작 창을 부드럽게 어둡게 덮음
+		z = 500,
+		vis = false,
+		parent = CraftingUI.Refs.Frame
+	})
+	
+	local win = Utils.mkWindow({
+		name = "ProgressWindow",
+		size = UDim2.new(0, 480, 0, 320),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		bgT = 0.05, -- 불투명에 가깝게 하여 고급스러운 느낌 배가
+		r = 10,
+		stroke = 2.5,
+		strokeC = C.BORDER,
+		z = 501,
+		parent = overlay
+	})
+	
+	local mHeader = Utils.mkFrame({name="MHeader", size=UDim2.new(1, 0, 0, 45), bgT=1, parent=win})
+	Utils.mkLabel({
+		text = "제작 진행 상태 (Crafting Progress)",
+		pos = UDim2.new(0, 15, 0, 0),
+		ts = 18,
+		font = F.TITLE,
+		color = C.WHITE,
+		ax = Enum.TextXAlignment.Left,
+		parent = mHeader
+	})
+	-- 모달 중앙 아이템 아이콘
+	local mIcon = Instance.new("ImageLabel")
+	mIcon.Name = "MIcon"
+	mIcon.Size = UDim2.new(0, 72, 0, 72)
+	mIcon.Position = UDim2.new(0.5, 0, 0, 55)
+	mIcon.AnchorPoint = Vector2.new(0.5, 0)
+	mIcon.BackgroundTransparency = 1
+	mIcon.ScaleType = Enum.ScaleType.Fit
+	mIcon.ZIndex = 502
+	mIcon.Parent = win
+	
+	-- 모달 중앙 아이템 이름 및 상태 문구
+	local mName = Utils.mkLabel({
+		text = "말랑봉",
+		pos = UDim2.new(0.5, 0, 0, 135),
+		anchor = Vector2.new(0.5, 0),
+		ts = 20,
+		font = F.TITLE,
+		color = C.WHITE,
+		parent = win
+	})
+	
+	-- 모달 실시간 가로형 프로그레스 바
+	local mBarBack = Utils.mkFrame({
+		name = "MBarBack",
+		size = UDim2.new(0.85, 0, 0, 24),
+		pos = UDim2.new(0.5, 0, 0, 180),
+		anchor = Vector2.new(0.5, 0),
+		bg = C.BG_DARK,
+		r = 6,
+		stroke = 1.2,
+		strokeC = C.BORDER_DIM,
+		z = 502,
+		parent = win
+	})
+	
+	local mBarFill = Utils.mkFrame({
+		name = "MFill",
+		size = UDim2.new(0, 0, 1, 0),
+		bg = Color3.fromRGB(40, 140, 240), -- 세련되고 이쁜 파란색 바
+		r = 6,
+		z = 503,
+		parent = mBarBack
+	})
+	
+	-- 프로그레스 바 내부 퍼센트 수치 (0% ~ 100%)
+	local mPct = Utils.mkLabel({
+		text = "제작 중 (0%)",
+		size = UDim2.new(1, 0, 1, 0),
+		ts = 14,
+		font = F.NUM,
+		color = C.WHITE,
+		z = 505,
+		parent = mBarBack
+	})
+	
+	-- 모달 하단 액션 버튼 (평소엔 창닫기, 완료 시에는 산뜻한 아이템 수령 버튼으로 변신!)
+	local mBtnAction = Utils.mkBtn({
+		text = "닫기",
+		size = UDim2.new(0.85, 0, 0, 44),
+		pos = UDim2.new(0.5, 0, 1, -15),
+		anchor = Vector2.new(0.5, 1),
+		bg = C.BTN,
+		color = C.WHITE,
+		ts = 16,
+		font = F.TITLE,
+		r = 5,
+		z = 504,
+		parent = win
+	})
+	
+	mBtnAction.MouseButton1Click:Connect(function()
+		if progressModalCallback then
+			progressModalCallback()
+		end
+	end)
+	
+	-- 모달 참조 캐시 저장
+	CraftingUI.Refs.ProgressModal.Overlay = overlay
+	CraftingUI.Refs.ProgressModal.Window = win
+	CraftingUI.Refs.ProgressModal.Icon = mIcon
+	CraftingUI.Refs.ProgressModal.NameLabel = mName
+	CraftingUI.Refs.ProgressModal.BarFill = mBarFill
+	CraftingUI.Refs.ProgressModal.PctLabel = mPct
+	CraftingUI.Refs.ProgressModal.BtnAction = mBtnAction
 end
 
 function CraftingUI.SetVisible(visible)
@@ -360,14 +494,14 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		click.MouseButton1Click:Connect(function()
 			selectedRecipeId = item.id
 			updateSelectionHighlight()
-			UIManager._onCraftSlotClick(item, mode)
+			UIManager._OnCraftSlotClick(item, mode)
 		end)
 	end
 	
 	updateSelectionHighlight()
 end
 
-function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts, DataHelper, getItemIcon)
+function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts, DataHelper, getItemIcon, progressRatio, craftState)
 	local d = CraftingUI.Refs.Detail
 	if not d.Frame then return end
 	
@@ -406,15 +540,98 @@ function CraftingUI.UpdateDetail(item, mode, isLocked, canMake, playerItemCounts
 	end
 	d.MatsText.Text = matsText
 	
-	d.BtnCraft.Text = UILocalizer.Localize((mode == "CRAFTING") and "제작 시작" or "건축 시작")
-	if canMake then
-		d.BtnCraft.BackgroundColor3 = C.GOLD_SEL
-		d.BtnCraft.TextColor3 = C.BG_DARK
-		d.BtnCraft.AutoButtonColor = true
-	else
+	-- 실시간 제작 진행 및 미제작 상태에 따른 상세창 버튼 제어
+	if craftState == "CRAFTING" then
+		-- 이미 제작 중인 경우: 디테일 창에서는 '제작 진행 중' 비활성화 표출 (실시간 진행은 별도 모달이 전담)
+		if d.ProgBar then d.ProgBar.Visible = false end
+		d.BtnCraft.Text = UILocalizer.Localize("제작 진행 중")
 		d.BtnCraft.BackgroundColor3 = C.BG_SLOT
 		d.BtnCraft.TextColor3 = C.GRAY
 		d.BtnCraft.AutoButtonColor = false
+	elseif craftState == "PENDING_COLLECT" or craftState == "COMPLETED" or (progressRatio and progressRatio >= 1) then
+		-- 제작 완료: 디테일 창 버튼도 수령 활성화 지원
+		if d.ProgBar then d.ProgBar.Visible = false end
+		d.BtnCraft.Text = UILocalizer.Localize("아이템 수령")
+		d.BtnCraft.BackgroundColor3 = Color3.fromRGB(140, 220, 100) -- 연두색
+		d.BtnCraft.TextColor3 = C.BG_DARK
+		d.BtnCraft.AutoButtonColor = true
+	else
+		-- 기본 미제작 상태
+		if d.ProgBar then d.ProgBar.Visible = false end
+		d.BtnCraft.Text = UILocalizer.Localize((mode == "CRAFTING") and "제작 시작" or "건축 시작")
+		if canMake then
+			d.BtnCraft.BackgroundColor3 = C.GOLD_SEL
+			d.BtnCraft.TextColor3 = C.BG_DARK
+			d.BtnCraft.AutoButtonColor = true
+		else
+			d.BtnCraft.BackgroundColor3 = C.BG_SLOT
+			d.BtnCraft.TextColor3 = C.GRAY
+			d.BtnCraft.AutoButtonColor = false
+		end
+	end
+end
+
+----------------------------------------------------------------
+-- 별도 제작 진행 모달 표출 및 실시간 업데이트 [NEW]
+----------------------------------------------------------------
+function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManager, craftId)
+	local pm = CraftingUI.Refs.ProgressModal
+	if not pm.Overlay then return end
+	
+	pm.Overlay.Visible = true
+	
+	-- 1. 아이콘 & 이름 바인딩
+	if recipe then
+		local targetId = recipe.id
+		if recipe.outputs and #recipe.outputs > 0 then
+			targetId = recipe.outputs[1].itemId or recipe.outputs[1].id
+		end
+		pm.Icon.Image = UIManager.getItemIcon(targetId)
+		pm.NameLabel.Text = UILocalizer.Localize(recipe.name or "제작 아이템")
+	end
+	
+	-- 2. 진행률 실시간 렌더링
+	local ratio = math.clamp(progressRatio or 0, 0, 1)
+	pm.BarFill.Size = UDim2.new(ratio, 0, 1, 0)
+	
+	local pct = math.floor(ratio * 100)
+	
+	-- 3. 상태 분기별 렌더링 & 버튼 동적 콜백 갈아끼우기
+	if craftState == "PENDING_COLLECT" or craftState == "COMPLETED" or ratio >= 1 then
+		-- 제작 완료 (수령 대기!)
+		pm.PctLabel.Text = UILocalizer.Localize("제작 완료! (100%)")
+		pm.BarFill.BackgroundColor3 = Color3.fromRGB(140, 220, 100) -- 연두색 바
+		
+		pm.BtnAction.Text = UILocalizer.Localize("아이템 수령")
+		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(140, 220, 100) -- 산뜻하고 이쁜 연두색 수령 버튼
+		pm.BtnAction.TextColor3 = Color3.fromRGB(10, 15, 25) -- 어두운 글씨
+		
+		-- 수령 트리거 콜백 지정
+		progressModalCallback = function()
+			if craftId then
+				UIManager._DoCollect(craftId)
+			end
+			pm.Overlay.Visible = false -- 수령 발송 후 모달 닫기
+		end
+	else
+		-- 제작 진행 중
+		pm.PctLabel.Text = UILocalizer.Localize(string.format("제작 중 (%d%%)", pct))
+		pm.BarFill.BackgroundColor3 = Color3.fromRGB(40, 140, 240) -- 블루 바
+		
+		pm.BtnAction.Text = UILocalizer.Localize("제작 진행 중...")
+		pm.BtnAction.BackgroundColor3 = C.BG_SLOT -- 회색 비활성 색상
+		pm.BtnAction.TextColor3 = C.GRAY
+		pm.BtnAction.AutoButtonColor = false
+		
+		-- 클릭 불가 (콜백 제거하여 모달을 개별적으로 닫지 못하게 방지!)
+		progressModalCallback = nil
+	end
+end
+
+function CraftingUI.HideProgressModal()
+	local pm = CraftingUI.Refs.ProgressModal
+	if pm.Overlay then
+		pm.Overlay.Visible = false
 	end
 end
 

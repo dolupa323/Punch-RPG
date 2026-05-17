@@ -24,11 +24,19 @@ local armorCache = {}
 
 --- 모델 인덱싱 (서버 부팅 시 1회 실행)
 local function indexAssets()
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	if not assets then return end
+	local assets = ReplicatedStorage:WaitForChild("Assets", 10)
+	if not assets then 
+		warn("[EquipService] CRITICAL WARNING: 'Assets' folder not found in ReplicatedStorage within 10s!")
+		return 
+	end
 	
 	-- 1. 아이템 모델 인덱싱 (ItemModels, LootModels, Models 폴더 및 하위 모든 모델)
-	local folders = {assets:FindFirstChild("ItemModels"), assets:FindFirstChild("LootModels"), assets:FindFirstChild("Models"), assets}
+	local folders = {
+		assets:FindFirstChild("ItemModels"), 
+		assets:FindFirstChild("LootModels"), 
+		assets:FindFirstChild("Models"), 
+		assets
+	}
 	for _, folder in ipairs(folders) do
 		if not folder then continue end
 		for _, child in ipairs(folder:GetDescendants()) do -- GetDescendants()로 변경하여 하위 폴더 대응
@@ -46,13 +54,24 @@ local function indexAssets()
 		end
 	end
 	
-	-- 2. 아머 모델 인덱싱 (ArmorModels, Models 폴더 및 하위 모든 액세서리)
-	local armorFolders = {assets:FindFirstChild("ArmorModels"), assets:FindFirstChild("Models")}
+	-- 2. 아머 모델 인덱싱 (ArmorModels, ItemModels.Armor, Models 폴더 및 하위 모든 액세서리/모델)
+	local itemModels = assets:FindFirstChild("ItemModels")
+	local armorSubFolder = itemModels and itemModels:FindFirstChild("Armor")
+	
+	local armorFolders = {
+		assets:FindFirstChild("ArmorModels"), 
+		assets:FindFirstChild("Models"),
+		armorSubFolder -- [NEW] ItemModels/Armor 서브 폴더 스캔 추가!
+	}
 	for _, folder in ipairs(armorFolders) do
 		if not folder then continue end
 		for _, child in ipairs(folder:GetDescendants()) do -- GetDescendants()로 변경
 			if child:IsA("Accessory") or child:IsA("Model") then
 				armorCache[child.Name] = child
+				
+				-- 정규화된 대소문자 Failsafe 저장
+				local norm = child.Name:lower():gsub("_", "")
+				armorCache[norm] = child
 			end
 		end
 	end
@@ -469,16 +488,52 @@ function EquipService.updateAppearance(player: Player)
 	end
 end
 
---- 3D 아머 모델 적용 내부 함수 (Accessory 방식)
 function EquipService._applyArmorModel(char, modelId)
-	local template = armorCache[modelId]
+	-- [스마트 에셋 다중 캐시 & 동적 탐색]
+	local template = armorCache[modelId] or modelCache[modelId]
+	if not template then
+		local norm = modelId:lower():gsub("_", "")
+		template = modelCache[norm] or armorCache[norm]
+	end
+	if not template then
+		-- 최후의 수단: ReplicatedStorage 전체 재귀 탐색
+		template = ReplicatedStorage:FindFirstChild(modelId, true)
+	end
+	
 	if template then
-		local acc = template:Clone()
-		if acc:IsA("Accessory") then
-			acc:SetAttribute("IsArmor", true)
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			if hum then hum:AddAccessory(acc) end
+		local rawClone = template:Clone()
+		local clone = nil
+		
+		-- [DYNAMIC WRAPPING] 일반 Model/Tool 형태일 경우 Accessory 규격으로 실시간 강제 변환
+		if rawClone:IsA("Accessory") then
+			clone = rawClone
+		else
+			clone = Instance.new("Accessory")
+			clone.Name = modelId
+			
+			local candidateHandle = rawClone:FindFirstChild("Handle") or rawClone:FindFirstChildWhichIsA("BasePart")
+			if candidateHandle then
+				candidateHandle.Name = "Handle"
+				for _, child in ipairs(rawClone:GetChildren()) do
+					child.Parent = clone
+				end
+				rawClone:Destroy()
+			else
+				rawClone:Destroy()
+				return
+			end
 		end
+		
+		if clone then
+			clone:SetAttribute("IsArmor", true)
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then 
+				hum:AddAccessory(clone) 
+				print(string.format("[EquipService] Successfully equipped armor accessory: %s", modelId))
+			end
+		end
+	else
+		warn(string.format("[EquipService] CRITICAL: Armor asset '%s' could not be found anywhere!", modelId))
 	end
 end
 

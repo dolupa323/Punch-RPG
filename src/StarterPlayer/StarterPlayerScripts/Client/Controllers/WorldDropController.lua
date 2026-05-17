@@ -126,8 +126,13 @@ local function createDropModel(dropData)
 	end
 	local mainObject
 	local isModel = false
+	local spawnCF = CFrame.new(dropData.pos)
+	
+	print(string.format("[WorldDropController] Creating 3D drop model. ItemId: '%s', DropId: '%s', DropType: '%s', HasTemplate: %s", 
+		tostring(dropData.itemId), tostring(dropData.dropId), tostring(dropData.dropType), tostring(template ~= nil)))
 	
 	if template then
+		print(string.format("[WorldDropController] -> Asset template found. Name: '%s', Class: %s", template.Name, template.ClassName))
 		mainObject = template:Clone()
 		mainObject.Name = dropData.dropId
 		mainObject.Parent = dropFolder -- Parent early to avoid warnings
@@ -161,17 +166,17 @@ local function createDropModel(dropData)
 			end
 		end
 		
-		-- [핵심] 피벗을 모델/파트의 최하단으로 설정
-		local cframe, size = mainObject:GetBoundingBox()
-		local bottomPivot = CFrame.new(cframe.Position - Vector3.new(0, size.Y/2, 0))
-		
+		-- [정밀 지면 밀착] 모델 고유 피벗을 해킹하지 않고 최하단 Y축 정밀 오프셋만 보정
 		if mainObject:IsA("Model") then
-			mainObject.WorldPivot = bottomPivot
-			mainObject:PivotTo(CFrame.new(dropData.pos))
+			local cframe, size = mainObject:GetBoundingBox()
+			-- 모델 피벗 중심점과 모델 최하단 바닥면 사이의 Y축 오프셋 거리 산출
+			local pivotYOffset = mainObject:GetPivot().Position.Y - (cframe.Position.Y - size.Y / 2)
+			spawnCF = CFrame.new(dropData.pos + Vector3.new(0, pivotYOffset, 0))
 		else
-			mainObject.PivotOffset = CFrame.new(0, -mainObject.Size.Y/2, 0)
-			mainObject:PivotTo(CFrame.new(dropData.pos))
+			spawnCF = CFrame.new(dropData.pos + Vector3.new(0, mainObject.Size.Y / 2, 0))
 		end
+		
+		mainObject:PivotTo(spawnCF)
 		
 		-- [수정] 자연스러운 등장을 위해 팝업 애니메이션 적용
 		if mainObject:IsA("Model") then
@@ -194,6 +199,7 @@ local function createDropModel(dropData)
 		end
 	else
 		-- Fallback to sphere
+		warn(string.format("[WorldDropController] -> Asset template NOT found for item '%s'. Falling back to basic Sphere model!", tostring(dropData.itemId)))
 		mainObject = Instance.new("Part")
 		mainObject.Name = dropData.dropId
 		mainObject.Parent = dropFolder -- Parent early
@@ -268,12 +274,15 @@ local function createDropModel(dropData)
 		end
 	end)
 	
-	-- [수정] 배치 애니메이션 등록 시 서버 좌표(지면 고정)를 기준점으로 사용
+	-- [수정] 배치 애니메이션 등록 시 정확하게 들어올려진 지면 밀착 좌표(spawnCF)를 기준점으로 사용하여 회전 및 부유 축 고정!
 	animatingDrops[dropData.dropId] = {
 		model = mainObject,
-		startPos = dropData.pos,
+		startPos = spawnCF.Position,
 		t = math.random() * math.pi * 2
 	}
+	
+	print(string.format("[WorldDropController] Successfully finalized drop 3D model. Parent: '%s', Position: %s, Pivot: %s, Interactive: %s", 
+		tostring(mainObject.Parent), tostring(mainObject:GetPivot().Position), tostring(spawnCF.Position), tostring(attachmentPoint.Name)))
 	
 	return mainObject
 end
@@ -444,6 +453,25 @@ function WorldDropController.Init()
 	
 	initialized = true
 	print("[WorldDropController] Initialized - Animation optimized with RenderStepped Batching")
+	
+	-- [서버 권위 동기화] 클라이언트 로딩 선후관계 경쟁 상태로 유실된 활성 드롭 리스트 완벽 복구 및 동기화
+	task.spawn(function()
+		task.wait(0.5) -- 클라이언트 초기화 완료 시간 확보
+		local pcallSuccess, requestSuccess, dataOrError = pcall(function()
+			return NetClient.Request("WorldDrop.GetActiveDrops")
+		end)
+		
+		if pcallSuccess and requestSuccess and dataOrError then
+			print(string.format("[WorldDropController] Syncing %d active drops from server...", #dataOrError))
+			for _, dropData in ipairs(dataOrError) do
+				if not dropsCache[dropData.dropId] then
+					onSpawned(dropData)
+				end
+			end
+		else
+			warn("[WorldDropController] Failed to sync active drops from server:", tostring(dataOrError or "Unknown error"))
+		end
+	end)
 end
 
 return WorldDropController

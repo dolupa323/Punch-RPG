@@ -17,11 +17,7 @@ local NetClient = require(Client.NetClient)
 local InputManager = require(Client.InputManager)
 local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
 local UILocalizer = require(Client.Localization.UILocalizer)
-local BuildController = require(Client.Controllers.BuildController)
 local WindowManager = require(Client.Utils.WindowManager)
-local HarvestUI = require(Client.UI.HarvestUI)
-local UIManager = nil -- Circular dependency check (will require inside if needed)
-local FacilityRadialUI = require(Client.UI.FacilityRadialUI)
 local NPCRadialUI = require(Client.UI.NPCRadialUI)
 
 local InteractController = {}
@@ -32,26 +28,24 @@ local InteractController = {}
 local initialized = false
 local player = Players.LocalPlayer
 
--- 상호작용 가능 대상
-local currentTarget = nil
-local currentTargetType = nil  -- "resource", "npc", "facility", "drop"
-local currentFacilityTarget = nil  -- 가장 가까운 시설 (별도 추적, 채집노드와 겹쳐도 R키 사용 가능)
-
--- 상호작용 거리 (Balance에서 가져옴, 여유분 추가)
-local INTERACT_DISTANCE = (Balance.HARVEST_RANGE or 10) + (Balance.INTERACT_OFFSET or 4)
-local FACILITY_INTERACT_BONUS = 6
-local sleepTransitionBusy = false
-local sleepConfirmGui = nil
-local sleepConfirmActive = false
+-- 상호작용 관련 기본 상수 및 해체 제어 변수
+local INTERACT_DISTANCE = 8
+local REMOVE_CONFIRM_WINDOW = 2.5
 local pendingRemoveStructureId = nil
 local pendingRemoveExpireAt = 0
-local playSleepTransitionAndRequest
-local mountedJumpBound = false
-local MOUNT_JUMP_ACTION = "MountedDinoJumpBlock"
-local MOUNT_MOVE_ACTION = "MountedDinoMoveSink"
+
+-- [FIX] 탑승 제어 상태 변수 (Mount Control States)
 local mountedControlState = { forward = false, backward = false, left = false, right = false }
+local mountedJumpBound = false
+local MOUNT_JUMP_ACTION = "MountJumpAction"
+local MOUNT_MOVE_ACTION = "MountMoveAction"
 local lastMountControlThrottle = 0
 local lastMountControlSteer = 0
+
+-- 상호작용 가능 대상
+local currentTarget = nil
+local currentTargetType = nil  -- "npc", "portal", "drop"
+local playSleepTransitionAndRequest
 local NPC_TARGET_PRIORITY_BONUS = 3.5
 local isResting = false
 local restAnimTrack = nil
@@ -59,6 +53,12 @@ local restMovementConn = nil
 
 -- UIManager 참조 (Init 후 설정)
 local UIManager = nil
+
+-- [FIX] 해체 대기 상태 청소 헬퍼 함수
+local function clearPendingRemove()
+	pendingRemoveStructureId = nil
+	pendingRemoveExpireAt = 0
+end
 
 local function getStructureIdFromTarget(target: Instance): string?
 	if not target then
@@ -69,197 +69,6 @@ local function getStructureIdFromTarget(target: Instance): string?
 		return nil
 	end
 	return tostring(structureId)
-end
-
-local function clearPendingRemove()
-	pendingRemoveStructureId = nil
-	pendingRemoveExpireAt = 0
-end
-
-local function closeSleepConfirm()
-	if sleepConfirmGui then
-		sleepConfirmGui:Destroy()
-		sleepConfirmGui = nil
-	end
-	sleepConfirmActive = false
-end
-
-function InteractController.showSleepConfirm(structureId: string)
-	if sleepConfirmActive or sleepTransitionBusy then return end
-	sleepConfirmActive = true
-
-	local playerGui = player:FindFirstChild("PlayerGui")
-	if not playerGui then sleepConfirmActive = false return end
-
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "SleepConfirmGui"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 9998
-	gui.Parent = playerGui
-	sleepConfirmGui = gui
-
-	local bg = Instance.new("Frame")
-	bg.Size = UDim2.fromScale(1, 1)
-	bg.BackgroundColor3 = Color3.new(0, 0, 0)
-	bg.BackgroundTransparency = 0.5
-	bg.BorderSizePixel = 0
-	bg.Parent = gui
-
-	local box = Instance.new("Frame")
-	box.Size = UDim2.new(0, 320, 0, 160)
-	box.Position = UDim2.new(0.5, 0, 0.5, 0)
-	box.AnchorPoint = Vector2.new(0.5, 0.5)
-	box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	box.BorderSizePixel = 0
-	box.Parent = gui
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = box
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 1.5
-	stroke.Color = Color3.fromRGB(180, 160, 100)
-	stroke.Parent = box
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0, 50)
-	title.Position = UDim2.new(0, 0, 0, 15)
-	title.BackgroundTransparency = 1
-	title.Text = "침대에서 취침하시겠습니까?"
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextSize = 18
-	title.Font = Enum.Font.GothamBold
-	title.Parent = box
-
-	local subtext = Instance.new("TextLabel")
-	subtext.Size = UDim2.new(1, 0, 0, 24)
-	subtext.Position = UDim2.new(0, 0, 0, 58)
-	subtext.BackgroundTransparency = 1
-	subtext.Text = "체력 회복 및 부활 지점 설정"
-	subtext.TextColor3 = Color3.fromRGB(180, 180, 160)
-	subtext.TextSize = 13
-	subtext.Font = Enum.Font.Gotham
-	subtext.Parent = box
-
-	local yesBtn = Instance.new("TextButton")
-	yesBtn.Size = UDim2.new(0, 120, 0, 40)
-	yesBtn.Position = UDim2.new(0.5, -130, 1, -55)
-	yesBtn.BackgroundColor3 = Color3.fromRGB(80, 170, 80)
-	yesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	yesBtn.Text = "예"
-	yesBtn.TextSize = 18
-	yesBtn.Font = Enum.Font.GothamBold
-	yesBtn.Parent = box
-	Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 8)
-
-	local noBtn = Instance.new("TextButton")
-	noBtn.Size = UDim2.new(0, 120, 0, 40)
-	noBtn.Position = UDim2.new(0.5, 10, 1, -55)
-	noBtn.BackgroundColor3 = Color3.fromRGB(120, 60, 60)
-	noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	noBtn.Text = "아니오"
-	noBtn.TextSize = 18
-	noBtn.Font = Enum.Font.GothamBold
-	noBtn.Parent = box
-	Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 8)
-
-	yesBtn.MouseButton1Click:Connect(function()
-		closeSleepConfirm()
-		playSleepTransitionAndRequest(structureId)
-	end)
-
-	noBtn.MouseButton1Click:Connect(function()
-		closeSleepConfirm()
-	end)
-
-	-- 배경 클릭으로도 닫기
-	bg.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			closeSleepConfirm()
-		end
-	end)
-end
-
-playSleepTransitionAndRequest = function(structureId: string)
-	if sleepTransitionBusy then
-		return
-	end
-	sleepTransitionBusy = true
-
-	local playerGui = player:FindFirstChild("PlayerGui")
-	if not playerGui then
-		sleepTransitionBusy = false
-		return
-	end
-
-	local fadeGui = playerGui:FindFirstChild("SleepFadeGui")
-	if not fadeGui then
-		fadeGui = Instance.new("ScreenGui")
-		fadeGui.Name = "SleepFadeGui"
-		fadeGui.ResetOnSpawn = false
-		fadeGui.IgnoreGuiInset = true
-		fadeGui.DisplayOrder = 9999
-		fadeGui.Parent = playerGui
-		
-		local frame = Instance.new("Frame")
-		frame.Size = UDim2.fromScale(1, 1)
-		frame.BackgroundColor3 = Color3.new(0, 0, 0)
-		frame.BackgroundTransparency = 1
-		frame.BorderSizePixel = 0
-		frame.Parent = fadeGui
-	end
-
-	local black = fadeGui:FindFirstChild("Black") or fadeGui:FindFirstChild("Frame")
-	if not black then
-		black = Instance.new("Frame")
-		black.Name = "Black"
-		black.Size = UDim2.fromScale(1, 1)
-		black.Position = UDim2.fromScale(0, 0)
-		black.BackgroundColor3 = Color3.new(0, 0, 0)
-		black.BorderSizePixel = 0
-		black.Parent = fadeGui
-	end
-
-	black.Visible = true
-	black.BackgroundTransparency = 1
-
-	local fadeOut = TweenService:Create(
-		black,
-		TweenInfo.new(Balance.SLEEP_FADE_OUT_TIME or 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ BackgroundTransparency = 0 }
-	)
-	fadeOut:Play()
-	fadeOut.Completed:Wait()
-
-	task.wait(0.05)
-	local ok, data = NetClient.Request("Facility.Sleep.Request", { structureId = structureId })
-
-	task.wait(Balance.SLEEP_BLACK_HOLD_TIME or 0.5)
-
-	local fadeIn = TweenService:Create(
-		black,
-		TweenInfo.new(Balance.SLEEP_FADE_IN_TIME or 1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-		{ BackgroundTransparency = 1 }
-	)
-	fadeIn:Play()
-	fadeIn.Completed:Wait()
-	black.Visible = false
-
-	if ok then
-		if UIManager then
-			UIManager.notify("침대에서 휴식했습니다.")
-		end
-	else
-		if UIManager then
-			if data == "SLEEP_COOLDOWN" then
-				UIManager.notify("방금 잠에서 깼습니다. 잠시 후 다시 휴식할 수 있습니다.", Color3.fromRGB(255, 180, 120))
-			else
-				UIManager.notify("휴식을 취할 수 없습니다.", Color3.fromRGB(255, 120, 120))
-			end
-		end
-	end
-
-	sleepTransitionBusy = false
 end
 
 --========================================
@@ -321,7 +130,7 @@ local function findNearbyInteractable(): (Instance?, string?)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	
-	local targetFolderNames = {"ResourceNodes", "NPCs", "Facilities", "Creatures", "Portals"}
+	local targetFolderNames = {"NPCs", "Portals"}
 	local folderObjects = {}
 	local includeList = {}
 	for _, name in ipairs(targetFolderNames) do
@@ -347,22 +156,16 @@ local function findNearbyInteractable(): (Instance?, string?)
 	overlapParams.FilterDescendantsInstances = includeList
 	
 	-- 반경 내 파트 검색
-	local searchRadius = math.max(INTERACT_DISTANCE, (Balance.SHOP_INTERACT_RANGE or 10) + 4)
+	local searchRadius = math.max(Balance.SHOP_INTERACT_RANGE or 10, 14)
 	local nearbyParts = workspace:GetPartBoundsInRadius(playerPos, searchRadius, overlapParams)
 	
 	local closestTarget = nil
 	local closestType = nil
 	local closestDist = searchRadius + 1
 	local closestScore = math.huge
-
-	local closestFacility = nil
-	local closestFacilityDist = searchRadius + FACILITY_INTERACT_BONUS + 1
 	
 	local typeMap = {
-		ResourceNodes = "resource",
 		NPCs = "npc",
-		Facilities = "facility",
-		Creatures = "pal",
 		Portals = "portal",
 	}
 	
@@ -691,7 +494,7 @@ function InteractController.onInteractPress()
 	InteractController.onFacilityInteractPress()
 end
 
---- R키 눌림 처리 (건물/시설 상호작용 전용)
+--- R키 눌림 처리 (일반 상호작용)
 function InteractController.onFacilityInteractPress()
 	if InputManager.isUIOpen() then
 		-- [Refactor] 모든 열린 창(방사형 UI 포함)을 WindowManager를 통해 닫음
@@ -699,49 +502,8 @@ function InteractController.onFacilityInteractPress()
 		return
 	end
 
-	local mountedPalUID = player:GetAttribute("MountedPalUID")
-	if mountedPalUID then
-		local ok, err = NetClient.Request("Party.Dismount.Request", {})
-		if not ok and UIManager then
-			UIManager.notify("지금은 내릴 수 없습니다.", Color3.fromRGB(255, 120, 120))
-		end
-		return
-	end
-
 	if currentTarget and currentTargetType == "npc" then
 		interactNPC(currentTarget)
-		return
-	end
-
-	-- R키 대상: Facility 및 Pal (Pal은 우선순위를 위해 별도 조건 처리)
-	if currentTarget and currentTargetType == "pal" then
-		-- Pal UI 띄우기 처리 (Radial UI)
-		local PalRadialUI = require(Client.UI.PalRadialUI)
-		if PalRadialUI.IsOpen() then
-			WindowManager.close("PAL_RADIAL")
-		else
-			WindowManager.open("PAL_RADIAL", currentTarget)
-		end
-		return
-	end
-
-	-- 자원 노드: R키로 채집 UI 열기
-	if currentTarget and currentTargetType == "resource" then
-		local nodeUID = currentTarget:GetAttribute("NodeUID")
-		local nodeId = currentTarget:GetAttribute("NodeId")
-		if nodeUID and nodeId then
-			if UIManager then UIManager.hideInteractPrompt() end
-			WindowManager.open("HARVEST", nodeUID, nodeId, currentTarget)
-			return
-		else
-			warn("[InteractController] Resource node missing attributes - NodeUID:", nodeUID, "NodeId:", nodeId, "Model:", currentTarget:GetFullName())
-		end
-	end
-
-	-- 시설은 별도 추적된 대상 우선 사용 (채집노드가 가까워도 R키 작동)
-	local facTarget = currentFacilityTarget or (currentTargetType == "facility" and currentTarget)
-	if facTarget then
-		interactFacility(facTarget)
 		return
 	end
 
@@ -757,18 +519,7 @@ function InteractController.onFacilityInteractPress()
 end
 
 function InteractController.onFacilityRemovePress(skipConfirm: boolean)
-	skipConfirm = skipConfirm or false
-	
-	if not skipConfirm and InputManager.isUIOpen() then
-		return
-	end
-
-	local facTarget = currentFacilityTarget or (currentTargetType == "facility" and currentTarget)
-	if facTarget then
-		removeFacility(facTarget, skipConfirm)
-	else
-		clearPendingRemove()
-	end
+	-- 구조물 해체 기능 제거
 end
 
 local function getMountControlValues()
@@ -1024,74 +775,9 @@ function InteractController.Init()
 		end
 	end)
 	
-	-- 탑승 중 공룡 조작 입력 주기적 전송 (0.05초 - 20Hz)
-	task.spawn(function()
-		while true do
-			task.wait(0.05)
-			if player:GetAttribute("MountedPalUID") then
-				sendMountedControl(false)
-			end
-		end
-	end)
+-- (Dino/Mount logic removed)
 
-	-- [UX 개선] 클라이언트측 물리 업데이트 (부드러운 카메라 상대 이동 및 회전)
-	RunService.Heartbeat:Connect(function(dt)
-		local mountedUID = player:GetAttribute("MountedPalUID")
-		if not mountedUID then return end
-
-		-- 현재 내가 타고 있는 공룡 모델 찾기
-		local creatures = workspace:FindFirstChild("Creatures")
-		local myMount = nil
-		if creatures then
-			for _, m in ipairs(creatures:GetChildren()) do
-				if m:GetAttribute("MountedByUserId") == player.UserId then
-					myMount = m
-					break
-				end
-			end
-		end
-
-		if not myMount then return end
-		local rootPart = myMount.PrimaryPart or myMount:FindFirstChild("HumanoidRootPart")
-		local humanoid = myMount:FindFirstChildOfClass("Humanoid")
-		if not rootPart or not humanoid then return end
-
-		local throttle, steer = getMountControlValues()
-		local hasThrottle = math.abs(throttle) > 0.01
-		local hasSteer = math.abs(steer) > 0.01
-
-		if hasThrottle or hasSteer then
-			local camera = workspace.CurrentCamera
-			if not camera then return end
-
-			local camCF = camera.CFrame
-			local camForward = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
-			local camRight = camCF.RightVector.Unit
-
-			local moveDir = (camForward * throttle) + (camRight * steer)
-			if moveDir.Magnitude > 0 then
-				moveDir = moveDir.Unit
-			end
-
-			-- 회전 처리: S키(후진) 시에는 정면(카메라 앞)을 바라보고, 그 외에는 이동 방향을 바라보며 즉시 회전
-			local faceDir = moveDir
-			if throttle < 0 then
-				faceDir = camForward
-			end
-
-			if faceDir.Magnitude > 0.01 then
-				-- [Refinement] 즉시 스냅 대신 부드러운 회전(Lerp) 적용하여 더 자연스러운 느낌 제공
-				local targetCF = CFrame.lookAt(rootPart.Position, rootPart.Position + faceDir)
-				-- 0.05초(20Hz) 원격 호출 대비 Heartbeat(60Hz)에서 쾌적하게 작동하도록 높은 가중치(18) 사용
-				-- [Improvement] 유타랍토르 등 고속 크리처를 위해 회전 가중치 상향 (18 -> 24)하여 드리프트 현상 감소
-				rootPart.CFrame = rootPart.CFrame:Lerp(targetCF, math.clamp(dt * 24, 0, 1))
-			end
-
-			humanoid:Move(moveDir, false)
-		else
-			humanoid:Move(Vector3.zero, false)
-		end
-	end)
+-- (Dino/Mount physics removed)
 	
 	initialized = true
 	print("[InteractController] Initialized (R = Interact)")
@@ -1108,13 +794,6 @@ function InteractController.rebindDefaultKeys()
 		end
 	end)
 
-	-- T = 건물 해체
-	InputManager.bindKey(Enum.KeyCode.T, "InteractFacilityRemoveT", function()
-		if InteractController.onFacilityRemovePress then
-			InteractController.onFacilityRemovePress()
-		end
-	end)
-	
 	-- ESC = 모든 UI 닫기 통합
 	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
 		-- UIManager가 로드되지 않았을 수 있으므로 안전하게 처리

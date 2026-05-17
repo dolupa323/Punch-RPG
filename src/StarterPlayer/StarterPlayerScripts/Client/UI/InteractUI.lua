@@ -83,7 +83,7 @@ function InteractUI.UpdateDurability(current, max)
 	local maxValue = math.max(max or 1, 1)
 	local ratio = math.clamp((current or 0) / maxValue, 0, 1)
 	fill.Size = UDim2.new(ratio, 0, 1, 0)
-	label.Text = UILocalizer.Localize(string.format("내구도 %d%%", math.floor(ratio * 100)))
+	label.Text = UILocalizer.Localize(string.format("체력 %d%%", math.floor(ratio * 100)))
 
 	if ratio < 0.25 then
 		fill.BackgroundColor3 = Color3.fromRGB(200, 70, 50)
@@ -192,7 +192,7 @@ function InteractUI.Init(parent, isMobile)
 	})
 
 	local hpLabel = Utils.mkLabel({
-		text = UILocalizer.Localize("내구도 100%"),
+		text = UILocalizer.Localize("체력 100%"),
 		size = UDim2.new(1, 0, 1, 0),
 		ts = 11,
 		font = F.BODY,
