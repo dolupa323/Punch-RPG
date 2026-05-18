@@ -117,19 +117,82 @@ local function findLootModel(itemId: string): (Instance?, boolean)
 	return template, isDna
 end
 
+-- [철벽 물리 강제 스케일링 엔진]: PrimaryPart 부재나 로블록스 API 오동작으로 ScaleTo가 실패하는 에셋 모델을 100% 강제 규격 크기로 축소하는 마스터피스 기법
+local function scaleModelPhysically(model: Model, scaleFactor: number)
+	if not model or scaleFactor <= 0 then return end
+	local originalPivot = model:GetPivot()
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Size = part.Size * scaleFactor
+			local localCF = originalPivot:ToObjectSpace(part.CFrame)
+			local newLocalCF = localCF.Rotation + (localCF.Position * scaleFactor)
+			part.CFrame = originalPivot:ToWorldSpace(newLocalCF)
+		elseif part:IsA("Attachment") then
+			part.Position = part.Position * scaleFactor
+		end
+	end
+end
+
 local function createDropModel(dropData)
 	if not dropData or not dropData.pos then return nil end
 	
 	local template, isDna = nil, false
+	local itemData = DataHelper.GetData("ItemData", (dropData.itemId or ""):upper())
+	
 	if dropData.dropType ~= "gold" then
-		template, isDna = findLootModel(dropData.itemId)
+		-- [기획 보강]: 인벤토리에서 버리기 처리로 월드 드롭한 아이템은 무조건 Pouch 모델로 처리
+		if dropData.dropSource == "DISCARD" then
+			print(string.format("[WorldDropController] Item dropped via DISCARD. Finding 'Pouch' template..."))
+			template = findLootModel("Pouch")
+		-- [기획 보강]: 몬스터 사냥 전리품(LOOT) 중, 무기를 제외한 방어구 및 악세사리는 보물상자(Chest) 모델로 처리
+		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "ARMOR" then
+			print(string.format("[WorldDropController] Armor/Accessory loot detected. Finding 'Chest' template..."))
+			template = findLootModel("Chest")
+		else
+			-- 그 외 골드나 무기, 재료 등은 아이템 고유 모델 적용
+			template, isDna = findLootModel(dropData.itemId)
+		end
 	end
 	local mainObject
 	local isModel = false
-	local spawnCF = CFrame.new(dropData.pos)
 	
-	print(string.format("[WorldDropController] Creating 3D drop model. ItemId: '%s', DropId: '%s', DropType: '%s', HasTemplate: %s", 
-		tostring(dropData.itemId), tostring(dropData.dropId), tostring(dropData.dropType), tostring(template ~= nil)))
+	-- [지면 정밀 밀착 엔진]: 지면(Terrain, Map, Baseplate 등)에만 찰떡같이 스냅되도록 Include 필터 레이캐스트 발사!
+	local groundY = dropData.pos.Y
+	local startRayPos = dropData.pos + Vector3.new(0, 10, 0) -- 시작점을 10스터드 위로 여유 있게 높임
+	local rayDirection = Vector3.new(0, -60, 0) -- 60스터드 깊이로 탐색
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Include
+	
+	-- 오직 진짜 대지(Terrain), Baseplate, 맵 디자인 폴더만 충돌 대상으로 명시! (몹 시체, 캐릭터, 상호작용 볼륨 100% 자동 통과)
+	local includeInstances = {workspace.Terrain}
+	for _, child in ipairs(workspace:GetChildren()) do
+		local isPlayer = false
+		for _, p in ipairs(game.Players:GetPlayers()) do
+			if p.Character == child then isPlayer = true; break end
+		end
+		local isMob = child:IsA("Model") and child:FindFirstChildOfClass("Humanoid")
+		local isDrop = child == dropFolder
+		
+		if not isPlayer and not isMob and not isDrop then
+			if child:IsA("BasePart") or child:IsA("Model") or child:IsA("Folder") then
+				table.insert(includeInstances, child)
+			end
+		end
+	end
+	
+	raycastParams.FilterDescendantsInstances = includeInstances
+	
+	local raycastResult = workspace:Raycast(startRayPos, rayDirection, raycastParams)
+	if raycastResult then
+		groundY = raycastResult.Position.Y
+		print(string.format("[WorldDropController] Ground snapping successful! Hit '%s' at Y: %.2f", raycastResult.Instance.Name, groundY))
+	end
+	
+	local correctedPos = Vector3.new(dropData.pos.X, groundY, dropData.pos.Z)
+	local spawnCF = CFrame.new(correctedPos)
+	
+	print(string.format("[WorldDropController] Creating 3D drop model. ItemId: '%s', DropId: '%s', DropType: '%s', DropSource: '%s', HasTemplate: %s", 
+		tostring(dropData.itemId), tostring(dropData.dropId), tostring(dropData.dropType), tostring(dropData.dropSource), tostring(template ~= nil)))
 	
 	if template then
 		print(string.format("[WorldDropController] -> Asset template found. Name: '%s', Class: %s", template.Name, template.ClassName))
@@ -150,13 +213,13 @@ local function createDropModel(dropData)
 			mainObject.CanCollide = false
 		end
 		
-		-- [크기 정규화] DNA 등 대형 모델은 드롭 목표 크기로 축소
+		-- [크기 정화 및 롤백]: 에셋 제작자가 만든 오리지널 예쁜 크기를 100% 최우선 존중! (DNA 등 지나치게 큰 모델만 1.5스터드로 제한 축소)
 		local DROP_TARGET = isDna and 1.0 or (Balance.DROP_TARGET_SIZE or 1.5)
 		if mainObject:IsA("Model") then
 			local _, mSize = mainObject:GetBoundingBox()
 			local maxDim = math.max(mSize.X, mSize.Y, mSize.Z)
 			if maxDim > 0 and maxDim > DROP_TARGET then
-				mainObject:ScaleTo(DROP_TARGET / maxDim)
+				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
 			end
 		elseif mainObject:IsA("BasePart") then
 			local maxDim = math.max(mainObject.Size.X, mainObject.Size.Y, mainObject.Size.Z)
@@ -166,31 +229,41 @@ local function createDropModel(dropData)
 			end
 		end
 		
-		-- [정밀 지면 밀착] 모델 고유 피벗을 해킹하지 않고 최하단 Y축 정밀 오프셋만 보정
+		-- [정밀 지면 밀착] 모델 고유 피벗을 해킹하지 않고 최하단 Y축 정밀 오프셋만 보정 (correctedPos 지면 좌표 적용)
 		if mainObject:IsA("Model") then
 			local cframe, size = mainObject:GetBoundingBox()
 			-- 모델 피벗 중심점과 모델 최하단 바닥면 사이의 Y축 오프셋 거리 산출
 			local pivotYOffset = mainObject:GetPivot().Position.Y - (cframe.Position.Y - size.Y / 2)
-			spawnCF = CFrame.new(dropData.pos + Vector3.new(0, pivotYOffset, 0))
+			spawnCF = CFrame.new(correctedPos + Vector3.new(0, pivotYOffset, 0))
 		else
-			spawnCF = CFrame.new(dropData.pos + Vector3.new(0, mainObject.Size.Y / 2, 0))
+			spawnCF = CFrame.new(correctedPos + Vector3.new(0, mainObject.Size.Y / 2, 0))
 		end
 		
 		mainObject:PivotTo(spawnCF)
 		
-		-- [수정] 자연스러운 등장을 위해 팝업 애니메이션 적용
+		-- [수정] 자연스러운 등장을 위해 지면에서 솟구치는 팝업 트윈 및 투명도 페이드인 적용 (ScaleTo 버그 원천 차단)
 		if mainObject:IsA("Model") then
-			local finalScale = mainObject:GetScale()
-			mainObject:ScaleTo(finalScale * 0.1)
-			local scaleVal = Instance.new("NumberValue")
-			scaleVal.Value = finalScale * 0.1
-			scaleVal.Changed:Connect(function(v)
+			local parts = {}
+			for _, p in ipairs(mainObject:GetDescendants()) do
+				if p:IsA("BasePart") then
+					table.insert(parts, p)
+					-- 보물상자 하이라이트가 투명도 페이드 시 거슬리지 않도록 보정
+					p.Transparency = 1
+					TweenService:Create(p, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Transparency = 0 }):Play()
+				end
+			end
+			local startCF = spawnCF * CFrame.new(0, -0.8, 0)
+			mainObject:PivotTo(startCF)
+			
+			local val = Instance.new("CFrameValue")
+			val.Value = startCF
+			val.Changed:Connect(function(newCF)
 				if mainObject.Parent then
-					mainObject:ScaleTo(v)
+					mainObject:PivotTo(newCF)
 				end
 			end)
-			local tween = TweenService:Create(scaleVal, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Value = finalScale })
-			tween.Completed:Connect(function() scaleVal:Destroy() end)
+			local tween = TweenService:Create(val, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Value = spawnCF })
+			tween.Completed:Connect(function() val:Destroy() end)
 			tween:Play()
 		elseif mainObject:IsA("BasePart") then
 			local targetSize = mainObject.Size
@@ -198,23 +271,42 @@ local function createDropModel(dropData)
 			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
 		end
 	else
-		-- Fallback to sphere
-		warn(string.format("[WorldDropController] -> Asset template NOT found for item '%s'. Falling back to basic Sphere model!", tostring(dropData.itemId)))
+		-- Fallback to visually distinct parts if assets are missing
 		mainObject = Instance.new("Part")
 		mainObject.Name = dropData.dropId
-		mainObject.Parent = dropFolder -- Parent early
-		local targetSize = Balance.DROP_SIZE or Vector3.new(1, 1, 1)
-		mainObject.Size = targetSize * 0.1
-		mainObject.Shape = Enum.PartType.Ball
-		mainObject.Color = getDropColor(dropData.dropType == "gold" and "GOLD" or dropData.itemId)
-		mainObject.Material = Enum.Material.SmoothPlastic
-		mainObject.Position = dropData.pos
+		mainObject.Parent = dropFolder
 		mainObject.Anchored = true 
 		mainObject.CanCollide = false
 		mainObject.CanQuery = true
 		mainObject.CanTouch = true
-		-- Fallback scale animation
-		TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
+
+		if dropData.dropSource == "DISCARD" then
+			-- Pouch 모델 부재 시: 귀여운 갈색 가죽 주머니 모양 구체
+			local targetSize = Vector3.new(1.1, 1.3, 1.1)
+			mainObject.Size = targetSize * 0.1
+			mainObject.Shape = Enum.PartType.Ball
+			mainObject.Color = Color3.fromRGB(139, 69, 19) -- 갈색 가죽색
+			mainObject.Material = Enum.Material.Fabric
+			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
+			warn(string.format("[WorldDropController] -> 'Pouch' asset missing! Fallback to Brown Fabric Sphere."))
+		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "ARMOR" then
+			-- Chest 모델 부재 시: 영롱한 황금 보물상자 모양 직육면체
+			local targetSize = Vector3.new(1.4, 1.0, 1.0)
+			mainObject.Size = targetSize * 0.1
+			mainObject.Shape = Enum.PartType.Block
+			mainObject.Color = Color3.fromRGB(255, 200, 50) -- 황금색
+			mainObject.Material = Enum.Material.DiamondPlate
+			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
+			warn(string.format("[WorldDropController] -> 'Chest' asset missing! Fallback to Golden DiamondPlate Block."))
+		else
+			-- 일반 기본 폴백
+			local targetSize = Balance.DROP_SIZE or Vector3.new(1, 1, 1)
+			mainObject.Size = targetSize * 0.1
+			mainObject.Shape = Enum.PartType.Ball
+			mainObject.Color = getDropColor(dropData.dropType == "gold" and "GOLD" or dropData.itemId)
+			mainObject.Material = Enum.Material.SmoothPlastic
+			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
+		end
 	end
 	
 	-- [수정] 상단 이름표 박스 제거 (요청 사항)
@@ -355,6 +447,7 @@ local function onSpawned(data)
 		pos = data.pos,
 		itemId = data.itemId,
 		dropType = data.dropType,
+		dropSource = data.dropSource, -- [신설] Loot vs Discard 식별자 수신
 		goldAmount = data.goldAmount,
 		count = data.count,
 		despawnAt = data.despawnAt,

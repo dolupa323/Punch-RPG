@@ -48,9 +48,12 @@ end
 
 local function _getDefaultEquipment()
 	return {
-		HEAD = nil,
+		EARRING = nil,
 		SUIT = nil,
 		HAND = nil,
+		NECKLACE = nil,
+		RING1 = nil,
+		RING2 = nil,
 	}
 end
 
@@ -105,9 +108,13 @@ local function _normalizeEquipmentSlots(equipment: any): any
 		return normalized
 	end
 
-	normalized.HEAD = equipment.HEAD or equipment.Head
+	-- EARRING (기존 HEAD 마이그레이션 지원)
+	normalized.EARRING = equipment.EARRING or equipment.Earring or equipment.HEAD or equipment.Head
 	normalized.SUIT = equipment.SUIT or equipment.Suit
 	normalized.HAND = equipment.HAND or equipment.Hand
+	normalized.NECKLACE = equipment.NECKLACE or equipment.Necklace
+	normalized.RING1 = equipment.RING1 or equipment.Ring1
+	normalized.RING2 = equipment.RING2 or equipment.Ring2
 
 	return normalized
 end
@@ -329,6 +336,32 @@ function InventoryService.getEquipmentAttributeBonuses(userId: number)
 	return totalBonuses
 end
 
+--- 장착 중인 모든 장비의 기본 스탯 보너스(ItemData에 선언된 maxHealth, critChance 등) 합산
+function InventoryService.getEquipmentBaseStats(userId: number)
+	local inv = playerInventories[userId]
+	if not inv or not inv.equipment then return { maxHealth = 0, critChance = 0 } end
+	
+	local hp = 0
+	local crit = 0
+	
+	for _, item in pairs(inv.equipment) do
+		local data = DataService.getItem(item.itemId)
+		if data then
+			if data.maxHealth then
+				hp = hp + data.maxHealth
+			end
+			if data.critChance then
+				crit = crit + data.critChance
+			end
+		end
+	end
+	
+	return {
+		maxHealth = hp,
+		critChance = crit,
+	}
+end
+
 function InventoryService.getTotalDefense(userId: number): number
 	local inv = playerInventories[userId]
 	if not inv or not inv.equipment then return 0 end
@@ -394,12 +427,24 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return false, Enums.ErrorCode.INVALID_ITEM end
 	
-	-- ?롯 ???체크
+	-- 슬롯 유효성 체크
 	local targetSlot = equipmentSlotName:upper()
-	local isValidSlot = (targetSlot == "HEAD" or targetSlot == "SUIT" or targetSlot == "HAND" or 
+	local isValidSlot = (targetSlot == "EARRING" or targetSlot == "SUIT" or targetSlot == "HAND" or 
+	                    targetSlot == "NECKLACE" or targetSlot == "RING" or targetSlot == "RING1" or targetSlot == "RING2" or
 	                    targetSlot == "RUNE1" or targetSlot == "RUNE2" or targetSlot == "RUNE3")
 	if not isValidSlot then
 		return false, Enums.ErrorCode.BAD_REQUEST
+	end
+	
+	-- 만약 targetSlot이 "RING"으로 넘어왔다면, 빈 슬롯 탐색 또는 RING1 자동 할당
+	if targetSlot == "RING" then
+		if not inv.equipment["RING1"] then
+			targetSlot = "RING1"
+		elseif not inv.equipment["RING2"] then
+			targetSlot = "RING2"
+		else
+			targetSlot = "RING1" -- 둘 다 가득 찬 경우 RING1을 교체 슬롯으로 설정
+		end
 	end
 	
 	local itemSlot = itemData.slot and itemData.slot:upper()
@@ -408,7 +453,10 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	local isMatch = false
 	if isRuneSlot and itemSlot == "RUNE" then
 		isMatch = true
-	elseif not isRuneSlot and itemSlot == targetSlot then
+	elseif itemSlot == "RING" and (targetSlot == "RING1" or targetSlot == "RING2") then
+		-- 반지 아이템은 반지 1, 반지 2 슬롯 어디든 장착 허용!
+		isMatch = true
+	elseif itemSlot == targetSlot then
 		isMatch = true
 	end
 

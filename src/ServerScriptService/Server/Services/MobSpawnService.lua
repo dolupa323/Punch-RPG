@@ -17,7 +17,7 @@ local activeMobs = {} -- areaId_index -> Model Instance
 --========================================
 -- Internal: Loot 생성
 --========================================
-local function spawnLoot(mobName: string, pos: Vector3)
+local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 	if not WorldDropService then
 		warn("[MobSpawnService] Cannot spawn loot: WorldDropService is not initialized!")
 		return
@@ -51,11 +51,62 @@ local function spawnLoot(mobName: string, pos: Vector3)
 					warn(string.format("[MobSpawnService] Failed to spawn gold drop: %s", tostring(err)))
 				end
 			else
-				local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, count)
-				if not ok then
-					warn(string.format("[MobSpawnService] Failed to spawn item drop '%s': %s", entry.itemId, tostring(err)))
+				-- [기획 보강]: 킬러 플레이어가 없더라도 주변에 있는 가장 가까운 플레이어를 백업 타겟으로 지정하는 Failsafe 가동!
+				local targetPlayer = killerPlayer
+				if not targetPlayer then
+					-- 주변 100스터드 안의 플레이어를 동적으로 검색
+					local limit = 100
+					local closestPlayer = nil
+					local closestDist = limit
+					for _, p in ipairs(game.Players:GetPlayers()) do
+						local char = p.Character
+						local hrp = char and char:FindFirstChild("HumanoidRootPart")
+						if hrp then
+							local dist = (hrp.Position - pos).Magnitude
+							if dist < closestDist then
+								closestDist = dist
+								closestPlayer = p
+							end
+						end
+					end
+					targetPlayer = closestPlayer
+				end
+				
+				-- [기획 보강]: 슬라임 점액("SLIME_MUCUS")은 월드 드롭 모델로 땅에 떨어지지 않고 타겟 플레이어의 인벤토리에 즉시 자동 파밍 지급!
+				if entry.itemId == "SLIME_MUCUS" and targetPlayer and targetPlayer:IsA("Player") then
+					local InventoryService = require(Services:WaitForChild("InventoryService"))
+					if InventoryService and InventoryService.addItem then
+						local added, remaining = InventoryService.addItem(targetPlayer.UserId, "SLIME_MUCUS", count)
+						print(string.format("[MobSpawnService] Direct Mucus Add - Player: %s, Added: %d, Remaining: %d", targetPlayer.Name, added, remaining))
+						
+						-- [명품 UI 피드백]: 슬라임 점액 획득 알림 전송!
+						if added > 0 then
+							local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+							local NetController = require(Controllers:WaitForChild("NetController"))
+							if NetController and NetController.FireClient then
+								NetController.FireClient(targetPlayer, "Notify.Message", {
+									text = string.format("슬라임 점액 x%d 획득!", added),
+									color = "GREEN"
+								})
+							end
+						end
+						
+						-- 인벤토리가 가득 찬 특수 예외 상황 시에는 땅바닥에 Failsafe용 주머니(Pouch) 드롭으로 처리!
+						if remaining > 0 then
+							local ok, err, data = WorldDropService.spawnDrop(pos, "SLIME_MUCUS", remaining, nil, nil, "DISCARD")
+							if ok then
+								print("[MobSpawnService] Inventory full! Spawned remaining mucus as backup discard drop.")
+							end
+						end
+					end
 				else
-					print(string.format("[MobSpawnService] Successfully spawned drop '%s' (Count: %d). Details: %s", entry.itemId, count, game:GetService("HttpService"):JSONEncode(data)))
+					-- 그 외의 슬라임 귀고리(SLIME_EARRING), 쇠똥구리 반지(DUNG_BEETLE_RING) 등 특별 악세사리 및 무기는 월드 드롭 생성
+					local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, count)
+					if not ok then
+						warn(string.format("[MobSpawnService] Failed to spawn item drop '%s': %s", entry.itemId, tostring(err)))
+					else
+						print(string.format("[MobSpawnService] Successfully spawned drop '%s' (Count: %d). Details: %s", entry.itemId, count, game:GetService("HttpService"):JSONEncode(data)))
+					end
 				end
 			end
 		else
@@ -166,33 +217,74 @@ local function createMobModel(areaId, index, config)
 		warn(string.format("[MobSpawnService] %s Asset NOT found. Generated temp visual for %s_%d at %s.", config.mobModelName, areaId, index, tostring(spawnPos)))
 	end
 
-	-- ★ 모든 몬스터(실물/임시) 공통 속성 설정
+	-- ★ 모든 몬스터(실물/임시) 공통 속성 설정 및 자가 복구(Self-Healing) 리깅
+	-- [외부 용접 고스트 정화 엔진] 에셋이 복제될 때 에셋 바깥(Baseplate 등)에 강제로 묶여있던 깨진 용접을 완벽하게 제거하여 구속을 풂!
+	for _, child in ipairs(model:GetDescendants()) do
+		if child:IsA("Weld") or child:IsA("WeldConstraint") or child:IsA("ManualWeld") then
+			local p0 = child.Part0
+			local p1 = child.Part1
+			if (p0 and not p0:IsDescendantOf(model)) or (p1 and not p1:IsDescendantOf(model)) then
+				child:Destroy()
+			end
+		end
+	end
+
+	-- [물리혁신 1단계] ScaleTo 연산 및 부모화를 "가장 먼저" 수행하여 가상 HRP 크기가 강제 쪼그라드는 버그를 근본적으로 방지!
+	model.Parent = workspace
+	if config.modelScale and config.modelScale > 0 then
+		pcall(function()
+			model:ScaleTo(config.modelScale)
+		end)
+	end
+	task.wait() -- 물리 정합성 캐시 대기
+
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		humanoid = Instance.new("Humanoid")
+		humanoid.Parent = model
+	end
+	
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		-- [정석적인 뼈대 보존형 자가복구] 
+		-- 비주얼 파트들의 이름이나 리깅을 훼손하지 않기 위해 가상의 깡통 투명 RootPart를 생성!
+		-- 축소가 완료된 이후에 장착되므로, 규격 사이즈(2, 4, 2)가 축소되지 않고 온전하게 유지됨!
+		hrp = Instance.new("Part")
+		hrp.Name = "HumanoidRootPart"
+		hrp.Size = Vector3.new(1.5, 1.2, 1.5)
+		hrp.Transparency = 1
+		hrp.CFrame = model:GetPivot()
+		hrp.CanCollide = true
+		hrp.Parent = model
+		model.PrimaryPart = hrp
+		
+		-- 오리지널 비주얼 파트들을 이 투명 RootPart에 단 하나의 WeldConstraint로 얹어 결속!
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") and p ~= hrp then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = hrp
+				weld.Part1 = p
+				weld.Parent = p
+			end
+		end
+	end
+
 	if humanoid then
+		humanoid.PlatformStand = false
+		humanoid.Sit = false
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
 		humanoid.MaxHealth = config.maxHealth or 100
 		humanoid.Health = humanoid.MaxHealth
+		humanoid.WalkSpeed = config.walkSpeed or 8 -- [추가] 데이터 테이블 연동 또는 기본 배회속도 세팅!
 	end
 	model:SetAttribute("MaxHealth", config.maxHealth or 100)
 	model:SetAttribute("CurrentHealth", config.maxHealth or 100)
 	model:SetAttribute("MobId", config.mobModelName or "Slime")
 	model:SetAttribute("XPReward", config.xpReward or 25)
 
-	-- [핵심 결정타] 계산 전 Workspace 부모화 강제!!
-	-- 부모가 nil일 때 ScaleTo를 하면 하위 파트들의 Position이 갱신되지 않아 이전 값이 수집되는 버그 방지!
-	model.Parent = workspace
-	task.wait() -- 물리 캐시 한 프레임 대기하여 정확한 Size/Position 반영 보장
-
-	-- [추가] 스케일 조정 로직 (데이터 테이블의 modelScale 적용)
-	if config.modelScale and config.modelScale > 0 then
-		pcall(function()
-			model:ScaleTo(config.modelScale)
-		end)
-	end
-
 	-- [추가] 지형 파고듦 방지 엔진 (Dynamic Rig Setup & HipHeight Calibration)
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-	
 	if humanoid then
 		-- [버그수정] 에셋 클론 시 누락되었던 데이터 연동 체력 오버라이드 강제 적용!
 		local targetHp = config.maxHealth or 70
@@ -204,45 +296,60 @@ local function createMobModel(areaId, index, config)
 		model.PrimaryPart = hrp
 		
 		-- 1. 물리 해제 및 안정화 (Anchored 제거)
+		-- [중요] 모든 몬스터는 파트 간 물리적 겹침 반발 폭발(하늘 발사 버그) 차단을 위해 HRP 외의 파트 CanCollide를 false로 처리!
 		for _, p in ipairs(model:GetDescendants()) do
 			if p:IsA("BasePart") then
 				p.Anchored = false
-				-- 슬라임 바디 콜라이더 강제 세팅 (Root만 활성화!)
+				
 				if p == hrp then
 					p.CanCollide = true 
+					p.Massless = false
 				else
-					p.CanCollide = false -- [핵심] 바디 파트 충돌 꺼야 HipHeight가 오작동하여 공중에 안 뜸!
+					p.CanCollide = false
+					p.Massless = true -- [물리혁신]: 거대 비주얼 메쉬 무게 저항을 0으로 소멸시켜 가볍게 질주하게 함!
 				end
 			end
 		end
+		
+		-- 2. 동적 HipHeight 수동 안착 엔진 보완
+		-- 쇠똥구리처럼 HRP가 비표준인 경우, HipHeight가 0이면 지면 밑에 묻히므로 HRP 크기 비례하여 적절한 높이 강제 설정!
+		if humanoid.HipHeight == 0 or humanoid.HipHeight < 0.5 then
+			local heightVal = (hrp.Size.Y / 2) + 0.15
+			humanoid.HipHeight = heightVal
+		end
 
 		-- 2. 동적 힙 하이트(HipHeight) 정밀 보정 (구조적 Dummy Rig 배제)
-		-- [핵심] 모델 내부의 R6 더미 부위(Leg, Torso)를 배제하고 '순수 슬라임 메쉬'만 추적!
-		local lowestY = math.huge
-		local r6Limbs = {["Head"]=true, ["Torso"]=true, ["Left Arm"]=true, ["Right Arm"]=true, ["Left Leg"]=true, ["Right Leg"]=true, ["HumanoidRootPart"]=true}
+		-- [핵심] 슬라임일 때만 복잡한 바닥 메쉬 추적 재연산 수행!
+		local heightDiff = 0
+		local lowestY = nil
 		
-		for _, part in ipairs(model:GetDescendants()) do
-			if part:IsA("BasePart") and not r6Limbs[part.Name] and part.Transparency < 0.9 then
-				local bottomY = part.Position.Y - part.Size.Y / 2
-				if bottomY < lowestY then lowestY = bottomY end
+		if config.mobModelName == "Slime" then
+			lowestY = math.huge
+			local r6Limbs = {["Head"]=true, ["Torso"]=true, ["Left Arm"]=true, ["Right Arm"]=true, ["Left Leg"]=true, ["Right Leg"]=true, ["HumanoidRootPart"]=true}
+			
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") and not r6Limbs[part.Name] and part.Transparency < 0.9 then
+					local bottomY = part.Position.Y - part.Size.Y / 2
+					if bottomY < lowestY then lowestY = bottomY end
+				end
 			end
+			
+			if lowestY == math.huge then
+				lowestY = hrp.Position.Y - hrp.Size.Y / 2
+			end
+			
+			-- HRP 바닥면에서 모델 최하단까지의 정밀한 물리적 거리를 HipHeight로 지정!
+			local hrpBottom = hrp.Position.Y - hrp.Size.Y / 2
+			heightDiff = math.max(0, hrpBottom - lowestY)
+			humanoid.HipHeight = heightDiff
+		else
+			-- 쇠똥구리 등은 자가 복구된 HipHeight 값을 신뢰하고 유지!
+			heightDiff = humanoid.HipHeight
+			lowestY = hrp.Position.Y - hrp.Size.Y / 2 -- [버그해결] lowestY가 nil이 되지 않도록 HRP 바닥 높이로 칼같이 설정!
 		end
 		
-		-- 최하단을 찾지 못했을 경우의 비상 로직
-		if lowestY == math.huge then
-			lowestY = hrp.Position.Y - hrp.Size.Y / 2
-		end
-		
-		-- HRP 바닥면에서 모델 최하단까지의 정밀한 물리적 거리를 HipHeight로 지정!
-		local hrpBottom = hrp.Position.Y - hrp.Size.Y / 2
-		local heightDiff = math.max(0, hrpBottom - lowestY)
-		humanoid.HipHeight = heightDiff
-		
-		-- 3. 최종 위치 초기화 (기하학적 모델 바닥면이 spawnPos 표면에 정확히 닿도록 Pivot 보간)
-		local modelPivot = model:GetPivot()
-		local pivotBottomDiff = modelPivot.Position.Y - lowestY
-		-- spawnPos(지표면) + 모델 절반 높이 만큼만 띄워 정확하게 바닥에 딱 붙임 (+0.5 여유분도 완벽 제거!)
-		model:PivotTo(CFrame.new(spawnPos + Vector3.new(0, pivotBottomDiff, 0)))
+		-- 3. 최종 위치 초기화
+		-- [물리혁신 2단계] 이미 상단에서 선행 다운사이징 및 정확한 CFrame 정렬이 끝났으므로, 조립 완료 후의 중복 PivotTo는 물리 엔진 교란을 막기 위해 제외 처리!
 		
 		-- [완성] 몬스터 헤드업 UI (프리미엄 HP 바 & 이름표) 통합 생성
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -341,6 +448,46 @@ local function createMobModel(areaId, index, config)
 		humanoid.HealthChanged:Connect(updateHPDisplay)
 		
 		bb.Parent = hrp
+		
+		-- 몬스터 모델 전용 Idle 애니메이션 동적 감지 및 루프 재생 (서버 동기화)
+		task.spawn(function()
+			local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+			local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+			local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
+			local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
+			
+			if monsterAnims then
+				local idleAnim = monsterAnims:FindFirstChild(config.mobModelName .. "_Idle")
+				if idleAnim then
+					local success, idleTrack = pcall(function() return animator:LoadAnimation(idleAnim) end)
+					if success and idleTrack then
+						idleTrack.Looped = true
+						idleTrack.Priority = Enum.AnimationPriority.Idle
+						idleTrack:Play()
+						
+						-- [정밀 오토 애니메이션 스위처] 
+						-- 몬스터가 움직일 때는 뼈대 굳음 방지를 위해 Idle 트랙 속도를 0으로 멈추고, 
+						-- 제자리에 멈춰 멍때릴 때만 꼼지락거리는 Idle 모션을 다시 살아 움직이게 활성화!
+						task.spawn(function()
+							while model and model.Parent and humanoid and humanoid.Health > 0 do
+								local isMoving = humanoid.MoveDirection.Magnitude > 0.05 or (hrp and hrp.AssemblyLinearVelocity.Magnitude > 0.5)
+								if isMoving then
+									if idleTrack.IsPlaying then
+										idleTrack:AdjustSpeed(0) -- 모션을 정지시켜 뼈대 물리 이동을 100% 해제!
+									end
+								else
+									if idleTrack.IsPlaying then
+										idleTrack:AdjustSpeed(1) -- 제자리에 서 있을 때만 꼼지락꼼지락 재생 활성화!
+									end
+								end
+								task.wait(0.2) -- 0.2초 간격으로 가볍고 정밀하게 체킹
+							end
+							pcall(function() idleTrack:Stop() end)
+						end)
+					end
+				end
+			end
+		end)
 	end
 
 	local isAlive = true
@@ -390,6 +537,26 @@ local function createMobModel(areaId, index, config)
 						
 						if now - lastAttackTick >= cooldown then
 							lastAttackTick = now
+							
+							-- 몬스터 공격 애니메이션 동적 감지 및 재생 (서버 동기화)
+							task.spawn(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								if animator then
+									local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+									local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
+									local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
+									local attackAnim = monsterAnims and monsterAnims:FindFirstChild(config.mobModelName .. "_Attack")
+									
+									if attackAnim then
+										local success, attackTrack = pcall(function() return animator:LoadAnimation(attackAnim) end)
+										if success and attackTrack then
+											attackTrack.Priority = Enum.AnimationPriority.Action
+											attackTrack:Play()
+											print(string.format("[MobSpawnService] Successfully playing dynamic Attack Animation for '%s'", config.mobModelName))
+										end
+									end
+								end
+							end)
 							
 							-- [핵심 기능 추가] 공격 전 텔레그래프(Telegraph) 히트박스 경고 장치!
 							local telegraphDuration = 0.65 -- 0.65초 대기 후 공격판정
@@ -509,6 +676,45 @@ local function createMobModel(areaId, index, config)
 		humanoid.Died:Connect(function()
 			isAlive = false
 			
+			-- 1. 체력바 UI 빌보드 가시성 즉각 종료
+			local bb = hrp and hrp:FindFirstChildOfClass("BillboardGui")
+			if bb then
+				bb.Enabled = false
+			end
+
+			-- 2. 시체 물리 충돌 해제 및 위치 고정 (시체 물리 길막 및 덜덜덜 튕김 차단)
+			for _, p in ipairs(model:GetDescendants()) do
+				if p:IsA("BasePart") then
+					p.CanCollide = false
+					p.Anchored = true
+				end
+			end
+
+			-- 3. [프리미엄 페이드 아웃 연출] 모든 비주얼 파트들의 Transparency를 1.2초에 걸쳐 부드럽게 1로 보간!
+			task.spawn(function()
+				local fadeDuration = 1.2
+				local steps = 24
+				local interval = fadeDuration / steps
+				
+				-- 페이드 대상 실물 파트들과 원본 투명도 캐싱
+				local fadeParts = {}
+				for _, p in ipairs(model:GetDescendants()) do
+					if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" and p.Transparency < 1 then
+						fadeParts[p] = p.Transparency
+					end
+				end
+				
+				for step = 1, steps do
+					local ratio = step / steps
+					for part, origTrans in pairs(fadeParts) do
+						if part and part.Parent then
+							part.Transparency = origTrans + (1 - origTrans) * ratio
+						end
+					end
+					task.wait(interval)
+				end
+			end)
+
 			-- ★ 사망 시 경험치 지급 처리
 			local tag = humanoid:FindFirstChild("creator")
 			local killer = tag and tag.Value
@@ -522,9 +728,10 @@ local function createMobModel(areaId, index, config)
 
 			-- ★ 사망 시 아이템 드롭 처리
 			local deathPos = model:GetPivot().Position
-			spawnLoot(config.mobModelName or "Slime", deathPos)
+			spawnLoot(config.mobModelName or "Slime", deathPos, killer)
 			
-			local respawnDelay = config.respawnDelay or 1.0
+			-- 페이드 아웃 시간(1.2초)보다 약간 넉넉하게 대기한 후 안전 파괴
+			local respawnDelay = math.max(config.respawnDelay or 1.0, 1.4)
 			task.wait(respawnDelay)
 			if model then model:Destroy() end
 			
@@ -533,6 +740,23 @@ local function createMobModel(areaId, index, config)
 			activeMobs[key] = createMobModel(areaId, index, config)
 		end)
 	end
+
+	-- [DEBUG] 최종 스폰된 몬스터의 정확한 월드 피벗 및 물리 속성 정밀 진단
+	task.spawn(function()
+		task.wait(0.5) -- 완전히 안착할 시간을 준 후 진단
+		if model and model.Parent then
+			local finalCF = model:GetPivot()
+			local hrp = model:FindFirstChild("HumanoidRootPart")
+			local hum = model:FindFirstChildOfClass("Humanoid")
+			print(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) Final World Pos: %s, HipHeight: %s, HRP Size: %s, Active: %s", 
+				model.Name, areaId, index, tostring(finalCF.Position), 
+				tostring(hum and hum.HipHeight or "NoHum"), 
+				tostring(hrp and hrp.Size or "NoHRP"),
+				tostring(hum and hum.Health > 0)))
+		else
+			warn(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) is ALREADY DESTROYED OR NIL after 0.5s!", config.mobModelName, areaId, index))
+		end
+	end)
 
 	return model
 end

@@ -48,26 +48,7 @@ local function phaseFromDayTime(dayTime: number): string
 end
 
 local function applyLighting(dayTime: number)
-	local dayLength = getDayLength()
-	local dayDuration = getDayDuration()
-	local nightDuration = math.max(1, dayLength - dayDuration)
-	local t = (dayTime % dayLength)
-
-	local clockTime
-	if t < dayDuration then
-		-- DAY 구간은 항상 06:00 ~ 18:00으로 매핑하여 시각과 서버 페이즈를 일치시킨다.
-		local p = t / math.max(1, dayDuration)
-		clockTime = 6 + (p * 12)
-	else
-		-- NIGHT 구간은 18:00 ~ 06:00으로 매핑 (자정 경유).
-		local p = (t - dayDuration) / nightDuration
-		clockTime = 18 + (p * 12)
-		if clockTime >= 24 then
-			clockTime -= 24
-		end
-	end
-
-	Lighting.ClockTime = clockTime
+	-- [제거] 게임 내 해가 움직이지 않도록 실시간 로컬 라이팅 조작 비활성화
 end
 
 --========================================
@@ -150,6 +131,9 @@ function TimeController.Init()
 		return
 	end
 	
+	-- 라이팅 시각을 오후 2시(14:00) 대낮으로 단 1번 영구 고정
+	Lighting.ClockTime = 14
+	
 	-- 이벤트 리스너 등록
 	NetClient.On("Time.Phase.Changed", onPhaseChanged)
 	NetClient.On("Time.Sync.Changed", onSyncChanged)
@@ -157,10 +141,9 @@ function TimeController.Init()
 	-- 첫 진입 시 서버 시간 동기화
 	task.spawn(requestInitialSync)
 
-	-- 서버 시각을 기반으로 클라이언트에서 부드럽게 시각 연출 업데이트
+	-- 서버 시각 상태 갱신만 하고, Lighting.ClockTime 조작 루프는 생략
 	renderConn = RunService.RenderStepped:Connect(function()
 		if not hasSync then
-			applyLighting(timeCache.dayTime)
 			return
 		end
 
@@ -169,11 +152,10 @@ function TimeController.Init()
 		local predictedDayTime = (lastSyncDayTime + elapsed) % dayLength
 		timeCache.dayTime = predictedDayTime
 		timeCache.phase = phaseFromDayTime(predictedDayTime)
-		applyLighting(predictedDayTime)
 	end)
 	
 	initialized = true
-	print("[TimeController] Initialized - listening for Time events")
+	print("[TimeController] Initialized - Sun fixed at 14:00 (No day/night rotation)")
 end
 
 return TimeController

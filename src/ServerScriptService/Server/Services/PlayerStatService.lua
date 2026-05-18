@@ -407,8 +407,14 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		end
 	end
 	
-	-- 기본 스탯 보너스 (포인트 투자)
-	local finalHp = 100 + ((stats[Enums.StatId.MAX_HEALTH] or 0) * Balance.HP_PER_POINT)
+	-- 장비 기본 스탯 보너스 합산 (신설)
+	local baseEquipStats = { maxHealth = 0, critChance = 0 }
+	if success and InventoryService and InventoryService.getEquipmentBaseStats then
+		baseEquipStats = InventoryService.getEquipmentBaseStats(userId)
+	end
+
+	-- 기본 스탯 보너스 (포인트 투자 + 장비 기본 스탯 가산!)
+	local finalHp = 100 + ((stats[Enums.StatId.MAX_HEALTH] or 0) * Balance.HP_PER_POINT) + baseEquipStats.maxHealth
 	local finalSta = 100 + ((stats[Enums.StatId.MAX_STAMINA] or 0) * Balance.STAMINA_PER_POINT)
 	local finalAtk = 1.0 + ((stats[Enums.StatId.ATTACK] or 0) * Balance.ATTACK_PER_POINT)
 	
@@ -441,7 +447,7 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		defense = defense,
 		speedMult = speedMult,
 		-- 치명타 스탯 추가 (CombatService에서 참조)
-		critChance = attrBonuses.critChance or 0,
+		critChance = (attrBonuses.critChance or 0) + baseEquipStats.critChance,
 		critDamageMult = attrBonuses.critDamageMult or 0,
 	}
 end

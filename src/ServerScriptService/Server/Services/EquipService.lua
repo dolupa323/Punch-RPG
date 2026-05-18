@@ -440,52 +440,19 @@ local function _formatAssetId(id, fallback)
 	return id
 end
 
---- 캐릭터 외형 업데이트 (방어구 시각화)
+--- 캐릭터 외형 업데이트 (방어구 시각화 비활성화, 스탯만 적용하도록 외형은 완전히 무시)
 function EquipService.updateAppearance(player: Player)
 	local char = player.Character
-	local hum = char and char:FindFirstChildWhichIsA("Humanoid")
-	if not char or not hum then return end
+	if not char then return end
 	
-	-- 순환 참조 방지를 위해 지연 로딩
-	local InventoryService = require(game:GetService("ServerScriptService").Server.Services.InventoryService)
-	local equip = InventoryService.getEquipment(player.UserId)
-	if not equip then return end
-	
-	-- 0. 기존 장착 모델(Accessory) 제거 (ARMOR 태그가 붙은 것들)
+	-- 0. 기존에 혹시 부착되었을 수 있는 방어구 3D 모델(Accessory)만 안전하게 제거하여 청소
 	for _, acc in ipairs(char:GetChildren()) do
 		if acc:IsA("Accessory") and acc:GetAttribute("IsArmor") then
 			acc:Destroy()
 		end
 	end
 	
-	local shirt = char:FindFirstChildOfClass("Shirt") or Instance.new("Shirt", char)
-	local pants = char:FindFirstChildOfClass("Pants") or Instance.new("Pants", char)
-	
-	-- 1. 한벌옷 텍스처 적용 (상의/하의 슬롯은 제거됨)
-	local suitItem = equip.SUIT and DataService.getItem(equip.SUIT.itemId)
-	
-	-- [FIX] 장비가 없는 경우 기본 원시인 의상 유지
-	local Appearance = require(ReplicatedStorage.Shared.Config.Appearance)
-	local defaultShirt = Appearance.CLOTHING_IDS.DEFAULT_SHIRT
-	local defaultPants = Appearance.CLOTHING_IDS.DEFAULT_PANTS
-	
-	if suitItem then
-		shirt.ShirtTemplate = _formatAssetId(suitItem.shirtId)
-		pants.PantsTemplate = _formatAssetId(suitItem.pantsId)
-		-- 3D 모델이 있다면 적용
-		if suitItem.modelId then
-			EquipService._applyArmorModel(char, suitItem.modelId)
-		end
-	else
-		shirt.ShirtTemplate = _formatAssetId(nil, defaultShirt)
-		pants.PantsTemplate = _formatAssetId(nil, defaultPants)
-	end
-	
-	-- 2. 투구(HEAD) 적용
-	local headItem = equip.HEAD and DataService.getItem(equip.HEAD.itemId)
-	if headItem and headItem.modelId then
-		EquipService._applyArmorModel(char, headItem.modelId)
-	end
+	-- [핵심] 플레이어 아바타 고유의 의상(Shirt, Pants)이나 커스터마이징은 일절 건드리지 않고 100% 그대로 유지합니다.
 end
 
 function EquipService._applyArmorModel(char, modelId)

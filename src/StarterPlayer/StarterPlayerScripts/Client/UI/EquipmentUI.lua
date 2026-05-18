@@ -81,32 +81,45 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	local eqArea = Utils.mkFrame({name="EquipArea", size=UDim2.new(0.45, -10, 1, 0), pos=UDim2.new(0, 0, 0, 0), bgT=1, parent=content})
 	
 	-- Slots Container
-	local slotsContainer = Utils.mkFrame({name="SlotsContainer", size=UDim2.new(1, 0, 1, 0), pos=UDim2.new(0,0,0,0), bgT=1, parent=eqArea})
-	local sList = Instance.new("UIListLayout")
-	sList.SortOrder = Enum.SortOrder.LayoutOrder
-	sList.Padding = UDim.new(0, 12)
-	sList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	sList.VerticalAlignment = Enum.VerticalAlignment.Center
-	sList.Parent = slotsContainer
+	local slotsContainer = Utils.mkFrame({
+		name = "SlotsContainer",
+		size = UDim2.new(1, 0, 1, 0),
+		pos = UDim2.new(0, 0, 0, 0),
+		bgT = 1,
+		parent = eqArea
+	})
+
+	local sGrid = Instance.new("UIGridLayout")
+	sGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	sGrid.FillDirection = Enum.FillDirection.Vertical
+	sGrid.StartCorner = Enum.StartCorner.TopLeft
+	sGrid.CellSize = UDim2.new(0, 95, 0, 95)
+	sGrid.CellPadding = UDim2.new(0, 16, 0, 15)
+	sGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	sGrid.VerticalAlignment = Enum.VerticalAlignment.Center
+	sGrid.Parent = slotsContainer
 	
 	local slotConfigs = {
-		{id="HEAD", name="머리"},
-		{id="SUIT", name="한벌옷"},
-		{id="HAND", name="도구/무기"},
+		{id="EARRING", name="귀걸이", order=1},
+		{id="SUIT", name="한벌옷", order=2},
+		{id="HAND", name="도구/무기", order=3},
+		{id="NECKLACE", name="목걸이", order=4},
+		{id="RING1", name="반지 1", order=5},
+		{id="RING2", name="반지 2", order=6},
 	}
 	
 	for i, conf in ipairs(slotConfigs) do
 		local wrapper = Utils.mkFrame({
 			name = conf.id.."Wrap",
-			size = UDim2.new(0, 150, 0, 110),
+			size = UDim2.new(1, 0, 1, 0),
 			bgT = 1,
 			parent = slotsContainer
 		})
-		wrapper.LayoutOrder = i
+		wrapper.LayoutOrder = conf.order
 		
 		local slot = Utils.mkSlot({
 			name = conf.id.."Slot", 
-			size = UDim2.new(0, 78, 0, 78),
+			size = UDim2.new(0, 60, 0, 60),
 			pos = UDim2.new(0.5, 0, 0, 0),
 			anchor = Vector2.new(0.5, 0.5),
 			bgT = T.SLOT, 
@@ -116,11 +129,11 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		
 		Utils.mkLabel({
 			text = UILocalizer.Localize(conf.name),
-			size = UDim2.new(1, -8, 0, 24),
-			pos = UDim2.new(0.5, -4, 1, -4),
+			size = UDim2.new(1, -4, 0, 20),
+			pos = UDim2.new(0.5, -2, 1, 0),
 			anchor = Vector2.new(0.5, 1),
 			bgT = 1,
-			ts = 18,
+			ts = 15,
 			font = F.NORMAL,
 			color = C.WHITE,
 			ax = Enum.TextXAlignment.Center,
@@ -423,6 +436,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						lbl.Name = "Name_" .. order
 						lbl.Size = UDim2.new(1, 0, 0, 32)
 						lbl.BackgroundTransparency = 1
+						lbl.RichText = true
 						lbl.Text = text
 						lbl.TextColor3 = color
 						lbl.TextSize = 20
@@ -439,6 +453,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						row.Name = "Cat_" .. order
 						row.Size = UDim2.new(1, 0, 0, 24)
 						row.BackgroundTransparency = 1
+						row.RichText = true
 						row.Text = "▣ " .. label
 						row.TextColor3 = Color3.fromHex(color)
 						row.TextSize = 15
@@ -472,6 +487,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						valL.Size = UDim2.new(0.4, 0, 1, 0)
 						valL.Position = UDim2.new(0.6, 0, 0, 0)
 						valL.BackgroundTransparency = 1
+						valL.RichText = true
 						valL.Text = value or ""
 						valL.TextColor3 = colorHex and Color3.fromHex(colorHex) or C.WHITE
 						valL.TextSize = TT_TS
@@ -532,20 +548,35 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						
 						local baseDmg = itemData.damage or 0
 						local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
+						local enhanceDamage = item.attributes and item.attributes.enhanceDamage or 0
+						
 						local finalDmg = math.floor(baseDmg * (1 + bonusDmg) + 0.5)
-						if enhanceLevel > 0 then
+						if enhanceDamage > 0 then
+							finalDmg = finalDmg + enhanceDamage
+						elseif enhanceLevel > 0 then
 							finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * 0.15) + 0.5)
 						end
 						local extraDmg = finalDmg - baseDmg
 						
-						local baseDur = itemData.durability or 0
-						local curDur = item.durability or baseDur
-						local maxDur = math.floor(baseDur * (1 + bonusDur) + 0.5)
+						local finalCrit = math.floor(bonusCrit * 100 + 0.5)
 						
-						addRow("공격력", tostring(baseDmg) .. (extraDmg ~= 0 and string.format(" (+%d)", extraDmg) or ""), (bonusDmg > 0 or enhanceLevel > 0) and "#8CDC64" or "#FFFFFF")
-						addRow("치명타 확률", math.floor(bonusCrit*100+0.5) .. "%", bonusCrit > 0 and "#8CDC64" or "#FFFFFF")
-						-- [MODIFIED] DEACTIVATED durability row
-						-- addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
+						local dmgValStr
+						if extraDmg > 0 then
+							dmgValStr = finalDmg .. " (" .. baseDmg .. "+" .. extraDmg .. ")"
+						elseif extraDmg < 0 then
+							dmgValStr = finalDmg .. " (" .. baseDmg .. extraDmg .. ")"
+						else
+							dmgValStr = tostring(baseDmg)
+						end
+						addRow("공격력", dmgValStr)
+						
+						local critValStr
+						if finalCrit ~= 0 then
+							critValStr = "0% (+" .. finalCrit .. "%)"
+						else
+							critValStr = "0%"
+						end
+						addRow("치명타 확률", critValStr)
 						
 					elseif iType == "ARMOR" then
 						local bonusDef, bonusHp, bonusDur = 0, 0, 0
@@ -563,15 +594,39 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						local baseDef = itemData.defense or 0
 						local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 						local extraDef = finalDef - baseDef
+						local finalHp = math.floor(bonusHp * 100 + 0.5)
 						
-						local baseDur = itemData.durability or 0
-						local curDur = item.durability or baseDur
-						local maxDur = math.floor(baseDur * (1 + bonusDur) + 0.5)
+						local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
+						local hpColor = bonusHp > 0 and "#8CDC64" or "#FFFFFF"
 						
-						addRow("방어력", tostring(baseDef) .. (extraDef ~= 0 and string.format(" (+%d)", extraDef) or ""), bonusDef > 0 and "#8CDC64" or "#FFFFFF")
-						addRow("추가 체력", string.format("+%d%%", math.floor(bonusHp*100+0.5)), bonusHp > 0 and "#8CDC64" or "#FFFFFF")
-						-- [MODIFIED] DEACTIVATED durability row
-						-- addRow("내구도", math.floor(curDur) .. " / " .. maxDur, bonusDur > 0 and "#8CDC64" or "#FFFFFF")
+						-- 1) 방어력 (기본 스탯이 있거나 attributes가 있을 경우에만 표기)
+						if baseDef > 0 or extraDef ~= 0 then
+							local defValStr
+							if extraDef ~= 0 then
+								defValStr = finalDef .. " <font color=\"#FFFFFF\">(" .. baseDef .. "</font><font color=\"" .. defColor .. "\">+" .. extraDef .. "</font><font color=\"#FFFFFF\>)</font>"
+							else
+								defValStr = tostring(baseDef)
+							end
+							addRow("방어력", defValStr)
+						end
+						
+						-- 2) 추가 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
+						local baseHealth = itemData.maxHealth or 0
+						if baseHealth > 0 or finalHp > 0 then
+							local hpValueStr
+							if finalHp > 0 then
+								hpValueStr = "+" .. baseHealth .. " <font color=\"" .. hpColor .. "\">" .. string.format("(%+d%%)", finalHp) .. "</font>"
+							else
+								hpValueStr = "+" .. baseHealth
+							end
+							addRow("추가 체력", hpValueStr)
+						end
+						
+						-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)
+						local baseCrit = itemData.critChance or 0
+						if baseCrit > 0 then
+							addRow("치명타 확률", string.format("+%.0f%%", baseCrit * 100))
+						end
 					end
 					
 					-- =====================

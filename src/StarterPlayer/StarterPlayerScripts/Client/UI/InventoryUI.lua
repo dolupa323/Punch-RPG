@@ -131,7 +131,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local leftHeader = Utils.mkFrame({size=UDim2.new(0.65, -10, 1, 0), pos=UDim2.new(0, 10, 0, 0), bgT=1, parent=header})
 	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, isSmall and 10 or 20); titleList.Parent=leftHeader
 	
-	InventoryUI.Refs.TabBag = Utils.mkBtn({text="INVENTORY [Tab]", size=UDim2.new(0, isSmall and 120 or 150, 0, isSmall and 32 or 35), bg=C.GOLD_SEL, bgT=0.2, font=F.TITLE, ts=TS_TAB, color=C.WHITE, noHover=true, parent=leftHeader})
+	InventoryUI.Refs.TabBag = Utils.mkBtn({text="인벤토리 [Inventory]", size=UDim2.new(0, isSmall and 120 or 150, 0, isSmall and 32 or 35), bg=C.GOLD_SEL, bgT=0.2, font=F.TITLE, ts=TS_TAB, color=C.WHITE, noHover=true, parent=leftHeader})
 	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
 	InventoryUI.Refs.TabAnimal = Utils.mkBtn({text="동물 관리", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
 	
@@ -1099,19 +1099,37 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 				local extraDef = finalDef - baseDef
 				local finalHp = math.floor(bonusHp * 100 + 0.5)
-				local baseDur = itemData.durability or 0
-				local curDur = data.durability or baseDur
-				local maxDur = math.floor(baseDur * (1 + bonusDur) + 0.5)
 				
 				local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
 				local hpColor = bonusHp > 0 and "#8CDC64" or "#FFFFFF"
-				local durColor = bonusDur > 0 and "#8CDC64" or "#FFFFFF"
 				
 				d.Stats.Visible = false
 				d.StatsGrid.Visible = true
 				local order = 0
-				order = order + 1; createStatRow(d.StatsGrid, "방어력", tostring(baseDef), (extraDef ~= 0 and string.format("(%+d)", extraDef) or nil), defColor, order)
-				order = order + 1; createStatRow(d.StatsGrid, "추가 체력", "+0%", (finalHp ~= 0 and string.format("(%+d%%)", finalHp) or nil), hpColor, order)
+				
+				-- 1) 방어력 (기본 스탯이 있거나 attributes가 있을 경우에만 표기)
+				if baseDef > 0 or extraDef ~= 0 then
+					order = order + 1
+					createStatRow(d.StatsGrid, "방어력", tostring(baseDef), (extraDef ~= 0 and string.format("+%d", extraDef) or nil), defColor, order, tostring(finalDef))
+				end
+				
+				-- 2) 최대 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
+				local baseHealth = itemData.maxHealth or 0
+				if baseHealth > 0 or finalHp > 0 then
+					order = order + 1
+					local extraHpText = nil
+					if finalHp > 0 then
+						extraHpText = string.format("(%+d%%)", finalHp)
+					end
+					createStatRow(d.StatsGrid, "최대 체력", string.format("+%d", baseHealth), extraHpText, hpColor, order)
+				end
+				
+				-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)
+				local baseCrit = itemData.critChance or 0
+				if baseCrit > 0 then
+					order = order + 1
+					createStatRow(d.StatsGrid, "치명타 확률", string.format("+%.0f%%", baseCrit * 100), nil, "#FFFFFF", order)
+				end
 			end
 		end
 		

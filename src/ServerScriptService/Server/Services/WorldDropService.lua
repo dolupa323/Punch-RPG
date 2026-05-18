@@ -87,6 +87,7 @@ local function emitSpawned(drop: any)
 			pos = drop.pos,
 			itemId = drop.itemId,
 			dropType = drop.dropType,
+			dropSource = drop.dropSource, -- [신설] Loot vs Discard 식별용
 			goldAmount = drop.goldAmount,
 			count = drop.count,
 			despawnAt = drop.despawnAt,
@@ -293,51 +294,46 @@ end
 -- 4.1.5 Helper: Ground Height Raycast
 --========================================
 --- 지면 높이 구하기 (레이캐스트)
---- 드롭이 지형에 닿도록 위치 조정
+--- 드롭이 지형에 닿도록 위치 조정 (100% 정확한 지면 피팅)
 local function getGroundHeight(pos: Vector3): Vector3
-	-- 레이캐스트: 위에서 아래로 1000 스터드 검색
-	local rayOrigin = pos + Vector3.new(0, 500, 0)
-	local rayDirection = Vector3.new(0, -1000, 0)
+	-- 레이캐스트: 위에서 아래로 800 스터드 검색
+	local rayOrigin = pos + Vector3.new(0, 300, 0)
+	local rayDirection = Vector3.new(0, -600, 0)
 	
 	local rayParams = RaycastParams.new()
-	rayParams.FilterType = Enum.RaycastFilterType.Include
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
 	
-	-- 지형/바닥 객체만 포함: "Terrain", "Grass", "Ground", "Floor" 포함 이름
+	local excludeList = {}
 	local Workspace = game:GetService("Workspace")
-	local includeList = {}
 	
-	-- Terrain 포함 (지면)
-	local terrain = Workspace.Terrain
-	if terrain then
-		table.insert(includeList, terrain)
-	end
-	
-	-- 명시적 바닥 파트 포함 (성능 최적화: 깊이 제한)
-	local function collectGroundParts(folder, depth)
-		if not folder or depth > 5 then return end
-		for _, part in ipairs(folder:GetChildren()) do
-			if part:IsA("BasePart") then
-				local name = part.Name:upper()
-				-- "Ground", "Floor", "Terrain" 등 포함하는 파트 추가
-				if name:find("GROUND") or name:find("FLOOR") or name:find("TERRAIN") or part.CanCollide then
-					table.insert(includeList, part)
-				end
-			elseif part:IsA("Folder") or part:IsA("Model") then
-				collectGroundParts(part, depth + 1)
-			end
+	-- 1. 월드 내의 모든 플레이어 캐릭터 제외 (충돌 제외)
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player.Character then
+			table.insert(excludeList, player.Character)
 		end
 	end
 	
-	collectGroundParts(Workspace, 0)
-	rayParams.FilterDescendantsInstances = includeList
+	-- 2. 몬스터/크리처 스폰 폴더 제외
+	local mobsFolder = Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Creatures") or Workspace:FindFirstChild("NPCs")
+	if mobsFolder then
+		table.insert(excludeList, mobsFolder)
+	end
+	
+	-- 3. 이미 스폰된 드롭 폴더 및 잔해 제외
+	local dropsFolder = Workspace:FindFirstChild("WorldDrops")
+	if dropsFolder then
+		table.insert(excludeList, dropsFolder)
+	end
+	
+	rayParams.FilterDescendantsInstances = excludeList
 	
 	local result = Workspace:Raycast(rayOrigin, rayDirection, rayParams)
 	
 	if result then
-		-- 지면 발견: 충돌점 + 약간 위에 배치 (지형과 겹치지 않도록)
-		return result.Position + Vector3.new(0, 1.5, 0)
+		-- 지면 물리 충돌점 자체를 반환 (클라이언트가 렌더링 시 모델의 절반 크기를 더해 바닥면을 완벽 밀착하므로, 서버는 물리 충돌 좌표 그대로를 줍니다)
+		return result.Position + Vector3.new(0, 0.05, 0)
 	else
-		-- 지면 없음: 기존 높이 사용 (sky drop?)
+		-- 지면이 없을 경우 안전장치: 몬스터 사망 높이 그대로 사용
 		return pos
 	end
 end
@@ -348,7 +344,7 @@ end
 
 --- 드롭 생성
 --- 반환: (success, errorCode?, data?)
-function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number, durability: number?, sourceLevel: number?): (boolean, string?, any?)
+function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number, durability: number?, sourceLevel: number?, dropSource: string?): (boolean, string?, any?)
 	-- [수정] 드롭 위치 자동 조정: 지면과의 높이 맞추기
 	local adjustedPos = getGroundHeight(pos)
 	
@@ -412,6 +408,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 				count = group.count,
 				durability = durability,
 				attributes = group.attrs,
+				dropSource = dropSource or "LOOT", -- [신설] 기본값은 사냥 획득("LOOT")
 				spawnedAt = now,
 				despawnAt = now + despawnSeconds,
 				inactive = false,
@@ -452,6 +449,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 		count = count,
 		durability = durability,
 		attributes = attributes,
+		dropSource = dropSource or "LOOT", -- [신설] 기본값은 사냥 획득("LOOT")
 		spawnedAt = now,
 		despawnAt = now + despawnSeconds,
 		inactive = false,

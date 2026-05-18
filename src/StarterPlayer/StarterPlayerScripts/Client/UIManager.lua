@@ -161,6 +161,10 @@ function UIManager.getInventorySlot(slot)
 	return cache[slot]
 end
 
+function UIManager.getEquipment()
+	return InventoryController.getEquipment()
+end
+
 local ERROR_MESSAGES = {
 	BAD_REQUEST = "잘못된 요청입니다.",
 	NOT_FOUND = "대상을 찾을 수 없습니다.",
@@ -782,8 +786,9 @@ function UIManager._onInvSlotDoubleClick(idx)
 	
 	if itemData.type == "ARMOR" then
 		local slot = itemData.slot and itemData.slot:upper() or nil
-		if slot ~= "HEAD" and slot ~= "SUIT" then
-			UIManager.notify("장착 가능한 방어구가 아닙니다.", C.RED)
+		local isValidSlot = (slot == "HEAD" or slot == "SUIT" or slot == "EARRING" or slot == "RING" or slot == "NECKLACE")
+		if not isValidSlot then
+			UIManager.notify("장착 가능한 장비가 아닙니다.", C.RED)
 			return
 		end
 		InventoryController.requestEquip(idx, slot)
@@ -810,7 +815,8 @@ function UIManager.onUseItem()
 
 	if itemData.type == "ARMOR" then
 		local slot = itemData.slot and itemData.slot:upper() or nil
-		if slot ~= "HEAD" and slot ~= "SUIT" then
+		local isValidSlot = (slot == "HEAD" or slot == "SUIT" or slot == "EARRING" or slot == "RING" or slot == "NECKLACE")
+		if not isValidSlot then
 			UIManager.notify("방어구 슬롯 정보가 올바르지 않습니다.", C.RED)
 			return
 		end
@@ -2419,6 +2425,19 @@ function UIManager.openItemSelector(mode, callback)
 	activeSelectorCallback = callback
 	activeSelectorMode = mode
 	
+	-- Local Color Override for Navy + Black Theme (Match Equipment/SkillTree UI)
+	local C_Override = {}
+	for k, v in pairs(Theme.Colors) do C_Override[k] = v end
+	C_Override.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+	C_Override.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+	C_Override.BG_SLOT = Color3.fromRGB(15, 20, 35)  -- Deep Navy
+	C_Override.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White!
+	C_Override.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+	C_Override.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+	C_Override.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+	
+	local C = C_Override
+	
 	-- 1. 오버레이 생성
 	selectorOverlay = Utils.mkFrame({
 		name = "ItemSelectorOverlay",
@@ -2436,6 +2455,8 @@ function UIManager.openItemSelector(mode, callback)
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
+		stroke = 2,
+		strokeC = C.BORDER,
 		r = 10,
 		parent = selectorOverlay
 	})
@@ -2455,7 +2476,7 @@ function UIManager.openItemSelector(mode, callback)
 		pos = UDim2.new(0, 0, 0, 10),
 		ts = 22,
 		font = Theme.Fonts.TITLE,
-		color = C.GOLD,
+		color = C.GOLD, -- Now White
 		ax = Enum.TextXAlignment.Center,
 		parent = main
 	})
@@ -2467,7 +2488,7 @@ function UIManager.openItemSelector(mode, callback)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 4
-	scroll.ScrollBarImageColor3 = C.GOLD
+	scroll.ScrollBarImageColor3 = C.BORDER -- Styled with Light Navy Scrollbar
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scroll.ClipsDescendants = true
@@ -2477,12 +2498,12 @@ function UIManager.openItemSelector(mode, callback)
 	scrollPad.PaddingTop = UDim.new(0, 5)
 	scrollPad.PaddingBottom = UDim.new(0, 5)
 	scrollPad.PaddingLeft = UDim.new(0, 5)
-	scrollPad.PaddingRight = UDim.new(0, 10) -- Space for scrollbar
+	scrollPad.PaddingRight = UDim.new(0, 10)
 	scrollPad.Parent = scroll
 	
 	local grid = Instance.new("UIGridLayout")
 	grid.CellSize = UDim2.new(0, 80, 0, 80)
-	grid.CellPadding = UDim2.new(0, 15, 0, 15) -- Increased padding to prevent stroke clipping
+	grid.CellPadding = UDim2.new(0, 15, 0, 15)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.Parent = scroll
 	
@@ -2515,7 +2536,7 @@ function UIManager.openItemSelector(mode, callback)
 					bgT = 0.2,
 					r = 6,
 					stroke = 2,
-					strokeC = C.GOLD, -- Styled with gold border for equipped item
+					strokeC = C.GOLD_SEL, -- Styled with accent blue border for selection
 					parent = scroll
 				})
 				
@@ -2534,7 +2555,7 @@ function UIManager.openItemSelector(mode, callback)
 					pos = UDim2.new(0, 0, 0, 2),
 					ts = 11,
 					font = Theme.Fonts.TITLE,
-					color = C.GOLD,
+					color = Color3.fromRGB(80, 180, 255), -- Sky blue
 					ax = Enum.TextXAlignment.Center,
 					parent = btn
 				})
@@ -2548,7 +2569,7 @@ function UIManager.openItemSelector(mode, callback)
 						anchor = Vector2.new(1, 1),
 						ts = 14,
 						font = Theme.Fonts.TITLE,
-						color = C.GOLD,
+						color = Color3.fromRGB(240, 240, 240), -- White
 						parent = btn
 					})
 				end
@@ -2641,7 +2662,7 @@ function UIManager.openItemSelector(mode, callback)
 					anchor = Vector2.new(1, 1),
 					ts = 14,
 					font = Theme.Fonts.TITLE,
-					color = C.GOLD,
+					color = Color3.fromRGB(240, 240, 240), -- White
 					parent = btn
 				})
 			end
@@ -2669,7 +2690,7 @@ function UIManager.openItemSelector(mode, callback)
 			size = UDim2.new(1, 0, 0, 100),
 			pos = UDim2.new(0, 0, 0, 80),
 			ts = 16,
-			color = C.GRAY,
+			color = C_Override.GRAY,
 			ax = Enum.TextXAlignment.Center,
 			parent = scroll
 		})

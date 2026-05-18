@@ -202,9 +202,12 @@ Enums.NodeType = {
 -- 장비 슬롯 (Phase 11)
 --========================================
 Enums.EquipSlot = {
-	HEAD = "HEAD",     -- 투구
-	SUIT = "SUIT",     -- 한벌옷 (중갑 등)
-	HAND = "HAND",     -- 손 (도구/무기)
+	EARRING = "EARRING",   -- 귀고리 (기존 HEAD 대체)
+	SUIT = "SUIT",         -- 한벌옷 (중갑 등)
+	HAND = "HAND",         -- 손 (도구/무기)
+	NECKLACE = "NECKLACE", -- 목걸이 (신규)
+	RING1 = "RING1",       -- 반지 1 (신규)
+	RING2 = "RING2",       -- 반지 2 (신규)
 }
 
 -- 테이블 동결

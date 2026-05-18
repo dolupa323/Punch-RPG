@@ -24,6 +24,31 @@ local MobSpawnData = {
 			{x = -303.963, y = 1.235, z = 363.024}, -- 스크린샷 2번 지점
 			{x = -351.063, y = 1.235, z = 434.624}  -- 스크린샷 1번 지점
 		}
+	},
+	
+	["DungBeetleZone"] = {
+		spawnAreaId = "DungBeetleZone",
+		mobModelName = "DungBeetle",
+		mobDisplayName = "쇠똥구리",
+		maxHealth = 120,      -- 쇠똥구리 강력함 반영
+		baseDamage = 12,      -- 슬라임보다 강력한 공격력
+		attackCooldown = 2.0, -- 공격 속도 2.0초
+		respawnDelay = 2.0,   -- 부활 딜레이 2초
+		modelScale = 0.005,   -- [초대형 에셋 보정]: 800스터드급 괴수 에셋을 알맞은 4스터드 크기로 정밀 축소!
+		walkSpeed = 6,        -- [추가] 쇠똥구리 특유의 묵직하고 씩씩한 전진 속도
+		xpReward = 90,        -- 풍부한 경험치 보상
+		
+		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 쇠똥구리 5마리 랜덤 스폰!
+		spawnAsPolygon = true,
+		spawnCount = 5,       
+		
+		-- 유저 스크린샷 Properties 속성에서 100% 정밀 추출한 4개 꼭짓점 좌표
+		spawnPositions = {
+			{x = -306.025, y = 0.561, z = 349.748}, -- 꼭짓점 1번 (Realistic Stone)
+			{x = -208.725, y = 0.561, z = 361.948}, -- 꼭짓점 2번 (Realistic Stone)
+			{x = -213.225, y = 0.561, z = 288.448}, -- 꼭짓점 3번 (Realistic Stone)
+			{x = -306.025, y = 0.561, z = 288.448}  -- 꼭짓점 4번 (Realistic Stone)
+		}
 	}
 }
 

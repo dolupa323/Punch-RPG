@@ -1,5 +1,5 @@
--- SkillTreeUI.lua (Replaced with Rune System UI)
--- 3 Circular Slots positioned in a triangle layout with a Magic Circle background.
+-- SkillTreeUI.lua (Rune System UI with Equipment UI Convention)
+-- 장비창 스타일의 세련된 3개 룬 장착 슬롯 창
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,22 +14,25 @@ local UILocalizer = require(Client.Localization.UILocalizer)
 local InventoryController = require(Client.Controllers.InventoryController)
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
 
-local C = Theme.Colors
+-- Local Color Override for Navy + Black Theme (EquipmentUI와 동일)
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+C.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+C.BG_SLOT = Color3.fromRGB(15, 20, 35)  -- Deep Navy
+C.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White
+C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+
 local F = Theme.Fonts
 local T = Theme.Transp
-
--- Color Overrides
-local C_BASE = Theme.Colors
-local BG_PANEL = Color3.fromRGB(10, 15, 25)
-local MAGIC_GOLD = Color3.fromRGB(255, 210, 100)
 
 local SkillTreeUI = {}
 
 SkillTreeUI.Refs = {
 	Frame = nil,
 	Slots = {},
-	CircleGlow = nil,
-	ElementIcon = nil,
 }
 
 local _UIManager = nil
@@ -48,8 +51,9 @@ end
 function SkillTreeUI.Init(parent, UIManager, isMobile)
 	_UIManager = UIManager
 	_isMobile = isMobile
+	local isSmall = _isMobile
 	
-	-- 1. Background Fullscreen Overlay
+	-- 1. Background Dim Layer
 	local frame = Utils.mkFrame({
 		name = "SkillTreeMenu",
 		size = UDim2.new(1, 0, 1, 0),
@@ -60,157 +64,103 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	})
 	SkillTreeUI.Refs.Frame = frame
 	
-	-- 2. Main Window (Responsive scaling via Aspect Ratio Constraint)
+	-- 2. Main Window (Equipment UI 스타일로 단정하게)
 	local main = Utils.mkWindow({
 		name = "RuneWindow",
-		size = UDim2.fromScale(0.75, 0.75), -- Responsive relative scaling
-		pos = UDim2.fromScale(0.5, 0.5),
+		size = UDim2.new(isSmall and 0.9 or 0.45, 0, isSmall and 0.5 or 0.35, 0),
+		maxSize = Vector2.new(650, 260),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		bg = BG_PANEL,
-		bgT = 0.15,
-		r = "full", -- Perfectly circular scaling
-		stroke = 3,
-		strokeC = Color3.fromRGB(20, 40, 80), -- Deep Navy Blue
-		ratio = 1.0, -- LOCK ASPECT RATIO TO 1:1 for perfect responsive circle
+		bg = C.BG_PANEL, bgT = T.PANEL, r = 6, stroke = 1.5, strokeC = C.BORDER,
 		parent = frame
 	})
 	
-	-- Background Image Logic
-	local bgImage = Instance.new("ImageLabel")
-	bgImage.Name = "RuneBackground"
-	bgImage.Size = UDim2.fromScale(1.25, 1.25) -- Scaled up from 1.0 to 1.25 to fill navy border
-	bgImage.Position = UDim2.fromScale(0.5, 0.5)
-	bgImage.AnchorPoint = Vector2.new(0.5, 0.5)
-	bgImage.BackgroundTransparency = 1
-	bgImage.Image = "rbxassetid://7165355021" -- Default fallback
-	bgImage.ImageColor3 = MAGIC_GOLD
-	bgImage.ImageTransparency = 0.4
-	bgImage.ZIndex = 2
-	bgImage.Parent = main
+	-- Title Header
+	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
+	Utils.mkLabel({text="룬 시스템 [Rune System]", pos=UDim2.new(0, 15, 0, 0), ts=24, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bgT=0.5, ts=20, color=C.WHITE, isNegative=true, r=4, fn=function() UIManager.toggleSkillTree() end, parent=header})
 	
-	-- Dynamically attempt to load from User provided Assets
-	task.spawn(function()
-		local assets = ReplicatedStorage:FindFirstChild("Assets")
-		if assets then
-			local uiAssets = assets:FindFirstChild("UI")
-			if uiAssets then
-				local customBg = uiAssets:FindFirstChild("RuneBackground")
-				if customBg and (customBg:IsA("Decal") or customBg:IsA("Texture") or customBg:IsA("ImageLabel")) then
-					bgImage.Image = customBg:IsA("ImageLabel") and customBg.Image or (customBg.Texture or bgImage.Image)
-					bgImage.ImageColor3 = Color3.new(1,1,1)
-					bgImage.ImageTransparency = 0
-					warn("[RuneUI] Successfully loaded custom background from Assets/UI/RuneBackground.")
-				end
-			end
-		end
-	end)
-
+	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
 	
+	-- Slots Row Container
+	local slotsContainer = Utils.mkFrame({name="SlotsContainer", size=UDim2.new(1, 0, 0, 110), pos=UDim2.new(0,0,0.1,0), bgT=1, parent=content})
+	local sList = Instance.new("UIListLayout")
+	sList.FillDirection = Enum.FillDirection.Horizontal
+	sList.SortOrder = Enum.SortOrder.LayoutOrder
+	sList.Padding = UDim.new(0, 30)
+	sList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	sList.VerticalAlignment = Enum.VerticalAlignment.Center
+	sList.Parent = slotsContainer
 	
-	-- Close Button (Scaled)
-	Utils.mkBtn({
-		text = "X",
-		size = UDim2.fromScale(0.08, 0.08),
-		pos = UDim2.fromScale(0.85, 0.15),
-		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(100, 30, 30),
-		ts = 20,
-		font = F.TITLE,
-		r = "full",
-		fn = function() UIManager.toggleSkillTree() end,
-		parent = main,
-		z = 15
-	})
-
-	-- Calculate mathematically perfect equilateral triangle centered at 0.5, 0.5
-	-- R is scaled linearly: (Original 0.28) * (Bg Scale 1.25) = 0.35
-	local R = 0.35 
-	local slotPos = {
-		RUNE1 = UDim2.fromScale(0.5, 0.5 - R), -- Top
-		RUNE2 = UDim2.fromScale(0.5 - R * 0.866, 0.5 + R * 0.5), -- Bottom Left (30 deg down)
-		RUNE3 = UDim2.fromScale(0.5 + R * 0.866, 0.5 + R * 0.5)  -- Bottom Right
+	local slotConfigs = {
+		{id="RUNE1", name="룬 슬롯 1"},
+		{id="RUNE2", name="룬 슬롯 2"},
+		{id="RUNE3", name="룬 슬롯 3"},
 	}
-
-	-- 3. Central Decorative Circle (Navy Border) - Even Larger and Responsive
-	local centerCircle = Utils.mkFrame({
-		name = "CenterCircle",
-		size = UDim2.fromScale(0.35, 0.35), -- Increased slightly from 0.32 to 0.35 for stronger dominance
-		pos = UDim2.fromScale(0.5, 0.5),
-		anchor = Vector2.new(0.5, 0.5),
-		bg = Color3.fromRGB(20, 25, 40),
-		bgT = 1.0, -- Transparent background, only border
-		r = "full", -- Circular
-		stroke = 2.5,
-		strokeC = Color3.fromRGB(20, 40, 80), -- Deep Navy Blue matching outer frame
-		parent = main,
-		z = 4
-	})
-
-	-- Inner Image for the Player's Element (Larger Pop Effect)
-	local elementIcon = Instance.new("ImageLabel")
-	elementIcon.Name = "ElementIcon"
-	elementIcon.Size = UDim2.fromScale(1.15, 1.15) -- Increased to 1.15 to break the frame and look more powerful
-	elementIcon.Position = UDim2.fromScale(0.5, 0.5)
-	elementIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	elementIcon.BackgroundTransparency = 1
-	elementIcon.Image = ""
-	elementIcon.ZIndex = 5
-	elementIcon.Parent = centerCircle
-	SkillTreeUI.Refs.ElementIcon = elementIcon
-
-
-	-- Create Slots (Responsive)
-	for id, pos in pairs(slotPos) do
-		local slotFrame = Utils.mkFrame({
-			name = id.."_Slot",
-			size = UDim2.fromScale(0.18, 0.18), -- Responsive relative sizing (approx 90px at 500px)
-			pos = pos,
+	
+	for i, conf in ipairs(slotConfigs) do
+		local wrapper = Utils.mkFrame({
+			name = conf.id.."Wrap",
+			size = UDim2.new(0, 120, 0, 110),
+			bgT = 1,
+			parent = slotsContainer
+		})
+		wrapper.LayoutOrder = i
+		
+		-- EquipmentUI와 완전 동일한 정사각형 슬롯
+		local slot = Utils.mkSlot({
+			name = conf.id.."Slot", 
+			size = UDim2.new(0, 78, 0, 78),
+			pos = UDim2.new(0.5, 0, 0, 0),
 			anchor = Vector2.new(0.5, 0.5),
-			bg = Color3.fromRGB(20, 25, 40),
-			bgT = 0.3,
-			r = "full", -- Circular Scaling
-			stroke = 2,
-			strokeC = MAGIC_GOLD,
-			parent = main,
-			z = 5
+			bgT = T.SLOT, 
+			stroke = false, 
+			parent = wrapper
 		})
 		
-		local icon = Instance.new("ImageLabel")
-		icon.Name = "Icon"
-		icon.Size = UDim2.new(0.75, 0, 0.75, 0)
-		icon.Position = UDim2.new(0.5, 0, 0.5, 0)
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.BackgroundTransparency = 1
-		icon.Image = ""
-		icon.Visible = false
-		icon.ZIndex = 6
-		icon.Parent = slotFrame
+		-- 장비 슬롯 명칭 라벨
+		Utils.mkLabel({
+			text = UILocalizer.Localize(conf.name),
+			size = UDim2.new(1, 0, 0, 20),
+			pos = UDim2.new(0.5, 0, 1, -4),
+			anchor = Vector2.new(0.5, 1),
+			bgT = 1,
+			ts = 15,
+			font = F.NORMAL,
+			color = C.WHITE,
+			ax = Enum.TextXAlignment.Center,
+			parent = wrapper
+		})
 		
-		-- Click Area
-		local click = Instance.new("TextButton")
-		click.Name = "Click"
-		click.Size = UDim2.new(1, 0, 1, 0)
-		click.BackgroundTransparency = 1
-		click.Text = ""
-		click.ZIndex = 10
-		click.Parent = slotFrame
-		
-		local _lastClick = 0
-		click.MouseButton1Click:Connect(function()
-			local t = tick()
-			if t - _lastClick < 0.4 then
-				-- Double Click: Unequip
-				InventoryController.requestUnequip(id)
+		-- Double click to unequip, Single click to select/tooltip
+		slot.click.MouseButton1Click:Connect(function()
+			local now = tick()
+			if slot._lastClickTime and (now - slot._lastClickTime) < 0.4 then
+				InventoryController.requestUnequip(conf.id)
+				slot._lastClickTime = nil
+			else
+				slot._lastClickTime = now
 			end
-			_lastClick = t
+		end)
+		slot.click.MouseButton2Click:Connect(function()
+			InventoryController.requestUnequip(conf.id)
 		end)
 		
-		SkillTreeUI.Refs.Slots[id] = {
-			frame = slotFrame,
-			icon = icon,
-			click = click
-		}
+		SkillTreeUI.Refs.Slots[conf.id] = slot
 	end
+	
+	-- 3. Bottom Guide Label
+	Utils.mkLabel({
+		text = UILocalizer.Localize("인벤토리에서 룬을 드래그해 장착하세요.\n더블클릭 또는 우클릭하여 해제할 수 있습니다."),
+		size = UDim2.new(1, 0, 0, 40),
+		pos = UDim2.new(0.5, 0, 1, 0),
+		anchor = Vector2.new(0.5, 1),
+		ts = 14,
+		font = F.NORMAL,
+		color = Color3.fromRGB(150, 170, 200),
+		parent = content,
+		z = 10
+	})
 	
 	-- Listen to updates from controller
 	local conn = InventoryController.onChanged(function()
@@ -219,47 +169,11 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		end
 	end)
 	table.insert(_connections, conn)
-	
-	-- Tooltip Label at the bottom
-	Utils.mkLabel({
-		text = UILocalizer.Localize("인벤토리에서 룬을 드래그해 장착하세요.\n더블클릭하여 해제할 수 있습니다."),
-		size = UDim2.new(1, 0, 0, 50),
-		pos = UDim2.new(0.5, 0, 0.9, 0),
-		anchor = Vector2.new(0.5, 1),
-		ts = 16,
-		font = F.NORMAL,
-		color = Color3.fromRGB(200, 200, 200),
-		parent = main,
-		z = 10
-	})
 end
 
 function SkillTreeUI.Refresh()
 	if not SkillTreeUI.Refs.Frame or not SkillTreeUI.Refs.Frame.Visible then return end
 	
-	-- 1. Update Center Element Icon
-	local player = Players.LocalPlayer
-	local currentElement = player and player:GetAttribute("Element")
-	if SkillTreeUI.Refs.ElementIcon and currentElement and currentElement ~= "" then
-		-- Attempt dynamic lookup from Assets/UI/Element_[Name]
-		local assetFolder = ReplicatedStorage:FindFirstChild("Assets")
-		local uiFolder = assetFolder and assetFolder:FindFirstChild("UI")
-		if uiFolder then
-			-- Looks for 'Element_Fire', 'Element_Water', 'Element_Earth'
-			local assetName = "Element_" .. currentElement
-			local elementAsset = uiFolder:FindFirstChild(assetName)
-			if elementAsset and (elementAsset:IsA("ImageLabel") or elementAsset:IsA("Decal") or elementAsset:IsA("Texture")) then
-				SkillTreeUI.Refs.ElementIcon.Image = elementAsset:IsA("ImageLabel") and elementAsset.Image or (elementAsset.Texture or SkillTreeUI.Refs.ElementIcon.Image)
-				SkillTreeUI.Refs.ElementIcon.Visible = true
-			else
-				SkillTreeUI.Refs.ElementIcon.Visible = false
-			end
-		end
-	elseif SkillTreeUI.Refs.ElementIcon then
-		SkillTreeUI.Refs.ElementIcon.Visible = false
-	end
-	
-	-- 2. Update Rune Slots
 	local equip = InventoryController.getEquipment()
 	
 	for id, slotRef in pairs(SkillTreeUI.Refs.Slots) do
@@ -269,17 +183,30 @@ function SkillTreeUI.Refresh()
 			slotRef.icon.Image = _UIManager and _UIManager.getItemIcon(eqItem.itemId) or ""
 			slotRef.icon.Visible = true
 			
-			-- Set border color based on rarity
-			local rarityColor = MAGIC_GOLD
+			-- Set border color based on rarity (EquipmentUI와 일치)
+			local rarityColor = C.BORDER
 			if itemData and itemData.rarity == "RARE" then rarityColor = Color3.fromRGB(80, 180, 255)
 			elseif itemData and itemData.rarity == "EPIC" then rarityColor = Color3.fromRGB(180, 100, 255)
 			elseif itemData and itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 180, 50)
 			end
-			slotRef.frame.UIStroke.Color = rarityColor
+			
+			-- UIStroke가 없으면 생성하여 채색
+			local stroke = slotRef.frame:FindFirstChildOfClass("UIStroke")
+			if not stroke then
+				stroke = Instance.new("UIStroke")
+				stroke.Thickness = 1.8
+				stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				stroke.Parent = slotRef.frame
+			end
+			stroke.Color = rarityColor
+			stroke.Enabled = true
 		else
 			slotRef.icon.Image = ""
 			slotRef.icon.Visible = false
-			slotRef.frame.UIStroke.Color = MAGIC_GOLD
+			local stroke = slotRef.frame:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Enabled = false
+			end
 		end
 	end
 end

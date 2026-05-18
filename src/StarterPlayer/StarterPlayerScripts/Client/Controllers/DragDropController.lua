@@ -306,6 +306,7 @@ function DragDropController.handleDragUpdate()
 		end
 	end
 	
+
 	-- 2.5. 룬 슬롯 확인
 	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("SKILL") then
 		local runeSlots = UIManager.getRuneSlots and UIManager.getRuneSlots() or {}

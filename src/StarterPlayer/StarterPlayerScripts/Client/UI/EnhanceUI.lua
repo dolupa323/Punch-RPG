@@ -186,6 +186,7 @@ function EnhanceUI.Init(parent, manager)
 		ts = 14,
 		font = F.TITLE,
 		color = C.WHITE,
+		rich = true,
 		parent = body
 	})
 	EnhanceUI.Refs.WeaponName = wName

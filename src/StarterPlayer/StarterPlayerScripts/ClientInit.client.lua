@@ -142,9 +142,6 @@ local function init()
 	-- 어드민 패널 생성
 	createAdminPanel()
 
-	-- 키 바인딩 설정
-	InputManager.bindKey(Enum.KeyCode.Tab, "ToggleInventory", function() UIManager.toggleInventory() end)
-
 	print("[ClientInit] Client successfully initialized in RPG mode.")
 end
 

@@ -92,7 +92,7 @@ local function handleInventoryDropWithWorldDrop(player, payload)
 			local hrp = character:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability)
+				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
 				if spawnOk then data.worldDrop = spawnData end
 			end
 		end
@@ -113,7 +113,7 @@ local function handleInventoryDropByItemIdWithWorldDrop(player, payload)
 			local hrp = character:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability)
+				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
 				if spawnOk then data.worldDrop = spawnData end
 			end
 		end

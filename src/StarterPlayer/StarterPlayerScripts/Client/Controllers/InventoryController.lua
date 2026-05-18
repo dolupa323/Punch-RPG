@@ -15,9 +15,12 @@ local initialized = false
 -- 로컬 인벤토리 캐시 [slot] = { itemId, count } or nil
 local inventoryCache = {}
 local equipmentCache = {
-	HEAD = nil,
+	EARRING = nil,
 	SUIT = nil,
 	HAND = nil,
+	NECKLACE = nil,
+	RING1 = nil,
+	RING2 = nil,
 }
 local usedSlots = 0
 local maxSlots = 60

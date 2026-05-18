@@ -569,6 +569,15 @@ function AvatarService.Init()
 						
 						local curDmg = (i == numHits) and lastDmg or baseDmg
 						local isCurCrit = (i == 1) and isCritical or false 
+						-- [기획 보강]: creator 태그 생성하여 킬러 플레이어 추적 보장!
+						local tag = hum:FindFirstChild("creator")
+						if tag then tag:Destroy() end
+						
+						tag = Instance.new("ObjectValue")
+						tag.Name = "creator"
+						tag.Value = player
+						tag.Parent = hum
+						game:GetService("Debris"):AddItem(tag, 4) -- 4초간 안전하게 유지
 						
 						hum:TakeDamage(curDmg)
 						
@@ -579,9 +588,10 @@ function AvatarService.Init()
 								local mobId = targetModel:GetAttribute("MobId") or targetModel.Name
 								PlayerStatService.grantActionXP(player.UserId, xpReward, {
 									source = "CREATURE_KILL",
-									actionKey = "MOB:" .. tostring(mobId)
+									actionKey = "MOB:" .. tostring(mobId),
+									disableDiminishing = true -- [밸런스 보장]: 몬스터 처치 경험치는 반복 획득 시에도 감쇠율 면제! 100% RAW 지급 보장!
 								})
-								print(string.format("[AvatarService] Player %s killed %s! XP Granted: %d", player.Name, targetModel.Name, xpReward))
+								print(string.format("[AvatarService] Player %s killed %s! XP Granted (Full): %d", player.Name, targetModel.Name, xpReward))
 							end
 						end
 						

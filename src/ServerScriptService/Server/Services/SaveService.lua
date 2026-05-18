@@ -56,6 +56,10 @@ local function _getDefaultEquipment()
 		HEAD = nil,
 		SUIT = { itemId = "Dobok", durability = 999 }, -- [MODIFIED] Starter Dobok (Accessory)!
 		HAND = { itemId = "WOODEN_STAFF", durability = 999 }, -- [MODIFIED] Starter Weapon!
+		EARRING = nil,
+		RING1 = nil,
+		RING2 = nil,
+		NECKLACE = nil,
 	}
 end
 
@@ -236,6 +240,10 @@ local function _normalizeEquipment(equipment: any): any
 	normalized.HEAD = equipment.HEAD or equipment.Head
 	normalized.SUIT = equipment.SUIT or equipment.Suit
 	normalized.HAND = equipment.HAND or equipment.Hand
+	normalized.EARRING = equipment.EARRING or equipment.Earring
+	normalized.RING1 = equipment.RING1 or equipment.Ring1
+	normalized.RING2 = equipment.RING2 or equipment.Ring2
+	normalized.NECKLACE = equipment.NECKLACE or equipment.Necklace
 
 	-- [STARTER WEAPON/DOBOK BACKFILL] Resilience Check: If no valid equipment exists, force-inject standard items
 	local handValid = type(normalized.HAND) == "table" and normalized.HAND.itemId and normalized.HAND.itemId ~= ""
