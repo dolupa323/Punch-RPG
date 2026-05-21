@@ -92,6 +92,14 @@ local function initialize()
 		Constants.KEYBOARD_SPECIAL_KEY_CODE,
 		Constants.GAMEPAD_SPECIAL_KEY_CODE
 	)
+	
+	-- [Knockback Stun Listener]
+	local NetClient = require(player:WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("NetClient"))
+	NetClient.On("Player.Stun", function(bounceDirection)
+		if currentController then
+			currentController:performAction("Stun", bounceDirection)
+		end
+	end)
 
 	if player.Character then
 		onCharacterAdded(player.Character)

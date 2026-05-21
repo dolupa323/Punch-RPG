@@ -739,6 +739,13 @@ local function createMobModel(areaId, index, config)
 										if dist <= 8 then
 											phum:TakeDamage(config.baseDamage or 25)
 											
+											-- [Knockback Stun] 
+											local bounceDir = (pRoot.Position - attackPos)
+											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(p, "Player.Stun", bounceDir)
+											
 											task.spawn(function()
 												local highlight = Instance.new("Highlight")
 												highlight.Name = "DamageFlash"
@@ -841,6 +848,16 @@ local function createMobModel(areaId, index, config)
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
 												currentPhum:TakeDamage(dmg)
+												
+												-- [Knockback Stun]
+												local bounceDir = (currentPhrp.Position - mobRootPos)
+												bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
+												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+												if hitPlayer then
+													local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+													local NetController = require(Controllers:WaitForChild("NetController"))
+													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir)
+												end
 												
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
