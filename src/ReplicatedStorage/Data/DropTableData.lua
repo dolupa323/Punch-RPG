@@ -80,11 +80,11 @@ local DropTableData = {
 	["SLIME"] = {
 		{ itemId = "SLIME_MUCUS", chance = 0.5, min = 1, max = 1 }, -- 50% 확률, 1개씩 드롭되게 패치
 		-- 일단 1% 확률은 주석 달아놓고 100%로 작업 (실서비스 반영 시: chance = 0.01)
-		{ itemId = "SLIME_EARRING", chance = 1.0, min = 1, max = 1 },
+		{ itemId = "SLIME_EARRING", chance = 0.01, min = 1, max = 1 },
 	},
 	["DUNGBEETLE"] = {
 		-- 일단 1% 확률은 주석 달아놓고 100%로 작업 (실서비스 반영 시: chance = 0.01)
-		{ itemId = "DUNG_BEETLE_RING", chance = 1.0, min = 1, max = 1 },
+		{ itemId = "DUNG_BEETLE_RING", chance = 0.01, min = 1, max = 1 },
 	},
 }
 

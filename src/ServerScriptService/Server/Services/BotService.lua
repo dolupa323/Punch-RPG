@@ -385,35 +385,8 @@ end
 --========================================
 
 function BotService.Init()
-	if initialized then return end
-	
-	task.spawn(function()
-		task.wait(5)
-		local hubZone = SpawnConfig.GetZoneInfo("HUB")
-		local center = (hubZone and hubZone.center) or Vector3.new(0, 20, 0)
-		
-		for i = 1, BotConfig.MAX_BOTS do
-			local angle = math.rad((360 / BotConfig.MAX_BOTS) * i)
-			local dist = math.random(30, 150)
-			local spawnPos = center + Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
-			
-			local ray = workspace:Raycast(spawnPos + Vector3.new(0, 100, 0), Vector3.new(0, -200, 0))
-			if ray then spawnPos = ray.Position end
-			
-			BotService.spawnBot(spawnPos)
-			task.wait(0.3)
-		end
-	end)
-	
-	task.spawn(function()
-		while true do
-			task.wait(UPDATE_INTERVAL)
-			_updateBotsLoop()
-		end
-	end)
-	
-	initialized = true
-	print("[BotService] Initialized Phase 8 - Resting AI Polished")
+	print("[BotService] BotService is disabled by request.")
+	return
 end
 
 return BotService

@@ -200,9 +200,9 @@ local AdminCommandService = require(Services.AdminCommandService)
 AdminCommandService.Init(NetController, PlayerStatService, InventoryService, nil, nil, SaveService) -- TechService removed
 ServiceRegistry.Register("AdminCommandService", AdminCommandService)
 
-local BotService = require(Services.BotService)
-BotService.Init()
-ServiceRegistry.Register("BotService", BotService)
+-- local BotService = require(Services.BotService)
+-- BotService.Init()
+-- ServiceRegistry.Register("BotService", BotService)
 
 -- [무협 아바타 RPG] 코어 서비스 전격 초기화
 local AvatarService = require(Services.AvatarService)
