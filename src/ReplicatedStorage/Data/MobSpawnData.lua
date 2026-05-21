@@ -49,6 +49,27 @@ local MobSpawnData = {
 			{x = -213.225, y = 0.561, z = 288.448}, -- 꼭짓점 3번 (Realistic Stone)
 			{x = -306.025, y = 0.561, z = 288.448}  -- 꼭짓점 4번 (Realistic Stone)
 		}
+	},
+	
+	["FireLizardZone"] = {
+		spawnAreaId = "FireLizardZone",
+		mobModelName = "FireLizard",
+		mobDisplayName = "화염의 불도마뱀",
+		maxHealth = 600,
+		baseDamage = 25,
+		attackCooldown = 3.0,
+		respawnDelay = 15.0,  -- 사망 후 정확히 15.0초 뒤 리스폰
+		modelScale = 0.015,     -- 중간보스 0.015배 정밀 다운스케일 보정 (4스터드 대비 12스터드 보스급 비율)
+		walkSpeed = 10,
+		xpReward = 400,
+		spawnCount = 1,
+		spawnAsPolygon = true, -- [활성화] 꼭짓점 사각형 영역 내부에 불도마뱀 스폰!
+		spawnPositions = {
+			{x = -306.025, y = 0.561, z = 272.848}, -- 꼭짓점 1번 (Realistic Stone)
+			{x = -208.725, y = 0.561, z = 277.548}, -- 꼭짓점 2번 (Realistic Stone)
+			{x = -177.954, y = 1.445, z = 215.782}, -- 꼭짓점 3번 (Realistic Stone)
+			{x = -271.54, y = 0.561, z = 204.048}   -- 꼭짓점 4번 (Realistic Stone)
+		}
 	}
 }
 

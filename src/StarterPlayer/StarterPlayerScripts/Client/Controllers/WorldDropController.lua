@@ -137,6 +137,7 @@ local function createDropModel(dropData)
 	if not dropData or not dropData.pos then return nil end
 	
 	local template, isDna = nil, false
+	local isChest = false
 	local itemData = DataHelper.GetData("ItemData", (dropData.itemId or ""):upper())
 	
 	if dropData.dropType ~= "gold" then
@@ -144,10 +145,11 @@ local function createDropModel(dropData)
 		if dropData.dropSource == "DISCARD" then
 			print(string.format("[WorldDropController] Item dropped via DISCARD. Finding 'Pouch' template..."))
 			template = findLootModel("Pouch")
-		-- [기획 보강]: 몬스터 사냥 전리품(LOOT) 중, 무기를 제외한 방어구 및 악세사리는 보물상자(Chest) 모델로 처리
-		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "ARMOR" then
-			print(string.format("[WorldDropController] Armor/Accessory loot detected. Finding 'Chest' template..."))
+		-- [기획 보강]: 몬스터 사냥 전리품(LOOT) 중, 희귀도가 높거나(EPIC, LEGENDARY, RARE) 무기를 제외한 방어구 및 악세사리는 보물상자(Chest) 모델로 처리
+		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
+			print(string.format("[WorldDropController] Armor/Accessory/High-Rarity loot detected. Finding 'Chest' template..."))
 			template = findLootModel("Chest")
+			isChest = true
 		else
 			-- 그 외 골드나 무기, 재료 등은 아이템 고유 모델 적용
 			template, isDna = findLootModel(dropData.itemId)
@@ -214,7 +216,8 @@ local function createDropModel(dropData)
 		end
 		
 		-- [크기 정화 및 롤백]: 에셋 제작자가 만든 오리지널 예쁜 크기를 100% 최우선 존중! (DNA 등 지나치게 큰 모델만 1.5스터드로 제한 축소)
-		local DROP_TARGET = isDna and 1.0 or (Balance.DROP_TARGET_SIZE or 1.5)
+		-- [수정] 희귀 아이템용 보물상자(Chest)는 일반 아이템보다 훨씬 크게(3.5스터드) 표시하여 만족도를 높임
+		local DROP_TARGET = isDna and 1.0 or (isChest and 3.5 or (Balance.DROP_TARGET_SIZE or 1.5))
 		if mainObject:IsA("Model") then
 			local _, mSize = mainObject:GetBoundingBox()
 			local maxDim = math.max(mSize.X, mSize.Y, mSize.Z)
@@ -289,9 +292,9 @@ local function createDropModel(dropData)
 			mainObject.Material = Enum.Material.Fabric
 			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
 			warn(string.format("[WorldDropController] -> 'Pouch' asset missing! Fallback to Brown Fabric Sphere."))
-		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "ARMOR" then
+		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
 			-- Chest 모델 부재 시: 영롱한 황금 보물상자 모양 직육면체
-			local targetSize = Vector3.new(1.4, 1.0, 1.0)
+			local targetSize = Vector3.new(3.5, 2.5, 2.5)
 			mainObject.Size = targetSize * 0.1
 			mainObject.Shape = Enum.PartType.Block
 			mainObject.Color = Color3.fromRGB(255, 200, 50) -- 황금색

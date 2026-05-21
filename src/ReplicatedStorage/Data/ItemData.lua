@@ -1533,6 +1533,50 @@ local ItemData = {
 		modelId = "DungBeetleRing",
 		description = "쇠똥구리의 단단한 껍질과 정교함으로 세공되어 치명타와 체력을 증가시켜주는 반지입니다.",
 	},
+	--========================================
+	-- 불도마뱀 (FireLizard) 전리품 & 제작 장비
+	--========================================
+	{
+		id = "FIRE_LIZARD_SCALE",
+		name = "불도마뱀의 불타는 비늘",
+		type = "RESOURCE",
+		rarity = "UNCOMMON",
+		maxStack = 99,
+		weight = 0.2,
+		description = "불도마뱀에게서 얻은 단단하고 불타는 비늘. 뜨거운 열기를 품고 있어 장비 제작에 유용하다.",
+		iconName = "FireLizardScale",
+		modelName = "FireLizardScale",
+	},
+	{
+		id = "FIRE_NECKLACE",
+		name = "화염 목걸이",
+		type = "ARMOR",
+		rarity = "EPIC",
+		maxStack = 1,
+		weight = 0.5,
+		durability = 300,
+		maxHealth = 20,
+		critChance = 0.03,
+		slot = "NECKLACE",
+		iconName = "FireNecklace",
+		description = "화산의 중심에서 얻은 화염의 마력이 깃들어 있어, 착용자의 생명력과 치명타 극대화 화력을 크게 증폭시켜 줍니다.",
+	},
+	{
+		id = "FireHalberd",
+		name = "화극",
+		type = "WEAPON",
+		rarity = "EPIC",
+		maxStack = 1,
+		weight = 5.0,
+		durability = 350,
+		damage = 35,
+		isBlunt = true,
+		slot = "HAND",
+		optimalTool = "CLUB",
+		iconName = "FireHalberd",
+		modelName = "FireHalberd",
+		description = "불도마뱀의 불타는 비늘을 엮어 제작한 언월도 형태의 강력한 봉. 말랑봉의 부드러움을 뛰어넘는 굳건한 타격력을 가졌습니다.",
+	},
 }
 
 return ItemData

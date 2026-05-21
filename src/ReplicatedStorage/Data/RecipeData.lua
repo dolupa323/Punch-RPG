@@ -17,6 +17,16 @@ local RecipeData = {
 		outputs = { { itemId = "SoftClub", count = 1 } },
 	},
 	{
+		id = "CraftFireHalberd",
+		name = "화극",
+		category = "WEAPON",
+		requiredFacility = nil,
+		craftTime = 120,
+		techLevel = 1,
+		inputs = { { itemId = "FIRE_LIZARD_SCALE", count = 10 } },
+		outputs = { { itemId = "FireHalberd", count = 1 } },
+	},
+	{
 		id = "CRAFT_CRUDE_STONE_AXE",
 		name = "조잡한 돌도끼",
 		category = "TOOL",

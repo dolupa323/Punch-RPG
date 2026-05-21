@@ -86,6 +86,10 @@ local DropTableData = {
 		-- 일단 1% 확률은 주석 달아놓고 100%로 작업 (실서비스 반영 시: chance = 0.01)
 		{ itemId = "DUNG_BEETLE_RING", chance = 0.01, min = 1, max = 1 },
 	},
+	["FIRELIZARD"] = {
+		{ itemId = "FIRE_LIZARD_SCALE", chance = 1.0, min = 2, max = 4 },
+		{ itemId = "FIRE_NECKLACE", chance = 0.015, min = 1, max = 1 },
+	},
 }
 
 return DropTableData

@@ -1106,7 +1106,7 @@ function UIManager.RefreshWeaponCrafting()
 	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" then
+		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" then
 			table.insert(weaponRecipes, r)
 		end
 	end
@@ -2148,8 +2148,8 @@ local function setupEventListeners()
 			local RecipeData = require(ReplicatedStorage.Data.RecipeData)
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
-				-- [수정] 래거시 제거: 오직 "말랑봉"만 포함 (필요 시 추후 확장이 용이하도록 ID 체크)
-				if r.id == "CraftSoftClub" then
+				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
+				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" then
 					table.insert(weaponRecipes, r)
 				end
 			end
