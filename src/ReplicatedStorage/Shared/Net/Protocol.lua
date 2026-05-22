@@ -40,6 +40,7 @@ Protocol.Commands = {
 	["Inventory.Unequip.Request"] = true,
 	["Inventory.Sort.Request"] = true,       -- 인벤토리 자동 정렬
 	["Inventory.GiveItem"] = true,         -- 디버그용
+	["WeaponDraw.Request"] = true,         -- 납도/발도 상태 토글
 	
 	-- Durability 명령어
 	["Durability.Repair.Request"] = true,
@@ -156,6 +157,7 @@ Protocol.Commands = {
 	
 	-- Stamina 명령어 (Phase 10)
 	["Stamina.GetState"] = true,               -- 스태미나 상태 조회
+	["Movement.ConsumeStamina"] = true,
 	
 	-- Hunger 명령어 (Phase 11)
 	["Hunger.GetState"] = true,
@@ -198,6 +200,7 @@ Protocol.Commands = {
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,
 	["Admin.GiveEnhanceSet.Request"] = true,
+	["Admin.SetElement.Request"] = true,
 
 	-- Enhancement 명령어 (연금 강화)
 	["Enhance.Request"] = true,

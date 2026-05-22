@@ -116,7 +116,6 @@ function EquipService.unequipAll(player: Player)
 	-- [MODIFIED] Clear server combat attribute
 	player:SetAttribute("EquippedWeapon", nil)
 end
-
 --- 특정 아이템을 플레이어에게 장착 (시각화)
 local isEquipping = {}
 
@@ -390,6 +389,7 @@ function EquipService.equipItem(player: Player, itemId: string?)
 			tool.Grip = CFrame.new(0, -0.3, 0.2) 
 		end
 		
+		tool.Parent = player:FindFirstChild("Backpack")
 		hum:EquipTool(tool)
 		
 		-- [PHYSICS REFACTOR] 고성능 물리 처리 (루프 탈피)

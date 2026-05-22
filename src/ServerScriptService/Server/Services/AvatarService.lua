@@ -11,7 +11,7 @@ local DataService = require(Services:WaitForChild("DataService"))
 local InventoryService = nil -- Dynamically populated during runtime Init() to unlock module load!
 
 local AvatarService = {}
-local playerElements = {} -- playerUserId -> "Fire" / "Water" / "Earth"
+local playerElements = {} -- playerUserId -> "Fire" / "Water" / "Dark"
 
 local function ensureRemoteEvent(name)
 	local parts = string.split(name, ".")
@@ -245,7 +245,7 @@ function AvatarService.Init()
 		local masters = {
 			{ name = "WaterMaster", koreanName = "물 스승", element = "Water", action = "대화하기", object = "수선(Water)의 길" },
 			{ name = "FireMaster", koreanName = "불 스승", element = "Fire", action = "대화하기", object = "화선(Fire)의 길" },
-			{ name = "EarthMaster", koreanName = "흙 스승", element = "Earth", action = "대화하기", object = "토선(Earth)의 길" }
+			{ name = "DarkMaster", koreanName = "어둠 스승", element = "Dark", action = "대화하기", object = "흑선(Dark)의 길" }
 		}
 
 		local function cleanString(str)
@@ -284,10 +284,10 @@ function AvatarService.Init()
 					if string.find(cleanChildName, "master") or string.find(cleanChildName, "스승") or string.find(cleanChildName, "npc") then
 						if string.find(cleanChildName, string.lower(name)) 
 							or (string.find(cleanChildName, "fire") and name == "FireMaster")
-							or (string.find(cleanChildName, "earth") and name == "EarthMaster")
+							or (string.find(cleanChildName, "dark") and name == "DarkMaster")
 							or (string.find(cleanChildName, "water") and name == "WaterMaster")
 							or (string.find(cleanChildName, "불") and name == "FireMaster")
-							or (string.find(cleanChildName, "흙") and name == "EarthMaster")
+							or (string.find(cleanChildName, "어둠") and name == "DarkMaster")
 							or (string.find(cleanChildName, "물") and name == "WaterMaster") then
 							return child
 						end
@@ -374,6 +374,9 @@ function AvatarService.Init()
 					end
 
 					prompt.Triggered:Connect(function(user)
+						if user:GetAttribute("Element") then
+							return -- 이미 원소를 선택한 플레이어는 다시 선택할 수 없음
+						end
 						openRemote:FireClient(user, m.element)
 						print(string.format("[AvatarService] NPC %s triggered by player: %s. Sent OpenSelectionUI with element: %s", m.koreanName, user.Name, m.element))
 					end)
@@ -402,6 +405,9 @@ function AvatarService.Init()
 			end
 
 			prompt.Triggered:Connect(function(user)
+				if user:GetAttribute("Element") then
+					return -- 이미 원소를 선택한 플레이어는 다시 선택할 수 없음
+				end
 				openRemote:FireClient(user) -- element 없이 발송 시 기존 전체선택 카드 UI 노출
 				print(string.format("[AvatarService] Fallback Altar triggered by player: %s. Sent OpenSelectionUI.", user.Name))
 			end)
@@ -418,9 +424,25 @@ function AvatarService.Init()
 		if not classData then return end
 
 		local userId = player.UserId
-		playerElements[userId] = element
+		
+		-- 이미 속성이 부여된 유저는 중복 선택 불가
+		if playerElements[userId] or player:GetAttribute("Element") then
+			warn(string.format("[AvatarService] Player %s already has an element, ignoring selection request.", player.Name))
+			return
+		end
 
+		playerElements[userId] = element
 		player:SetAttribute("Element", element)
+		
+		-- [Persistence] 영구 데이터 저장 (SaveService 연동)
+		local ok, SaveService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.SaveService) end)
+		if ok and SaveService and SaveService.updatePlayerState then
+			SaveService.updatePlayerState(userId, function(state)
+				state.element = element
+				return state
+			end)
+			SaveService.savePlayer(userId) -- 선택 즉시 저장하여 데이터 유실 방지
+		end
 
 		-- [MODIFIED] Removed redundant force-equipping of WoodenStaff. 
 		-- The weapon is now loaded organically via the Inventory integration on Spawn!
@@ -616,6 +638,31 @@ function AvatarService.Init()
 			end
 		end
 	end)
+end
+
+function AvatarService.debugSetElement(userId: number, element: string)
+	playerElements[userId] = element
+	local player = game.Players:GetPlayerByUserId(userId)
+	if player then
+		player:SetAttribute("Element", element)
+		
+		-- 속성이 바뀔 때 맞지 않는 룬 자동 장착 해제
+		local ok, InventoryService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.InventoryService) end)
+		if ok and InventoryService then
+			local okData, DataService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.DataService) end)
+			if okData and DataService then
+				local equipment = InventoryService.getEquipment(userId)
+				for slotName, equipData in pairs(equipment) do
+					if slotName:sub(1, 4) == "RUNE" then
+						local itemData = DataService.getItem(equipData.itemId)
+						if itemData and itemData.element and itemData.element ~= element then
+							InventoryService.unequipItem(player, slotName)
+						end
+					end
+				end
+			end
+		end
+	end
 end
 
 return AvatarService

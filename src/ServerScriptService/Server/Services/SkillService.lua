@@ -141,6 +141,80 @@ end
 -- Public API
 --========================================
 
+--- 룬 장착 시 스킬 자동 해금 및 슬롯 할당
+function SkillService.grantRuneSkill(userId: number, runeItemId: string, equipmentSlotName: string)
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local skillId = "SKILL_" .. runeItemId
+	
+	-- 스킬 데이터가 있는지 검증
+	local skillData = _findSkill(skillId)
+	if skillData then
+		cache.unlockedSkills[skillId] = true
+		
+		-- 장착 슬롯에 맞게 액티브 스킬 슬롯에 자동 매핑 (ACTIVE 타입만)
+		if skillData.type == "ACTIVE" then
+			if equipmentSlotName == "RUNE1" then
+				cache.activeSkillSlots[1] = skillId
+			elseif equipmentSlotName == "RUNE2" then
+				cache.activeSkillSlots[2] = skillId
+			elseif equipmentSlotName == "RUNE3" then
+				cache.activeSkillSlots[3] = skillId
+			end
+		end
+		
+		_syncToSave(userId)
+		
+		-- 클라이언트에 즉각 업데이트 알림
+		local player = game:GetService("Players"):GetPlayerByUserId(userId)
+		if player and NetController then
+			-- handleGetData 로직을 통해 최신 데이터 전달
+			local data = {
+				unlockedSkills = cache.unlockedSkills,
+				combatTreeId = cache.combatTreeId,
+				spAvailable = _getAvailableSP(userId),
+				spSpent = cache.skillPointsSpent,
+				activeSkillSlots = cache.activeSkillSlots,
+				level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
+			}
+			NetController.FireClient(player, "Skill.Data.Updated", data)
+		end
+	end
+end
+
+--- 룬 해제 시 스킬 회수
+function SkillService.revokeRuneSkill(userId: number, runeItemId: string)
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local skillId = "SKILL_" .. runeItemId
+	
+	if cache.unlockedSkills[skillId] then
+		cache.unlockedSkills[skillId] = nil
+		
+		-- 장착 중인 슬롯에서 해당 스킬 제거
+		for i = 1, 4 do
+			if cache.activeSkillSlots[i] == skillId then
+				cache.activeSkillSlots[i] = nil
+			end
+		end
+		
+		_syncToSave(userId)
+		
+		local player = game:GetService("Players"):GetPlayerByUserId(userId)
+		if player and NetController then
+			local data = {
+				unlockedSkills = cache.unlockedSkills,
+				combatTreeId = cache.combatTreeId,
+				spAvailable = _getAvailableSP(userId),
+				spSpent = cache.skillPointsSpent,
+				activeSkillSlots = cache.activeSkillSlots,
+				level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
+			}
+			NetController.FireClient(player, "Skill.Data.Updated", data)
+		end
+	end
+end
+
 --- 해금된 스킬 목록 조회
 function SkillService.getUnlockedSkills(userId: number): { [string]: boolean }
 	_initPlayerSkills(userId)
@@ -426,8 +500,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 	local char = player.Character
 	if not char then return end
 	
-	if itemId == "RUNE_FIREBALL" then
-		-- Fireball VFX & Damage logic
+	if itemId == "EMBER" or itemId == "DROPLET" or itemId == "NIGHT" then
+		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
 		
@@ -435,54 +509,171 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local look = Vector3.new(dir.x, dir.y, dir.z)
 		if look.Magnitude < 0.1 then look = hrp.CFrame.LookVector end
 		
-		-- Simple placeholder for VFX: Fire fireball from remote
-		local ReplicatedStorage = game:GetService("ReplicatedStorage")
-		local NetEvt = ReplicatedStorage:FindFirstChild("NetEvt")
-		if NetEvt then
-			NetEvt:FireAllClients("VFX.Play", {
-				name = "Fireball",
-				origin = hrp.Position + look * 3,
-				direction = look,
-				ownerId = player.UserId
-			})
+		local vfxName = "Fireball"
+		local dmgAmount = 25
+		local skillColor = Color3.fromRGB(255, 100, 50)
+		
+		if itemId == "DROPLET" then
+			vfxName = "WaterWave"
+			dmgAmount = 20
+			skillColor = Color3.fromRGB(50, 150, 255)
+			-- 힐 로직
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.Health = math.min(hum.MaxHealth, hum.Health + hum.MaxHealth * 0.1)
+			end
+		elseif itemId == "NIGHT" then
+			vfxName = "NightSpike"
+			dmgAmount = 35
+			skillColor = Color3.fromRGB(138, 43, 226)
 		end
 		
-		-- Damage logic: Sphere-cast or Area check
-		task.delay(0.2, function()
-			local hitPos = hrp.Position + look * 15
-			local radius = 8
-			
-			local params = OverlapParams.new()
-			params.FilterType = Enum.RaycastFilterType.Exclude
-			params.FilterDescendantsInstances = {char}
-			
-			local nearbyParts = workspace:GetPartBoundsInRadius(hitPos, radius, params)
-			local hitHumanoids = {}
-			
-			for _, part in ipairs(nearbyParts) do
-				local model = part:FindFirstAncestorOfClass("Model")
-				if model then
-					local hum = model:FindFirstChildOfClass("Humanoid")
-					if hum and hum.Health > 0 and not hitHumanoids[hum] then
-						hitHumanoids[hum] = true
-						
-						-- Tag for XP (Standard Roblox CreatorTag)
-						local tag = hum:FindFirstChild("creator")
-						if tag then tag:Destroy() end
-						
-						tag = Instance.new("ObjectValue")
-						tag.Name = "creator"
-						tag.Value = player
-						tag.Parent = hum
-						game:GetService("Debris"):AddItem(tag, 2)
-						
-						hum:TakeDamage(25) -- Fireball Base Damage
-						print("[SkillService] Fireball hit:", model.Name)
+		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
+		
+		-- [데미지 계산]
+		-- 1. 무기 기본 데미지 가져오기
+		local InventoryService = require(script.Parent.InventoryService)
+		local DataService = require(script.Parent.DataService)
+		
+		local equipment = InventoryService.getEquipment(player.UserId)
+		local equippedWeapon = equipment and equipment.HAND
+		local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
+		local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
+		local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
+		
+		-- 무기 데미지 + 스킬 고유 베이스 데미지 (dmgAmount)
+		local finalDamage = (weaponDmg * (1 + enhanceLevel * 0.15)) + dmgAmount
+		
+		-- 2. 스탯 보너스 및 치명타 확률/데미지 가져오기 (고정 스탯)
+		local attackMult = 1.0
+		local critChance = 0
+		local critDamageMult = 0
+		
+		local success, PlayerStatService = pcall(function()
+			return require(script.Parent.PlayerStatService)
+		end)
+		
+		if success and PlayerStatService then
+			local calc = PlayerStatService.GetCalculatedStats(player.UserId)
+			attackMult = calc.attackMult or 1.0
+			critChance = calc.critChance or 0
+			critDamageMult = calc.critDamageMult or 0
+		end
+		
+		-- 기본 스킬 데미지 (무기 데미지에 2.0배 배율 적용)
+		local baseSkillDamage = finalDamage * attackMult * 2.0
+		
+		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
+		local hitPos = hrp.Position + look * 15
+		
+		-- Damage logic (4타 멀티 히트)
+		task.spawn(function()
+			for hitIndex = 1, 4 do
+				local radius = 15 -- 넓은 광역 폭발
+				
+				local params = OverlapParams.new()
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				params.FilterDescendantsInstances = {char}
+				
+				local nearbyParts = workspace:GetPartBoundsInRadius(hitPos, radius, params)
+				local hitHumanoids = {}
+				
+				local ReplicatedStorage = game:GetService("ReplicatedStorage")
+				local avatarFolder = ReplicatedStorage:FindFirstChild("Avatar")
+				local vfxFolder = avatarFolder and avatarFolder:FindFirstChild("VFX")
+				local vfxRemote = vfxFolder and vfxFolder:FindFirstChild("Hit")
+				
+				local hitAny = false
+				
+				for _, part in ipairs(nearbyParts) do
+					local model = part:FindFirstAncestorOfClass("Model")
+					if model then
+						local hum = model:FindFirstChildOfClass("Humanoid")
+						-- 체력이 0이하인 시체도 타격하여 4타의 데미지 텍스트가 모두 표기되도록 허용
+						if hum and not hitHumanoids[hum] then
+							local isFirstHit = not hitAny
+							hitHumanoids[hum] = true
+							hitAny = true
+							
+							-- [타겟별 개별 데미지/치명타 연산]
+							local hitDmg = baseSkillDamage
+							local variance = 0.15
+							hitDmg = hitDmg * (1 + (math.random() * 2 - 1) * variance)
+							
+							local hitCrit = false
+							if critChance > 0 and math.random() < critChance then
+								hitCrit = true
+								hitDmg = hitDmg * (1.5 + critDamageMult)
+							end
+							local finalHitDmg = math.max(1, math.floor(hitDmg))
+							
+							local wasAlive = hum.Health > 0
+							
+							local tag = hum:FindFirstChild("creator")
+							if tag then tag:Destroy() end
+							
+							tag = Instance.new("ObjectValue")
+							tag.Name = "creator"
+							tag.Value = player
+							tag.Parent = hum
+							game:GetService("Debris"):AddItem(tag, 2)
+							
+							hum:TakeDamage(finalHitDmg)
+							print(string.format("[SkillService] %s hit %d/4: %s | Dmg: %d | Crit: %s", vfxName, hitIndex, model.Name, finalHitDmg, tostring(hitCrit)))
+							
+							-- 방금 일격으로 죽었을 때만 경험치 1회 지급 (시체 타격 중복 지급 방지)
+							if wasAlive and hum.Health <= 0 then
+								local xpReward = model:GetAttribute("XPReward") or 25
+								if PlayerStatService and PlayerStatService.grantActionXP then
+									local mobId = model:GetAttribute("MobId") or model.Name
+									PlayerStatService.grantActionXP(player.UserId, xpReward, {
+										source = "CREATURE_KILL",
+										actionKey = "MOB:" .. tostring(mobId),
+										disableDiminishing = true
+									})
+								end
+							end
+							
+							-- [타겟별 VFX 발송] (맞은 몬스터마다 각각 데미지 텍스트 출력!)
+							if vfxRemote then
+								local targetHrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+								local vfxPos = targetHrp and targetHrp.Position or hitPos
+								vfxPos = vfxPos + Vector3.new((math.random() - 0.5)*3, (math.random() - 0.5)*3, (math.random() - 0.5)*3)
+								
+								vfxRemote:FireAllClients({
+									target = model,
+									element = "Skill",
+									position = vfxPos,
+									damage = finalHitDmg,
+									isCritical = hitCrit,
+									skillId = itemId,
+									isMiss = false,
+									hideVfx = not isFirstHit
+								})
+							end
+						end
 					end
 				end
+				
+				-- 맞은 적이 하나도 없을 경우 (허공 폭발)
+				if not hitAny and vfxRemote then
+					local vfxPos = hitPos + Vector3.new((math.random() - 0.5)*5, (math.random() - 0.5)*5, (math.random() - 0.5)*5)
+					
+					vfxRemote:FireAllClients({
+						target = char,
+						element = "Skill",
+						position = vfxPos,
+						damage = 0,
+						isCritical = false,
+						skillId = itemId,
+						isMiss = true
+					})
+				end
+				
+				task.wait(0.15) -- 0.15초 간격으로 총 4번 타격
 			end
 			
-			print("[SkillService] Fireball exploded at", hitPos)
+			print(string.format("[SkillService] %s exploded at %s", vfxName, tostring(hitPos)))
 		end)
 	end
 end

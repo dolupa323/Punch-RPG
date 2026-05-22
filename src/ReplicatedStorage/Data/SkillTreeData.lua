@@ -528,12 +528,82 @@ SkillTreeData.TAMING = {
 }
 
 --========================================
+-- 룬 시스템 (RUNES) - 스킬 트리 외부, 장착 시 활성화
+--========================================
+SkillTreeData.RUNES = {
+	{
+		id = "SKILL_DROPLET",
+		name = "물방울 발사",
+		type = "ACTIVE",
+		icon = "DropletIcon",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 3.0,
+		description = "응축된 물방울을 발사하여 적을 타격합니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.0 } },
+	},
+	{
+		id = "SKILL_EMBER",
+		name = "불씨 발사",
+		type = "ACTIVE",
+		icon = "EmberIcon",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 4.0,
+		description = "작은 불씨를 날려 적에게 화염 피해를 입힙니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.2 } },
+	},
+	{
+		id = "SKILL_ROCK",
+		name = "바위 굴리기",
+		type = "ACTIVE",
+		icon = "RockIcon",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 5.0,
+		description = "단단한 바위를 굴려 적에게 둔탁한 피해를 입힙니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.5 } },
+	},
+	{
+		id = "SKILL_RUNE_FIREBALL",
+		name = "파이어볼",
+		type = "ACTIVE",
+		icon = "RUNE_FIRE",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 8.0,
+		description = "강력한 화염구를 발사하여 넓은 범위에 피해를 입힙니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 3.0 }, { stat = "SKILL_AOE_RADIUS", value = 10 } },
+	},
+	{
+		id = "SKILL_RUNE_POWER",
+		name = "힘의 룬",
+		type = "PASSIVE",
+		icon = "RUNE_ATTACK",
+		reqLevel = 1,
+		spCost = 0,
+		description = "공격력을 증가시킵니다.",
+		effects = { { stat = "DAMAGE_MULT", value = 0.1 } },
+	},
+	{
+		id = "SKILL_RUNE_LIFE_FORCE",
+		name = "생명의 룬",
+		type = "PASSIVE",
+		icon = "RUNE_HEALTH",
+		reqLevel = 1,
+		spCost = 0,
+		description = "최대 체력을 증가시킵니다.",
+		effects = { { stat = "MAX_HEALTH_MULT", value = 0.1 } },
+	}
+}
+
+--========================================
 -- 유틸리티 함수
 --========================================
 
 --- 스킬 ID로 스킬 데이터 조회
 function SkillTreeData.GetSkill(skillId: string)
-	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD", "TAMING" }) do
+	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD", "TAMING", "RUNES" }) do
 		local tree = SkillTreeData[treeId]
 		if tree then
 			for _, skill in ipairs(tree) do
@@ -559,7 +629,7 @@ end
 
 --- 스킬 ID가 속한 트리 ID 반환
 function SkillTreeData.GetTreeIdForSkill(skillId: string): string?
-	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD", "TAMING" }) do
+	for _, treeId in ipairs({ "SWORD", "BOW", "AXE", "BUILD", "TAMING", "RUNES" }) do
 		local tree = SkillTreeData[treeId]
 		if tree then
 			for _, skill in ipairs(tree) do

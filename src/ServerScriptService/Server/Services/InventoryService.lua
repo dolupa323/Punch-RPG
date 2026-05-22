@@ -23,6 +23,7 @@ local InventoryService = {}
 local initialized = false
 local playerInventories = {}  -- [userId] = { slots = { [1] = {itemId, count}, ... }, equipment = { Head, Body, Feet, Hand } }
 local playerFoodCooldowns = {} -- [userId] = os.clock() last eaten time
+local playerRuneCooldowns = {} -- [userId] = timestamp (os.clock() + 10)
 
 -- NetController 참조
 local NetController = nil
@@ -54,6 +55,9 @@ local function _getDefaultEquipment()
 		NECKLACE = nil,
 		RING1 = nil,
 		RING2 = nil,
+		RUNE1 = nil,
+		RUNE2 = nil,
+		RUNE3 = nil,
 	}
 end
 
@@ -115,6 +119,9 @@ local function _normalizeEquipmentSlots(equipment: any): any
 	normalized.NECKLACE = equipment.NECKLACE or equipment.Necklace
 	normalized.RING1 = equipment.RING1 or equipment.Ring1
 	normalized.RING2 = equipment.RING2 or equipment.Ring2
+	normalized.RUNE1 = equipment.RUNE1 or equipment.Rune1
+	normalized.RUNE2 = equipment.RUNE2 or equipment.Rune2
+	normalized.RUNE3 = equipment.RUNE3 or equipment.Rune3
 
 	return normalized
 end
@@ -450,8 +457,28 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	local itemSlot = itemData.slot and itemData.slot:upper()
 	local isRuneSlot = (targetSlot:sub(1, 4) == "RUNE")
 	
+	-- 룬 장착 쿨타임 검증
+	if isRuneSlot then
+		if playerRuneCooldowns[userId] and os.clock() < playerRuneCooldowns[userId] then
+			local remain = math.ceil(playerRuneCooldowns[userId] - os.clock())
+			if NetController then
+				NetController.FireClient(player, "Notify.Message", { text = string.format("룬 재장착 대기시간입니다. (%d초 남음)", remain) })
+			end
+			return false, "COOLDOWN"
+		end
+	end
+	
 	local isMatch = false
 	if isRuneSlot and itemSlot == "RUNE" then
+		-- 룬 속성 일치 여부 확인
+		local playerElement = player:GetAttribute("Element") or "Fire"
+		if itemData.element and itemData.element ~= playerElement then
+			if NetController then
+				NetController.FireClient(player, "Notify.Message", { text = string.format("현재 속성(%s)과 일치하는 룬만 장착할 수 있습니다.", playerElement) })
+			end
+			return false, "ELEMENT_MISMATCH"
+		end
+		
 		isMatch = true
 	elseif itemSlot == "RING" and (targetSlot == "RING1" or targetSlot == "RING2") then
 		-- 반지 아이템은 반지 1, 반지 2 슬롯 어디든 장착 허용!
@@ -483,6 +510,15 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	-- 기존 ?비가 ?었?면 ?벤?리?복구
 	if oldEquip then
 		InventoryService.addItem(userId, oldEquip.itemId, 1, oldEquip.durability, oldEquip.attributes)
+		if isRuneSlot then
+			local SkillService = require(game:GetService("ServerScriptService").Server.Services.SkillService)
+			SkillService.revokeRuneSkill(userId, oldEquip.itemId)
+		end
+	end
+	
+	if isRuneSlot then
+		local SkillService = require(game:GetService("ServerScriptService").Server.Services.SkillService)
+		SkillService.grantRuneSkill(userId, slotData.itemId, targetSlot)
 	end
 	
 	-- ?태 ????청
@@ -521,6 +557,16 @@ function InventoryService.unequipItem(player: Player, equipmentSlotName: string)
 	local added, remaining = InventoryService.addItem(userId, oldEquip.itemId, 1, oldEquip.durability, oldEquip.attributes)
 	if added == 0 then
 		return false, Enums.ErrorCode.INV_FULL
+	end
+	
+	-- 룬 해제 시 10초 쿨타임 적용
+	if equipmentSlotName:sub(1, 4) == "RUNE" then
+		playerRuneCooldowns[userId] = os.clock() + 10
+		local SkillService = require(game:GetService("ServerScriptService").Server.Services.SkillService)
+		SkillService.revokeRuneSkill(userId, oldEquip.itemId)
+		if NetController then
+			NetController.FireClient(player, "Notify.Message", { text = "룬 해제 완료. 10초의 재장착 대기시간이 적용됩니다." })
+		end
 	end
 	
 	inv.equipment[equipmentSlotName] = nil
@@ -2261,6 +2307,7 @@ function InventoryService.GetHandlers()
 			InventoryService.sort(player.UserId)
 			return { success = true }
 		end,
+
 	}
 
 	if RunService:IsStudio() then

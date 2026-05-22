@@ -1668,6 +1668,7 @@ local function setupEventListeners()
 		if WindowManager.isOpen("INV") then UIManager.refreshInventory() end
 		if WindowManager.isOpen("STORAGE") then UIManager.refreshStorage() end
 		UIManager.refreshHotbar()
+		if HUDUI and HUDUI.UpdateRuneHotbar then HUDUI.UpdateRuneHotbar(InventoryController.getEquipment()) end
 		if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
 		if invCraftContainer and invCraftContainer.Visible then
 			UIManager.refreshPersonalCrafting()
@@ -2281,6 +2282,7 @@ function UIManager.Init()
 
 	UIManager.refreshInventory()
 	UIManager.refreshHotbar()
+	if HUDUI and HUDUI.UpdateRuneHotbar then HUDUI.UpdateRuneHotbar(InventoryController.getEquipment()) end
 	-- UIManager.updateHealth(100,100) -- 제거: 캐릭터 스폰 리스너에서 처리함
 	UIManager.updateStamina(100,100)
 	UIManager.updateXP(0,100)

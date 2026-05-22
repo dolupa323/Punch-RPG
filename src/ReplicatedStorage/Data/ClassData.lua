@@ -28,16 +28,16 @@ local ClassData = {
 			}
 		}
 	},
-	["Earth"] = {
-		id = "Earth",
-		name = "흙 (Earth-Bending)",
-		desc = "타격 시 단단한 바위 방패 쉴드 생성",
-		color = {r = 210, g = 160, b = 80},
-		vfxColor = {r = 200, g = 160, b = 80},
+	["Dark"] = {
+		id = "Dark",
+		name = "어둠 (Dark-Arts)",
+		desc = "타격 시 어둠의 방어막(쉴드) 생성",
+		color = {r = 138, g = 43, b = 226},
+		vfxColor = {r = 100, g = 50, b = 150},
 		onHit = {
 			damageModifier = 1.0,
 			effects = {
-				{ name = "EarthShield", value = 3, target = "Self", maxClamp = 50 }
+				{ name = "DarkShield", value = 3, target = "Self", maxClamp = 50 }
 			}
 		}
 	}

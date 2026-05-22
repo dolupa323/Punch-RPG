@@ -105,6 +105,21 @@ local function createAdminPanel()
 	mkBtn("레벨 50 설정", Color3.fromRGB(100, 120, 180), function()
 		NetClient.Request("Admin.SetLevel.Request", { level = 50 })
 	end)
+	
+	mkBtn("속성: 불(Fire)", Color3.fromRGB(200, 80, 80), function()
+		NetClient.Request("Admin.SetElement.Request", { element = "Fire" })
+		UIManager.notify("불(Fire) 속성으로 변경 요청", Color3.new(1, 0.5, 0.5))
+	end)
+	
+	mkBtn("속성: 물(Water)", Color3.fromRGB(80, 120, 200), function()
+		NetClient.Request("Admin.SetElement.Request", { element = "Water" })
+		UIManager.notify("물(Water) 속성으로 변경 요청", Color3.new(0.5, 0.7, 1))
+	end)
+	
+	mkBtn("속성: 어둠(Dark)", Color3.fromRGB(138, 43, 226), function()
+		NetClient.Request("Admin.SetElement.Request", { element = "Dark" })
+		UIManager.notify("어둠(Dark) 속성으로 변경 요청", Color3.new(0.6, 0.2, 0.8))
+	end)
 
 	mkBtn("완전 초기화 (!)", Color3.fromRGB(180, 60, 60), function()
 		-- 마케팅/테스트용 초기화 로직 (필요 시 구현)

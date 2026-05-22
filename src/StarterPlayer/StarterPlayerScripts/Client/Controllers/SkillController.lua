@@ -189,6 +189,8 @@ function SkillController.useSkill(slotName: string)
 	
 	local itemId = item.itemId
 	
+	-- 1.5. 발도 상태 로직 삭제됨
+	
 	-- 2. 로컬 쿨다운 프리체크
 	local now = tick()
 	if not DEV_NO_COOLDOWN then
@@ -201,9 +203,19 @@ function SkillController.useSkill(slotName: string)
 	local char = lp and lp.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local aimDirection = nil
+	local lookVec = Vector3.new(0, 0, -1)
 	if hrp then
-		local look = hrp.CFrame.LookVector
-		aimDirection = { x = look.X, y = look.Y, z = look.Z }
+		lookVec = hrp.CFrame.LookVector
+		aimDirection = { x = lookVec.X, y = lookVec.Y, z = lookVec.Z }
+	end
+
+	-- 3.5. [클라이언트 선호출] 로컬 사전 애니메이션 사운드 VFX 즉시 발생
+	if hrp then
+		local targetCFrame = CFrame.new(hrp.Position, hrp.Position + lookVec)
+		local AvatarController = require(script.Parent.AvatarController)
+		if AvatarController and AvatarController.playSkillCast then
+			AvatarController.playSkillCast(itemId, hrp, targetCFrame)
+		end
 	end
 
 	-- 4. 서버 요청
@@ -256,6 +268,16 @@ function SkillController.getSlotCooldownRemaining(slotIndex: number): number
 	local skillId = activeSkillSlots[slotIndex]
 	if not skillId then return 0 end
 	return SkillController.getSkillCooldownRemaining(skillId)
+end
+
+--- 룬 슬롯 쿨다운 조회
+function SkillController.getRuneCooldownRemaining(slotIndex: number): number
+	local InventoryController = require(script.Parent.InventoryController)
+	local equipment = InventoryController.getEquipment()
+	local slotKey = "RUNE" .. slotIndex
+	local eqItem = equipment[slotKey]
+	if not eqItem or not eqItem.itemId then return 0 end
+	return SkillController.getSkillCooldownRemaining(eqItem.itemId)
 end
 
 --- 특정 스킬이 사용 가능한지 체크
@@ -348,7 +370,7 @@ function SkillController.Init()
 		end
 	end)
 
-	-- Key Bindings (E, R, T)
+	-- Key Bindings (Q, E, R, T)
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then return end
 		
@@ -358,6 +380,19 @@ function SkillController.Init()
 			SkillController.useSkill("RUNE2")
 		elseif input.KeyCode == Enum.KeyCode.T then
 			SkillController.useSkill("RUNE3")
+		end
+	end)
+	
+	NetClient.On("Skill.Data.Updated", function(data)
+		if data then
+			unlockedSkills = data.unlockedSkills or {}
+			combatTreeId = data.combatTreeId
+			spAvailable = data.spAvailable or 0
+			spSpent = data.spSpent or 0
+			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
+			playerLevel = data.level or 1
+			_fireListeners()
+			print("[SkillController] Received Skill.Data.Updated and refreshed local cache!")
 		end
 	end)
 

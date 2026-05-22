@@ -117,6 +117,26 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 			print(string.format("[MobSpawnService] -> Roll failed (%.2f > %.2f) for '%s'", roll, chance, entry.itemId))
 		end
 	end
+	
+	-- [Active Rune Drop Logic] 불도마뱀 처치 시 룬 15% 드롭
+	if mobName == "FireLizard" and killerPlayer then
+		local element = killerPlayer:GetAttribute("Element")
+		if element and element ~= "None" then
+			local runeRoll = math.random(1, 100)
+			if runeRoll <= 15 then
+				local runeItemId = "EMBER"
+				if element == "Water" then runeItemId = "DROPLET"
+				elseif element == "Dark" then runeItemId = "NIGHT" end
+				
+				local ok, err = WorldDropService.spawnDrop(pos, runeItemId, 1)
+				if ok then
+					print(string.format("[MobSpawnService] Boss Rune Dropped for %s (%s)", killerPlayer.Name, runeItemId))
+				else
+					warn("[MobSpawnService] Boss Rune Drop Failed: ", tostring(err))
+				end
+			end
+		end
+	end
 end
 
 local function getRandomPosInPart(part)
@@ -313,11 +333,15 @@ local function createMobModel(areaId, index, config)
 			hipHeightRatio = originalHipHeight / originalHrpSizeY
 		end
 		
-		-- [물리혁신] HRP의 물리 충돌 영역이 너무 작아 지형 아래로 떨어지는 물리 엔진 버그를 완벽 해결하기 위해 최소 규격 강제 설정!
+		-- [물리갱신] HRP의 물리 충돌 영역이 너무 작아 지형 아래로 꺼지는 물리 엔진 버그를 완벽 해결하기 위해 최소 규격 강제 조정!
 		local currentSize = hrp.Size
 		if currentSize.X < 2 or currentSize.Y < 2 or currentSize.Z < 2 then
 			hrp.Size = Vector3.new(math.max(2, currentSize.X), math.max(2, currentSize.Y), math.max(2, currentSize.Z))
 		end
+		
+		-- [물리갱신] 몬스터 밀림(축구공) 방지: HRP의 밀도를 최대치(100)로 설정하여 유저가 밀 수 없게 만듦
+		hrp.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5)
+		hrp.Massless = false
 		hrp.Transparency = 1
 		
 		-- 1. 물리 해제 및 안정화 (Anchored 제거)

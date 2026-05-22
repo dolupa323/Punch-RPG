@@ -4,6 +4,46 @@
 
 local ItemData = {
 	--========================================
+	-- 룬 (RUNE)
+	--========================================
+	{
+		id = "RUNE_FIRE_ACTIVE",
+		name = "불씨",
+		type = "RUNE",
+		element = "Fire",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.5,
+		description = "불도마뱀의 불길이 담긴 룬. 룬 슬롯에 장착하여 액티브 스킬을 사용할 수 있다.",
+		modelName = "RuneModel",
+		color = Color3.fromRGB(255, 100, 50),
+	},
+	{
+		id = "RUNE_WATER_ACTIVE",
+		name = "물방울",
+		type = "RUNE",
+		element = "Water",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.5,
+		description = "응축된 수기가 담긴 룬. 룬 슬롯에 장착하여 액티브 스킬을 사용할 수 있다.",
+		modelName = "RuneModel",
+		color = Color3.fromRGB(50, 150, 255),
+	},
+	{
+		id = "RUNE_DARK_ACTIVE",
+		name = "짙은 밤",
+		type = "RUNE",
+		element = "Dark",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.5,
+		description = "심연의 기운이 담긴 룬. 룬 슬롯에 장착하여 액티브 스킬을 사용할 수 있다.",
+		modelName = "RuneModel",
+		color = Color3.fromRGB(138, 43, 226),
+	},
+
+	--========================================
 	-- 기초 자원 (Tier 0-1)
 	--========================================
 	{
@@ -1576,6 +1616,51 @@ local ItemData = {
 		iconName = "FireHalberd",
 		modelName = "FireHalberd",
 		description = "불도마뱀의 불타는 비늘을 엮어 제작한 언월도 형태의 강력한 봉. 말랑봉의 부드러움을 뛰어넘는 굳건한 타격력을 가졌습니다.",
+	},
+	--========================================
+	-- 룬 (Rune)
+	--========================================
+	{
+		id = "EMBER",
+		name = "불씨",
+		type = "RUNE",
+		runeType = "ACTIVE",
+		element = "Fire",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		iconName = "EmberIcon",
+		modelName = "RuneModel",
+		description = "불도마뱀의 심장에서 피어난 작은 불씨. 장착 시 불속성의 힘을 다룰 수 있습니다.",
+	},
+	{
+		id = "DROPLET",
+		name = "물방울",
+		type = "RUNE",
+		runeType = "ACTIVE",
+		element = "Water",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		iconName = "DropletIcon",
+		modelName = "RuneModel",
+		description = "응축된 맑은 물방울. 장착 시 물속성의 힘을 다룰 수 있습니다.",
+	},
+	{
+		id = "NIGHT",
+		name = "짙은 밤",
+		type = "RUNE",
+		runeType = "ACTIVE",
+		element = "Dark",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		iconName = "DarkIcon",
+		modelName = "RuneModel",
+		description = "어둠의 기운을 머금은 짙은 밤의 결정체. 장착 시 어둠속성의 힘을 다룰 수 있습니다.",
 	},
 }
 

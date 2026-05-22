@@ -49,6 +49,21 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	if not template then return end
 	local vfx = template:Clone()
 	
+	if vfx:IsA("Attachment") or vfx:IsA("ParticleEmitter") then
+		local wrapper = Instance.new("Part")
+		wrapper.Name = "VFX_Wrapper"
+		wrapper.Transparency = 1
+		wrapper.Anchored = true
+		wrapper.CanCollide = false
+		wrapper.CanQuery = false
+		wrapper.CanTouch = false
+		wrapper.Size = Vector3.new(0.1, 0.1, 0.1)
+		vfx.Parent = wrapper
+		vfx = wrapper
+	elseif vfx:IsA("BasePart") then
+		vfx.Transparency = 1
+	end
+	
 	scaleFactor = scaleFactor or 1.0
 	if scaleFactor ~= 1.0 then
 		-- 1. 모델 또는 파트 스케일링
@@ -101,9 +116,6 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 			weld.Part1 = parentPart
 			weld.Parent = vfx
 		end
-		if not vfx:IsA("MeshPart") then
-			vfx.Transparency = 1
-		end
 	elseif vfx:IsA("Model") then
 		vfx:PivotTo(cframe)
 		if parentPart and not shouldTweenForward then
@@ -122,12 +134,6 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 			for _, d in ipairs(vfx:GetDescendants()) do
 				if d:IsA("BasePart") then d.Anchored = true end
 			end
-		end
-	end
-
-	for _, desc in ipairs(vfx:GetDescendants()) do
-		if desc:IsA("Part") and not desc:IsA("MeshPart") then
-			desc.Transparency = 1
 		end
 	end
 
@@ -327,7 +333,7 @@ local function createSelectionUI()
 		})
 	end
 	table.sort(elements, function(a, b)
-		local order = {Fire = 1, Water = 2, Earth = 3}
+		local order = {Fire = 1, Water = 2, Dark = 3}
 		return (order[a.id] or 99) < (order[b.id] or 99)
 	end)
 
@@ -457,8 +463,8 @@ local function createDialogueUI(element)
 		masterTitle = "불의 스승"
 		dialogueText = "“내 힘을 받는 순간, 너는 더 이상 뒤로 물러설 수 없다.\n적을 베고, 어둠을 태우고, 네 길을 스스로 밝혀라.\n자, 선택하라. 너의 심장은 불타고 있느냐?”"
 	else
-		masterTitle = "흙의 스승"
-		dialogueText = "“빠른 힘은 쉽게 꺼지고, 얕은 뿌리는 쉽게 뽑힌다.\n하지만 대지는 오래 버티는 자에게 응답한다.\n자, 선택하라. 너는 마지막까지 서 있을 수 있느냐?”"
+		masterTitle = "어둠의 스승"
+		dialogueText = "“빛은 필연적으로 그림자를 드리운다.\n모두가 빛을 우러러볼 때, 어둠은 묵묵히 모든 것을 삼킨다.\n자, 선택하라. 너는 기꺼이 심연 속으로 걸어갈 수 있느냐?”"
 	end
 
 	-- 3. 타이틀 레이블 (Scale 좌표계 적용)
@@ -801,36 +807,45 @@ function AvatarController.Init()
 				local pos = data.position
 				local damage = data.damage
 				local isCrit = data.isCritical == true
+				local skillId = data.skillId
+				local isMiss = data.isMiss == true
 
-				if target and pos then
-					local targetHrp = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
-					if not targetHrp then return end
-
-					-- 0. [디렉티브 반영] 기본 공격 다단히트 틱당 공용 어택 히트 VFX/사운드 시스템 동기화 재생
-					pcall(function()
-						-- [Sound 재생]
-						local hitSoundFolder = getCombatSoundFolder("Hit")
-						if hitSoundFolder then
-							local hitSndTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit") or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
-							if hitSndTemplate then
-								playCombatSound(hitSndTemplate, targetHrp)
+				if pos then
+					local targetHrp = target and (target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart)
+					if not data.hideVfx then
+						if skillId then
+							AvatarController.playSkillHit(skillId, pos, targetHrp)
+						else
+							-- 0. [디렉티브 반영] 기본 공격 다단히트 틱당 공용 어택 히트 VFX/사운드 시스템 동기화 재생
+							if targetHrp then
+								pcall(function()
+									-- [Sound 재생]
+									local hitSoundFolder = getCombatSoundFolder("Hit")
+									if hitSoundFolder then
+										local hitSndTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit") or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
+										if hitSndTemplate then
+											playCombatSound(hitSndTemplate, targetHrp)
+										end
+									end
+									
+									-- [VFX 재생]
+									local hitFolder = getElementVFXFolder("Hit")
+									if hitFolder then
+										local hitVfxTemplate = hitFolder:FindFirstChild("Default_Attack_Hit") or hitFolder:FindFirstChild("Base_Attack_Hit")
+										if hitVfxTemplate then
+											-- 데미지 타격 좌표를 바탕으로 월드에 이펙트 투척
+											spawnCombatVFX(hitVfxTemplate, CFrame.new(pos), 2.0)
+										end
+									end
+								end)
 							end
 						end
-						
-						-- [VFX 재생]
-						local hitFolder = getElementVFXFolder("Hit")
-						if hitFolder then
-							local hitVfxTemplate = hitFolder:FindFirstChild("Default_Attack_Hit") or hitFolder:FindFirstChild("Base_Attack_Hit")
-							if hitVfxTemplate then
-								-- 데미지 타격 좌표를 바탕으로 월드에 이펙트 투척
-								spawnCombatVFX(hitVfxTemplate, CFrame.new(pos), 2.0)
-							end
-						end
-					end)
+					end
 
-					-- 1. 플로팅 대미지 텍스트 생성 (Floating Damage Text)
-					local bb = Instance.new("BillboardGui")
-					bb.Size = UDim2.new(0, 100, 0, 40)
+					-- 1. 플로팅 대미지 텍스트 생성 (Floating Damage Text) (허공 타격 시에는 텍스트 생략)
+					if targetHrp and not isMiss and damage and damage > 0 then
+						local bb = Instance.new("BillboardGui")
+						bb.Size = UDim2.new(0, 100, 0, 40)
 					-- 랜덤 오프셋을 살짝 주어 여러개 뜰 때 겹치지 않게 함
 					local rx = math.random(-15, 15) / 10
 					local rz = math.random(-15, 15) / 10
@@ -880,12 +895,89 @@ function AvatarController.Init()
 					}):Play()
 					
 					task.delay(duration, function() bb:Destroy() end)
-
+					end
 
 				end
 			end)
 		end
 	end)
+end
+
+--========================================
+-- [Skill System 연동] 스킬 액션 시각화
+--========================================
+
+function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
+	local char = hrp.Parent
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	
+	-- 1. 로컬 애니메이션 재생 (Assets/Animations/Weapons/Skill/<itemId>_Cast)
+	if hum then
+		local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+		local animationsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
+		local weaponsAnimFolder = animationsFolder and animationsFolder:FindFirstChild("Weapons")
+		local skillAnimFolder = weaponsAnimFolder and weaponsAnimFolder:FindFirstChild("Skill")
+		
+		local targetAnim = skillAnimFolder and skillAnimFolder:FindFirstChild(itemId .. "_Cast")
+		if targetAnim then
+			local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+			local track = animator:LoadAnimation(targetAnim)
+			track:Play()
+		else
+			warn(string.format("[ANIM INFO] '%s_Cast' not found in Assets.Animations.Weapons.Skill", itemId))
+		end
+	end
+
+	-- 2. Cast Sound 재생 (Assets/Sounds/Cast/<itemId>_Cast)
+	local castSoundFolder = getCombatSoundFolder("Cast")
+	if castSoundFolder then
+		local soundTemplate = castSoundFolder:FindFirstChild(itemId .. "_Cast")
+		if soundTemplate then
+			playCombatSound(soundTemplate, hrp)
+		else
+			warn(string.format("[SOUND INFO] '%s_Cast' not found in Assets.Sounds.Cast", itemId))
+		end
+	end
+
+	-- 3. Cast VFX 재생 (Assets/VFX/Cast/<itemId>_Cast)
+	local castVFXFolder = getElementVFXFolder("Cast")
+	if castVFXFolder then
+		local vfxTemplate = castVFXFolder:FindFirstChild(itemId .. "_Cast")
+		if vfxTemplate then
+			-- 스킬의 경우 투사체가 날아갈 수 있도록 moveForwardDist 부여 (예: 20 스터드)
+			spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, 1.0, 20.0)
+		else
+			warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", itemId))
+		end
+	end
+end
+
+function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: BasePart?)
+	-- 1. 공용 Hit Sound 재생 (룬이든 평타든 모두 동일하게)
+	local hitSoundFolder = getCombatSoundFolder("Hit")
+	if hitSoundFolder then
+		local soundTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit") or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
+		if soundTemplate and targetHrp then
+			playCombatSound(soundTemplate, targetHrp)
+		else
+			if not soundTemplate then
+				warn("[SOUND INFO] 'Default_Attack_Hit' not found in Assets.Sounds.Hit")
+			end
+		end
+	end
+
+	-- 2. Hit VFX 재생 (Assets/VFX/Hit/<itemId>_Hit)
+	local hitVFXFolder = getElementVFXFolder("Hit")
+	if hitVFXFolder then
+		local vfxTemplate = hitVFXFolder:FindFirstChild(itemId .. "_Hit")
+		if vfxTemplate then
+			-- 타격 이펙트가 캐릭터의 발 밑이나 너무 낮게 생성되지 않도록 Y축 보정(예: +3 스터드 위로)
+			local adjustedPos = pos + Vector3.new(0, 3, 0)
+			spawnCombatVFX(vfxTemplate, CFrame.new(adjustedPos), 2.0)
+		else
+			warn(string.format("[VFX INFO] '%s_Hit' not found in Assets.VFX.Hit", itemId))
+		end
+	end
 end
 
 return AvatarController

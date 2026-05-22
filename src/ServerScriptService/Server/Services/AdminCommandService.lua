@@ -113,6 +113,28 @@ local function handleGiveEnhanceSet(player: Player, payload: any)
 	return { success = true }
 end
 
+local function handleSetElement(player: Player, payload: any)
+	local el = payload and payload.element
+	if el then
+		player:SetAttribute("Element", el)
+		local ok, AvatarService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.AvatarService) end)
+		if ok and AvatarService and AvatarService.debugSetElement then
+			AvatarService.debugSetElement(player.UserId, el)
+		end
+		if SaveService and SaveService.updatePlayerState then
+			SaveService.updatePlayerState(player.UserId, function(state)
+				state.element = el
+				return state
+			end)
+			if SaveService.savePlayer then
+				SaveService.savePlayer(player.UserId)
+			end
+		end
+		return { success = true }
+	end
+	return { success = false }
+end
+
 --========================================
 -- Command Parser
 --========================================
@@ -141,6 +163,28 @@ local function processCommand(player: Player, message: string)
 		if lv and PlayerStatService.debugSetLevel then
 			PlayerStatService.debugSetLevel(player.UserId, lv)
 		end
+	elseif (command == "element" or command == "속성") and args[2] then
+		local el = args[2]
+		local validElements = {Fire=true, Water=true, Dark=true}
+		for k, v in pairs(validElements) do
+			if k:lower() == el:lower() then
+				el = k
+				break
+			end
+		end
+
+		if validElements[el] then
+			local ok, AvatarService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.AvatarService) end)
+			if ok and AvatarService and AvatarService.debugSetElement then
+				AvatarService.debugSetElement(player.UserId, el)
+			end
+			if SaveService then
+				SaveService.SetKey(player, "Avatar", "element", el)
+			end
+			print(string.format("[AdminCommandService] Element changed to %s for %s", el, player.Name))
+		else
+			warn("[AdminCommandService] Invalid element: " .. tostring(el) .. ". Use Fire, Water, or Dark.")
+		end
 	end
 end
 
@@ -161,6 +205,7 @@ function AdminCommandService.Init(_NetController, _PlayerStatService, _Inventory
 		NetController.RegisterHandler("Admin.FullReset.Request", handleFullReset)
 		NetController.RegisterHandler("Admin.SetLevel.Request", handleSetLevel)
 		NetController.RegisterHandler("Admin.GiveEnhanceSet.Request", handleGiveEnhanceSet)
+		NetController.RegisterHandler("Admin.SetElement.Request", handleSetElement)
 	end
 
 	Players.PlayerAdded:Connect(function(player)

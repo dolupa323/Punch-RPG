@@ -87,21 +87,6 @@ function Action.perform(characterController)
 			finish()
 			return
 		end
-
-		-- Check if the character has run into anything using a spherecast, and stun them if they do.
-		-- Since shape casts don't detect intersections at their origin, we offset the start of the cast in the opposite
-		-- direction that we're checking and then cast back toward it.
-		local position =
-			characterController.root.CFrame:PointToWorldSpace(Vector3.new(0, 0, Constants.WALL_CHECK_RADIUS))
-		local direction =
-			characterController.root.CFrame:VectorToWorldSpace(Vector3.new(0, 0, -Constants.WALL_CHECK_RADIUS * 2))
-		local result = Workspace:Spherecast(position, Constants.WALL_CHECK_RADIUS, direction, raycastParams)
-		if result then
-			finish()
-			local bounceDirection = result.Normal
-			-- Perform the stun action, bouncing off the wall's normal direction
-			characterController:performAction("Stun", bounceDirection)
-		end
 	end
 
 	heartbeatConnection = RunService.Heartbeat:Connect(onHeartbeat)

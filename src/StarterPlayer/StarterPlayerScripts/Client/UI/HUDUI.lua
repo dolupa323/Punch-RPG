@@ -926,6 +926,32 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, ay = Enum.TextYAlignment.Top, st = 1, parent = slot.frame
 		})
 		keyLabel.TextScaled = true
+		
+		-- [추가] 쿨타임 오버레이
+		local cdOverlay = Instance.new("Frame")
+		cdOverlay.Name = "CooldownOverlay"
+		cdOverlay.Size = UDim2.new(1, 0, 1, 0)
+		cdOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+		cdOverlay.BackgroundTransparency = 0.5
+		cdOverlay.Visible = false
+		cdOverlay.ZIndex = slot.frame.ZIndex + 2
+		
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = cdOverlay
+		cdOverlay.Parent = slot.frame
+		
+		local cdLabel = Utils.mkLabel({
+			name = "CooldownText",
+			text = "0.0", size = UDim2.new(1, 0, 1, 0),
+			font = F.TITLE, color = C.WHITE, st = 1, parent = cdOverlay
+		})
+		cdLabel.TextScaled = true
+		cdLabel.ZIndex = cdOverlay.ZIndex + 1
+		
+		slot.cdOverlay = cdOverlay
+		slot.cdLabel = cdLabel
+		
 		HUDUI.Refs.runeSlots[i] = slot
 		
 		-- [추가] 슬롯 직접 클릭 시 애니메이션 발동
@@ -1812,5 +1838,36 @@ function HUDUI.UpdateGold(val)
 	end
 	HUDUI.Refs.goldLabel.Text = txt
 end
+
+-- [추가] 룬 쿨타임 주기적 업데이트
+local _cachedSkillController = nil
+RunService.RenderStepped:Connect(function()
+	if HUDUI.Refs.runeSlots then
+		if not _cachedSkillController then
+			local ok, sc = pcall(function() return require(Controllers:FindFirstChild("SkillController")) end)
+			if ok and sc then _cachedSkillController = sc end
+		end
+		
+		if _cachedSkillController and _cachedSkillController.getRuneCooldownRemaining then
+			for i = 1, 3 do
+				local slot = HUDUI.Refs.runeSlots[i]
+				if slot and slot.cdOverlay and slot.cdLabel then
+					local cd = _cachedSkillController.getRuneCooldownRemaining(i)
+					if cd > 0 then
+						slot.cdOverlay.Visible = true
+						-- 1초 이상이면 정수로, 1초 미만이면 소수점 첫째 자리까지 표시
+						if cd >= 1.0 then
+							slot.cdLabel.Text = string.format("%d", math.ceil(cd))
+						else
+							slot.cdLabel.Text = string.format("%.1f", cd)
+						end
+					else
+						slot.cdOverlay.Visible = false
+					end
+				end
+			end
+		end
+	end
+end)
 
 return HUDUI

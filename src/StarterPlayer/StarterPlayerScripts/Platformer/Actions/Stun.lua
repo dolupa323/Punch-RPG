@@ -24,7 +24,15 @@ local Action = {
 -- Bounce back off a wall and enter recovery after landing on the ground
 function Action.perform(characterController, direction: Vector3)
 	-- Flatten the direction out to only be on the XZ plane
-	direction = Vector3.new(direction.X, 0, direction.Z).Unit
+	local flatDir = Vector3.new(direction.X, 0, direction.Z)
+	if flatDir.Magnitude > 0.001 then
+		direction = flatDir.Unit
+	else
+		-- Fallback to backward direction if original direction was purely vertical
+		local look = characterController.root.CFrame.LookVector
+		local flatLook = Vector3.new(look.X, 0, look.Z)
+		direction = flatLook.Magnitude > 0.001 and (flatLook.Unit * -1) or Vector3.new(0, 0, 1)
+	end
 
 	characterController:setAction("Stun")
 
@@ -86,8 +94,11 @@ function Action.perform(characterController, direction: Vector3)
 		-- Check if there are any walls in the direction the character is moving and bounce off of them if necessary
 		local result = Workspace:Spherecast(position, Constants.WALL_CHECK_RADIUS, checkDirection * 2, raycastParams)
 		if result then
-			direction = Vector3.new(result.Normal.X, 0, result.Normal.Z).Unit
-			velocity.PlaneVelocity = Vector2.new(direction.X, direction.Z) * Constants.STUN_BOUNCE_SPEED
+			local flatNormal = Vector3.new(result.Normal.X, 0, result.Normal.Z)
+			if flatNormal.Magnitude > 0.001 then
+				direction = flatNormal.Unit
+				velocity.PlaneVelocity = Vector2.new(direction.X, direction.Z) * Constants.STUN_BOUNCE_SPEED
+			end
 		end
 	end
 

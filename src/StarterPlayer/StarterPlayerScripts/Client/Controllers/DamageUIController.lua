@@ -166,17 +166,10 @@ local function spawnHitVFX(position: Vector3)
 		vfx.CanCollide = false
 		vfx.CanQuery = false
 		vfx.CanTouch = false
-		if not vfx:IsA("MeshPart") then
-			vfx.Transparency = 1
-		end
 	elseif vfx:IsA("Model") then
 		vfx:PivotTo(CFrame.new(position))
-	end
-	
-	-- 컨테이너 파트 투명도 정리
-	for _, desc in ipairs(vfx:GetDescendants()) do
-		if desc:IsA("Part") and not desc:IsA("MeshPart") then
-			desc.Transparency = 1
+		for _, d in ipairs(vfx:GetDescendants()) do
+			if d:IsA("BasePart") then d.Anchored = true end
 		end
 	end
 	

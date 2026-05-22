@@ -105,6 +105,13 @@ function StaminaService.Init(_NetController)
 				isSprinting = data.isSprinting,
 			}
 		end)
+		
+		NetController.RegisterHandler("Movement.ConsumeStamina", function(player, data)
+			if type(data.amount) == "number" and data.amount > 0 and data.amount <= 100 then
+				StaminaService.consumeStamina(player.UserId, data.amount)
+			end
+			return { success = true }
+		end)
 	end
 	
 	-- 플레이어 접속 시 초기화

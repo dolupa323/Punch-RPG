@@ -60,6 +60,9 @@ local function _getDefaultEquipment()
 		RING1 = nil,
 		RING2 = nil,
 		NECKLACE = nil,
+		RUNE1 = nil,
+		RUNE2 = nil,
+		RUNE3 = nil,
 	}
 end
 
@@ -118,6 +121,8 @@ local function _getDefaultPlayerSave()
 		portalProgress = {},
 		-- 마지막 로그아웃/수면 위치 (Phase 4-3)
 		lastPosition = nil,
+		-- 플레이어 원소 속성 (Fire, Water, Dark 등)
+		element = nil,
 		-- 세션 제어 (Session Locking)
 		_session = {
 			jobId = nil,
@@ -244,6 +249,9 @@ local function _normalizeEquipment(equipment: any): any
 	normalized.RING1 = equipment.RING1 or equipment.Ring1
 	normalized.RING2 = equipment.RING2 or equipment.Ring2
 	normalized.NECKLACE = equipment.NECKLACE or equipment.Necklace
+	normalized.RUNE1 = equipment.RUNE1 or equipment.Rune1
+	normalized.RUNE2 = equipment.RUNE2 or equipment.Rune2
+	normalized.RUNE3 = equipment.RUNE3 or equipment.Rune3
 
 	-- [STARTER WEAPON/DOBOK BACKFILL] Resilience Check: If no valid equipment exists, force-inject standard items
 	local handValid = type(normalized.HAND) == "table" and normalized.HAND.itemId and normalized.HAND.itemId ~= ""
@@ -280,6 +288,9 @@ local function _normalizePlayerState(state: any): any
 	state.unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {}
 	state.combatTreeId = (type(state.combatTreeId) == "string") and state.combatTreeId or nil
 	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil }
+	
+	-- 원소 속성 필드 정규화
+	state.element = (type(state.element) == "string") and state.element or nil
 
 	-- ★ SPEAR → SWORD 마이그레이션 (v1 레거시 세이브 호환)
 	if state.combatTreeId == "SPEAR" then
@@ -766,6 +777,11 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	player:SetAttribute("SpawnPosX", spawnPos.X)
 	player:SetAttribute("SpawnPosY", spawnPos.Y)
 	player:SetAttribute("SpawnPosZ", spawnPos.Z)
+	
+	if state.element then
+		player:SetAttribute("Element", state.element)
+	end
+	
 	player:SetAttribute("DataLoaded", true)
 
 	-- [수정 #1-추가] 데이터 로드 완료 신호 전파 후 1 프레임 대기
