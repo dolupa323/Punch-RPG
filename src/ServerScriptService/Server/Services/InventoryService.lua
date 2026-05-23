@@ -479,6 +479,16 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 			return false, "ELEMENT_MISMATCH"
 		end
 		
+		-- 룬 중복 장착(완전히 동일한 룬) 검사
+		for equipKey, equipNode in pairs(inv.equipment) do
+			if equipKey:sub(1, 4) == "RUNE" and equipKey ~= targetSlot and equipNode.itemId == slotData.itemId then
+				if NetController then
+					NetController.FireClient(player, "Notify.Message", { text = "이미 동일한 스킬(룬)을 장착하고 있습니다.", color = "RED" })
+				end
+				return false, "DUPLICATE_RUNE"
+			end
+		end
+		
 		isMatch = true
 	elseif itemSlot == "RING" and (targetSlot == "RING1" or targetSlot == "RING2") then
 		-- 반지 아이템은 반지 1, 반지 2 슬롯 어디든 장착 허용!
@@ -737,8 +747,8 @@ end
 			local node = normalizedSlots[slot]
 			if node and node.itemId then
 				local itemData = DataService.getItem(node.itemId)
-				local isAmmo = itemData and itemData.type == "AMMO"
-				if not isAmmo and node.count and node.count > 1 then
+				local isStackable = _isStackable(node.itemId)
+				if not isStackable and node.count and node.count > 1 then
 					table.insert(expandQueue, {
 						slot = slot,
 						itemId = node.itemId,

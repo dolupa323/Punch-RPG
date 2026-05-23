@@ -87,7 +87,16 @@ function EnhanceService.processEnhance(player: Player, slot: any)
 	end
 	
 	-- 4. 소지 골드 검사 및 차감
-	local cost = getEnhanceCost(currentLevel)
+	local success, DataHelper = pcall(function()
+		return require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+	end)
+	local costMult = 1.0
+	if success and DataHelper then
+		costMult = DataHelper.GetEnhanceCostMultiplier(weaponBase.rarity or "COMMON")
+	end
+	
+	local baseCost = getEnhanceCost(currentLevel)
+	local cost = math.floor(baseCost * costMult)
 	local playerGold = NPCShopService.getGold(userId)
 	if playerGold < cost then
 		return { success = false, error = "NOT_ENOUGH_GOLD" }

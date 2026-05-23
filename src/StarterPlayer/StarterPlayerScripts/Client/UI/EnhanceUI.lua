@@ -368,7 +368,11 @@ function EnhanceUI.UpdateChances()
 		EnhanceUI.Refs.SpecLabel.Text = specText
 		
 		-- Cost & Success Rates
-		local cost = getEnhanceCost(level)
+		local costMult = 1.0
+		if success and DataHelper and baseItem then
+			costMult = DataHelper.GetEnhanceCostMultiplier(baseItem.rarity or "COMMON")
+		end
+		local cost = math.floor(getEnhanceCost(level) * costMult)
 		local successRate = getSuccessRate(level)
 		local myGold = ShopController.getGold()
 		
@@ -441,7 +445,13 @@ function EnhanceUI.StartEnhance()
 		EnhanceUI.UpdateWeapon(updatedWeapon)
 		EnhanceUI.UpdateChances()
 	else
-		local errMsg = result and result.error or "NETWORK_ERROR"
+		local errMsg = "NETWORK_ERROR"
+		if type(result) == "table" and result.error then
+			errMsg = result.error
+		elseif type(result) == "string" then
+			errMsg = result
+		end
+		
 		local text = UILocalizer.Localize("서버 통신 오류가 발생했습니다.")
 		if errMsg == "NOT_ENOUGH_GOLD" then
 			text = UILocalizer.Localize("골드가 부족합니다.")

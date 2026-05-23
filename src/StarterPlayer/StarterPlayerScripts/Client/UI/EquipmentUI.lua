@@ -554,7 +554,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						if enhanceDamage > 0 then
 							finalDmg = finalDmg + enhanceDamage
 						elseif enhanceLevel > 0 then
-							finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * 0.15) + 0.5)
+							local bonusRate = DataHelper.GetEnhanceBonusRate(itemData.rarity or "COMMON")
+							finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * bonusRate) + 0.5)
 						end
 						local extraDmg = finalDmg - baseDmg
 						
@@ -730,7 +731,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				local itemData = DataHelper.GetData("ItemData", wData.itemId)
 				local baseDmg = itemData and itemData.damage or 0
 				local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
-				local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * 0.15) + 0.5)
+				local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
+				local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * bonusRate) + 0.5)
 				local charDmg = math.floor(finalDmg * mult + 0.5)
 				valText = string.format("%.0f%% (%d DMG)", mult * 100, charDmg)
 			else

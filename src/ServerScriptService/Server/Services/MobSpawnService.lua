@@ -215,8 +215,24 @@ local function createMobModel(areaId, index, config)
 	if mobAsset then
 		-- 실물 에셋 복제 스폰
 		model = mobAsset:Clone()
+		
+		-- [지형 인식 스폰 (Terrain Raycast)] 
+		-- 늑대의 초원 같이 지대가 높거나 울퉁불퉁한 환경에서 공중에 뜨거나 땅에 파묻히는 현상 완벽 방지!
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+		raycastParams.FilterDescendantsInstances = {model}
+		
+		local skyPos = Vector3.new(spawnPos.X, math.max(spawnPos.Y + 200, 500), spawnPos.Z)
+		local rayResult = workspace:Raycast(skyPos, Vector3.new(0, -1000, 0), raycastParams)
+		
+		if rayResult then
+			-- 바닥(Floor) 정확한 고도를 찾아내고, 모델이 지형에 끼이지 않도록 살짝(5스터드) 위에서 스폰시킴
+			-- 이후 아래에 있는 하이브리드 HipHeight 엔진이 알아서 중력과 함께 완벽히 안착시킴
+			spawnPos = rayResult.Position + Vector3.new(0, 5, 0)
+		end
+		
 		model:PivotTo(CFrame.new(spawnPos))
-		print(string.format("[MobSpawnService] Real 3D %s spawned for %s Card %d!", config.mobModelName, areaId, index))
+		print(string.format("[MobSpawnService] Real 3D %s spawned for %s Card %d at actual floor Y: %.2f", config.mobModelName, areaId, index, spawnPos.Y))
 	else
 		-- 실물 에셋 부재 시 자동 생성 임시 파트 조립 (디버깅 안전장치)
 		model = Instance.new("Model")
@@ -510,26 +526,27 @@ local function createMobModel(areaId, index, config)
 				if idleAnim then
 					local success, idleTrack = pcall(function() return animator:LoadAnimation(idleAnim) end)
 					if success and idleTrack then
-						idleTrack.Looped = true
+						idleTrack.Looped = false
 						idleTrack.Priority = Enum.AnimationPriority.Idle
-						idleTrack:Play()
 						
-						-- [정밀 오토 애니메이션 스위처] 
-						-- 몬스터가 움직일 때는 뼈대 굳음 방지를 위해 Idle 트랙 속도를 0으로 멈추고, 
-						-- 제자리에 멈춰 멍때릴 때만 꼼지락거리는 Idle 모션을 다시 살아 움직이게 활성화!
+						-- [개선] 가만히 있을 때 가끔씩 Idle 모션을 재생하는 자연스러운 스크립트로 변경
 						task.spawn(function()
 							while model and model.Parent and humanoid and humanoid.Health > 0 do
 								local isMoving = humanoid.MoveDirection.Magnitude > 0.05 or (hrp and hrp.AssemblyLinearVelocity.Magnitude > 0.5)
-								if isMoving then
-									if idleTrack.IsPlaying then
-										idleTrack:AdjustSpeed(0) -- 모션을 정지시켜 뼈대 물리 이동을 100% 해제!
+								if not isMoving then
+									-- 랜덤한 확률로 재생 (2~5초마다 한번)
+									task.wait(math.random(20, 50) / 10.0)
+									-- 대기하는 동안 움직이기 시작했을 수도 있으므로 다시 체크
+									local stillNotMoving = humanoid.MoveDirection.Magnitude <= 0.05 and (hrp and hrp.AssemblyLinearVelocity.Magnitude <= 0.5)
+									if stillNotMoving and humanoid.Health > 0 then
+										if not idleTrack.IsPlaying then
+											idleTrack:Play()
+										end
 									end
 								else
-									if idleTrack.IsPlaying then
-										idleTrack:AdjustSpeed(1) -- 제자리에 서 있을 때만 꼼지락꼼지락 재생 활성화!
-									end
+									-- 이동 중이라면 대기
+									task.wait(0.5)
 								end
-								task.wait(0.2) -- 0.2초 간격으로 가볍고 정밀하게 체킹
 							end
 							pcall(function() idleTrack:Stop() end)
 						end)
@@ -828,7 +845,7 @@ local function createMobModel(areaId, index, config)
 								end)
 								
 								-- 공격 전 텔레그래프(Telegraph) 히트박스 경고 장치!
-								local telegraphDuration = 0.65 -- 0.65초 대기 후 공격판정
+								local telegraphDuration = config.telegraphDuration or 1.1 -- 1.1초 대기 후 공격판정 (회피 시간 확보)
 								local mobRootPos = hrp.Position
 								
 								task.spawn(function()

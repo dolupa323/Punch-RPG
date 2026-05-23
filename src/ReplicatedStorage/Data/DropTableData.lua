@@ -90,6 +90,9 @@ local DropTableData = {
 		{ itemId = "FIRE_LIZARD_SCALE", chance = 1.0, min = 2, max = 4 },
 		{ itemId = "FIRE_NECKLACE", chance = 0.015, min = 1, max = 1 },
 	},
+	["VAMPIREWOLF"] = {
+		{ itemId = "WOLF_FANG", chance = 1.0, min = 1, max = 2 },
+	},
 }
 
 return DropTableData

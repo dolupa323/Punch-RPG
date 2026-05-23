@@ -27,6 +27,14 @@ local ZONES = {
 		subName = "SLIME HABITAT",
 		priority = 10,
 	},
+	VAMPIRE_WOLF_ZONE = {
+		min = Vector2.new(-280, -30), -- 더 넓어진 Z, X축 반영
+		max = Vector2.new(-120, 210),
+		spawnPoint = Vector3.new(-190, 13, 50),
+		displayName = "늑대의 초원",
+		subName = "WOLF'S PRAIRIE",
+		priority = 10,
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -96,6 +104,10 @@ local ZONE_CONFIGS = {
 			{ id = "TREE_THIN", weight = 40 },
 			{ id = "BUSH_BERRY", weight = 50 },
 		},
+	},
+	VAMPIRE_WOLF_ZONE = {
+		Creatures = {},
+		Harvests = {},
 	},
 	GRASSLAND = {
 		Creatures = {

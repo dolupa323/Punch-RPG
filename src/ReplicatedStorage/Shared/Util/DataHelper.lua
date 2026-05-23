@@ -188,4 +188,26 @@ function DataHelper.GetData(tableName: string, id: string)
 	return nil
 end
 
+function DataHelper.GetEnhanceBonusRate(rarity)
+	local rates = {
+		COMMON = 0.10,
+		UNCOMMON = 0.15,
+		RARE = 0.22,
+		EPIC = 0.35,
+		LEGENDARY = 0.55
+	}
+	return rates[rarity] or 0.15
+end
+
+function DataHelper.GetEnhanceCostMultiplier(rarity)
+	local mults = {
+		COMMON = 1.0,
+		UNCOMMON = 1.5,
+		RARE = 3.0,
+		EPIC = 6.0,
+		LEGENDARY = 15.0
+	}
+	return mults[rarity] or 1.0
+end
+
 return DataHelper

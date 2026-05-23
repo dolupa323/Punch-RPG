@@ -516,7 +516,9 @@ function AvatarService.Init()
 				
 				-- Apply +15% damage bonus per enhancement level
 				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
-				local finalDamage = baseDamage * (1 + enhanceLevel * 0.15)
+				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+				local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
+				local finalDamage = baseDamage * (1 + enhanceLevel * bonusRate)
 				
 				-- 1. 스탯 보너스 (공격력 배율) 적용
 				local success, PlayerStatService = pcall(function()

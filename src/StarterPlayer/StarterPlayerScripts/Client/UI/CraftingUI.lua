@@ -372,11 +372,16 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 	
 	CraftingUI.Refs.Slots = {}
 
-	-- 2) 등급/이름순 정렬
+	-- 2) 티어(techLevel) / 제작 시간순 / 이름순 정렬
 	table.sort(items, function(a, b)
-		local aRarity = a.rarity or 0
-		local bRarity = b.rarity or 0
-		if aRarity ~= bRarity then return aRarity < bRarity end
+		local aTech = a.techLevel or a.rarity or 0
+		local bTech = b.techLevel or b.rarity or 0
+		if aTech ~= bTech then return aTech < bTech end
+		
+		local aTime = a.craftTime or 0
+		local bTime = b.craftTime or 0
+		if aTime ~= bTime then return aTime < bTime end
+		
 		return (a.name or "") < (b.name or "")
 	end)
 
@@ -388,7 +393,7 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		-- 가로형 슬롯 프레임
 		local borderFrame = Instance.new("Frame")
 		borderFrame.Name = item.id
-		borderFrame.Size = UDim2.new(1, -12, 0, 80) -- 가로로 긴 직사각형
+		borderFrame.Size = UDim2.new(1, -20, 0, 80) -- 가로 길이 여유 확보(우측 테두리 짤림 방지)
 		borderFrame.BackgroundColor3 = C.BORDER
 		borderFrame.BackgroundTransparency = 0.15
 		borderFrame.BorderSizePixel = 0

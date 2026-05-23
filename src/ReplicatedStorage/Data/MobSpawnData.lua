@@ -70,6 +70,29 @@ local MobSpawnData = {
 			{x = -177.954, y = 1.445, z = 215.782}, -- 꼭짓점 3번 (Realistic Stone)
 			{x = -271.54, y = 0.561, z = 204.048}   -- 꼭짓점 4번 (Realistic Stone)
 		}
+	},
+	
+	["VampireWolfZone"] = {
+		spawnAreaId = "VampireWolfZone",
+		mobModelName = "VampireWolf",
+		mobDisplayName = "흡혈 늑대",
+		maxHealth = 350,  -- [상향] 180 -> 350 (맷집 강화)
+		baseDamage = 35,  -- [상향] 18 -> 35 (치명적인 늑대 이빨 데미지)
+		attackCooldown = 1.0, -- [상향] 1.2 -> 1.0 (공격 빈도 증가)
+		respawnDelay = 3.0,
+		modelScale = 0.015, -- [수정] 크기를 더 키워달라는 요청에 따라 0.008 -> 0.015배로 확대
+		walkSpeed = 10,   -- 늑대 특유의 빠른 이속
+		xpReward = 120,
+		
+		spawnAsPolygon = true,
+		spawnCount = 4, -- 4마리 배치
+		
+		spawnPositions = {
+			{x = -168.149, y = 6.702, z = 189.711},
+			{x = -143.127, y = 10.384, z = -15.972},
+			{x = -232.063, y = 3.521, z = -16.382},
+			{x = -263.929, y = 6.286, z = 179.344}
+		}
 	}
 }
 

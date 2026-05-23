@@ -1059,7 +1059,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				if enhanceDamage > 0 then
 					finalDmg = finalDmg + enhanceDamage
 				elseif enhanceLevel > 0 then
-					finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * 0.15) + 0.5)
+					local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
+					finalDmg = finalDmg + math.floor(baseDmg * (enhanceLevel * bonusRate) + 0.5)
 				end
 				
 				local extraDmg = finalDmg - baseDmg

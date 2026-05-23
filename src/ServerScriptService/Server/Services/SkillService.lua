@@ -542,7 +542,9 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 		
 		-- 무기 데미지 + 스킬 고유 베이스 데미지 (dmgAmount)
-		local finalDamage = (weaponDmg * (1 + enhanceLevel * 0.15)) + dmgAmount
+		local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+		local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
+		local finalDamage = (weaponDmg * (1 + enhanceLevel * bonusRate)) + dmgAmount
 		
 		-- 2. 스탯 보너스 및 치명타 확률/데미지 가져오기 (고정 스탯)
 		local attackMult = 1.0
