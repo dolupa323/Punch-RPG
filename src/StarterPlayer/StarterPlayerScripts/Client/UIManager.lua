@@ -1099,6 +1099,33 @@ function UIManager._DoCollect(craftId)
 	end)
 end
 
+function UIManager._DoCancel(craftId)
+	if not craftId then return end
+	
+	task.spawn(function()
+		local resultOk, response = NetClient.Request("Craft.Cancel.Request", {
+			craftId = craftId
+		})
+		
+		if resultOk and response and response.success ~= false then
+			UIManager.notify("제작이 취소되었습니다. 재료가 반환되었습니다.", Color3.fromRGB(255, 150, 50))
+			UIManager.refreshInventory()
+			
+			CraftingUI.HideProgressModal()
+			
+			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
+			if ok and qRes and qRes.queue then
+				ActiveCraftQueue = qRes.queue
+			else
+				ActiveCraftQueue = {}
+			end
+			UIManager.RefreshWeaponCrafting()
+		else
+			UIManager.notify("제작 취소 실패", Color3.fromRGB(255, 75, 50))
+		end
+	end)
+end
+
 function UIManager.RefreshWeaponCrafting()
 	if not WindowManager.isOpen("CRAFTING") then return end
 	
@@ -1106,7 +1133,7 @@ function UIManager.RefreshWeaponCrafting()
 	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" then
+		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" then
 			table.insert(weaponRecipes, r)
 		end
 	end
@@ -2150,7 +2177,7 @@ local function setupEventListeners()
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
 				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
-				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" then
+				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" then
 					table.insert(weaponRecipes, r)
 				end
 			end

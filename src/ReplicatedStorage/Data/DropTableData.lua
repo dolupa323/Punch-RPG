@@ -93,6 +93,11 @@ local DropTableData = {
 	["VAMPIREWOLF"] = {
 		{ itemId = "WOLF_FANG", chance = 1.0, min = 1, max = 2 },
 	},
+	["SMALLGOLEM"] = {
+		{ itemId = "GOLEM_STONE", chance = 1.0, min = 1, max = 3 }, -- 100% 확률로 1~3개 기본 재료 드롭
+		-- 희귀 아이템 (실서비스 반영 시 1% 확률 셋팅)
+		{ itemId = "GOLEM_RING", chance = 0.01, min = 1, max = 1 },
+	},
 }
 
 return DropTableData

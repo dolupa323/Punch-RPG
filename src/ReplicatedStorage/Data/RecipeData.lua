@@ -37,6 +37,16 @@ local RecipeData = {
 		outputs = { { itemId = "FangSpear", count = 1 } },
 	},
 	{
+		id = "CraftIronStaff",
+		name = "철봉",
+		category = "WEAPON",
+		requiredFacility = nil,
+		craftTime = 400,
+		techLevel = 1,
+		inputs = { { itemId = "GOLEM_STONE", count = 40 }, { itemId = "WOLF_FANG", count = 40 } },
+		outputs = { { itemId = "IronStaff", count = 1 } },
+	},
+	{
 		id = "CRAFT_CRUDE_STONE_AXE",
 		name = "조잡한 돌도끼",
 		category = "TOOL",

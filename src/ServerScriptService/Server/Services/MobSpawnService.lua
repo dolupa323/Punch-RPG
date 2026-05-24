@@ -217,13 +217,16 @@ local function createMobModel(areaId, index, config)
 		model = mobAsset:Clone()
 		
 		-- [지형 인식 스폰 (Terrain Raycast)] 
-		-- 늑대의 초원 같이 지대가 높거나 울퉁불퉁한 환경에서 공중에 뜨거나 땅에 파묻히는 현상 완벽 방지!
 		local raycastParams = RaycastParams.new()
 		raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 		raycastParams.FilterDescendantsInstances = {model}
 		
-		local skyPos = Vector3.new(spawnPos.X, math.max(spawnPos.Y + 200, 500), spawnPos.Z)
-		local rayResult = workspace:Raycast(skyPos, Vector3.new(0, -1000, 0), raycastParams)
+		-- [수정] 동굴 같은 실내 환경(isIndoor = true)일 경우 하늘이 아닌, 스폰 좌표 바로 위(20스터드)에서 짧게 레이저를 쏴서 천장을 피합니다.
+		local startY = config.isIndoor and (spawnPos.Y + 20) or math.max(spawnPos.Y + 200, 500)
+		local rayDist = config.isIndoor and -100 or -1000
+		
+		local skyPos = Vector3.new(spawnPos.X, startY, spawnPos.Z)
+		local rayResult = workspace:Raycast(skyPos, Vector3.new(0, rayDist, 0), raycastParams)
 		
 		if rayResult then
 			-- 바닥(Floor) 정확한 고도를 찾아내고, 모델이 지형에 끼이지 않도록 살짝(5스터드) 위에서 스폰시킴
@@ -355,8 +358,8 @@ local function createMobModel(areaId, index, config)
 			hrp.Size = Vector3.new(math.max(2, currentSize.X), math.max(2, currentSize.Y), math.max(2, currentSize.Z))
 		end
 		
-		-- [물리갱신] 몬스터 밀림(축구공) 방지: HRP의 밀도를 최대치(100)로 설정하여 유저가 밀 수 없게 만듦
-		hrp.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5)
+		-- [물리갱신] 몬스터 밀림(축구공) 방지: HRP의 마찰력을 극대화(2.0)하고 탄성(0)을 제거하여 플레이어와 충돌 시 날아가는 현상 차단.
+		hrp.CustomPhysicalProperties = PhysicalProperties.new(100, 2.0, 0)
 		hrp.Massless = false
 		hrp.Transparency = 1
 		

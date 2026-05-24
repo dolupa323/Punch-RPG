@@ -592,43 +592,46 @@ function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManag
 			targetId = recipe.outputs[1].itemId or recipe.outputs[1].id
 		end
 		pm.Icon.Image = UIManager.getItemIcon(targetId)
-		pm.NameLabel.Text = UILocalizer.Localize(recipe.name or "제작 아이템")
-	end
-	
-	-- 2. 진행률 실시간 렌더링
+	-- 2. 진행바 비주얼 업데이트
 	local ratio = math.clamp(progressRatio or 0, 0, 1)
 	pm.BarFill.Size = UDim2.new(ratio, 0, 1, 0)
 	
 	local pct = math.floor(ratio * 100)
+	local totalTime = recipe.craftTime or 0
+	local remainTime = math.max(0, math.ceil(totalTime * (1 - ratio)))
 	
 	-- 3. 상태 분기별 렌더링 & 버튼 동적 콜백 갈아끼우기
 	if craftState == "PENDING_COLLECT" or craftState == "COMPLETED" or ratio >= 1 then
-		-- 제작 완료 (수령 대기!)
 		pm.PctLabel.Text = UILocalizer.Localize("제작 완료! (100%)")
-		pm.BarFill.BackgroundColor3 = Color3.fromRGB(140, 220, 100) -- 연두색 바
+		pm.BarFill.BackgroundColor3 = Color3.fromRGB(140, 220, 100)
 		
 		pm.BtnAction.Text = UILocalizer.Localize("아이템 수령")
-		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(140, 220, 100) -- 산뜻하고 이쁜 연두색 수령 버튼
-		pm.BtnAction.TextColor3 = Color3.fromRGB(10, 15, 25) -- 어두운 글씨
+		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(140, 220, 100)
+		pm.BtnAction.TextColor3 = Color3.fromRGB(10, 15, 25)
 		
-		-- 수령 트리거 콜백 지정
 		progressModalCallback = function()
-			if craftId then
-				UIManager._DoCollect(craftId)
-			end
-			pm.Overlay.Visible = false -- 수령 발송 후 모달 닫기
+			if craftId then UIManager._DoCollect(craftId) end
+			pm.Overlay.Visible = false
 		end
 	else
-		-- 제작 진행 중
-		pm.PctLabel.Text = UILocalizer.Localize(string.format("제작 중 (%d%%)", pct))
-		pm.BarFill.BackgroundColor3 = Color3.fromRGB(40, 140, 240) -- 블루 바
+		if totalTime > 0 then
+			pm.PctLabel.Text = UILocalizer.Localize(string.format("제작 중 (%d%%) - 남은 시간: %ds", pct, remainTime))
+		else
+			pm.PctLabel.Text = UILocalizer.Localize(string.format("제작 중 (%d%%)", pct))
+		end
 		
-		pm.BtnAction.Text = UILocalizer.Localize("제작 진행 중...")
-		pm.BtnAction.BackgroundColor3 = C.BG_SLOT -- 회색 비활성 색상
-		pm.BtnAction.TextColor3 = C.GRAY
-		pm.BtnAction.AutoButtonColor = false
+		pm.BarFill.BackgroundColor3 = Color3.fromRGB(40, 140, 240)
 		
-		-- 클릭 불가 (콜백 제거하여 모달을 개별적으로 닫지 못하게 방지!)
+		pm.BtnAction.Text = UILocalizer.Localize("제작 취소")
+		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+		pm.BtnAction.TextColor3 = Color3.fromRGB(255, 255, 255)
+		pm.BtnAction.AutoButtonColor = true
+		
+		progressModalCallback = function()
+			if craftId then UIManager._DoCancel(craftId) end
+			pm.Overlay.Visible = false
+		end
+	end
 		progressModalCallback = nil
 	end
 end

@@ -296,9 +296,10 @@ end
 --- 지면 높이 구하기 (레이캐스트)
 --- 드롭이 지형에 닿도록 위치 조정 (100% 정확한 지면 피팅)
 local function getGroundHeight(pos: Vector3): Vector3
-	-- 레이캐스트: 위에서 아래로 800 스터드 검색
-	local rayOrigin = pos + Vector3.new(0, 300, 0)
-	local rayDirection = Vector3.new(0, -600, 0)
+	-- 레이캐스트: 죽은 몬스터 위치(또는 유저 위치) 바로 위(10스터드)에서 아래로 100스터드 검색
+	-- 하늘(300)에서 쏘면 동굴 지붕을 바닥으로 인식해버리므로, 현재 pos 기준 상대 좌표로 탐색!
+	local rayOrigin = pos + Vector3.new(0, 10, 0)
+	local rayDirection = Vector3.new(0, -100, 0)
 	
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude

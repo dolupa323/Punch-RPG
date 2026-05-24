@@ -78,7 +78,7 @@ local MobSpawnData = {
 		mobDisplayName = "흡혈 늑대",
 		maxHealth = 350,  -- [상향] 180 -> 350 (맷집 강화)
 		baseDamage = 35,  -- [상향] 18 -> 35 (치명적인 늑대 이빨 데미지)
-		attackCooldown = 1.0, -- [상향] 1.2 -> 1.0 (공격 빈도 증가)
+		attackCooldown = 1.5, -- [수정] 1.0초 시 시스템 쿨타임(1.1초)과 충돌하여 1.5로 너프
 		respawnDelay = 3.0,
 		modelScale = 0.015, -- [수정] 크기를 더 키워달라는 요청에 따라 0.008 -> 0.015배로 확대
 		walkSpeed = 10,   -- 늑대 특유의 빠른 이속
@@ -92,6 +92,32 @@ local MobSpawnData = {
 			{x = -143.127, y = 10.384, z = -15.972},
 			{x = -232.063, y = 3.521, z = -16.382},
 			{x = -263.929, y = 6.286, z = 179.344}
+		}
+	},
+	
+	["SmallGolemZone"] = {
+		spawnAreaId = "SmallGolemZone",
+		mobModelName = "SmallGolem",
+		mobDisplayName = "작은 골렘",
+		maxHealth = 500,     -- 골렘 특성상 맷집이 강함
+		baseDamage = 30,     -- 묵직한 데미지
+		attackCooldown = 2.5, -- 공격 속도는 다소 느림
+		respawnDelay = 5.0,
+		modelScale = 4.0,    -- [수정] 살짝 더 키워달라는 요청 반영 (3.0 -> 4.0배 확대)
+		walkSpeed = 5,       -- 느릿하고 묵직한 이동
+		xpReward = 150,      -- 높은 경험치 보상
+		
+		spawnAsPolygon = true,
+		spawnCount = 5,      -- 동굴 내부에 5마리 랜덤 배치
+		
+		isIndoor = true,     -- [추가] 동굴 천장 위로 스폰되는 현상을 막기 위해 실내 판정 적용
+		
+		-- 유저 제공 스크린샷 기반 동굴 구역 꼭짓점 좌표 (시계 방향 정렬)
+		spawnPositions = {
+			{x = -222.482, y = -1.003, z = -72.143},  -- Top Left
+			{x = -63.286, y = -6.928, z = -75.227},   -- Top Right
+			{x = -64.303, y = -8.856, z = -126.754},  -- Bottom Right
+			{x = -225.556, y = -6.728, z = -139.186}  -- Bottom Left
 		}
 	}
 }

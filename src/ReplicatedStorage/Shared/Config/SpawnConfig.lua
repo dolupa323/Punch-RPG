@@ -35,6 +35,14 @@ local ZONES = {
 		subName = "WOLF'S PRAIRIE",
 		priority = 10,
 	},
+	EERIE_CAVE = {
+		min = Vector2.new(-250, -150),
+		max = Vector2.new(-50, -60),
+		spawnPoint = Vector3.new(-144, -5, -100),
+		displayName = "스산한 동굴",
+		subName = "EERIE CAVE",
+		priority = 10,
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -106,6 +114,10 @@ local ZONE_CONFIGS = {
 		},
 	},
 	VAMPIRE_WOLF_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	EERIE_CAVE = {
 		Creatures = {},
 		Harvests = {},
 	},

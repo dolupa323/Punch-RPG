@@ -47,6 +47,15 @@ end
 
 local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: number, parentPart: BasePart?, scaleFactor: number?, moveForwardDist: number?)
 	if not template then return end
+	
+	-- [수정] 스튜디오에서 설정한 원본 에셋의 회전값(Orientation/Rotation)을 보존합니다.
+	local originalRot = CFrame.identity
+	if template:IsA("BasePart") then
+		originalRot = template.CFrame.Rotation
+	elseif template:IsA("Model") then
+		originalRot = template:GetPivot().Rotation
+	end
+	
 	local vfx = template:Clone()
 	
 	if vfx:IsA("Attachment") or vfx:IsA("ParticleEmitter") then
@@ -102,7 +111,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	local shouldTweenForward = (moveForwardDist and moveForwardDist > 0)
 	
 	if vfx:IsA("BasePart") then
-		vfx.CFrame = cframe
+		vfx.CFrame = cframe * originalRot
 		-- 앞으로 뻗어나갈 때는 물리 엔진의 중력 낙하를 막기 위해 무조건 고정(Anchored) 처리
 		vfx.Anchored = (parentPart == nil) or shouldTweenForward
 		vfx.CanCollide = false
@@ -117,7 +126,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 			weld.Parent = vfx
 		end
 	elseif vfx:IsA("Model") then
-		vfx:PivotTo(cframe)
+		vfx:PivotTo(cframe * originalRot)
 		if parentPart and not shouldTweenForward then
 			local root = vfx.PrimaryPart or vfx:FindFirstChildWhichIsA("BasePart")
 			if root then
@@ -162,20 +171,16 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 
 	vfx.Parent = workspace
 
-	-- [디렉티브 반영] 1단계: 파티클 이미터를 즉시 가동하여 '몸통 고정 지점'에서 무조건 첫 출력을 완료합니다.
-	-- 파트가 트윈으로 전진을 시작하기 전에, 몸통 자리에서 먼저 번쩍이거나 첫 이미트가 발생하도록 보장합니다.
+	-- 파티클의 즉각적인 생성을 보장하기 위해 첫 발을 강제로 Emit 합니다. (Delay 등의 속성 무시)
 	for _, desc in ipairs(vfx:GetDescendants()) do
 		if desc:IsA("ParticleEmitter") then
 			local burstCount = desc:GetAttribute("BurstCount")
 			if burstCount then
 				desc:Emit(burstCount)
 			else
-				-- 연속 방출형일 경우에도 스폰 순간 첫 발을 강제 이미트(Emit)하여 몸체 빈 공간 제거!
-				pcall(function() desc:Emit(math.max(1, math.floor(desc.Rate * 0.1))) end)
+				-- 즉시 분출로 딜레이 체감 제거
+				pcall(function() desc:Emit(math.max(1, math.floor(desc.Rate * 0.2))) end)
 				desc.Enabled = true
-				task.delay(lifetime * 0.5, function()
-					if desc and desc.Parent then desc.Enabled = false end
-				end)
 			end
 		end
 	end
@@ -185,7 +190,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 		task.delay(0.06, function()
 			if not vfx or not vfx.Parent then return end
 			
-			local targetCF = cframe * CFrame.new(0, 0, -moveForwardDist)
+			local targetCF = (cframe * CFrame.new(0, 0, -moveForwardDist)) * originalRot
 			local tweenDur = math.min(lifetime * 0.65, 0.45) 
 			local info = TweenInfo.new(tweenDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			
@@ -193,7 +198,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 				TweenService:Create(vfx, info, {CFrame = targetCF}):Play()
 			elseif vfx:IsA("Model") then
 				local cfProxy = Instance.new("CFrameValue")
-				cfProxy.Value = cframe
+				cfProxy.Value = cframe * originalRot
 				cfProxy.Changed:Connect(function(val)
 					if vfx and vfx.Parent then
 						vfx:PivotTo(val)
@@ -209,6 +214,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	end
 	
 	Debris:AddItem(vfx, lifetime)
+	return vfx
 end
 local function getCombatSoundFolder(category: string) -- "Cast"
 	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
@@ -653,72 +659,18 @@ local function handleLMBAttack()
 
 	local playedAnim = false
 	local currentAttackTrack = nil
+	local animLength = 0.4
+	
 	if targetAnim and hum then
 		local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
 		local success, track = pcall(function() return animator:LoadAnimation(targetAnim) end)
 		if success and track then
-			track:Play()
 			playedAnim = true
 			currentAttackTrack = track
-			print(string.format("[AvatarController] Playing Combo %d Animation: %s", comboIndex, animName))
+			animLength = (track.Length > 0) and track.Length or 0.4
 		end
 	end
 
-	-- [Sound] 기본 공격 Cast 사운드 재생 (공기 가르기)
-	local castSoundFolder = getCombatSoundFolder("Cast")
-	if castSoundFolder then
-		local soundName = string.format("Default_Attack_Cast_%d", comboIndex)
-		local template = castSoundFolder:FindFirstChild(soundName)
-		if template then
-			local hrp = char:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				playCombatSound(template, hrp)
-			end
-		else
-			warn(string.format("[SOUND INFO] '%s' sound not found in Assets.Sounds.Cast (Skipping)", soundName))
-		end
-	end
-
-	-- [VFX] 기본 공격 Cast VFX 재생 (스윙 즉시 캐릭터 위치 생성)
-	local castVFXFolder = getElementVFXFolder("Cast")
-	if castVFXFolder then
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			local targetCFrame = hrp.CFrame * CFrame.new(0, 0, 0.2) -- [디렉티브 반영] 완벽하게 캐릭터 몸통 내부(Torso Center)에서 시작
-			
-			-- [디렉티브 반영] 속성이 선택되어 있다면 '속성 CAST'만 출력, 아무 속성도 없을 때(디폴트)만 '디폴트 CAST' 출력!
-			local currentElement = player and player:GetAttribute("Element")
-			local hasElement = currentElement and currentElement ~= "" and currentElement ~= "None"
-			
-			if hasElement then
-				-- 1. 속성 레이어 전용 출력
-				local vfxName = string.format("%s_Attack_Cast_%d", currentElement, comboIndex)
-				local elementTemplate = castVFXFolder:FindFirstChild(vfxName)
-				if elementTemplate then
-					-- 완벽히 속성 파티클 단독으로 9.5스터드 비행
-					spawnCombatVFX(elementTemplate, targetCFrame, 2.0, hrp, 1.0, 9.5)
-				else
-					warn(string.format("[VFX INFO] '%s' not found in Assets.VFX.Cast (Skipping element cast)", vfxName))
-				end
-			else
-				-- 2. 디폴트 레이어 전용 출력 (무속성 상태)
-				local baseCandidates = {
-					string.format("Default_Attack_Cast_%d", comboIndex),
-					string.format("Base_Attack_Cast_%d", comboIndex),
-				}
-				local baseTemplate = nil
-				for _, candidate in ipairs(baseCandidates) do
-					baseTemplate = castVFXFolder:FindFirstChild(candidate)
-					if baseTemplate then break end
-				end
-				if baseTemplate then
-					spawnCombatVFX(baseTemplate, targetCFrame, 2.0, hrp, 1.0, 9.5)
-				else
-					warn(string.format("[VFX INFO] '%s' not found in Assets.VFX.Cast (Skipping base cast)", string.format("Default_Attack_Cast_%d", comboIndex)))
-				end
-			end
-		end
-	end
 
 	-- 애니메이션 객체가 없을 때의 부드러운 우회 횡베기 콤보 연출 트윈 (안전 장치)
 	if not playedAnim then
@@ -737,6 +689,66 @@ local function handleLMBAttack()
 	-- 비동기 스코프 보존용 콤보 인덱스 복제
 	local attackCombo = comboIndex
 	local targetMob = findNearestTarget()
+
+	-- [Sound] 기본 공격 Cast 사운드 재생 (애니메이션 시작과 동시 재생)
+	local castSoundFolder = getCombatSoundFolder("Cast")
+	if castSoundFolder then
+		local soundName = string.format("Default_Attack_Cast_%d", comboIndex)
+		local template = castSoundFolder:FindFirstChild(soundName)
+		if template then
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				playCombatSound(template, hrp)
+			end
+		end
+	end
+
+	-- [VFX] 기본 공격 Cast VFX 재생 (애니메이션 시작과 동시 재생)
+	local castVFXFolder = getElementVFXFolder("Cast")
+	local spawnedVFX = nil
+	if castVFXFolder then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			-- [수정] 몸통 중심(0.2)에서 뻗은 무기 끝부분(-3.5)으로 출력 위치 전진
+			local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -3.5)
+			local currentElement = player and player:GetAttribute("Element")
+			local hasElement = currentElement and currentElement ~= "" and currentElement ~= "None"
+			
+			if hasElement then
+				local vfxName = string.format("%s_Attack_Cast_%d", currentElement, comboIndex)
+				local elementTemplate = castVFXFolder:FindFirstChild(vfxName)
+				if elementTemplate then
+					-- 캐릭터 이동에 끌려가서 원형이 찌그러지지 않도록 hrp 대신 nil을 넘겨 공중에 고정(Anchored)시킵니다.
+					spawnedVFX = spawnCombatVFX(elementTemplate, targetCFrame, 10.0, nil, 1.0, 0)
+				end
+			else
+				local baseTemplate = castVFXFolder:FindFirstChild(string.format("Default_Attack_Cast_%d", comboIndex)) or castVFXFolder:FindFirstChild(string.format("Base_Attack_Cast_%d", comboIndex))
+				if baseTemplate then
+					spawnedVFX = spawnCombatVFX(baseTemplate, targetCFrame, 10.0, nil, 1.0, 0)
+				end
+			end
+		end
+	end
+
+	-- [정확한 순서 동기화] 임의의 딜레이나 추정값을 사용하지 않고, 이벤트 기반으로 정확히 제어합니다.
+	if currentAttackTrack then
+		-- 1. 애니메이션 즉시 재생
+		currentAttackTrack:Play()
+		print(string.format("[AvatarController] Playing Combo %d Animation: %s", comboIndex, animName))
+		
+		-- 2. 애니메이션 트랙이 끝날 때(종료) 즉시 파티클 방출을 중단(종료)하여 자연스럽게 잔상이 남고 사라지게 함
+		currentAttackTrack.Stopped:Once(function()
+			if spawnedVFX then
+				for _, desc in ipairs(spawnedVFX:GetDescendants()) do
+					if desc:IsA("ParticleEmitter") then
+						desc.Enabled = false
+					end
+				end
+				-- 기존에 방출된 파티클이 사라질 시간을 주고 완전히 파괴
+				game:GetService("Debris"):AddItem(spawnedVFX, 1.0)
+			end
+		end)
+	end
 
 	-- [FX 피드백 비동기 연동 타임]
 	task.spawn(function()
