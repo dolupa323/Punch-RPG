@@ -423,7 +423,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 					local rarityColor = C.GOLD
 					if itemData.rarity == "RARE" then rarityColor = Color3.fromRGB(80, 180, 255)
 					elseif itemData.rarity == "EPIC" then rarityColor = Color3.fromRGB(180, 100, 255)
-					elseif itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 180, 50)
+					elseif itemData.rarity == "UNIQUE" then rarityColor = Color3.fromRGB(255, 180, 50)
+					elseif itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 50, 50)
 					end
 					
 					if EquipmentUI.Refs.TooltipRarityLine then EquipmentUI.Refs.TooltipRarityLine.BackgroundColor3 = rarityColor end
@@ -509,7 +510,18 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						sep.Parent = ttCont
 					end
 					
+					local function getQualityColor(q)
+						q = q or 100
+						if q <= 20 then return Color3.fromRGB(255, 50, 50)
+						elseif q <= 40 then return Color3.fromRGB(120, 200, 80)
+						elseif q <= 60 then return Color3.fromRGB(80, 180, 255)
+						elseif q <= 80 then return Color3.fromRGB(180, 100, 255)
+						else return Color3.fromRGB(255, 215, 0) end
+					end
+					
 					local iType = itemData.type
+					local quality = (item.attributes and item.attributes.quality) or 100
+					local qMult = quality / 100
 					
 					-- 아이템 이름
 					local baseName = UILocalizer.LocalizeDataText("ItemData", tostring(itemData.id or item.itemId), "name", itemData.name or item.itemId)
@@ -529,6 +541,61 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 
 					addSep()
 					
+					local function addQualityBar(qVal)
+						order = order + 1
+						local row = Instance.new("Frame")
+						row.Name = "QualRow_" .. order
+						row.Size = UDim2.new(1, 0, 0, TT_TS + 4)
+						row.BackgroundTransparency = 1
+						row.LayoutOrder = order
+						row.Parent = ttCont
+						
+						local nameL = Instance.new("TextLabel")
+						nameL.Size = UDim2.new(0.25, 0, 1, 0)
+						nameL.BackgroundTransparency = 1
+						nameL.Text = "품질"
+						nameL.TextColor3 = Color3.fromHex("#AAAAAA")
+						nameL.TextSize = TT_TS
+						nameL.Font = F.NORMAL
+						nameL.TextXAlignment = Enum.TextXAlignment.Left
+						nameL.Parent = row
+						
+						local valL = Instance.new("TextLabel")
+						valL.Size = UDim2.new(0, 65, 1, 0)
+						valL.Position = UDim2.new(1, -65, 0, 0)
+						valL.BackgroundTransparency = 1
+						valL.Text = string.format("%d / 100", qVal)
+						valL.TextColor3 = getQualityColor(qVal)
+						valL.TextSize = TT_TS
+						valL.Font = F.TITLE
+						valL.TextXAlignment = Enum.TextXAlignment.Right
+						valL.Parent = row
+						
+						local barBg = Instance.new("Frame")
+						barBg.Size = UDim2.new(0.75, -75, 0, 6)
+						barBg.Position = UDim2.new(0.25, 0, 0.5, -3)
+						barBg.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+						barBg.BorderSizePixel = 0
+						barBg.Parent = row
+						local bgCorner = Instance.new("UICorner")
+						bgCorner.CornerRadius = UDim.new(0, 3)
+						bgCorner.Parent = barBg
+						
+						local barFill = Instance.new("Frame")
+						barFill.Size = UDim2.new(qVal / 100, 0, 1, 0)
+						barFill.BackgroundColor3 = getQualityColor(qVal)
+						barFill.BorderSizePixel = 0
+						barFill.Parent = barBg
+						local fillCorner = Instance.new("UICorner")
+						fillCorner.CornerRadius = UDim.new(0, 3)
+						fillCorner.Parent = barFill
+					end
+					
+					if iType == "WEAPON" or iType == "ARMOR" then
+						addQualityBar(quality)
+						addSep()
+					end
+					
 					-- =====================
 					-- 메인 스탯
 					-- =====================
@@ -546,7 +613,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							end
 						end
 						
-						local baseDmg = itemData.damage or 0
+						local baseDmg = math.floor((itemData.damage or 0) * qMult)
 						local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
 						local enhanceDamage = item.attributes and item.attributes.enhanceDamage or 0
 						
@@ -592,10 +659,10 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							end
 						end
 						
-						local baseDef = itemData.defense or 0
+						local baseDef = math.floor((itemData.defense or 0) * qMult)
 						local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 						local extraDef = finalDef - baseDef
-						local finalHp = math.floor(bonusHp * 100 + 0.5)
+						local extraHp = math.floor(bonusHp * 100 + 0.5)
 						
 						local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
 						local hpColor = bonusHp > 0 and "#8CDC64" or "#FFFFFF"
@@ -611,16 +678,18 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							addRow("방어력", defValStr)
 						end
 						
-						-- 2) 추가 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
-						local baseHealth = itemData.maxHealth or 0
-						if baseHealth > 0 or finalHp > 0 then
+						-- 2) 최대 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
+						local baseHp = math.floor((itemData.maxHealth or 0) * qMult)
+						local finalHp = baseHp + extraHp
+						if baseHp > 0 or finalHp > 0 then
 							local hpValueStr
-							if finalHp > 0 then
-								hpValueStr = "+" .. baseHealth .. " <font color=\"" .. hpColor .. "\">" .. string.format("(%+d%%)", finalHp) .. "</font>"
+							if extraHp ~= 0 then
+								local extraSign = extraHp > 0 and "+" or ""
+								hpValueStr = "+" .. finalHp .. " <font color=\"#FFFFFF\">(" .. baseHp .. "</font><font color=\"" .. hpColor .. "\">" .. string.format("%s%d", extraSign, extraHp) .. "</font><font color=\"#FFFFFF\>)</font>"
 							else
-								hpValueStr = "+" .. baseHealth
+								hpValueStr = "+" .. baseHp
 							end
-							addRow("추가 체력", hpValueStr)
+							addRow("최대 체력", hpValueStr)
 						end
 						
 						-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)
@@ -729,7 +798,11 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 			if wData then
 				local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
 				local itemData = DataHelper.GetData("ItemData", wData.itemId)
-				local baseDmg = itemData and itemData.damage or 0
+				
+				local quality = (wData.attributes and wData.attributes.quality) or 100
+				local qMult = quality / 100
+				local baseDmg = itemData and math.floor((itemData.damage or 0) * qMult) or 0
+				
 				local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
 				local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
 				local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * bonusRate) + 0.5)

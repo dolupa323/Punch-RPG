@@ -539,6 +539,12 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local equippedWeapon = equipment and equipment.HAND
 		local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
 		local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
+		
+		if equippedWeapon then
+			local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
+			weaponDmg = math.floor(weaponDmg * (quality / 100))
+		end
+		
 		local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 		
 		-- 무기 데미지 + 스킬 고유 베이스 데미지 (dmgAmount)

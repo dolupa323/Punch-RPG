@@ -49,7 +49,8 @@ local UITheme = {
 		UNCOMMON      = Color3.fromRGB(80, 200, 80),
 		RARE          = Color3.fromRGB(70, 150, 245),
 		EPIC          = Color3.fromRGB(180, 80, 240),
-		LEGENDARY     = Color3.fromRGB(255, 200, 40),
+		UNIQUE        = Color3.fromRGB(255, 200, 40),
+		LEGENDARY     = Color3.fromRGB(255, 50, 50),
 
 		-- Accent
 		PARCHMENT     = Color3.fromRGB(180, 170, 150),

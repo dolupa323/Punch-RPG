@@ -46,6 +46,7 @@ local PortalUI = require(UI.PortalUI)
 local PortalRadialUI = require(UI.PortalRadialUI)
 local EnhanceUI = require(UI.EnhanceUI)
 local NPCRadialUI = require(UI.NPCRadialUI)
+local TentUI = require(UI.TentUI)
 
 local WindowManager = require(Client.Utils.WindowManager)
 
@@ -2283,6 +2284,7 @@ function UIManager.Init()
 	PortalRadialUI:Init(UIManager)
 	EnhanceUI.Init(mainGui, UIManager)
 	NPCRadialUI.Init(UIManager)
+	TentUI.Init(UIManager)
 	SkillTreeUI.Init(mainGui, UIManager, isMobile)
 	SkillTreeUI.SetController(SkillController)
 	PromptUI.Init()
@@ -2333,6 +2335,7 @@ function UIManager.Init()
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
 	WindowManager.register("NPC_RADIAL", NPCRadialUI.Open, NPCRadialUI.Close)
+	WindowManager.register("TENT_UI", TentUI.Open, TentUI.Close)
 
 	-- ★ 오픈/닫기 애니메이션용 메인 패널 프레임 등록
 	-- 오버레이 구조(INV, BUILD 등): 첫 자식 윈도우가 애니 대상
@@ -2362,6 +2365,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
 		WindowManager.registerFrame("PREMIUM_SHOP", PremiumShopUI.Refs.Frame)
 		WindowManager.registerFrame("ENHANCE", EnhanceUI.Refs.Frame)
+		WindowManager.registerFrame("TENT_UI", TentUI.Refs.Window)
 	end)
 
 	-- [Refactor] DragDropController 초기화

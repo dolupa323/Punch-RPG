@@ -89,81 +89,77 @@ end
 --- 침대/침낭 리스폰 위치 찾기
 local function findBedRespawnPoint(userId: number): Vector3?
 	print(string.format("[PlayerLifeService] findBedRespawnPoint START (userId=%d)", userId))
-	if not BuildService or not DataService then
-		warn("[PlayerLifeService] findBedRespawnPoint: BuildService or DataService nil!")
-		return nil
-	end
-
 	local function isRespawnFacility(facilityId: string?): boolean
 		if not facilityId then
 			return false
 		end
-		local facilityData = DataService.getFacility(facilityId)
-		return facilityData and facilityData.functionType == "RESPAWN" or false
+		if DataService then
+			local facilityData = DataService.getFacility(facilityId)
+			return facilityData and facilityData.functionType == "RESPAWN" or false
+		end
+		return false
 	end
 
 	local preferred = playerRespawnPreference[userId]
 	print(string.format("[PlayerLifeService] preferred=%s", preferred and ("structId=" .. tostring(preferred.structureId)) or "nil"))
-	if preferred and preferred.structureId and BuildService.get then
-		local struct = BuildService.get(preferred.structureId)
-		print(string.format("[PlayerLifeService] BuildService.get(%s) => %s, owner=%s, facility=%s",
-			tostring(preferred.structureId),
-			struct and "found" or "nil",
-			struct and tostring(struct.ownerId) or "?",
-			struct and tostring(struct.facilityId) or "?"))
-		if struct and struct.ownerId == userId and isRespawnFacility(struct.facilityId) then
-			local pos = toVector3(struct.position)
-			print(string.format("[PlayerLifeService] => struct position %s", tostring(pos)))
-			return pos
+	
+	if preferred and type(preferred.structureId) == "string" and string.find(preferred.structureId, "^StaticTent:") then
+		local coordsStr = string.sub(preferred.structureId, 12)
+		local coords = string.split(coordsStr, ",")
+		if #coords == 3 then
+			local cx, cy, cz = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
+			if cx and cy and cz then
+				print(string.format("[PlayerLifeService] => StaticTent found at %.1f, %.1f, %.1f", cx, cy, cz))
+				return Vector3.new(cx, cy + 12, cz)
+			end
 		end
 	end
 
-	-- [MODIFIED] RPG 패러다임에 맞춰, 구조물 매칭 실패 시 이전 위치(lastPosition) 리스폰을 방지합니다.
-	-- 이제 침대가 없으면 깔끔하게 기본 SpawnLocation으로 리스폰됩니다.
-	--[[
-	do
-		local ok, SaveService = pcall(function()
-			return require(game:GetService("ServerScriptService").Server.Services.SaveService)
-		end)
-		if ok and SaveService and SaveService.getPlayerState then
-			local state = SaveService.getPlayerState(userId)
-			print(string.format("[PlayerLifeService] state=%s, lastPos=%s, respawnStructId=%s",
-				state and "exists" or "nil",
-				state and state.lastPosition and string.format("(%.1f,%.1f,%.1f)", state.lastPosition.x or 0, state.lastPosition.y or 0, state.lastPosition.z or 0) or "nil",
-				state and tostring(state.respawnStructureId) or "nil"))
-			if state and state.lastPosition then
-				local lx = state.lastPosition.x or 0
-				local ly = state.lastPosition.y or 0
-				local lz = state.lastPosition.z or 0
-				local checkPos = Vector3.new(lx, ly, lz)
-				local SpawnConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.SpawnConfig)
-				local zone = SpawnConfig.GetZoneAtPosition(checkPos)
-				if zone and ly >= 0 then
-					local pos = toVector3(state.lastPosition)
-					if pos then
-						print(string.format("[PlayerLifeService] => lastPosition fallback %s", tostring(pos)))
-						return pos
+	-- (Keep fallback for legacy save data)
+	if preferred and preferred.structureId == "StaticTent_HuntingGround" then
+		local hg = workspace:FindFirstChild("HuntingGround")
+		if hg then
+			local tent = hg:FindFirstChild("Tent", true)
+			if tent then
+				print("[PlayerLifeService] => StaticTent_HuntingGround fallback found")
+				if tent:IsA("Model") then
+					local cf = tent:GetBoundingBox()
+					return cf.Position + Vector3.new(0, 12, 0)
+				elseif tent:IsA("BasePart") then
+					return tent.Position + Vector3.new(0, 12, 0)
+				end
+			end
+		end
+	end
+
+	if BuildService then
+		if preferred and preferred.structureId and BuildService.get then
+			local struct = BuildService.get(preferred.structureId)
+			print(string.format("[PlayerLifeService] BuildService.get(%s) => %s, owner=%s, facility=%s",
+				tostring(preferred.structureId),
+				struct and "found" or "nil",
+				struct and tostring(struct.ownerId) or "?",
+				struct and tostring(struct.facilityId) or "?"))
+			if struct and struct.ownerId == userId and isRespawnFacility(struct.facilityId) then
+				local pos = toVector3(struct.position)
+				print(string.format("[PlayerLifeService] => struct position %s", tostring(pos)))
+				return pos
+			end
+		end
+
+		if BuildService.getStructuresByOwner then
+			local owned = BuildService.getStructuresByOwner(userId)
+			local latest = nil
+			for _, struct in ipairs(owned) do
+				if isRespawnFacility(struct.facilityId) then
+					if (not latest) or ((struct.placedAt or 0) > (latest.placedAt or 0)) then
+						latest = struct
 					end
-				else
-					print(string.format("[PlayerLifeService] lastPosition %s is outside valid zones or underground, ignoring", tostring(checkPos)))
 				end
 			end
-		end
-	end
-	]]
-
-	if BuildService.getStructuresByOwner then
-		local owned = BuildService.getStructuresByOwner(userId)
-		local latest = nil
-		for _, struct in ipairs(owned) do
-			if isRespawnFacility(struct.facilityId) then
-				if (not latest) or ((struct.placedAt or 0) > (latest.placedAt or 0)) then
-					latest = struct
-				end
+			if latest then
+				return toVector3(latest.position)
 			end
-		end
-		if latest then
-			return toVector3(latest.position)
 		end
 	end
 

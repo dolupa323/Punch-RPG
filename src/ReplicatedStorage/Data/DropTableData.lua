@@ -98,6 +98,10 @@ local DropTableData = {
 		-- 희귀 아이템 (실서비스 반영 시 1% 확률 셋팅)
 		{ itemId = "GOLEM_RING", chance = 0.01, min = 1, max = 1 },
 	},
+	["BIGGOLEM"] = {
+		{ itemId = "GOLEM_STONE", chance = 1.0, min = 50, max = 50 }, -- 확정으로 돌조각 50개
+		{ itemId = "GOLEM_EARRING", chance = 0.05, min = 1, max = 1 }, -- 5% 확률로 귀걸이 드롭
+	},
 }
 
 return DropTableData

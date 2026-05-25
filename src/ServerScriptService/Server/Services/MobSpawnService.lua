@@ -526,20 +526,45 @@ local function createMobModel(areaId, index, config)
 			
 			if monsterAnims then
 				local idleAnim = monsterAnims:FindFirstChild(config.mobModelName .. "_Idle")
+				local walkAnim = monsterAnims:FindFirstChild(config.mobModelName .. "_Walk")
+				
+				local idleTrack = nil
+				local walkTrack = nil
+				
 				if idleAnim then
-					local success, idleTrack = pcall(function() return animator:LoadAnimation(idleAnim) end)
-					if success and idleTrack then
-						idleTrack.Looped = false
-						idleTrack.Priority = Enum.AnimationPriority.Idle
-						
-						-- [개선] 가만히 있을 때 가끔씩 Idle 모션을 재생하는 자연스러운 스크립트로 변경
-						task.spawn(function()
-							while model and model.Parent and humanoid and humanoid.Health > 0 do
-								local isMoving = humanoid.MoveDirection.Magnitude > 0.05 or (hrp and hrp.AssemblyLinearVelocity.Magnitude > 0.5)
-								if not isMoving then
-									-- 랜덤한 확률로 재생 (2~5초마다 한번)
+					local success, track = pcall(function() return animator:LoadAnimation(idleAnim) end)
+					if success and track then
+						track.Looped = false
+						track.Priority = Enum.AnimationPriority.Idle
+						idleTrack = track
+					end
+				end
+				
+				if walkAnim then
+					local success, track = pcall(function() return animator:LoadAnimation(walkAnim) end)
+					if success and track then
+						track.Looped = true
+						track.Priority = Enum.AnimationPriority.Movement
+						walkTrack = track
+					end
+				end
+				
+				if idleTrack or walkTrack then
+					task.spawn(function()
+						while model and model.Parent and humanoid and humanoid.Health > 0 do
+							local isMoving = humanoid.MoveDirection.Magnitude > 0.05 or (hrp and hrp.AssemblyLinearVelocity.Magnitude > 0.5)
+							
+							if isMoving then
+								if idleTrack and idleTrack.IsPlaying then idleTrack:Stop() end
+								if walkTrack and not walkTrack.IsPlaying then
+									walkTrack:Play()
+								end
+								task.wait(0.1)
+							else
+								if walkTrack and walkTrack.IsPlaying then walkTrack:Stop() end
+								
+								if idleTrack then
 									task.wait(math.random(20, 50) / 10.0)
-									-- 대기하는 동안 움직이기 시작했을 수도 있으므로 다시 체크
 									local stillNotMoving = humanoid.MoveDirection.Magnitude <= 0.05 and (hrp and hrp.AssemblyLinearVelocity.Magnitude <= 0.5)
 									if stillNotMoving and humanoid.Health > 0 then
 										if not idleTrack.IsPlaying then
@@ -547,13 +572,13 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								else
-									-- 이동 중이라면 대기
 									task.wait(0.5)
 								end
 							end
-							pcall(function() idleTrack:Stop() end)
-						end)
-					end
+						end
+						if idleTrack then pcall(function() idleTrack:Stop() end) end
+						if walkTrack then pcall(function() walkTrack:Stop() end) end
+					end)
 				end
 			end
 		end)
@@ -568,11 +593,106 @@ local function createMobModel(areaId, index, config)
 
 			-- [몬스터 FSM 공통 엔진] 슬라임, 쇠똥구리, 불도마뱀 등 모든 몬스터가 동일한 FSM 뼈대를 완벽히 공유합니다!
 			local lastAttackTick = 0
+			local lastJumpTick = 0
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
 			
-			local AGGRO_RADIUS = (config.mobModelName == "FireLizard") and 40 or 30
-			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or 6
-			local TICK_RATE = (config.mobModelName == "FireLizard") and 0.3 or 0.5
+			local AGGRO_RADIUS = isBoss and 40 or 30
+			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "BigGolem") and 15 or 6)
+			local TICK_RATE = isBoss and 0.3 or 0.5
+			
+			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
+			local function playRockSmashEffect(pos, radius)
+				local ts = game:GetService("TweenService")
+				
+				-- 1. 땅 패임 (크레이터 흉내)
+				local crater = Instance.new("Part")
+				crater.Name = "Crater"
+				crater.Shape = Enum.PartType.Cylinder
+				crater.Size = Vector3.new(0.2, radius * 1.5, radius * 1.5)
+				crater.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+				crater.Anchored = true
+				crater.CanCollide = false
+				crater.Material = Enum.Material.Slate
+				crater.Color = Color3.fromRGB(30, 30, 30)
+				crater.Parent = workspace
+				ts:Create(crater, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1.0), {Transparency = 1}):Play()
+				game:GetService("Debris"):AddItem(crater, 3.5)
+				
+				-- 2. 묵직한 타격음 (사운드 객체를 찾아서 클론하거나 기본 폭발음 사용)
+				local sfx = nil
+				local customSound = game.ReplicatedStorage:FindFirstChild("Assets") 
+					and game.ReplicatedStorage.Assets:FindFirstChild("Sounds")
+					and game.ReplicatedStorage.Assets.Sounds:FindFirstChild("Monster")
+					and game.ReplicatedStorage.Assets.Sounds.Monster:FindFirstChild("BigGolem_Smash")
+					
+				if customSound and customSound:IsA("Sound") then
+					sfx = customSound:Clone()
+					sfx.Parent = crater
+				else
+					sfx = Instance.new("Sound")
+					sfx.SoundId = "rbxassetid://142070127" -- 기본 폭발 사운드로 교체
+					sfx.PlaybackSpeed = 0.6
+					sfx.Volume = 2.0
+					sfx.Parent = crater
+				end
+				
+				sfx.RollOffMaxDistance = 150
+				sfx:Play()
+				
+				-- 3. 파편 (Debris) 튀기기
+				for i = 1, 10 do
+					local rock = Instance.new("Part")
+					rock.Size = Vector3.new(math.random(2,4), math.random(2,4), math.random(2,4))
+					rock.Position = pos + Vector3.new(math.random(-2,2), 2, math.random(-2,2))
+					rock.Material = Enum.Material.Slate
+					rock.Color = Color3.fromRGB(100, 100, 100)
+					rock.CanCollide = true
+					rock.Anchored = false
+					rock.Parent = workspace
+					
+					local angle = math.random() * math.pi * 2
+					local speed = math.random(40, 80)
+					rock.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(50, 100), math.sin(angle) * speed)
+					rock.AssemblyAngularVelocity = Vector3.new(math.random(-20,20), math.random(-20,20), math.random(-20,20))
+					
+					ts:Create(rock, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1.5), {Transparency = 1}):Play()
+					game:GetService("Debris"):AddItem(rock, 3.0)
+				end
+				
+				-- 4. 흙먼지 (Smoke)
+				local smokePart = Instance.new("Part")
+				smokePart.Size = Vector3.new(1,1,1)
+				smokePart.Position = pos
+				smokePart.Anchored = true
+				smokePart.CanCollide = false
+				smokePart.Transparency = 1
+				smokePart.Parent = workspace
+				local smoke = Instance.new("Smoke")
+				smoke.Color = Color3.fromRGB(120, 110, 100)
+				smoke.Size = radius * 0.8
+				smoke.Opacity = 0.5
+				smoke.RiseVelocity = 15
+				smoke.Parent = smokePart
+				game:GetService("Debris"):AddItem(smokePart, 3)
+				task.delay(0.4, function() if smoke then smoke.Enabled = false end end)
+				
+				-- 5. 확산되는 충격파 고리
+				local shockwave = Instance.new("Part")
+				shockwave.Name = "RockShockwave"
+				shockwave.Shape = Enum.PartType.Cylinder
+				shockwave.Size = Vector3.new(0.5, 1, 1)
+				shockwave.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+				shockwave.Anchored = true
+				shockwave.CanCollide = false
+				shockwave.Material = Enum.Material.Slate
+				shockwave.Color = Color3.fromRGB(130, 130, 130)
+				shockwave.Parent = workspace
+				ts:Create(shockwave, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Size = Vector3.new(0.5, radius * 2, radius * 2),
+					Transparency = 1
+				}):Play()
+				game:GetService("Debris"):AddItem(shockwave, 0.5)
+			end
 
 			while isAlive and humanoid and humanoid.Parent and model:FindFirstChild("HumanoidRootPart") do
 				local hrp = model.HumanoidRootPart
@@ -813,6 +933,236 @@ local function createMobModel(areaId, index, config)
 							
 							-- 폭발 완료 및 1.0초 대기
 							task.wait(1.0)
+						end
+					elseif config.mobModelName == "BigGolem" then
+						--========================================================================
+						-- [BigGolem 전용 FSM 분기]: 다가가기 -> 제자리 점프 광역(우선) -> 바위 낙하
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						
+						local now = os.clock()
+						local rockCooldown = config.attackCooldown or 5.0
+						local jumpCooldown = 8.0
+						
+						-- 우선순위 1: 점프 패턴 (보스 덩치가 매우 크므로 거리가 35 이하일 때 발동)
+						if distToPlayer <= 35 and (now - lastJumpTick >= jumpCooldown) then
+							lastJumpTick = now
+							humanoid:MoveTo(hrp.Position) -- 정지
+							
+							-- 1. 예고 장판 (반경 30스터드)
+							local warnCircle = Instance.new("Part")
+							warnCircle.Name = "BigGolemJumpTelegraph"
+							warnCircle.Shape = Enum.PartType.Cylinder
+							warnCircle.Size = Vector3.new(0.4, 60, 60)
+							warnCircle.CFrame = CFrame.new(currentPos - Vector3.new(0, humanoid.HipHeight + hrp.Size.Y/2 - 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+							warnCircle.Anchored = true
+							warnCircle.CanCollide = false
+							warnCircle.Material = Enum.Material.Neon
+							warnCircle.Color = Color3.fromRGB(255, 0, 0)
+							warnCircle.Transparency = 0.85
+							warnCircle.Parent = workspace
+							
+							local ts = game:GetService("TweenService")
+							ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+							
+							-- 애니메이션 (있다면 재생)
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BigGolem_Jump")
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+							
+							-- 공중으로 떠오르기
+							local jumpHeight = currentPos + Vector3.new(0, 20, 0)
+							ts:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = CFrame.new(jumpHeight)}):Play()
+							task.wait(0.5)
+							
+							-- 공중 체공
+							task.wait(0.2)
+							
+							-- 내려찍기
+							warnCircle:Destroy()
+							local landPos = currentPos
+							local fallTween = ts:Create(hrp, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {CFrame = CFrame.new(landPos)})
+							fallTween:Play()
+							fallTween.Completed:Wait()
+							
+							local groundPos = landPos - Vector3.new(0, humanoid.HipHeight + (hrp.Size.Y / 2), 0)
+							
+							-- 폭발 데미지 판정
+							local exp = Instance.new("Explosion")
+							exp.BlastRadius = 30
+							exp.BlastPressure = 0
+							exp.Position = groundPos
+							exp.ExplosionType = Enum.ExplosionType.NoCraters
+							exp.Visible = false
+							exp.Parent = workspace
+							
+							-- 화려하고 묵직한 돌 파쇄 시각/청각 효과 실행 (공중이 아닌 바닥 좌표에서 재생)
+							playRockSmashEffect(groundPos, 35)
+							
+							for _, p in ipairs(Players:GetPlayers()) do
+								local char = p.Character
+								local phum = char and char:FindFirstChild("Humanoid")
+								local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+								if phum and phum.Health > 0 and pRoot then
+									-- XZ 평면 거리 계산 (지진파 형태이므로 원기둥 판정)
+									local distXZ = Vector3.new(pRoot.Position.X - groundPos.X, 0, pRoot.Position.Z - groundPos.Z).Magnitude
+									if distXZ <= 30 then
+										-- [점프 회피 로직] 플레이어 중심이 바닥 기준 7 스터드 이상 높다면 회피 성공
+										local heightDiff = pRoot.Position.Y - groundPos.Y
+										if heightDiff > 7.0 then
+											-- 타이밍 맞춰 점프함 (데미지 무시)
+										else
+											phum:TakeDamage(config.baseDamage or 50)
+											local bounceDir = (pRoot.Position - groundPos)
+											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(p, "Player.Stun", bounceDir)
+										end
+									end
+								end
+							end
+							task.wait(1.0)
+							
+						-- 우선순위 2: 하늘 돌 낙하 패턴 (쿨타임이 찼을 때)
+						elseif now - lastAttackTick >= rockCooldown then
+							lastAttackTick = now
+							humanoid:MoveTo(hrp.Position) -- 정지
+							
+							-- 연속 돌던지기 (1~4번 랜덤)
+							local dropCount = math.random(1, 4)
+							local ts = game:GetService("TweenService")
+							
+							-- 공격 애니메이션 1회 재생
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BigGolem_Attack1")
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+							
+							for i = 1, dropCount do
+								if not isAlive then break end
+								
+								-- 현재 플레이어 위치 기반으로 바닥 좌표 구하기 (계속 추적)
+								local currentTargetPos = targetPlayerPos
+								if phrp and phrp.Parent then currentTargetPos = phrp.Position end
+								
+								-- 보스가 플레이어를 바라보게 회전
+								local lookDir = Vector3.new(currentTargetPos.X - hrp.Position.X, 0, currentTargetPos.Z - hrp.Position.Z)
+								if lookDir.Magnitude > 0.1 then
+									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
+								end
+								
+								local targetFloorPos = currentTargetPos
+								local raycastParams = RaycastParams.new()
+								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
+								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+								if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
+								
+								-- 예고 장판 (반경 12스터드로 축소)
+								local warnCircle = Instance.new("Part")
+								warnCircle.Name = "BigGolemRockTelegraph"
+								warnCircle.Shape = Enum.PartType.Cylinder
+								warnCircle.Size = Vector3.new(0.4, 24, 24)
+								warnCircle.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+								warnCircle.Anchored = true
+								warnCircle.CanCollide = false
+								warnCircle.Material = Enum.Material.Neon
+								warnCircle.Color = Color3.fromRGB(255, 60, 0)
+								warnCircle.Transparency = 0.85
+								warnCircle.Parent = workspace
+								
+								ts:Create(warnCircle, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+								
+								-- 0.5초 대기 (회피 시간)
+								task.wait(0.5)
+								warnCircle:Destroy()
+								if not isAlive then break end
+								
+								-- 돌 투사체 생성 (크기 축소)
+								local rock = Instance.new("Part")
+								rock.Name = "FallingRock"
+								rock.Shape = Enum.PartType.Ball
+								rock.Size = Vector3.new(8, 8, 8)
+								rock.Color = Color3.fromRGB(130, 130, 130)
+								rock.Material = Enum.Material.Slate
+								rock.CanCollide = false
+								rock.Anchored = true
+								rock.Position = targetFloorPos + Vector3.new(0, 30, 0)
+								rock.Parent = workspace
+								
+								local fallTween = ts:Create(rock, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = targetFloorPos})
+								fallTween:Play()
+								task.wait(0.3)
+								rock:Destroy()
+								
+								if isAlive then
+									local exp = Instance.new("Explosion")
+									exp.BlastRadius = 12
+									exp.BlastPressure = 0
+									exp.Position = targetFloorPos
+									exp.ExplosionType = Enum.ExplosionType.NoCraters
+									exp.Visible = false
+									exp.Parent = workspace
+									
+									-- 화려하고 묵직한 돌 파쇄 시각/청각 효과 실행
+									playRockSmashEffect(targetFloorPos, 15)
+									
+									for _, p in ipairs(Players:GetPlayers()) do
+										local char = p.Character
+										local phum = char and char:FindFirstChild("Humanoid")
+										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+										if phum and phum.Health > 0 and pRoot then
+											if (pRoot.Position - targetFloorPos).Magnitude <= 12 then
+												phum:TakeDamage(config.baseDamage or 50)
+												local bounceDir = Vector3.new(pRoot.Position.X - targetFloorPos.X, 0, pRoot.Position.Z - targetFloorPos.Z).Unit
+												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+												local NetController = require(Controllers:WaitForChild("NetController"))
+												NetController.FireClient(p, "Player.Stun", bounceDir)
+												
+												task.spawn(function()
+													local highlight = Instance.new("Highlight")
+													highlight.Name = "DamageFlash"
+													highlight.FillColor = Color3.fromRGB(255, 0, 0)
+													highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+													highlight.FillTransparency = 0.4
+													highlight.OutlineTransparency = 0
+													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+													highlight.Adornee = char
+													highlight.Parent = char
+													task.wait(0.12)
+													if highlight and highlight.Parent then highlight:Destroy() end
+												end)
+											end
+										end
+									end
+								end
+								
+								-- 다음 바위 떨어지기 전 약간의 간격
+								task.wait(0.2)
+							end
+							task.wait(1.0)
+							
+						-- 우선순위 3: 플레이어에게 다가가기 (보스 덩치가 크므로 25스터드 밖에서 멈춤)
+						else
+							if distToPlayer > 25 then
+								humanoid:MoveTo(targetPlayerPos)
+							else
+								humanoid:MoveTo(hrp.Position)
+							end
 						end
 					else
 						--========================================================================

@@ -119,6 +119,29 @@ local MobSpawnData = {
 			{x = -64.303, y = -8.856, z = -126.754},  -- Bottom Right
 			{x = -225.556, y = -6.728, z = -139.186}  -- Bottom Left
 		}
+	},
+	
+	["BigGolemZone"] = {
+		spawnAreaId = "BigGolemZone",
+		mobModelName = "BigGolem",
+		mobDisplayName = "거대 골렘",
+		maxHealth = 2000,
+		baseDamage = 50,
+		attackCooldown = 3.0,
+		respawnDelay = 20.0,
+		modelScale = 16.0,    -- 8배에서 다시 2배(총 16배)로 초대형화
+		walkSpeed = 8,
+		xpReward = 1000,
+		
+		spawnAsPolygon = true,
+		spawnCount = 1,
+		
+		spawnPositions = {
+			{x = 27.652, y = 11.083, z = 121.988},
+			{x = -77.52, y = 11.522, z = 123.529},
+			{x = 26.635, y = 10.497, z = 28.371},
+			{x = -76.426, y = 9.9, z = 13.452}
+		}
 	}
 }
 

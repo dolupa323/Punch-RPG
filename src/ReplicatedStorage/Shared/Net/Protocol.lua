@@ -204,6 +204,10 @@ Protocol.Commands = {
 
 	-- Enhancement 명령어 (연금 강화)
 	["Enhance.Request"] = true,
+	
+	-- Tent 명령어
+	["Tent.SetSpawn"] = true,
+	["Tent.OpenUI"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

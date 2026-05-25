@@ -59,6 +59,11 @@ local function describeItem(itemData, item)
 		string.format("%s", name),
 		string.format("수량: %d", count),
 	}
+	
+	if itemData and (itemData.type == "WEAPON" or itemData.type == "ARMOR") then
+		local quality = (item.attributes and item.attributes.quality) or 100
+		table.insert(lines, string.format("품질: %d / 100", quality))
+	end
 
 	local attrText = formatAttributes(item.attributes)
 	if attrText ~= "" then

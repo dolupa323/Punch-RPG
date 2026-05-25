@@ -728,6 +728,19 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	end
 	]]
 
+	-- 우선순위 1.5: 고정 텐트 (StaticTent)
+	if not spawnPos and state and state.respawnStructureId and type(state.respawnStructureId) == "string" and string.find(state.respawnStructureId, "^StaticTent:") then
+		local coordsStr = string.sub(state.respawnStructureId, 12)
+		local coords = string.split(coordsStr, ",")
+		if #coords == 3 then
+			local cx, cy, cz = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
+			if cx and cy and cz then
+				spawnPos = Vector3.new(cx, cy + 12, cz)
+				print(string.format("[SaveService] Spawn from StaticTent: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+			end
+		end
+	end
+
 	-- 우선순위 2: respawnStructureId → BuildService에서 구조물 위치 조회
 	if not spawnPos and state and state.respawnStructureId then
 		local buildOk, BSvc = pcall(function()

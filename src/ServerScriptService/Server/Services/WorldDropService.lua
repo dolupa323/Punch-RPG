@@ -523,9 +523,18 @@ function WorldDropService.loot(player: Player, dropId: string): (boolean, string
 		return false, Enums.ErrorCode.INVALID_STATE, nil
 	end
 	
-	local dist = distanceBetween(drop.pos, humanoidRootPart.Position)
+	-- 거리 확인 (Y축 차이는 다소 관대하게 계산)
+	local dropPos2D = Vector3.new(drop.pos.X, 0, drop.pos.Z)
+	local playerPos2D = Vector3.new(humanoidRootPart.Position.X, 0, humanoidRootPart.Position.Z)
+	local dist2D = (dropPos2D - playerPos2D).Magnitude
+	local distY = math.abs(drop.pos.Y - humanoidRootPart.Position.Y)
 	
-	if dist > Balance.DROP_LOOT_RANGE then
+	-- Y축 차이가 20 이하면 2D 거리만 사용, 너무 크면 전체 거리 사용
+	local effectiveDist = (distY <= 20) and dist2D or distanceBetween(drop.pos, humanoidRootPart.Position)
+	
+	if effectiveDist > Balance.DROP_LOOT_RANGE then
+		warn(string.format("[WorldDropService] 줍기 실패(OUT_OF_RANGE) - Player: %s, Dist: %.2f (2D: %.2f, Y: %.2f) | DropPos: %s | PlayerPos: %s", 
+			player.Name, effectiveDist, dist2D, distY, tostring(drop.pos), tostring(humanoidRootPart.Position)))
 		return false, Enums.ErrorCode.OUT_OF_RANGE, nil
 	end
 

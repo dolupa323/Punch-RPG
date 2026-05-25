@@ -474,6 +474,17 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.Detail.DurFill = durBarFill
 	InventoryUI.Refs.Detail.DurText = durText
 
+	-- Quality Bar (Detail Panel)
+	local qualWrap = Utils.mkFrame({name="QualityWrap", size=UDim2.new(0.9, 0, 0, isSmall and 14 or 16), bgT=1, vis=false, parent=detailScroll})
+	qualWrap.LayoutOrder = 5.5
+	local qualNumLabel = Utils.mkLabel({name="QualNum", text="100", size=UDim2.new(0, 30, 1, 0), pos=UDim2.new(0,0,0,0), ts=TS_DUR+1, bold=true, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=qualWrap})
+	local qualBarBack = Utils.mkFrame({name="Back", size=UDim2.new(1, -35, 1, 0), pos=UDim2.new(0, 35, 0, 0), bg=Color3.fromRGB(30, 30, 30), r=2, stroke=1, strokeC=Color3.fromRGB(50,50,50), parent=qualWrap})
+	local qualBarFill = Utils.mkFrame({name="Fill", size=UDim2.new(1, 0, 1, 0), bg=C.GOLD, r=2, parent=qualBarBack})
+	
+	InventoryUI.Refs.Detail.QualWrap = qualWrap
+	InventoryUI.Refs.Detail.QualFill = qualBarFill
+	InventoryUI.Refs.Detail.QualNum = qualNumLabel
+
 	-- Stats Grid (무기/도구/방어구 스펙 표시)
 	local statsGrid = Utils.mkFrame({
 		name="StatsGrid", size=UDim2.new(0.9, 0, 0, 0),
@@ -993,6 +1004,20 @@ local function addAttrRow(parent, text, color, order)
 	row.LayoutOrder = order
 end
 
+local function getQualityColor(quality)
+	if quality <= 20 then
+		return Color3.fromRGB(220, 60, 60) -- Red
+	elseif quality <= 40 then
+		return Color3.fromRGB(130, 220, 80) -- Light Green
+	elseif quality <= 60 then
+		return Color3.fromRGB(60, 140, 240) -- Blue
+	elseif quality <= 80 then
+		return Color3.fromRGB(180, 80, 220) -- Purple
+	else
+		return Color3.fromRGB(255, 200, 50) -- Gold
+	end
+end
+
 function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCounts, isLocked)
 	local d = InventoryUI.Refs.Detail
 	if not d.Frame then return end
@@ -1015,7 +1040,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		if itemData and itemData.rarity then
 			if itemData.rarity == "RARE" then rarityColor = Color3.fromRGB(80, 180, 255)
 			elseif itemData.rarity == "EPIC" then rarityColor = Color3.fromRGB(180, 100, 255)
-			elseif itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 180, 50)
+			elseif itemData.rarity == "UNIQUE" then rarityColor = Color3.fromRGB(255, 180, 50)
+			elseif itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 50, 50)
 			end
 		end
 		if d.RarityLine then d.RarityLine.BackgroundColor3 = rarityColor end
@@ -1037,6 +1063,19 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		-- 무기/도구/방어구 스펙 표시
 		if itemData and not (data.inputs or data.requirements) then
 			local iType = itemData.type
+			local quality = (data.attributes and data.attributes.quality) or 100
+			local qMult = quality / 100
+			
+			if (iType == "WEAPON" or iType == "ARMOR") then
+				d.QualWrap.Visible = true
+				d.QualNum.Text = tostring(quality)
+				d.QualNum.TextColor3 = getQualityColor(quality)
+				d.QualFill.Size = UDim2.new(qMult, 0, 1, 0)
+				d.QualFill.BackgroundColor3 = getQualityColor(quality)
+			else
+				d.QualWrap.Visible = false
+			end
+			
 			if iType == "WEAPON" or iType == "TOOL" then
 				local bonusDmg, bonusCrit, bonusCritDmg, bonusDur = 0, 0, 0, 0
 				if data.attributes then
@@ -1051,7 +1090,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 					end
 				end
 				
-				local baseDmg = itemData.damage or 0
+				local baseDmg = math.floor((itemData.damage or 0) * qMult)
 				local enhanceLevel = (data.attributes and data.attributes.enhanceLevel) or 0
 				local enhanceDamage = (data.attributes and data.attributes.enhanceDamage) or 0
 				
@@ -1096,10 +1135,12 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 					end
 				end
 				
-				local baseDef = itemData.defense or 0
+				local baseDef = math.floor((itemData.defense or 0) * qMult)
 				local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 				local extraDef = finalDef - baseDef
-				local finalHp = math.floor(bonusHp * 100 + 0.5)
+				
+				local baseHp = math.floor((itemData.maxHealth or 0) * qMult)
+				local finalHp = math.floor((baseHp + (bonusHp * 100)) + 0.5)
 				
 				local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
 				local hpColor = bonusHp > 0 and "#8CDC64" or "#FFFFFF"
@@ -1115,14 +1156,14 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				end
 				
 				-- 2) 최대 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
-				local baseHealth = itemData.maxHealth or 0
-				if baseHealth > 0 or finalHp > 0 then
+				if baseHp > 0 or finalHp > 0 then
 					order = order + 1
+					local extraHp = finalHp - baseHp
 					local extraHpText = nil
-					if finalHp > 0 then
-						extraHpText = string.format("(%+d%%)", finalHp)
+					if extraHp ~= 0 then
+						extraHpText = string.format("%+d", extraHp)
 					end
-					createStatRow(d.StatsGrid, "최대 체력", string.format("+%d", baseHealth), extraHpText, hpColor, order)
+					createStatRow(d.StatsGrid, "최대 체력", string.format("+%d", baseHp), extraHpText, hpColor, order, string.format("+%d", finalHp))
 				end
 				
 				-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)

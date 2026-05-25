@@ -187,7 +187,8 @@ function SkillTreeUI.Refresh()
 			local rarityColor = C.BORDER
 			if itemData and itemData.rarity == "RARE" then rarityColor = Color3.fromRGB(80, 180, 255)
 			elseif itemData and itemData.rarity == "EPIC" then rarityColor = Color3.fromRGB(180, 100, 255)
-			elseif itemData and itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 180, 50)
+			elseif itemData and itemData.rarity == "UNIQUE" then rarityColor = Color3.fromRGB(255, 180, 50)
+			elseif itemData and itemData.rarity == "LEGENDARY" then rarityColor = Color3.fromRGB(255, 50, 50)
 			end
 			
 			-- UIStroke가 없으면 생성하여 채색

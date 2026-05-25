@@ -43,6 +43,14 @@ local ZONES = {
 		subName = "EERIE CAVE",
 		priority = 10,
 	},
+	BIG_GOLEM_ZONE = {
+		min = Vector2.new(-100, 0),
+		max = Vector2.new(50, 150),
+		spawnPoint = Vector3.new(-25, 11, 60),
+		displayName = "골렘의 땅",
+		subName = "LAND OF GOLEM",
+		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -118,6 +126,10 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	EERIE_CAVE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	BIG_GOLEM_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},

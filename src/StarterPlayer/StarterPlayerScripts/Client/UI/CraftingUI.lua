@@ -632,7 +632,7 @@ function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManag
 			pm.Overlay.Visible = false
 		end
 	end
-		progressModalCallback = nil
+
 	end
 end
 

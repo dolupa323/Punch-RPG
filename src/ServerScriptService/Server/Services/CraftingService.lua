@@ -1058,10 +1058,15 @@ onPlayerRemoving = function(player: Player)
 	
 	-- 오프라인 정체 방지를 위해 완료되지 않은 '맨손 제작'만 취소 처리
 	-- 시설 제작(structureId 있음)은 큐에 유지하여 오프라인 제작 지원
+	local craftsToCancel = {}
 	for craftId, entry in pairs(queue) do
 		if not entry.structureId and entry.state == Enums.CraftState.CRAFTING then
-			queue[craftId] = nil
+			table.insert(craftsToCancel, craftId)
 		end
+	end
+	
+	for _, craftId in ipairs(craftsToCancel) do
+		CraftingService.cancel(player, craftId)
 	end
 	
 	-- 만약 큐가 완전히 비게 되었다면 메모리에서 해제, 아니면 오프라인 진행을 위해 유지

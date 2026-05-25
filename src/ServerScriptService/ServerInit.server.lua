@@ -221,6 +221,10 @@ local EnhanceMasterService = require(Services.EnhanceMasterService)
 EnhanceMasterService.Init(NetController)
 ServiceRegistry.Register("EnhanceMasterService", EnhanceMasterService)
 
+local TentService = require(Services.TentService)
+TentService.Init(NetController)
+ServiceRegistry.Register("TentService", TentService)
+
 local SkillService = require(Services.SkillService)
 SkillService.Init(NetController, PlayerStatService, SaveService)
 for command, handler in pairs(SkillService.GetHandlers()) do

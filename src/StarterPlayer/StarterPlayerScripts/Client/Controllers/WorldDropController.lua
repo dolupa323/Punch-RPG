@@ -151,7 +151,7 @@ local function createDropModel(dropData)
 			template = findLootModel(itemData.modelName or "RuneModel")
 			isRune = true
 		-- [기획 보강]: 몬스터 사냥 전리품(LOOT) 중, 희귀도가 높거나(EPIC, LEGENDARY, RARE) 무기를 제외한 방어구 및 악세사리는 보물상자(Chest) 모델로 처리
-		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
+		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "UNIQUE" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
 			print(string.format("[WorldDropController] Armor/Accessory/High-Rarity loot detected. Finding 'Chest' template..."))
 			template = findLootModel("Chest")
 			isChest = true
@@ -297,7 +297,7 @@ local function createDropModel(dropData)
 			mainObject.Material = Enum.Material.Fabric
 			TweenService:Create(mainObject, TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), { Size = targetSize }):Play()
 			warn(string.format("[WorldDropController] -> 'Pouch' asset missing! Fallback to Brown Fabric Sphere."))
-		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
+		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "UNIQUE" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
 			-- Chest 모델 부재 시: 영롱한 황금 보물상자 모양 직육면체
 			local targetSize = Vector3.new(3.5, 2.5, 2.5)
 			mainObject.Size = targetSize * 0.1
@@ -365,12 +365,27 @@ local function createDropModel(dropData)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = attachmentPoint
 	
-	-- 줍기 이벤트
 	prompt.Triggered:Connect(function(player)
 		if player == game.Players.LocalPlayer then
-			NetClient.Request("WorldDrop.Loot.Request", {
-				dropId = dropData.dropId,
-			})
+			task.spawn(function()
+				local success, errorCode = NetClient.Request("WorldDrop.Loot.Request", {
+					dropId = dropData.dropId,
+				})
+				
+				if not success then
+					warn("[WorldDropController] 줍기 실패: ", tostring(errorCode))
+					local uiSuccess, UIManager = pcall(function() return _G.UIManager or require(script.Parent.Parent.UI.UIManager) end)
+					if uiSuccess and UIManager and UIManager.ShowToast then
+						if errorCode == "INV_FULL" then
+							UIManager.ShowToast("가방이 꽉 찼습니다!", 3, Color3.fromRGB(255, 50, 50))
+						elseif errorCode == "OUT_OF_RANGE" then
+							UIManager.ShowToast("아이템이 너무 멀리 있습니다!", 3, Color3.fromRGB(255, 100, 50))
+						else
+							UIManager.ShowToast("아이템을 주울 수 없습니다: " .. tostring(errorCode), 3, Color3.fromRGB(255, 50, 50))
+						end
+					end
+				end
+			end)
 		end
 	end)
 	

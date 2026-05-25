@@ -514,6 +514,11 @@ function AvatarService.Init()
 				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
 				local baseDamage = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
 				
+				if equippedWeapon then
+					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
+					baseDamage = math.floor(baseDamage * (quality / 100))
+				end
+				
 				-- Apply +15% damage bonus per enhancement level
 				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)

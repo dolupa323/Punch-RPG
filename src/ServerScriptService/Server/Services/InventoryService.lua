@@ -354,11 +354,13 @@ function InventoryService.getEquipmentBaseStats(userId: number)
 	for _, item in pairs(inv.equipment) do
 		local data = DataService.getItem(item.itemId)
 		if data then
+			local quality = (item.attributes and item.attributes.quality) or 100
+			local qMult = quality / 100
 			if data.maxHealth then
-				hp = hp + data.maxHealth
+				hp = hp + math.floor(data.maxHealth * qMult)
 			end
 			if data.critChance then
-				crit = crit + data.critChance
+				crit = crit + (data.critChance * qMult)
 			end
 		end
 	end
@@ -1273,13 +1275,25 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 	-- ?롯 ??체크
 	local maxSlots = _getMaxSlots(userId)
 
-	-- ?구???보 조회 (???택 ?성 ???용)
+	-- ?구???보 조회 (???택 ?성 ???용) 및 품질(Quality) 초기화
 	local maxDurability = durability -- ?달받? ?구???선
-	if not maxDurability and DataService then
-		local itemData = DataService.getItem(itemId)
-		if itemData then maxDurability = itemData.durability end
+	local itemData = nil
+	if DataService then
+		itemData = DataService.getItem(itemId)
+		if itemData then
+			if not maxDurability then maxDurability = itemData.durability end
+			
+			-- 품질 자동 부여 (무기, 방어구/장신구)
+			if itemData.type == "WEAPON" or itemData.type == "ARMOR" then
+				attributes = attributes or {}
+				if attributes.quality == nil then
+					attributes.quality = math.random(0, 100)
+				end
+			end
+		end
 	end
 	
+
 	-- 스택 가능 여부 / 아이템별 최대 스택
 	local stackable = _isStackable(itemId)
 	local itemMaxStack = _getMaxStack(itemId)
