@@ -102,6 +102,10 @@ local DropTableData = {
 		{ itemId = "GOLEM_STONE", chance = 1.0, min = 50, max = 50 }, -- 확정으로 돌조각 50개
 		{ itemId = "GOLEM_EARRING", chance = 0.05, min = 1, max = 1 }, -- 5% 확률로 귀걸이 드롭
 	},
+	["SPIDER"] = {
+		{ itemId = "SPIDER_LEG", chance = 1.0, min = 1, max = 3 },
+		{ itemId = "SPIDER_NECKLACE", chance = 0.01, min = 1, max = 1 },
+	},
 }
 
 return DropTableData

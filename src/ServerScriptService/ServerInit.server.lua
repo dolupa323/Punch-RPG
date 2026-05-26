@@ -225,6 +225,13 @@ local TentService = require(Services.TentService)
 TentService.Init(NetController)
 ServiceRegistry.Register("TentService", TentService)
 
+local SkyIslandTransportService = require(Services.SkyIslandTransportService)
+SkyIslandTransportService.Init(NetController)
+for command, handler in pairs(SkyIslandTransportService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("SkyIslandTransportService", SkyIslandTransportService)
+
 local SkillService = require(Services.SkillService)
 SkillService.Init(NetController, PlayerStatService, SaveService)
 for command, handler in pairs(SkillService.GetHandlers()) do

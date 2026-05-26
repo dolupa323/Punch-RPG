@@ -509,10 +509,30 @@ function PlayerStatService.recalculateStats(userId: number)
 	PlayerStatService.applyStats(userId)
 end
 
+function PlayerStatService.incrementKill(userId: number, mobDisplayName: string)
+	_initPlayerStats(userId)
+	if SaveService and SaveService.updatePlayerState then
+		SaveService.updatePlayerState(userId, function(state)
+			state.stats = state.stats or {}
+			state.stats.mobKills = state.stats.mobKills or {}
+			state.stats.mobKills[mobDisplayName] = (state.stats.mobKills[mobDisplayName] or 0) + 1
+			return state
+		end)
+	end
+end
+
 function PlayerStatService.getStats(userId: number): { [string]: any }
 	_initPlayerStats(userId)
 	local stats = playerStats[userId]
 	local currentInLevel, required = PlayerStatService.getXP(userId)
+	
+	local mobKills = {}
+	if SaveService and SaveService.getPlayerState then
+		local state = SaveService.getPlayerState(userId)
+		if state and state.stats and state.stats.mobKills then
+			mobKills = state.stats.mobKills
+		end
+	end
 	
 	return {
 		level = stats.level,
@@ -522,6 +542,7 @@ function PlayerStatService.getStats(userId: number): { [string]: any }
 		statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		statInvested = stats.statInvested,
 		calculated = PlayerStatService.GetCalculatedStats(userId),
+		mobKills = mobKills,
 	}
 end
 

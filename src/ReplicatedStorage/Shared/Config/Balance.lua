@@ -194,7 +194,7 @@ Balance.SHOP_INTERACT_RANGE = 10       -- NPC 상점 상호작용 최대 거리 
 Balance.SHOP_DEFAULT_SELL_MULT = 0.5   -- 기본 판매 배율 (구매가의 50%)
 Balance.SHOP_RESTOCK_TIME = 300        -- 재고 리필 시간 (초)
 Balance.STARTING_GOLD = 100            -- 신규 플레이어 기본 골드
-Balance.GOLD_CAP = 999999              -- 최대 보유 가능 골드
+Balance.GOLD_CAP = 100000000              -- 최대 보유 가능 골드
 Balance.GOLD_EARN_MULTIPLIER = 1.0     -- 골드 획득 배율 (이벤트용)
 
 -- 테이블 동결 (런타임 수정 방지)

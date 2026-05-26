@@ -235,6 +235,13 @@ local function createMobModel(areaId, index, config)
 		end
 		
 		model:PivotTo(CFrame.new(spawnPos))
+		
+		-- [물리 폭발 방지] 모델 내부 파트들의 자체 충돌로 인한 튕김(Fling) 방지
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.CanCollide = false
+			end
+		end
 		print(string.format("[MobSpawnService] Real 3D %s spawned for %s Card %d at actual floor Y: %.2f", config.mobModelName, areaId, index, spawnPos.Y))
 	else
 		-- 실물 에셋 부재 시 자동 생성 임시 파트 조립 (디버깅 안전장치)
@@ -593,6 +600,7 @@ local function createMobModel(areaId, index, config)
 
 			-- [몬스터 FSM 공통 엔진] 슬라임, 쇠똥구리, 불도마뱀 등 모든 몬스터가 동일한 FSM 뼈대를 완벽히 공유합니다!
 			local lastAttackTick = 0
+			local lastPoisonTick = 0
 			local lastJumpTick = 0
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
 			
@@ -1164,6 +1172,190 @@ local function createMobModel(areaId, index, config)
 								humanoid:MoveTo(hrp.Position)
 							end
 						end
+					elseif config.mobModelName == "Spider" then
+						--========================================================================
+						-- [Spider 전용 FSM 분기]: 독연무 시전(비동기 광역기) + 독립적인 근접 공격 추격
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						
+						local now = os.clock()
+						local meleeCooldown = config.attackCooldown or 2.0
+						local poisonCooldown = 15.0
+						
+						local MELEE_RANGE = 10 -- [수정] 일반공격 사거리 넓힘 (기존 6 -> 10)
+						local POISON_RANGE = 30 -- [수정] 포이즌 발동 사거리 넓힘 (기존 20 -> 30)
+						
+						if distToPlayer <= POISON_RANGE and (now - lastPoisonTick >= poisonCooldown) then
+							lastPoisonTick = now
+							
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("Spider_Poison")
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+							
+							task.spawn(function()
+								local pDuration = 8.0
+								local pRadius = 22.0 -- [수정] 포이즌 장판 범위 넓힘 (기존 12 -> 22)
+								local pDamage = 20.0 -- [상향] 최종 구역에 맞게 독 틱 데미지 상향 (기존 5.0 -> 20.0)
+								local cloudFloorPos = currentPos - Vector3.new(0, humanoid.HipHeight + (hrp.Size.Y / 2) - 0.2, 0)
+								
+								local cloud = Instance.new("Part")
+								cloud.Name = "PoisonCloud"
+								cloud.Shape = Enum.PartType.Cylinder
+								cloud.Size = Vector3.new(0.2, pRadius * 2, pRadius * 2)
+								cloud.CFrame = CFrame.new(cloudFloorPos) * CFrame.Angles(0, 0, math.rad(90))
+								cloud.Anchored = true
+								cloud.CanCollide = false
+								cloud.Material = Enum.Material.SmoothPlastic
+								cloud.Color = Color3.fromRGB(150, 0, 200)
+								cloud.Transparency = 0.85 -- [수정] 피자판 같은 바닥은 거의 투명하게
+								cloud.Parent = workspace
+								
+								local pe = Instance.new("ParticleEmitter")
+								pe.Texture = "rbxasset://textures/particles/smoke_main.dds" -- [추가] 진짜 연기 텍스처 적용
+								pe.Color = ColorSequence.new(Color3.fromRGB(150, 0, 200), Color3.fromRGB(100, 255, 100))
+								pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(0.5, 12), NumberSequenceKeypoint.new(1, 15)}) -- 뭉게뭉게 커지게
+								pe.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1.0), NumberSequenceKeypoint.new(0.2, 0.3), NumberSequenceKeypoint.new(0.8, 0.6), NumberSequenceKeypoint.new(1, 1.0)})
+								pe.Lifetime = NumberRange.new(3, 5)
+								pe.Rate = 50 -- 뿜어내는 양 증가
+								pe.Speed = NumberRange.new(1, 4)
+								pe.SpreadAngle = Vector2.new(90, 90)
+								pe.Rotation = NumberRange.new(0, 360)
+								pe.RotSpeed = NumberRange.new(-20, 20)
+								pe.ZOffset = 1
+								pe.EmissionDirection = Enum.NormalId.Top
+								pe.Shape = Enum.ParticleEmitterShape.Cylinder
+								pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+								pe.Parent = cloud
+								
+								local ticks = math.floor(pDuration)
+								for i = 1, ticks do
+									task.wait(1.0)
+									if not cloud or not cloud.Parent then break end
+									
+									for _, p in ipairs(Players:GetPlayers()) do
+										local char = p.Character
+										local phum = char and char:FindFirstChild("Humanoid")
+										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+										if phum and phum.Health > 0 and pRoot then
+											local dXZ = math.sqrt(math.pow(pRoot.Position.X - cloudFloorPos.X, 2) + math.pow(pRoot.Position.Z - cloudFloorPos.Z, 2))
+											if dXZ <= pRadius and math.abs(pRoot.Position.Y - cloudFloorPos.Y) < 10 then
+												phum:TakeDamage(pDamage)
+												task.spawn(function()
+													local highlight = Instance.new("Highlight")
+													highlight.FillColor = Color3.fromRGB(150, 0, 200)
+													highlight.OutlineColor = Color3.fromRGB(100, 255, 100)
+													highlight.FillTransparency = 0.5
+													highlight.Adornee = char
+													highlight.Parent = char
+													task.wait(0.2)
+													if highlight and highlight.Parent then highlight:Destroy() end
+												end)
+											end
+										end
+									end
+								end
+								
+								if cloud then
+									if pe then pe.Enabled = false end
+									local ts = game:GetService("TweenService")
+									local fade = ts:Create(cloud, TweenInfo.new(1.0), {Transparency = 1})
+									fade:Play()
+									fade.Completed:Wait()
+									cloud:Destroy()
+								end
+							end)
+							task.wait(0.5)
+						end
+						
+						currentPos = hrp.Position
+						targetPlayerPos = phrp.Position
+						distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						
+						if distToPlayer <= MELEE_RANGE then
+							humanoid:MoveTo(hrp.Position)
+							if now - lastAttackTick >= meleeCooldown then
+								lastAttackTick = now
+								
+								pcall(function()
+									local animator = humanoid:FindFirstChildOfClass("Animator")
+									local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+									local attackAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("Spider_Attack")
+									if animator and attackAnim then
+										local track = animator:LoadAnimation(attackAnim)
+										if track then track:Play() end
+									end
+								end)
+								
+								local telegraphDuration = 0.6
+								local mobRootPos = hrp.Position
+								
+								local warnCircle = Instance.new("Part")
+								warnCircle.Name = "SpiderMeleeTelegraph"
+								warnCircle.Shape = Enum.PartType.Cylinder
+								warnCircle.Size = Vector3.new(0.4, MELEE_RANGE * 2, MELEE_RANGE * 2)
+								local groundOffset = humanoid.HipHeight + (hrp.Size.Y / 2)
+								local floorPos = mobRootPos - Vector3.new(0, groundOffset - 0.2, 0)
+								warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90))
+								warnCircle.Anchored = true
+								warnCircle.CanCollide = false
+								warnCircle.Material = Enum.Material.Neon
+								warnCircle.Color = Color3.fromRGB(255, 0, 0)
+								warnCircle.Transparency = 0.85
+								warnCircle.Parent = workspace
+								
+								local ts = game:GetService("TweenService")
+								ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+								
+								local lookDir = Vector3.new(targetPlayerPos.X - hrp.Position.X, 0, targetPlayerPos.Z - hrp.Position.Z)
+								if lookDir.Magnitude > 0.1 then
+									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
+								end
+								
+								task.wait(telegraphDuration)
+								warnCircle:Destroy()
+								
+								if isAlive and targetPlayer and targetPlayer.Parent and targetPlayer:FindFirstChild("HumanoidRootPart") then
+									local currentPhrp = targetPlayer.HumanoidRootPart
+									if (hrp.Position - currentPhrp.Position).Magnitude <= MELEE_RANGE + 1.5 then
+										local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+										if currentPhum and currentPhum.Health > 0 then
+											currentPhum:TakeDamage(config.baseDamage or 15)
+											local bounceDir = (currentPhrp.Position - hrp.Position)
+											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
+											local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+											if hitPlayer then
+												local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
+												NetController.FireClient(hitPlayer, "Player.Stun", bounceDir)
+											end
+											task.spawn(function()
+												local highlight = Instance.new("Highlight")
+												highlight.FillColor = Color3.fromRGB(255, 0, 0)
+												highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+												highlight.FillTransparency = 0.4
+												highlight.Adornee = targetPlayer
+												highlight.Parent = targetPlayer
+												task.wait(0.12)
+												if highlight and highlight.Parent then highlight:Destroy() end
+											end)
+										end
+									end
+								end
+							end
+						else
+							if distToPlayer > 25 then
+								humanoid:MoveTo(targetPlayerPos)
+							else
+								humanoid:MoveTo(targetPlayerPos)
+							end
+						end
 					else
 						--========================================================================
 						-- [일반 몬스터 (Slime, DungBeetle 등) Melee 전투 FSM 분기]
@@ -1284,6 +1476,24 @@ local function createMobModel(areaId, index, config)
 			else
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter)을 향해 안전하게 복귀하거나 배회합니다.
 				local nextDest = getNextSpawnPosition(config, index)
+				
+				-- [건물/장애물 충돌 회피 위스커(Whisker) 로직]
+				local dir = nextDest - hrp.Position
+				local dist = math.min(dir.Magnitude, 20)
+				if dist > 2 then
+					local rayParams = RaycastParams.new()
+					rayParams.FilterDescendantsInstances = {model}
+					rayParams.FilterType = Enum.RaycastFilterType.Exclude
+					-- 가슴 높이에서 가려는 방향으로 레이캐스트 발사
+					local rayPos = hrp.Position + Vector3.new(0, 2, 0)
+					local ray = workspace:Raycast(rayPos, dir.Unit * dist, rayParams)
+					if ray then
+						-- 벽이나 건물에 막힌 경우, 무식하게 머리를 박지 않고 좌우로 랜덤하게 우회 배회함
+						local detourRight = hrp.CFrame.RightVector * (math.random() > 0.5 and 15 or -15)
+						nextDest = hrp.Position + detourRight
+					end
+				end
+				
 				humanoid:MoveTo(nextDest)
 				
 				local arrived = false
@@ -1359,9 +1569,14 @@ local function createMobModel(areaId, index, config)
 			local killer = tag and tag.Value
 			if killer and killer:IsA("Player") then
 				local xpReward = config.xpReward or 10
-				if PlayerStatService and PlayerStatService.addXP then
-					PlayerStatService.addXP(killer.UserId, xpReward, "Hunt_" .. (config.mobDisplayName or "Mob"))
-					print(string.format("[MobSpawnService] Awarded %d XP to %s for killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
+				if PlayerStatService then
+					if PlayerStatService.addXP then
+						PlayerStatService.addXP(killer.UserId, xpReward, "Hunt_" .. (config.mobDisplayName or "Mob"))
+					end
+					if PlayerStatService.incrementKill then
+						PlayerStatService.incrementKill(killer.UserId, config.mobDisplayName or "Mob")
+					end
+					print(string.format("[MobSpawnService] Awarded %d XP and updated kills for %s killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
 				end
 			end
 

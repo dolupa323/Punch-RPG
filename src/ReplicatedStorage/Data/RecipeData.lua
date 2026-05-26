@@ -47,6 +47,16 @@ local RecipeData = {
 		outputs = { { itemId = "IronStaff", count = 1 } },
 	},
 	{
+		id = "CraftPoisonHornSpear",
+		name = "독각창",
+		category = "WEAPON",
+		requiredFacility = nil,
+		craftTime = 450,
+		techLevel = 1,
+		inputs = { { itemId = "GOLEM_STONE", count = 200 }, { itemId = "SPIDER_LEG", count = 100 } },
+		outputs = { { itemId = "POISON_HORN_SPEAR", count = 1 } },
+	},
+	{
 		id = "CRAFT_CRUDE_STONE_AXE",
 		name = "조잡한 돌도끼",
 		category = "TOOL",

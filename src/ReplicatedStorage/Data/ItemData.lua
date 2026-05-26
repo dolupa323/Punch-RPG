@@ -512,6 +512,22 @@ local ItemData = {
 		modelName = "IronStaff",
 	},
 	{
+		id = "POISON_HORN_SPEAR",
+		name = "독각창",
+		type = "WEAPON",
+		rarity = "EPIC",
+		maxStack = 1,
+		weight = 7.0,
+		durability = 600,
+		damage = 80,
+		isBlunt = false,
+		slot = "HAND",
+		description = "골렘의 돌조각과 맹독 거미의 단단한 다리를 결합하여 벼려낸 치명적인 독창. 찌르기 시 맹독의 기운을 뿜어냅니다.",
+		optimalTool = "SPEAR",
+		iconName = "PoisonHornSpear",
+		modelName = "PoisonHornSpear",
+	},
+	{
 		id = "WOODEN_CLUB",
 		name = "나무 몽둥이",
 		type = "WEAPON",
@@ -1747,6 +1763,35 @@ local ItemData = {
 		iconName = "DarkIcon",
 		modelName = "RuneModel",
 		description = "어둠의 기운을 머금은 짙은 밤의 결정체. 장착 시 어둠속성의 힘을 다룰 수 있습니다.",
+	},
+	--========================================
+	-- 맹독 거미 (Spider) 전리품 & 장비
+	--========================================
+	{
+		id = "SPIDER_LEG",
+		name = "거미 다리",
+		type = "RESOURCE",
+		rarity = "COMMON",
+		maxStack = 99,
+		weight = 0.5,
+		description = "맹독 둥지의 거미에게서 얻은 기괴하고 날카로운 다리. 각종 독특한 장비의 재료로 사용됩니다.",
+		iconName = "SpiderLeg",
+		modelName = "SpiderLeg",
+	},
+	{
+		id = "SPIDER_NECKLACE",
+		name = "거미 목걸이",
+		type = "ARMOR",
+		rarity = "EPIC",
+		maxStack = 1,
+		weight = 0.5,
+		durability = 1000,
+		maxHealth = 100,
+		critChance = 0.05,
+		slot = "NECKLACE",
+		iconName = "SpiderNecklace",
+		modelId = "SpiderNecklace",
+		description = "맹독 거미의 정수를 엮어 만든 희귀한 목걸이. 품질에 따라 능력치가 증폭되며, 기본적으로 100의 체력과 5%의 치명타 확률을 제공합니다.",
 	},
 }
 

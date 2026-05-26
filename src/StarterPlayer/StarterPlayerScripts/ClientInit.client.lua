@@ -98,8 +98,8 @@ local function createAdminPanel()
 		return btn
 	end
 
-	mkBtn("골드 +5000", Color3.fromRGB(185, 155, 80), function()
-		NetClient.Request("Shop.Admin.GrantGold.Request", { amount = 5000 })
+	mkBtn("골드 +50만", Color3.fromRGB(185, 155, 80), function()
+		NetClient.Request("Shop.Admin.GrantGold.Request", { amount = 500000 })
 	end)
 
 	mkBtn("레벨 50 설정", Color3.fromRGB(100, 120, 180), function()

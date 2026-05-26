@@ -107,7 +107,8 @@ local function _getDefaultPlayerSave()
 				[Enums.StatId.MAX_STAMINA] = 0,
 				[Enums.StatId.INV_SLOTS] = 0,
 				[Enums.StatId.ATTACK] = 0,
-			}
+			},
+			mobKills = {},
 		},
 		-- 스킬 트리 (전투 택1 + 건축 자동해금)
 		skillPointsSpent = 0,
@@ -280,6 +281,7 @@ local function _normalizePlayerState(state: any): any
 	state.portalProgress.STONE = math.max(0, math.floor(tonumber(state.portalProgress.STONE) or 0))
 	state.stats = type(state.stats) == "table" and state.stats or {}
 	state.stats.lastLogin = state.stats.lastLogin or 0
+	state.stats.mobKills = type(state.stats.mobKills) == "table" and state.stats.mobKills or {}
 	state.snapshots = type(state.snapshots) == "table" and state.snapshots or {}
 	state._session = type(state._session) == "table" and state._session or { jobId = nil, timestamp = 0 }
 

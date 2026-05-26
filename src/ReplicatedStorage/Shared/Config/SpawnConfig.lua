@@ -51,6 +51,22 @@ local ZONES = {
 		subName = "LAND OF GOLEM",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
 	},
+	POISON_NEST = {
+		min = Vector2.new(40, -30), -- 거미 구역 (X: 46~203, Z: -26~75)을 커버하는 바운딩 박스
+		max = Vector2.new(210, 80),
+		spawnPoint = Vector3.new(125, 14, 25),
+		displayName = "맹독 둥지",
+		subName = "POISON NEST",
+		priority = 20,
+	},
+	SKY_ISLAND = {
+		min = Vector2.new(2200, 2200),
+		max = Vector2.new(2800, 2800),
+		spawnPoint = Vector3.new(2500, 500, 2500),
+		displayName = "신비로운 하늘섬",
+		subName = "SKY ISLAND",
+		priority = 20,
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -130,6 +146,14 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	BIG_GOLEM_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	POISON_NEST = {
+		Creatures = {},
+		Harvests = {},
+	},
+	SKY_ISLAND = {
 		Creatures = {},
 		Harvests = {},
 	},

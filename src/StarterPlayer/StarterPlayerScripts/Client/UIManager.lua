@@ -144,6 +144,14 @@ function UIManager.closeEnhance()
 	WindowManager.close("ENHANCE")
 end
 
+function UIManager.openPortalRadial(data)
+	WindowManager.open("PORTAL_RADIAL", data)
+end
+
+function UIManager.closePortalRadial()
+	WindowManager.close("PORTAL_RADIAL")
+end
+
 
 -- Signals for Internal Use
 local menuOpenedEvent = Instance.new("BindableEvent")
@@ -1134,7 +1142,7 @@ function UIManager.RefreshWeaponCrafting()
 	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" then
+		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" then
 			table.insert(weaponRecipes, r)
 		end
 	end
@@ -1908,6 +1916,128 @@ local function setupEventListeners()
 
 	-- Portal Events (고대 포탈 시스템)
 	if NetClient.On then
+		NetClient.On("SkyIsland.OpenUI", function(data)
+			local isReturn = data and data.isReturn == true
+			
+			-- 1. Create confirmation overlay
+			local overlay = Utils.mkFrame({
+				name = "SkyIslandConfirmationOverlay",
+				size = UDim2.new(1, 0, 1, 0),
+				bg = Color3.fromRGB(0, 0, 0),
+				bgT = 0.6,
+				z = 999,
+				parent = mainGui
+			})
+			
+			local winWidth = isMobile and 0.85 or 0.4
+			local winHeight = isMobile and 0.4 or 0.3
+			local maxW = isMobile and 500 or 400
+			local maxH = isMobile and 300 or 220
+			
+			local win = Utils.mkWindow({
+				name = "SkyIslandConfirmationWindow",
+				size = UDim2.new(winWidth, 0, winHeight, 0),
+				maxSize = Vector2.new(maxW, maxH),
+				pos = UDim2.new(0.5, 0, 0.5, 0),
+				anchor = Vector2.new(0.5, 0.5),
+				bg = Color3.fromRGB(10, 15, 25),
+				stroke = 2,
+				strokeC = Color3.fromRGB(60, 85, 130),
+				r = 10,
+				parent = overlay
+			})
+			
+			-- Close button on overlay click
+			local bgBtn = Instance.new("TextButton")
+			bgBtn.Size = UDim2.new(1, 0, 1, 0)
+			bgBtn.BackgroundTransparency = 1
+			bgBtn.Text = ""
+			bgBtn.ZIndex = 1
+			bgBtn.Parent = overlay
+			bgBtn.MouseButton1Click:Connect(function()
+				overlay:Destroy()
+			end)
+			
+			win.ZIndex = 2
+			
+			-- Title
+			Utils.mkLabel({
+				text = isReturn and "지상 귀환" or "하늘섬 이동",
+				size = UDim2.new(1, 0, 0, 40),
+				pos = UDim2.new(0, 0, 0, 15),
+				ts = 20,
+				font = F.TITLE,
+				color = Color3.fromRGB(255, 215, 0),
+				ax = Enum.TextXAlignment.Center,
+				parent = win
+			})
+			
+			-- Message
+			local messageText = isReturn and "지상(청운촌으)로 귀환하시겠습니까?" or "하늘섬으로 이동하시겠습니까?\n(미개척된 신비로운 하늘 위 영역입니다.)"
+			Utils.mkLabel({
+				text = messageText,
+				size = UDim2.new(0.9, 0, 0, 60),
+				pos = UDim2.new(0.05, 0, 0, 55),
+				ts = 15,
+				font = F.NORMAL,
+				color = Color3.fromRGB(220, 220, 220),
+				ax = Enum.TextXAlignment.Center,
+				wrap = true,
+				rich = true,
+				parent = win
+			})
+			
+			-- Button container
+			local btnContainer = Utils.mkFrame({
+				name = "BtnContainer",
+				size = UDim2.new(0.9, 0, 0, 45),
+				pos = UDim2.new(0.05, 0, 1, -60),
+				bgT = 1,
+				r = false,
+				stroke = false,
+				parent = win
+			})
+			
+			-- 'Yes' button
+			local yesBtn = Utils.mkBtn({
+				name = "YesBtn",
+				text = "예",
+				size = UDim2.new(0.45, 0, 1, 0),
+				pos = UDim2.new(0, 0, 0, 0),
+				bg = Color3.fromRGB(40, 100, 200),
+				color = Color3.fromRGB(255, 255, 255),
+				ts = 16,
+				font = F.TITLE,
+				fn = function()
+					overlay:Destroy()
+					task.spawn(function()
+						local success, err = NetClient.Request("SkyIsland.Teleport.Request", { isReturn = isReturn })
+						if not success then
+							UIManager.notify("이동 실패: " .. friendlyError(err), C.RED)
+						end
+					end)
+				end,
+				parent = btnContainer
+			})
+			
+			-- 'No' button
+			local noBtn = Utils.mkBtn({
+				name = "NoBtn",
+				text = "아니오",
+				size = UDim2.new(0.45, 0, 1, 0),
+				pos = UDim2.new(1, 0, 0, 0),
+				anchor = Vector2.new(1, 0),
+				bg = Color3.fromRGB(80, 80, 80),
+				color = Color3.fromRGB(255, 255, 255),
+				ts = 16,
+				font = F.TITLE,
+				fn = function()
+					overlay:Destroy()
+				end,
+				parent = btnContainer
+			})
+		end)
+
 		NetClient.On("Portal.UI.Open", function(data)
 			UIManager.openPortalRadial(data)
 		end)
@@ -2178,7 +2308,7 @@ local function setupEventListeners()
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
 				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
-				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" then
+				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" then
 					table.insert(weaponRecipes, r)
 				end
 			end
@@ -2418,6 +2548,197 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- (Animal Management removed)
+
+----------------------------------------------------------------
+-- 사냥 통계 (Monster Hunt Stats)
+----------------------------------------------------------------
+local statsOverlay = nil
+
+function UIManager.toggleQuest()
+	if statsOverlay then
+		statsOverlay:Destroy()
+		statsOverlay = nil
+		return
+	end
+	
+	-- 1. Fetch latest stats (including mobKills)
+	local ok, d = NetClient.Request("Player.Stats.Request", {})
+	if not ok or not d or not d.mobKills then
+		UIManager.notify("통계 정보를 불러오지 못했습니다.", C.RED)
+		return
+	end
+	
+	-- Navy + Black Theme matching the UI
+	local C_Override = {}
+	for k, v in pairs(C) do C_Override[k] = v end
+	C_Override.BG_PANEL = Color3.fromRGB(10, 15, 25) -- Navy
+	C_Override.BG_DARK = Color3.fromRGB(5, 5, 10)    -- Black
+	C_Override.BG_SLOT = Color3.fromRGB(15, 20, 35)  -- Deep Navy
+	C_Override.GOLD = Color3.fromRGB(255, 255, 255)  -- Text White
+	C_Override.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
+	C_Override.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
+	
+	-- 2. Create Overlay
+	statsOverlay = Utils.mkFrame({
+		name = "StatsOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.6,
+		z = 100,
+		parent = mainGui
+	})
+	
+	local winWidth = isMobile and 0.8 or 0.45
+	local winHeight = isMobile and 0.8 or 0.65
+	local maxW = isMobile and 600 or 500
+	local maxH = isMobile and 500 or 450
+	
+	local main = Utils.mkWindow({
+		name = "StatsWindow",
+		size = UDim2.new(winWidth, 0, winHeight, 0),
+		maxSize = Vector2.new(maxW, maxH),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C_Override.BG_PANEL,
+		stroke = 2,
+		strokeC = C_Override.BORDER,
+		r = 10,
+		parent = statsOverlay
+	})
+	
+	-- Close button on overlay click
+	local bgBtn = Instance.new("TextButton")
+	bgBtn.Size = UDim2.new(1, 0, 1, 0)
+	bgBtn.BackgroundTransparency = 1
+	bgBtn.Text = ""
+	bgBtn.ZIndex = 1
+	bgBtn.Parent = statsOverlay
+	bgBtn.MouseButton1Click:Connect(function()
+		if statsOverlay then
+			statsOverlay:Destroy()
+			statsOverlay = nil
+		end
+	end)
+	
+	main.ZIndex = 2
+	
+	-- Title
+	Utils.mkLabel({
+		text = UILocalizer.Localize("사냥 통계 (Monster Hunt Stats)"),
+		size = UDim2.new(1, 0, 0, 50),
+		pos = UDim2.new(0, 0, 0, 15),
+		ts = 22,
+		font = F.TITLE,
+		color = Color3.fromRGB(255, 215, 0), -- Gold Title
+		ax = Enum.TextXAlignment.Center,
+		parent = main
+	})
+	
+	-- Close Button (X) inside Window
+	local closeBtn = Utils.mkBtn({
+		name = "CloseBtn",
+		text = "X",
+		size = UDim2.new(0, 30, 0, 30),
+		pos = UDim2.new(1, -15, 0, 15),
+		anchor = Vector2.new(1, 0),
+		bgT = 1,
+		stroke = false,
+		ts = 18,
+		font = F.TITLE,
+		color = Color3.fromRGB(200, 200, 200),
+		fn = function()
+			if statsOverlay then
+				statsOverlay:Destroy()
+				statsOverlay = nil
+			end
+		end,
+		parent = main
+	})
+	
+	-- Scrollable frame for list
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -40, 1, -100)
+	scroll.Position = UDim2.new(0.5, 0, 0, 80)
+	scroll.AnchorPoint = Vector2.new(0.5, 0)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 4
+	scroll.ScrollBarImageColor3 = C_Override.BORDER
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	scroll.ClipsDescendants = true
+	scroll.Parent = main
+	
+	local scrollPad = Instance.new("UIPadding")
+	scrollPad.PaddingTop = UDim.new(0, 5)
+	scrollPad.PaddingBottom = UDim.new(0, 5)
+	scrollPad.PaddingLeft = UDim.new(0, 10)
+	scrollPad.PaddingRight = UDim.new(0, 15)
+	scrollPad.Parent = scroll
+	
+	local vList = Instance.new("UIListLayout")
+	vList.FillDirection = Enum.FillDirection.Vertical
+	vList.Padding = UDim.new(0, 10)
+	vList.Parent = scroll
+	
+	-- Populate kills list
+	local sortedKills = {}
+	if d.mobKills then
+		for mobName, kills in pairs(d.mobKills) do
+			table.insert(sortedKills, { name = mobName, count = kills })
+		end
+	end
+	table.sort(sortedKills, function(a, b) return a.count > b.count end)
+	
+	if #sortedKills == 0 then
+		Utils.mkLabel({
+			text = UILocalizer.Localize("아직 처치한 몬스터가 없습니다."),
+			size = UDim2.new(1, 0, 0, 50),
+			pos = UDim2.new(0, 0, 0.4, 0),
+			ts = 16,
+			font = F.TITLE,
+			color = Color3.fromRGB(150, 150, 150),
+			ax = Enum.TextXAlignment.Center,
+			parent = scroll
+		})
+	else
+		for _, entry in ipairs(sortedKills) do
+			local row = Utils.mkFrame({
+				name = "MobKillRow",
+				size = UDim2.new(1, 0, 0, 45),
+				bg = C_Override.BG_SLOT,
+				bgT = 0.2,
+				r = 6,
+				stroke = 1,
+				strokeC = C_Override.BORDER,
+				parent = scroll
+			})
+			
+			local textLabel = Utils.mkLabel({
+				text = UILocalizer.Localize(entry.name),
+				size = UDim2.new(0.7, 0, 1, 0),
+				pos = UDim2.new(0, 15, 0, 0),
+				ts = 15,
+				font = F.TITLE,
+				color = C_Override.GOLD,
+				ax = Enum.TextXAlignment.Left,
+				parent = row
+			})
+			
+			local countLabel = Utils.mkLabel({
+				text = tostring(entry.count),
+				size = UDim2.new(0.2, 0, 1, 0),
+				pos = UDim2.new(1, -15, 0, 0),
+				anchor = Vector2.new(1, 0),
+				ts = 15,
+				font = F.NUM,
+				color = Color3.fromRGB(120, 220, 100), -- Greenish color for kills
+				ax = Enum.TextXAlignment.Right,
+				parent = row
+			})
+		end
+	end
+end
 
 ----------------------------------------------------------------
 -- 프리미엄 상점 (Premium Shop)

@@ -142,6 +142,29 @@ local MobSpawnData = {
 			{x = 26.635, y = 10.497, z = 28.371},
 			{x = -76.426, y = 9.9, z = 13.452}
 		}
+	},
+	
+	["SpiderZone"] = {
+		spawnAreaId = "SpiderZone",
+		mobModelName = "Spider",
+		mobDisplayName = "거미",
+		maxHealth = 1200,    -- [상향] 최종 구역 몬스터에 맞게 체력 대폭 상향 (기존 150 -> 1200)
+		baseDamage = 45,     -- [상향] 공격력 대폭 상향 (기존 15 -> 45)
+		attackCooldown = 1.5, -- [상향] 공격 속도 상승 (기존 2.0 -> 1.5)
+		respawnDelay = 5.0,
+		modelScale = 0.003,
+		walkSpeed = 16,      -- [상향] 이동 속도 상승 (기존 12 -> 16)
+		xpReward = 500,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500)
+		
+		spawnAsPolygon = true,
+		spawnCount = 5,
+		
+		spawnPositions = {
+			{x = 46.71, y = 13.686, z = 75.196},
+			{x = 203.777, y = 14.127, z = 64.349},
+			{x = 199.962, y = 14.837, z = -26.702},
+			{x = 48.244, y = 13.695, z = -19.045}
+		}
 	}
 }
 

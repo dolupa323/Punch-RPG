@@ -195,6 +195,7 @@ Protocol.Commands = {
 	["Portal.Deposit.Request"] = true,
 	["Portal.Teleport.Request"] = true,
 	["Portal.Interact.Request"] = true,
+	["SkyIsland.Teleport.Request"] = true,
 
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,
