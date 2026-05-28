@@ -1136,10 +1136,12 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				end
 				
 				local baseDef = math.floor((itemData.defense or 0) * qMult)
+				if (itemData.defense or 0) > 0 and baseDef <= 0 then baseDef = 1 end
 				local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 				local extraDef = finalDef - baseDef
 				
 				local baseHp = math.floor((itemData.maxHealth or 0) * qMult)
+				if (itemData.maxHealth or 0) > 0 and baseHp <= 0 then baseHp = 1 end
 				local finalHp = math.floor((baseHp + (bonusHp * 100)) + 0.5)
 				
 				local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
@@ -1149,13 +1151,13 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.StatsGrid.Visible = true
 				local order = 0
 				
-				-- 1) 방어력 (기본 스탯이 있거나 attributes가 있을 경우에만 표기)
+				-- 1) 방어력
 				if baseDef > 0 or extraDef ~= 0 then
 					order = order + 1
 					createStatRow(d.StatsGrid, "방어력", tostring(baseDef), (extraDef ~= 0 and string.format("+%d", extraDef) or nil), defColor, order, tostring(finalDef))
 				end
 				
-				-- 2) 최대 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
+				-- 2) 최대 체력
 				if baseHp > 0 or finalHp > 0 then
 					order = order + 1
 					local extraHp = finalHp - baseHp
@@ -1166,11 +1168,22 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 					createStatRow(d.StatsGrid, "최대 체력", string.format("+%d", baseHp), extraHpText, hpColor, order, string.format("+%d", finalHp))
 				end
 				
-				-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)
-				local baseCrit = itemData.critChance or 0
-				if baseCrit > 0 then
+				-- 3) 치명타 확률 (품질 적용)
+				local baseCritRaw = itemData.critChance or 0
+				if baseCritRaw > 0 then
+					local baseCrit = math.floor(baseCritRaw * 100 * qMult)
+					if baseCrit <= 0 then baseCrit = 1 end
 					order = order + 1
-					createStatRow(d.StatsGrid, "치명타 확률", string.format("+%.0f%%", baseCrit * 100), nil, "#FFFFFF", order)
+					createStatRow(d.StatsGrid, "치명타 확률", string.format("+%d%%", baseCrit), nil, "#FFFFFF", order)
+				end
+
+				-- 4) 치명타 피해 (품질 적용)
+				local baseCritDmgRaw = itemData.critDamageMult or 0
+				if baseCritDmgRaw > 0 then
+					local baseCritDmg = math.floor(baseCritDmgRaw * 100 * qMult)
+					if baseCritDmg <= 0 then baseCritDmg = 1 end
+					order = order + 1
+					createStatRow(d.StatsGrid, "치명타 피해", string.format("+%d%%", baseCritDmg), nil, "#FFFFFF", order)
 				end
 			end
 		end

@@ -48,12 +48,14 @@ CraftingUI.Refs = {
 		BarFill = nil,
 		PctLabel = nil,
 		BtnAction = nil,
+		BtnInstant = nil,
 	}
 }
 
 local selectedRecipeId = nil
 local _isSmall = false
 local progressModalCallback = nil -- [NEW] 제작 진행 모달 전용 다이나믹 콜백
+local progressModalInstantCallback = nil
 
 ----------------------------------------------------------------
 -- 선택 하이라이트 업데이트
@@ -312,8 +314,8 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	-- 모달 하단 액션 버튼 (평소엔 창닫기, 완료 시에는 산뜻한 아이템 수령 버튼으로 변신!)
 	local mBtnAction = Utils.mkBtn({
 		text = "닫기",
-		size = UDim2.new(0.85, 0, 0, 44),
-		pos = UDim2.new(0.5, 0, 1, -15),
+		size = UDim2.new(0.4, 0, 0, 44),
+		pos = UDim2.new(0.27, 0, 1, -15),
 		anchor = Vector2.new(0.5, 1),
 		bg = C.BTN,
 		color = C.WHITE,
@@ -330,6 +332,26 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 		end
 	end)
 	
+	local mBtnInstant = Utils.mkBtn({
+		text = "즉시 완료",
+		size = UDim2.new(0.4, 0, 0, 44),
+		pos = UDim2.new(0.73, 0, 1, -15),
+		anchor = Vector2.new(0.5, 1),
+		bg = Color3.fromRGB(50, 200, 50),
+		color = C.WHITE,
+		ts = 16,
+		font = F.TITLE,
+		r = 5,
+		z = 504,
+		parent = win
+	})
+	
+	mBtnInstant.MouseButton1Click:Connect(function()
+		if progressModalInstantCallback then
+			progressModalInstantCallback()
+		end
+	end)
+	
 	-- 모달 참조 캐시 저장
 	CraftingUI.Refs.ProgressModal.Overlay = overlay
 	CraftingUI.Refs.ProgressModal.Window = win
@@ -338,6 +360,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	CraftingUI.Refs.ProgressModal.BarFill = mBarFill
 	CraftingUI.Refs.ProgressModal.PctLabel = mPct
 	CraftingUI.Refs.ProgressModal.BtnAction = mBtnAction
+	CraftingUI.Refs.ProgressModal.BtnInstant = mBtnInstant
 end
 
 function CraftingUI.SetVisible(visible)
@@ -601,13 +624,17 @@ function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManag
 	local remainTime = math.max(0, math.ceil(totalTime * (1 - ratio)))
 	
 	-- 3. 상태 분기별 렌더링 & 버튼 동적 콜백 갈아끼우기
-	if craftState == "PENDING_COLLECT" or craftState == "COMPLETED" or ratio >= 1 then
+		if craftState == "PENDING_COLLECT" or craftState == "COMPLETED" or ratio >= 1 then
 		pm.PctLabel.Text = UILocalizer.Localize("제작 완료! (100%)")
 		pm.BarFill.BackgroundColor3 = Color3.fromRGB(140, 220, 100)
 		
 		pm.BtnAction.Text = UILocalizer.Localize("아이템 수령")
 		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(140, 220, 100)
 		pm.BtnAction.TextColor3 = Color3.fromRGB(10, 15, 25)
+		pm.BtnAction.Size = UDim2.new(0.85, 0, 0, 44)
+		pm.BtnAction.Position = UDim2.new(0.5, 0, 1, -15)
+		
+		pm.BtnInstant.Visible = false
 		
 		progressModalCallback = function()
 			if craftId then UIManager._DoCollect(craftId) end
@@ -626,9 +653,20 @@ function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManag
 		pm.BtnAction.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
 		pm.BtnAction.TextColor3 = Color3.fromRGB(255, 255, 255)
 		pm.BtnAction.AutoButtonColor = true
+		pm.BtnAction.Size = UDim2.new(0.4, 0, 0, 44)
+		pm.BtnAction.Position = UDim2.new(0.27, 0, 1, -15)
+		
+		pm.BtnInstant.Visible = true
 		
 		progressModalCallback = function()
 			if craftId then UIManager._DoCancel(craftId) end
+			pm.Overlay.Visible = false
+		end
+		
+		progressModalInstantCallback = function()
+			if craftId and UIManager._DoInstantComplete then 
+				UIManager._DoInstantComplete(craftId) 
+			end
 			pm.Overlay.Visible = false
 		end
 	end

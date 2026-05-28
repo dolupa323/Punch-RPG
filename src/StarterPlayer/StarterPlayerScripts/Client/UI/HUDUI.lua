@@ -839,6 +839,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, ay = Enum.TextYAlignment.Top, st = 1, parent = slot.frame
 		})
 		numLabel.TextScaled = true
+		numLabel.ZIndex = slot.icon.ZIndex + 10 -- 아이템 아이콘 위로 ZIndex 레이어 보정
 		HUDUI.Refs.hotbarSlots[i] = slot
 		
 		-- [추가] 슬롯 직접 클릭 시 애니메이션 발동
@@ -926,6 +927,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			font = F.TITLE, color = C.WHITE, ax = Enum.TextXAlignment.Left, ay = Enum.TextYAlignment.Top, st = 1, parent = slot.frame
 		})
 		keyLabel.TextScaled = true
+		keyLabel.ZIndex = slot.icon.ZIndex + 10 -- 룬 아이콘 이미지 레이어보다 위로 강제 노출 보장
 		
 		-- [추가] 쿨타임 오버레이
 		local cdOverlay = Instance.new("Frame")
@@ -1134,12 +1136,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.combatHPLabel.BackgroundTransparency = 1
 
 	-- =============================================
-	-- HUD 바 툴팁 (마우스 호버 시 설명창)
+	-- HUD 바 툴팁 (마우스 호버 시 설명창) - 프리미엄 Navy + Black 테마로 색감 강제 대통합
 	-- =============================================
 	local tooltip = Instance.new("Frame")
 	tooltip.Name = "HUDTooltip"
 	tooltip.Size = UDim2.new(0, 210, 0, 80)
-	tooltip.BackgroundColor3 = C.BG_PANEL
+	tooltip.BackgroundColor3 = Color3.fromRGB(10, 15, 25) -- Deep Navy (장비/룬 창과 일치)
 	tooltip.BackgroundTransparency = 0.05
 	tooltip.BorderSizePixel = 0
 	tooltip.ZIndex = 9500
@@ -1151,9 +1153,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipCorner.Parent = tooltip
 
 	local tipStroke = Instance.new("UIStroke")
-	tipStroke.Color = C.BORDER
-	tipStroke.Thickness = 2
-	tipStroke.Transparency = 0.2
+	tipStroke.Color = Color3.fromRGB(60, 85, 130) -- Light Navy 테두리
+	tipStroke.Thickness = 1.8
+	tipStroke.Transparency = 0.1
 	tipStroke.Parent = tooltip
 
 	local tipTitle = Instance.new("TextLabel")
@@ -1161,7 +1163,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipTitle.Size = UDim2.new(1, -20, 0, 30)
 	tipTitle.Position = UDim2.new(0, 10, 0, 5)
 	tipTitle.BackgroundTransparency = 1
-	tipTitle.TextColor3 = C.INK
+	tipTitle.TextColor3 = Color3.fromRGB(255, 255, 255) -- 완전 화이트 타이틀
 	tipTitle.TextSize = 18
 	tipTitle.Font = F.TITLE
 	tipTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -1173,7 +1175,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	tipBody.Size = UDim2.new(1, -20, 0, 40)
 	tipBody.Position = UDim2.new(0, 10, 0, 35)
 	tipBody.BackgroundTransparency = 1
-	tipBody.TextColor3 = C.INK
+	tipBody.TextColor3 = Color3.fromRGB(180, 200, 230) -- 고품격 소프트 블루 그레이 바디
 	tipBody.TextSize = 15
 	tipBody.Font = F.NORMAL
 	tipBody.TextXAlignment = Enum.TextXAlignment.Left
@@ -1197,7 +1199,20 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs.tipTitle.Text = localizedTitle
 		HUDUI.Refs.tipBody.Text = localizedBody
 
-		local maxBodyWidth = TOOLTIP_WIDTH - 20
+		-- 반응형 가로폭 계산 (고정 280px 제거, 모바일 해상도 감지 및 기기 화면비 대응)
+		local camera = workspace.CurrentCamera
+		local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+		
+		local responsiveWidth = 280
+		if isSmall or vp.X < 768 then
+			-- 모바일/태블릿 화면 크기 대응 (최소 180px, 최대 230px 내로 가로 비율 조정)
+			responsiveWidth = math.clamp(vp.X * 0.45, 180, 230)
+		else
+			-- PC 화면 대응
+			responsiveWidth = math.clamp(vp.X * 0.2, 260, 310)
+		end
+
+		local maxBodyWidth = responsiveWidth - 20
 		local textBounds = TextService:GetTextSize(
 			localizedBody,
 			HUDUI.Refs.tipBody.TextSize,
@@ -1206,7 +1221,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		)
 		local bodyHeight = math.max(40, textBounds.Y + 6)
 		HUDUI.Refs.tipBody.Size = UDim2.new(1, -20, 0, bodyHeight)
-		HUDUI.Refs.tooltip.Size = UDim2.new(0, TOOLTIP_WIDTH, 0, 44 + bodyHeight + 10)
+		HUDUI.Refs.tooltip.Size = UDim2.new(0, responsiveWidth, 0, 44 + bodyHeight + 10)
 		HUDUI.Refs.tooltip.Visible = true
 	end
 

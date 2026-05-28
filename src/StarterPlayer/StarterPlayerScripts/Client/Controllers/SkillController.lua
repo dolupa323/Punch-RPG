@@ -189,6 +189,19 @@ function SkillController.useSkill(slotName: string)
 	
 	local itemId = item.itemId
 	
+	-- 1.2. 패시브 룬은 액티브 스킬로 사용할 수 없으므로 사전에 시전 차단
+	local ItemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
+	local itemProfile = nil
+	for _, it in ipairs(ItemData) do
+		if it.id == itemId then
+			itemProfile = it
+			break
+		end
+	end
+	if itemProfile and itemProfile.runeType == "PASSIVE" then
+		return
+	end
+	
 	-- 1.5. 발도 상태 로직 삭제됨
 	
 	-- 2. 로컬 쿨다운 프리체크

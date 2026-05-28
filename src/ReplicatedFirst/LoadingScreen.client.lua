@@ -10,7 +10,7 @@ local ContextActionService = game:GetService("ContextActionService")
 -- 로블록스 기본 로딩 스크린 비활성화
 ReplicatedFirst:RemoveDefaultLoadingScreen()
 
-local LOGO_ASSET_ID = "rbxassetid://136692790872530"
+local LOGO_ASSET_ID = "rbxassetid://124140361686945"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui", 30)
@@ -68,11 +68,11 @@ local originLogo = create("ImageLabel", {
 	Name = "TitleLogo",
 	Parent = titleBackground,
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.4, 0),
-	Size = UDim2.new(0.6, 0, 0.6, 0),
+	Position = UDim2.new(0.5, 0, 0.5, 0),
+	Size = UDim2.new(1, 0, 1, 0),
 	BackgroundTransparency = 1,
 	Image = LOGO_ASSET_ID,
-	ScaleType = Enum.ScaleType.Fit,
+	ScaleType = Enum.ScaleType.Crop,
 	ImageTransparency = 0,               
 	ZIndex = 3,
 	Visible = true
@@ -89,11 +89,13 @@ local progressBarBG = create("Frame", {
 	Parent = titleFrame,
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.75, 0),
-	Size = UDim2.new(0.4, 0, 0, 2),
-	BackgroundColor3 = Color3.fromRGB(80, 80, 80),
+	Size = UDim2.new(0.4, 0, 0, 6), -- 두께 증가
+	BackgroundColor3 = Color3.fromRGB(30, 30, 30),
 	BorderSizePixel = 0,
 	ZIndex = 11
 })
+create("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Parent = progressBarBG })
+create("UICorner", { CornerRadius = UDim.new(0, 3), Parent = progressBarBG })
 
 local progressBarFill = create("Frame", {
 	Name = "ProgressBarFill",
@@ -103,55 +105,55 @@ local progressBarFill = create("Frame", {
 	BorderSizePixel = 0,
 	ZIndex = 12
 })
+create("UICorner", { CornerRadius = UDim.new(0, 3), Parent = progressBarFill })
 
 local statusText = create("TextLabel", {
 	Name = "StatusText",
 	Parent = titleFrame,
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.75, -20),
+	Position = UDim2.new(0.5, 0, 0.75, -24),
 	Size = UDim2.new(0, 400, 0, 20),
 	BackgroundTransparency = 1,
 	Text = "데이터를 불러오고 있습니다...",
-	TextColor3 = Color3.fromRGB(150, 150, 150),
-	TextSize = 14,
-	Font = Enum.Font.Gotham,
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	TextSize = 16,
+	Font = Enum.Font.GothamBold,
 	ZIndex = 11
 })
+create("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Parent = statusText })
 
 local percentText = create("TextLabel", {
 	Name = "PercentText",
 	Parent = progressBarBG,
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 1, 5),
+	Position = UDim2.new(0.5, 0, 1, 8),
 	Size = UDim2.new(0, 40, 0, 20),
 	BackgroundTransparency = 1,
 	Text = "0%",
-	TextColor3 = Color3.fromRGB(120, 120, 120),
-	TextSize = 12,
-	Font = Enum.Font.GothamMedium,
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	TextSize = 14,
+	Font = Enum.Font.GothamBold,
 	ZIndex = 11
 })
+create("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Parent = percentText })
 
--- 로고 비율 유지를 위한 제약 조건 추가
-create("UIAspectRatioConstraint", {
-	AspectRatio = 1.667, -- 850/510 비율 유지
-	Parent = originLogo
-})
+-- 로고 비율 유지를 위한 제약 조건 추가 (화면 가득 채우기 위해 제거)
 
 local touchToStartText = create("TextLabel", {
 	Name = "TouchToStartText",
 	Parent = titleFrame,
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.new(0.5, 0, 0.72, 0),
+	Position = UDim2.new(0.5, 0, 0.75, 0),
 	Size = UDim2.new(0.5, 0, 0.05, 0),
 	BackgroundTransparency = 1,
 	Text = "화면을 터치해주세요.",
-	TextColor3 = Color3.fromRGB(180, 180, 180), -- 회색 얇은 글씨
-	TextSize = 18,
-	Font = Enum.Font.Gotham,
+	TextColor3 = Color3.fromRGB(245, 185, 50), -- 골드 색상으로 컨벤션 통일
+	TextSize = 24,
+	Font = Enum.Font.GothamBold,
 	TextTransparency = 1,
 	ZIndex = 11
 })
+local touchStroke = create("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 1, Parent = touchToStartText })
 
 local invisibleStartButton = create("TextButton", {
 	Name = "InvisibleStartButton",
@@ -376,23 +378,24 @@ TweenService:Create(progressBarBG, fadeOutInfo, {BackgroundTransparency = 1}):Pl
 TweenService:Create(progressBarFill, fadeOutInfo, {BackgroundTransparency = 1}):Play()
 TweenService:Create(percentText, fadeOutInfo, {TextTransparency = 1}):Play()
 TweenService:Create(statusText, fadeOutInfo, {TextTransparency = 1}):Play()
+for _, v in ipairs({progressBarBG, percentText, statusText}) do
+	local stroke = v:FindFirstChildOfClass("UIStroke")
+	if stroke then TweenService:Create(stroke, fadeOutInfo, {Transparency = 1}):Play() end
+end
 task.wait(0.5)
 
 -- 안내 텍스트 페이드 인
-TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-	TextTransparency = 0
-}):Play()
+TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { TextTransparency = 0 }):Play()
+TweenService:Create(touchStroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { Transparency = 0 }):Play()
 
 -- 안내 텍스트 깜빡임 효과 (Blink)
 task.spawn(function()
 	while titleFrame.Visible do
-		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-			TextTransparency = 0.6
-		}):Play()
+		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { TextTransparency = 0.6 }):Play()
+		TweenService:Create(touchStroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { Transparency = 0.6 }):Play()
 		task.wait(1.0)
-		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), {
-			TextTransparency = 0
-		}):Play()
+		TweenService:Create(touchToStartText, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { TextTransparency = 0 }):Play()
+		TweenService:Create(touchStroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine), { Transparency = 0 }):Play()
 		task.wait(1.0)
 	end
 end)
@@ -431,6 +434,7 @@ invisibleStartButton.MouseButton1Click:Connect(function()
 	
 	-- 클릭 시 텍스트 즉시 반응
 	touchToStartText.TextTransparency = 0
+	touchStroke.Transparency = 0
 	
 	-- 화면 암전 혹은 페이드 아웃
 	local blackFrame = create("Frame", {

@@ -71,7 +71,7 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	})
 	
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
-	Utils.mkLabel({text="EQUIPMENT [E]", pos=UDim2.new(0, 15, 0, 0), ts=26, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkLabel({text=UILocalizer.Localize("내 정보"), pos=UDim2.new(0, 15, 0, 0), ts=26, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
 	Utils.mkBtn({text="X", size=UDim2.new(0, 42, 0, 42), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bgT=0.5, ts=24, color=C.WHITE, isNegative=true, r=4, fn=function() UIManager.closeEquipment() end, parent=header})
 	
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
@@ -194,15 +194,12 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	end)
 	
 	local statsScroll = Instance.new("ScrollingFrame")
-	statsScroll.Size = UDim2.new(1,-20,1,-120); statsScroll.Position = UDim2.new(0,10,0,50); statsScroll.BackgroundTransparency = 1; statsScroll.BorderSizePixel = 0; statsScroll.ScrollBarThickness = 2; statsScroll.Parent = statArea
+	statsScroll.Size = UDim2.new(1,-20,0,135); statsScroll.Position = UDim2.new(0,10,0,50); statsScroll.BackgroundTransparency = 1; statsScroll.BorderSizePixel = 0; statsScroll.ScrollBarThickness = 2; statsScroll.Parent = statArea
 	local sLayout = Instance.new("UIListLayout"); sLayout.Padding=UDim.new(0, 5); sLayout.Parent=statsScroll
 	
 	local stats = {
 		{id=Enums.StatId.MAX_HEALTH, name="최대 체력", up=true}, 
-		{id=Enums.StatId.MAX_STAMINA, name="최대 스태미나", up=true}, 
-		{id=Enums.StatId.INV_SLOTS, name="인벤토리 칸", up=true}, 
-		{id=Enums.StatId.ATTACK, name="공격력", up=true},
-		{id=Enums.StatId.DEFENSE, name="방어력", up=false}
+		{id=Enums.StatId.ATTACK, name="공격력", up=true}
 	}
 	for _, s in ipairs(stats) do
 		-- 스텟 라인 크기 비율화 (배경 제거)
@@ -245,6 +242,46 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 
 	Utils.mkBtn({text=UILocalizer.Localize("적용"), size=UDim2.new(0.45,0,0.8,0), bg=C.GREEN, font=F.TITLE, color=C.BG_PANEL, fn=function() UIManager.confirmPendingStats() end, parent=actionFrame})
 	Utils.mkBtn({text=UILocalizer.Localize("초기화"), size=UDim2.new(0.45,0,0.8,0), bg=C.BTN, font=F.TITLE, fn=function() UIManager.cancelPendingStats() end, parent=actionFrame})
+	
+	-- [New] Current Stats Section
+	local cStatsHeader = Utils.mkLabel({text=UILocalizer.Localize("스탯"), size=UDim2.new(1, -20, 0, 24), pos=UDim2.new(0,10,0,195), ts=isSmall and 20 or 22, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})
+	local cSep = Instance.new("Frame"); cSep.Size = UDim2.new(1,-20,0,1); cSep.Position = UDim2.new(0,10,0,223); cSep.BackgroundColor3 = C.BORDER; cSep.BorderSizePixel = 0; cSep.Parent = statArea
+	
+	local cStatsScroll = Instance.new("ScrollingFrame")
+	cStatsScroll.Size = UDim2.new(1,-20,1,-240); cStatsScroll.Position = UDim2.new(0,10,0,230); cStatsScroll.BackgroundTransparency = 1; cStatsScroll.BorderSizePixel = 0; cStatsScroll.ScrollBarThickness = 2; cStatsScroll.Parent = statArea
+	local cLayout = Instance.new("UIListLayout"); cLayout.Padding=UDim.new(0, 5); cLayout.Parent=cStatsScroll
+	
+	EquipmentUI.Refs.CurrentStatLines = {}
+	local currentStatsConfig = {
+		{id="combatPower", name="전투력"},
+		{id="maxHealth", name="최대 체력"},
+		{id="maxStamina", name="최대 스태미나"},
+		{id="attack", name="공격력"},
+		{id="defense", name="방어력"},
+		{id="critChance", name="치명타 확률"},
+		{id="critDamage", name="치명타 피해"},
+		{id="moveSpeed", name="이동 속도"},
+		{id="maxSlots", name="인벤토리 칸"}
+	}
+	for _, s in ipairs(currentStatsConfig) do
+		local line = Utils.mkFrame({size=UDim2.new(1, 0, 0, 36), bgT=1, parent=cStatsScroll})
+		
+		local labelColor = (s.id == "combatPower") and C.GOLD or Color3.fromRGB(180,180,180)
+		local valColor = C.WHITE
+		
+		Utils.mkLabel({text=UILocalizer.Localize(s.name), size=UDim2.new(0.5,0,1,0), pos=UDim2.new(0,10,0,0), ts=isSmall and 16 or 18, color=labelColor, ax=Enum.TextXAlignment.Left, parent=line})
+		local val = Utils.mkLabel({text="0", size=UDim2.new(0.5,0,1,0), pos=UDim2.new(1,-10,0,0), anchor=Vector2.new(1,0), ts=isSmall and 17 or 19, font=F.NUM, color=valColor, ax=Enum.TextXAlignment.Right, parent=line})
+		EquipmentUI.Refs.CurrentStatLines[s.id] = val
+		
+		if s.id == "combatPower" then
+			local sepLine = Instance.new("Frame")
+			sepLine.Size = UDim2.new(1, -20, 0, 1)
+			sepLine.BackgroundColor3 = C.BORDER
+			sepLine.BorderSizePixel = 0
+			sepLine.BackgroundTransparency = 0.5
+			sepLine.Parent = cStatsScroll
+		end
+	end
 	
 	-- [New] Tooltip Frame (Initially Hidden)
 	local TT_W = isSmall and 300 or 320
@@ -561,8 +598,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						nameL.Parent = row
 						
 						local valL = Instance.new("TextLabel")
-						valL.Size = UDim2.new(0, 65, 1, 0)
-						valL.Position = UDim2.new(1, -65, 0, 0)
+						valL.Size = UDim2.new(0, 80, 1, 0)
+						valL.Position = UDim2.new(1, -80, 0, 0)
 						valL.BackgroundTransparency = 1
 						valL.Text = string.format("%d / 100", qVal)
 						valL.TextColor3 = getQualityColor(qVal)
@@ -572,7 +609,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						valL.Parent = row
 						
 						local barBg = Instance.new("Frame")
-						barBg.Size = UDim2.new(0.75, -75, 0, 6)
+						barBg.Size = UDim2.new(0.4, 0, 0, 6)
 						barBg.Position = UDim2.new(0.25, 0, 0.5, -3)
 						barBg.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
 						barBg.BorderSizePixel = 0
@@ -660,6 +697,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						end
 						
 						local baseDef = math.floor((itemData.defense or 0) * qMult)
+						if (itemData.defense or 0) > 0 and baseDef <= 0 then baseDef = 1 end
 						local finalDef = math.floor(baseDef * (1 + bonusDef) + 0.5)
 						local extraDef = finalDef - baseDef
 						local extraHp = math.floor(bonusHp * 100 + 0.5)
@@ -667,7 +705,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 						local defColor = bonusDef > 0 and "#8CDC64" or "#FFFFFF"
 						local hpColor = bonusHp > 0 and "#8CDC64" or "#FFFFFF"
 						
-						-- 1) 방어력 (기본 스탯이 있거나 attributes가 있을 경우에만 표기)
+						-- 1) 방어력
 						if baseDef > 0 or extraDef ~= 0 then
 							local defValStr
 							if extraDef ~= 0 then
@@ -678,8 +716,9 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							addRow("방어력", defValStr)
 						end
 						
-						-- 2) 최대 체력 (아이템 고유 체력 스탯이 있거나 attributes 추가 체력이 있을 때 표기)
+						-- 2) 최대 체력
 						local baseHp = math.floor((itemData.maxHealth or 0) * qMult)
+						if (itemData.maxHealth or 0) > 0 and baseHp <= 0 then baseHp = 1 end
 						local finalHp = baseHp + extraHp
 						if baseHp > 0 or finalHp > 0 then
 							local hpValueStr
@@ -692,10 +731,20 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							addRow("최대 체력", hpValueStr)
 						end
 						
-						-- 3) 치명타 확률 (아이템 자체 고유 치명타 스탯이 있을 때 표기)
-						local baseCrit = itemData.critChance or 0
-						if baseCrit > 0 then
-							addRow("치명타 확률", string.format("+%.0f%%", baseCrit * 100))
+						-- 3) 치명타 확률 (품질 적용)
+						local baseCritRaw = itemData.critChance or 0
+						if baseCritRaw > 0 then
+							local baseCrit = math.floor(baseCritRaw * 100 * qMult)
+							if baseCrit <= 0 then baseCrit = 1 end
+							addRow("치명타 확률", string.format("+%d%%", baseCrit))
+						end
+
+						-- 4) 치명타 피해 (품질 적용)
+						local baseCritDmgRaw = itemData.critDamageMult or 0
+						if baseCritDmgRaw > 0 then
+							local baseCritDmg = math.floor(baseCritDmgRaw * 100 * qMult)
+							if baseCritDmg <= 0 then baseCritDmg = 1 end
+							addRow("치명타 피해", string.format("+%d%%", baseCritDmg))
 						end
 					end
 					
@@ -832,6 +881,49 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 	end
 	
 	refs.ActionFrame.Visible = (totalPending > 0)
+	
+	if refs.CurrentStatLines then
+		local hp = calc.maxHealth or 100
+		local stamina = calc.maxStamina or 100
+		local atkMult = calc.attackMult or 1.0
+		local def = calc.defense or 0
+		local critChance = calc.critChance or 0
+		local critMult = calc.critDamageMult or 0
+		local speed = calc.moveSpeed or 16
+		local slots = calc.maxSlots or 60
+		
+		local charDmg = 0
+		local wData = equipmentData and equipmentData.HAND
+		if wData then
+			local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+			local itemData = DataHelper.GetData("ItemData", wData.itemId)
+			local quality = (wData.attributes and wData.attributes.quality) or 100
+			local baseDmg = itemData and math.floor((itemData.damage or 0) * (quality/100)) or 0
+			local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
+			local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
+			local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * bonusRate) + 0.5)
+			charDmg = math.floor(finalDmg * atkMult + 0.5)
+		end
+		
+		-- 전투력(Combat Power) 계산 공식
+		local cpDmg = (charDmg > 0) and charDmg or math.floor(atkMult * 100)
+		-- 공격력 스케일링이 높은 편이므로 비중을 두고, 체력은 상대적으로 숫자가 높으므로 0.5 정도 가중치 부여
+		local cp = math.floor(hp * 0.5 + stamina * 0.2 + cpDmg * 5 + def * 10 + (critChance * 100 * 20) + (critMult * 100 * 15) + (speed * 10))
+		refs.CurrentStatLines["combatPower"].Text = tostring(cp)
+		
+		refs.CurrentStatLines["maxHealth"].Text = string.format("%d HP", hp)
+		refs.CurrentStatLines["maxStamina"].Text = string.format("%d STA", stamina)
+		if charDmg > 0 then
+			refs.CurrentStatLines["attack"].Text = string.format("%.0f%% (%d DMG)", atkMult * 100, charDmg)
+		else
+			refs.CurrentStatLines["attack"].Text = string.format("%.0f%%", atkMult * 100)
+		end
+		refs.CurrentStatLines["defense"].Text = string.format("%d", def)
+		refs.CurrentStatLines["critChance"].Text = string.format("%.1f%%", critChance * 100)
+		refs.CurrentStatLines["critDamage"].Text = string.format("%.0f%%", (1.5 + critMult) * 100)
+		refs.CurrentStatLines["moveSpeed"].Text = string.format("%.1f", speed)
+		refs.CurrentStatLines["maxSlots"].Text = string.format("%d", slots)
+	end
 end
 
 function EquipmentUI.UpdateCharacterPreview(character)

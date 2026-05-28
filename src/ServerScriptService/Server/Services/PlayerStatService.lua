@@ -408,7 +408,7 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 	end
 	
 	-- 장비 기본 스탯 보너스 합산 (신설)
-	local baseEquipStats = { maxHealth = 0, critChance = 0 }
+	local baseEquipStats = { maxHealth = 0, critChance = 0, critDamageMult = 0 }
 	if success and InventoryService and InventoryService.getEquipmentBaseStats then
 		baseEquipStats = InventoryService.getEquipmentBaseStats(userId)
 	end
@@ -447,8 +447,8 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		defense = defense,
 		speedMult = speedMult,
 		-- 치명타 스탯 추가 (CombatService에서 참조)
-		critChance = (attrBonuses.critChance or 0) + baseEquipStats.critChance,
-		critDamageMult = attrBonuses.critDamageMult or 0,
+		critChance = (attrBonuses.critChance or 0) + (baseEquipStats.critChance or 0),
+		critDamageMult = (attrBonuses.critDamageMult or 0) + (baseEquipStats.critDamageMult or 0),
 	}
 end
 

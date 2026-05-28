@@ -103,6 +103,74 @@ local WeaponComboData = {
 			[2] = { angle = -30, duration = 0.08 },
 			[3] = { angle = 40, duration = 0.08 }
 		}
+	},
+	["KNIGHT_SPEAR"] = {
+		id = "KNIGHT_SPEAR",
+		baseDamage = 100,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "Staff_None_AttackSwing1",
+			[2] = "Staff_None_AttackSwing2",
+			[3] = "Staff_None_AttackSwing3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
+	["SOUL_STAFF"] = {
+		id = "SOUL_STAFF",
+		baseDamage = 120,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "Staff_None_AttackSwing1",
+			[2] = "Staff_None_AttackSwing2",
+			[3] = "Staff_None_AttackSwing3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
+	["SPEAR_OF_JUSTICE"] = {
+		id = "SPEAR_OF_JUSTICE",
+		baseDamage = 150,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "Staff_None_AttackSwing1",
+			[2] = "Staff_None_AttackSwing2",
+			[3] = "Staff_None_AttackSwing3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
+	["BLUE_FLAME_SPEAR"] = {
+		id = "BLUE_FLAME_SPEAR",
+		baseDamage = 200,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "Staff_None_AttackSwing1",
+			[2] = "Staff_None_AttackSwing2",
+			[3] = "Staff_None_AttackSwing3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
 	}
 }
 

@@ -345,6 +345,7 @@ local function onInventoryChanged(data)
 	end
 	
 	-- 콜백 호출
+	--[[ [DEACTIVATED DEBUG PRINT]
 	print("[InventoryController] Inventory cache updated. Current Items:")
 	local hasAny = false
 	for slot, data in pairs(inventoryCache) do
@@ -356,6 +357,7 @@ local function onInventoryChanged(data)
 	if not hasAny then
 		print("  (Inventory is completely empty)")
 	end
+	--]]
 	
 	fireChangeListeners()
 end

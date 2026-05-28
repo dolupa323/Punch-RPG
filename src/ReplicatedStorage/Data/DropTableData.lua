@@ -106,6 +106,20 @@ local DropTableData = {
 		{ itemId = "SPIDER_LEG", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "SPIDER_NECKLACE", chance = 0.01, min = 1, max = 1 },
 	},
+	["GHOSTKNIGHT"] = {
+		{ itemId = "GHOST_KNIGHT_SOUL", chance = 1.0, min = 1, max = 2 },
+	},
+	["GHOSTWIZARD"] = {
+		{ itemId = "GHOST_WIZARD_SOUL", chance = 1.0, min = 1, max = 2 },
+	},
+	["GIANTGHOSTKNIGHT"] = {
+		{ itemId = "GHOST_GIANT_PRIDE", chance = 1.0, min = 1, max = 3 },
+		{ itemId = "GHOST_KNIGHT_EARRING", chance = 0.01, min = 1, max = 1 },
+	},
+	["BLUEFLAMEKNIGHT"] = {
+		{ itemId = "BLUE_FIRE", chance = 1.0, min = 1, max = 3 },
+		{ itemId = "BLUE_FIRE_RING", chance = 0.01, min = 1, max = 1 },
+	},
 }
 
 return DropTableData

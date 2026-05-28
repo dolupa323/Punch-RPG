@@ -165,6 +165,115 @@ local MobSpawnData = {
 			{x = 199.962, y = 14.837, z = -26.702},
 			{x = 48.244, y = 13.695, z = -19.045}
 		}
+	},
+	
+	["SkyIsland_BlueFlameKnight"] = {
+		spawnAreaId = "SkyIsland_BlueFlameKnight",
+		mobModelName = "BlueFlameKnight",
+		mobDisplayName = "푸른 불꽃 기사",
+		maxHealth = 35000,     -- 하늘섬 최종 보스급 스펙
+		baseDamage = 110,      -- 방어 못하면 즉사급 위력
+		attackCooldown = 2.0,  -- 공격 휘두르는 속도
+		respawnDelay = 60.0,   -- 처치 후 1분 뒤 리스폰
+		modelScale = 1.5,      -- 기본 R6 모델보다 큼 (위압감)
+		customHipHeight = 1.8, -- [옵션] 3.0 이상 띄울 때 발이 공중에 뜨면 1.8로 보정 (다리 길이에 따라 조정)
+		walkSpeed = 12,        -- 평상시 추격 이속
+		xpReward = 10000,      -- 처치 시 보상 경험치 대폭 상승
+		
+		spawnAsPolygon = false,  -- [버그수정] 보스는 무작위 스폰이 아닌 보스방 정중앙 고정 스폰!
+		spawnCount = 1,         -- 보스 1마리 웅장하게 대기
+		isIndoor = true,        -- 실내(천장 있음) 환경
+		skipTerrainScan = true, -- [완벽 작동 확인] 보스방 천장 간섭 없이 exactSpawnPosition으로 정확히 안착!
+		exactSpawnPosition = {x = 1389.5, y = 500.0, z = 63.2}, -- [정밀 매칭 완료] 보스방 정중앙
+		
+		-- [정밀 매칭 완료] 사용자 제공 스크린샷 Properties 속성에서 추출한 4개 꼭짓점 좌표 반영
+		spawnPositions = {
+			{x = 1419.014, y = 499.892, z = 97.743}, -- 꼭짓점 1 (Realistic Stone)
+			{x = 1363.184, y = 500.674, z = 96.8},   -- 꼭짓점 2 (Realistic Stone)
+			{x = 1362.753, y = 499.739, z = 30.029}, -- 꼭짓점 3 (Realistic Stone)
+			{x = 1413.178, y = 499.943, z = 28.167}  -- 꼭짓점 4 (Realistic Stone)
+		}
+	},
+	
+	["GhostKnightZone"] = {
+		spawnAreaId = "GhostKnightZone",
+		mobModelName = "GhostKnight",
+		dropTableId = "GIANTGHOSTKNIGHT",
+		mobDisplayName = "유령기사(거인)",
+		maxHealth = 12000,      -- 중간 보스급 체력
+		baseDamage = 70,        -- 맞으면 치명상
+		attackCooldown = 2.2,   -- 공격 속도
+		respawnDelay = 30.0,    -- 처치 후 30초 뒤 리스폰
+		modelScale = 2.5,       -- 기존 모델보다 거대하게 2.5배 확대
+		customHipHeight = 1.5,  -- [크기 스케일링 대비]: 중앙이 뜬다는 제보가 있으니 1.5로 낮춤 (다리 길이에 비례)
+		walkSpeed = 9,          -- 기본 이동 속도
+		xpReward = 3000,        -- 엘리트 처치 경험치
+		
+		spawnAsPolygon = false, -- [공중 부상 버그 영구 해결]: 불규칙 지형에서 스폰되다 뜨는 현상을 원천 방지
+		spawnCount = 1,         -- 중간보스 1마리 웅장하게 대기
+		isIndoor = true,        -- 실내 판정
+		skipTerrainScan = true, -- [푸른화염의 기사 패턴 참조] 실내 레이캐스트 없이 exactSpawnPosition + 고정 floorY로 완벽 안착!
+		exactSpawnPosition = {x = 1292.26, y = 470.75, z = -125.28}, -- [버그해결] 꼭짓점 2 대신 보스방 한가운데 정중앙(4개 꼭짓점의 평균 좌표)으로 변경하여 벽 외부 스폰을 완벽 차단!
+		
+		-- 유저 제공 Properties Properties에서 100% 정밀 추출한 4개 꼭짓점 좌표 반영
+		spawnPositions = {
+			{x = 1318.615, y = 472.166, z = -142.542}, -- 꼭짓점 1 (Realistic Stone)
+			{x = 1259.659, y = 471.085, z = -140.807}, -- 꼭짓점 2 (Realistic Stone)
+			{x = 1263.644, y = 470.096, z = -107.073}, -- 꼭짓점 3 (Realistic Stone)
+			{x = 1327.129, y = 469.662, z = -110.689}  -- 꼭짓점 4 (Realistic Stone)
+		}
+	},
+	
+	["NormalGhostKnightZone"] = {
+		spawnAreaId = "NormalGhostKnightZone",
+		mobModelName = "GhostKnight",
+		mobDisplayName = "유령기사",
+		maxHealth = 2500,       -- 첫 통곡의 벽 수준의 맷집
+		baseDamage = 40,        -- 공격력 위협적으로 증가
+		attackCooldown = 2.5,   -- 공격속도
+		respawnDelay = 15.0,    -- 처치 후 15초 뒤 리스폰
+		modelScale = 1.0,       -- 일반 사이즈
+		customHipHeight = 1.0,  -- 기본 모델에 맞는 높이
+		walkSpeed = 10,         -- 일반 이동 속도
+		xpReward = 400,         -- 일반 몹 경험치 상향
+		
+		spawnAsPolygon = true,  -- 폴리곤 내 무작위 스폰
+		spawnCount = 4,         -- 4마리 스폰
+		isIndoor = false,
+		
+		-- 유저 제공 Properties 4개 꼭짓점 좌표 반영
+		spawnPositions = {
+			{x = 1214.504, y = 466.107, z = -130.67},
+			{x = 1155.548, y = 465.026, z = -124.793},
+			{x = 1159.533, y = 464.037, z = -48.437},
+			{x = 1228.095, y = 463.603, z = -44.593}
+		}
+	},
+	
+	["GhostWizardZone"] = {
+		spawnAreaId = "GhostWizardZone",
+		mobModelName = "GhostWizard",
+		mobDisplayName = "유령 마법사",
+		maxHealth = 1800,       -- 기사보다는 낮지만 높은 맷집
+		baseDamage = 55,        -- 마법 데미지 강력하게 설정
+		attackCooldown = 3.0,   -- 원거리 캐스팅 속도
+		respawnDelay = 15.0,    -- 처치 후 15초 뒤 리스폰
+		modelScale = 1.0,       -- 일반 사이즈
+		customHipHeight = 1.0,  -- 기본 모델에 맞는 높이
+		walkSpeed = 8,          -- 일반 기사보다 느린 이동 속도
+		xpReward = 500,         -- 경험치 상향
+		
+		spawnAsPolygon = true,  -- 폴리곤 내 무작위 스폰
+		spawnCount = 4,         -- 4마리 스폰
+		isIndoor = false,       -- 실외(계단-평지 이어지는 구역) 레이캐스트 적용
+		
+		-- 유저 제공 Properties 4개 꼭짓점 좌표 반영 (계단 구역)
+		spawnPositions = {
+			{x = 1163.016, y = 465.86, z = 15.733},
+			{x = 1169.343, y = 488.387, z = 84.686},
+			{x = 1220.164, y = 501.171, z = 76.849},
+			{x = 1212.41, y = 464.596, z = 14.831}
+		}
 	}
 }
 

@@ -67,6 +67,7 @@ Protocol.Commands = {
 	["Craft.Cancel.Request"] = true,    -- 제작 취소 요청
 	["Craft.Collect.Request"] = true,   -- 완성품 수거 요청
 	["Craft.GetQueue.Request"] = true,  -- 제작 큐 조회
+	["Craft.InstantComplete.Request"] = true, -- 제작 즉시 완료
 	
 	-- Facility 명령어
 	["Facility.GetInfo.Request"] = true,       -- 시설 정보 조회 (Lazy Update 트리거)
@@ -201,6 +202,7 @@ Protocol.Commands = {
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,
 	["Admin.GiveEnhanceSet.Request"] = true,
+	["Admin.GiveItem.Request"] = true,
 	["Admin.SetElement.Request"] = true,
 
 	-- Enhancement 명령어 (연금 강화)

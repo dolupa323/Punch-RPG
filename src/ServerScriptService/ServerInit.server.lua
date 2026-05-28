@@ -209,6 +209,14 @@ local AvatarService = require(Services.AvatarService)
 AvatarService.Init()
 ServiceRegistry.Register("AvatarService", AvatarService)
 
+local TrainingDummyService = require(Services.TrainingDummyService)
+TrainingDummyService.Init(NetController)
+ServiceRegistry.Register("TrainingDummyService", TrainingDummyService)
+
+local LevelTriggerService = require(Services.LevelTriggerService)
+LevelTriggerService.Init()
+ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)
+
 local MobSpawnService = require(Services.MobSpawnService)
 MobSpawnService.Init()
 ServiceRegistry.Register("MobSpawnService", MobSpawnService)

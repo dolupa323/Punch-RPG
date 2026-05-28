@@ -885,6 +885,35 @@ function CraftingService.collect(player: Player, craftId: string, count: number?
 end
 
 --========================================
+-- Public API: 즉시 완료 (Admin / 편의 기능)
+--========================================
+function CraftingService.instantComplete(player: Player, craftId: string)
+	local userId = player.UserId
+	local queue = craftQueues[userId]
+	
+	if not queue or not queue[craftId] then
+		return false, Enums.ErrorCode.CRAFT_NOT_FOUND, nil
+	end
+	
+	local entry = queue[craftId]
+	if entry.state == Enums.CraftState.COMPLETED then
+		return false, Enums.ErrorCode.INVALID_STATE, nil
+	end
+	
+	-- 시간을 과거로 돌려서 즉시 완료 처리
+	entry.nextCompleteAt = nil
+	entry.completesAt = os.time()
+	entry.completedCount = getBatchCount(entry)
+	entry.state = Enums.CraftState.PENDING_COLLECT
+	
+	_syncToSave(userId)
+	
+	-- 서버 틱에 의해 바로 Craft.Ready 이벤트가 발생하게 하거나, 여기서 수거(collect) 호출
+	-- 여기선 상태만 즉시 완료로 변경하고 클라이언트가 알아서 수거하게 둠.
+	return true, nil, { craftId = craftId }
+end
+
+--========================================
 -- Public API: 제작 큐 조회
 --========================================
 function CraftingService.getQueue(player: Player)
@@ -1146,6 +1175,16 @@ function CraftingService.GetHandlers()
 		
 		["Craft.GetQueue.Request"] = function(player, _payload)
 			local success, errorCode, data = CraftingService.getQueue(player)
+			return { success = true, data = data }
+		end,
+		
+		["Craft.InstantComplete.Request"] = function(player, payload)
+			local craftId = payload.craftId
+			if not craftId or type(craftId) ~= "string" then
+				return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
+			end
+			local success, errorCode, data = CraftingService.instantComplete(player, craftId)
+			if not success then return { success = false, errorCode = errorCode } end
 			return { success = true, data = data }
 		end,
 	}

@@ -44,6 +44,9 @@ function SkillTreeUI.SetVisible(visible)
 		SkillTreeUI.Refs.Frame.Visible = visible
 		if visible then
 			SkillTreeUI.Refresh()
+		else
+			local HUDUI = require(UI.HUDUI)
+			HUDUI.HideTooltip()
 		end
 	end
 end
@@ -144,6 +147,77 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 		end)
 		slot.click.MouseButton2Click:Connect(function()
 			InventoryController.requestUnequip(conf.id)
+		end)
+		
+		-- 마우스 호버 효과 (룬 분류, 상세 스펙 수치 및 설명 연동)
+		slot.click.MouseEnter:Connect(function()
+			local equip = InventoryController.getEquipment()
+			local eqItem = equip[conf.id]
+			if eqItem and eqItem.itemId then
+				local itemData = DataHelper.GetData("ItemData", eqItem.itemId)
+				if itemData then
+					-- 1. 룬 장착 상세 스펙 추출 헬퍼
+					local function getRuneEffectText(data)
+						local effects = {}
+						
+						-- 명시적 수치 스펙
+						if data.critChance and data.critChance > 0 then
+							table.insert(effects, string.format("치명타 확률 +%d%%", math.floor(data.critChance * 100)))
+						end
+						if data.maxHealth and data.maxHealth > 0 then
+							table.insert(effects, string.format("최대 체력 +%d", data.maxHealth))
+						end
+						if data.damage and data.damage > 0 then
+							table.insert(effects, string.format("공격력 +%d", data.damage))
+						end
+						
+						-- 룬 고유 버프 및 기능 스펙
+						if data.id == "GRIT_RUNE" then
+							table.insert(effects, "공격 속도 +5% / 스킬 재사용 대기시간 -5%")
+						elseif data.id == "RUNE_LIFE_FORCE" then
+							table.insert(effects, "최대 체력 증가")
+						elseif data.id == "RUNE_POWER" then
+							table.insert(effects, "공격력 증가")
+						elseif data.id == "RUNE_FIREBALL" then
+							table.insert(effects, "액티브 스킬 '파이어볼' 개방")
+						elseif data.id == "EMBER" then
+							table.insert(effects, "화염 속성 액티브 스킬 가동")
+						elseif data.id == "DROPLET" then
+							table.insert(effects, "물 속성 액티브 스킬 가동")
+						elseif data.id == "NIGHT" then
+							table.insert(effects, "어둠 속성 액티브 스킬 가동")
+						end
+						
+						if #effects > 0 then
+							return table.concat(effects, "\n")
+						else
+							return "장착 시 숨겨진 효과 발동"
+						end
+					end
+					
+					-- 2. 툴팁 바디 텍스트 구조화 조립
+					local runeTypeText = (itemData.runeType == "ACTIVE" or itemData.id == "RUNE_FIREBALL" or itemData.id == "EMBER" or itemData.id == "DROPLET" or itemData.id == "NIGHT") and "액티브 (Active)" or "패시브 (Passive)"
+					local elementText = itemData.element and string.format("\n[ 원소 속성 ] %s", itemData.element) or ""
+					local effectText = getRuneEffectText(itemData)
+					local description = itemData.description or ""
+					
+					local bodyText = string.format(
+						"[ 룬 분류 ] %s%s\n[ 장착 효과 ] %s\n---------------------------------\n%s",
+						runeTypeText,
+						elementText,
+						effectText,
+						description
+					)
+					
+					local HUDUI = require(UI.HUDUI)
+					HUDUI.ShowTooltip(itemData.name .. " 룬", bodyText)
+				end
+			end
+		end)
+		
+		slot.click.MouseLeave:Connect(function()
+			local HUDUI = require(UI.HUDUI)
+			HUDUI.HideTooltip()
 		end)
 		
 		SkillTreeUI.Refs.Slots[conf.id] = slot

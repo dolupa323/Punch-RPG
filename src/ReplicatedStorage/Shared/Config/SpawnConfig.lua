@@ -60,12 +60,20 @@ local ZONES = {
 		priority = 20,
 	},
 	SKY_ISLAND = {
-		min = Vector2.new(2200, 2200),
-		max = Vector2.new(2800, 2800),
+		min = Vector2.new(1040, -200),
+		max = Vector2.new(1600, 200),
 		spawnPoint = Vector3.new(2500, 500, 2500),
-		displayName = "신비로운 하늘섬",
+		displayName = "하늘섬",
 		subName = "SKY ISLAND",
 		priority = 20,
+	},
+	BLUE_FLAME_KNIGHT_ZONE = {
+		min = Vector2.new(1360, 20),
+		max = Vector2.new(1430, 105),
+		spawnPoint = Vector3.new(1389.5, 500, 63.2),
+		displayName = "푸른 신념",
+		subName = "BLUE FAITH",
+		priority = 30,
 	},
 
 	--========================================
@@ -154,6 +162,10 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	SKY_ISLAND = {
+		Creatures = {},
+		Harvests = {},
+	},
+	BLUE_FLAME_KNIGHT_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},

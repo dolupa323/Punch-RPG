@@ -274,6 +274,8 @@ local function playDiscoveryEffect(displayName: string, subName: string)
 	end)
 end
 
+local visitedZones = {}
+
 ---------------------------------------------------------
 -- 3. 지역 실시간 감시 함수
 ---------------------------------------------------------

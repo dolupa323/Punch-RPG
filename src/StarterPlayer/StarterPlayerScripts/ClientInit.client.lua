@@ -29,10 +29,6 @@ local function createAdminPanel()
 	if not checkIsAdmin(player.UserId) then
 		return
 	end
-
-	-- 카메라 줌 설정
-	player.CameraMaxZoomDistance = 1000 
-	player.CameraMinZoomDistance = Balance.CAM_MIN_ZOOM or 0.5
 	
 	local playerGui = player:WaitForChild("PlayerGui")
 	if playerGui:FindFirstChild("AdminPanelUI") then
@@ -102,6 +98,23 @@ local function createAdminPanel()
 		NetClient.Request("Shop.Admin.GrantGold.Request", { amount = 500000 })
 	end)
 
+	mkBtn("기사의 혼 +100", Color3.fromRGB(100, 150, 200), function()
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "GHOST_KNIGHT_SOUL", count = 100 })
+	end)
+
+	mkBtn("마법사의 혼 +100", Color3.fromRGB(150, 100, 200), function()
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "GHOST_WIZARD_SOUL", count = 100 })
+	end)
+
+	mkBtn("기사의 긍지 +100", Color3.fromRGB(200, 150, 100), function()
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "GHOST_GIANT_PRIDE", count = 100 })
+	end)
+
+	mkBtn("푸른 화염 +100", Color3.fromRGB(80, 180, 220), function()
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "BLUE_FIRE", count = 100 })
+	end)
+
+
 	mkBtn("레벨 50 설정", Color3.fromRGB(100, 120, 180), function()
 		NetClient.Request("Admin.SetLevel.Request", { level = 50 })
 	end)
@@ -145,7 +158,7 @@ local function init()
 				if not ok then
 					warn(string.format("[ClientInit] Failed to initialize controller '%s': %s", child.Name, tostring(err)))
 				else
-					print(string.format("[ClientInit] Controller '%s' auto-initialized successfully.", child.Name))
+					-- print(string.format("[ClientInit] Controller '%s' auto-initialized successfully.", child.Name))
 				end
 			end
 		end
@@ -153,6 +166,10 @@ local function init()
 
 	-- UIManager 초기화 (HUD, 인벤토리 등 UI 생성)
 	UIManager.Init()
+	
+	-- 기본 카메라 줌아웃 한계 설정 (전체 유저 공통 적용)
+	player.CameraMaxZoomDistance = Balance.CAM_MAX_ZOOM or 45
+	player.CameraMinZoomDistance = Balance.CAM_MIN_ZOOM or 0.5
 	
 	-- 어드민 패널 생성
 	createAdminPanel()

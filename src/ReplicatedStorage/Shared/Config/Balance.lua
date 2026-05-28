@@ -110,7 +110,7 @@ Balance.XP_CRAFT_ITEM = 20              -- 아이템 제작
 --========================================
 -- 플레이어 스탯 보너스 (Phase 6)
 --========================================
-Balance.HP_PER_POINT = 4               -- 포인트당 체력 증가
+Balance.HP_PER_POINT = 1               -- 포인트당 체력 증가
 Balance.STAMINA_PER_POINT = 2          -- 포인트당 스태미너 증가
 Balance.SLOTS_PER_POINT = 5            -- 포인트당 인벤토리 칸 증가
 Balance.BASE_INV_SLOTS = 60            -- 기본 인벤토리 칸 수

@@ -350,6 +350,7 @@ function InventoryService.getEquipmentBaseStats(userId: number)
 	
 	local hp = 0
 	local crit = 0
+	local critDmgMult = 0
 	
 	for _, item in pairs(inv.equipment) do
 		local data = DataService.getItem(item.itemId)
@@ -362,12 +363,16 @@ function InventoryService.getEquipmentBaseStats(userId: number)
 			if data.critChance then
 				crit = crit + (data.critChance * qMult)
 			end
+			if data.critDamageMult then
+				critDmgMult = critDmgMult + (data.critDamageMult * qMult)
+			end
 		end
 	end
 	
 	return {
 		maxHealth = hp,
 		critChance = crit,
+		critDamageMult = critDmgMult,
 	}
 end
 

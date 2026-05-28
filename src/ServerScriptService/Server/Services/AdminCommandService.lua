@@ -113,6 +113,18 @@ local function handleGiveEnhanceSet(player: Player, payload: any)
 	return { success = true }
 end
 
+local function handleGiveItem(player: Player, payload: any)
+	if not InventoryService then return { success = false } end
+	local itemId = payload and payload.itemId
+	local count = tonumber(payload and payload.count) or 1
+	if itemId then
+		InventoryService.addItem(player.UserId, itemId, count)
+		print(string.format("[AdminCommandService] Gave %d of %s to %s", count, itemId, player.Name))
+		return { success = true }
+	end
+	return { success = false }
+end
+
 local function handleSetElement(player: Player, payload: any)
 	local el = payload and payload.element
 	if el then
@@ -205,6 +217,7 @@ function AdminCommandService.Init(_NetController, _PlayerStatService, _Inventory
 		NetController.RegisterHandler("Admin.FullReset.Request", handleFullReset)
 		NetController.RegisterHandler("Admin.SetLevel.Request", handleSetLevel)
 		NetController.RegisterHandler("Admin.GiveEnhanceSet.Request", handleGiveEnhanceSet)
+		NetController.RegisterHandler("Admin.GiveItem.Request", handleGiveItem)
 		NetController.RegisterHandler("Admin.SetElement.Request", handleSetElement)
 	end
 

@@ -587,8 +587,23 @@ local function findNearestTarget()
 	local bestTarget = nil
 	local minDistance = 18 -- [상향] 타격 사거리 12 -> 18 스터드 확대
 
-	-- Workspace 전체에서 타격 대상 검색 고도화
+	-- Workspace 자식들 수집
+	local targets = {}
 	for _, obj in ipairs(workspace:GetChildren()) do
+		table.insert(targets, obj)
+	end
+	
+	-- 시작마을 허수아비 폴더 수집 추가
+	local startVillage = workspace:FindFirstChild("StartVillage")
+	local trainingFolder = startVillage and startVillage:FindFirstChild("Training")
+	if trainingFolder then
+		for _, obj in ipairs(trainingFolder:GetChildren()) do
+			table.insert(targets, obj)
+		end
+	end
+
+	-- 전체 대상에서 타격 대상 검색 고도화
+	for _, obj in ipairs(targets) do
 		-- 1. 자신은 제외
 		if obj == char then continue end
 		
@@ -597,7 +612,7 @@ local function findNearestTarget()
 			local hum = obj:FindFirstChild("Humanoid")
 			local targetHrp = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
 			
-			-- 3. 죽지 않았고, 다른 플레이어가 아닌 경우에만 몬스터 타겟으로 인식!
+			-- 3. 죽지 않았고, 다른 플레이어가 아닌 경우에만 몬스터/허수아비 타겟으로 인식!
 			if hum and hum.Health > 0 and targetHrp and not Players:GetPlayerFromCharacter(obj) then
 				local dist = (hrp.Position - targetHrp.Position).Magnitude
 				if dist < minDistance then
@@ -632,6 +647,20 @@ local function handleLMBAttack()
 
 	attackCooldown = true
 	local comboCooldown = weaponData.cooldown or 0.28
+	
+	-- [패시브 룬 버프]: 룬 슬롯(RUNE1, RUNE2, RUNE3)에 '근성 룬(GRIT_RUNE)' 장착 시 공격 쿨다운 5% 감소 (공속 5% 증가) 적용
+	local InventoryController = require(script.Parent.InventoryController)
+	local equip = InventoryController.getEquipment()
+	if equip then
+		for _, runeSlot in ipairs({"RUNE1", "RUNE2", "RUNE3"}) do
+			local eqItem = equip[runeSlot]
+			if eqItem and eqItem.itemId == "GRIT_RUNE" then
+				comboCooldown = comboCooldown * 0.95
+				break
+			end
+		end
+	end
+
 	local comboWindow = weaponData.comboWindow or 0.8
 	local maxCombo = weaponData.maxCombo or 3
 

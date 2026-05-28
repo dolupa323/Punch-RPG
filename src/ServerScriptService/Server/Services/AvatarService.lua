@@ -310,14 +310,14 @@ function AvatarService.Init()
 					end
 				end
 			end
-			print("[AvatarService] Found potential NPC models in Workspace: " .. table.concat(foundModels, ", "))
+			-- print("[AvatarService] Found potential NPC models in Workspace: " .. table.concat(foundModels, ", "))
 		end)
 
-		print(string.format("[AvatarService] [DIAGNOSTIC] Initiating binding sequence for %d Master NPCs...", #masters))
+		-- print(string.format("[AvatarService] [DIAGNOSTIC] Initiating binding sequence for %d Master NPCs...", #masters))
 
 		for _, m in ipairs(masters) do
 			task.spawn(function()
-				print(string.format("[AvatarService] [DIAGNOSTIC] Binding thread started for NPC: %s (%s)", m.name, m.element))
+				-- print(string.format("[AvatarService] [DIAGNOSTIC] Binding thread started for NPC: %s (%s)", m.name, m.element))
 				
 				-- 영어 이름 또는 한국어 이름으로 스튜디오 워크스페이스 배치 찾기 (비동기 안전 확보)
 				local npc = findNPC(m.name, m.koreanName)
@@ -331,7 +331,7 @@ function AvatarService.Init()
 				end
 
 				if npc then
-					print(string.format("[AvatarService] [DIAGNOSTIC] Successfully found NPC model in Workspace: '%s'", npc.Name))
+					-- print(string.format("[AvatarService] [DIAGNOSTIC] Successfully found NPC model in Workspace: '%s'", npc.Name))
 					
 					-- 모델 내부의 실제 물리 파트(BasePart) 검색 (ProximityPrompt 부모용) - 눈높이인 Head를 최우선으로 지정
 					local targetPart = npc:FindFirstChild("Head")
@@ -353,7 +353,7 @@ function AvatarService.Init()
 					local oldPrompt = npc:FindFirstChild("DialoguePrompt", true) or npc:FindFirstChildOfClass("ProximityPrompt")
 					if oldPrompt then 
 						oldPrompt:Destroy() 
-						print(string.format("[AvatarService] [DIAGNOSTIC] Cleared old ProximityPrompt from NPC '%s'", npc.Name))
+						-- print(string.format("[AvatarService] [DIAGNOSTIC] Cleared old ProximityPrompt from NPC '%s'", npc.Name))
 					end
 
 					local prompt = Instance.new("ProximityPrompt")
@@ -367,10 +367,10 @@ function AvatarService.Init()
 					
 					if targetPart then
 						prompt.Parent = targetPart
-						print(string.format("[AvatarService] [DIAGNOSTIC] Successfully bound ProximityPrompt to part '%s' inside NPC '%s'! Position: %s", targetPart.Name, npc.Name, tostring(targetPart.Position)))
+						-- print(string.format("[AvatarService] [DIAGNOSTIC] Successfully bound ProximityPrompt to part '%s' inside NPC '%s'! Position: %s", targetPart.Name, npc.Name, tostring(targetPart.Position)))
 					else
 						prompt.Parent = npc
-						warn(string.format("[AvatarService] [DIAGNOSTIC] WARNING: No BasePart found in NPC '%s'. Parented to Model.", npc.Name))
+						-- warn(string.format("[AvatarService] [DIAGNOSTIC] WARNING: No BasePart found in NPC '%s'. Parented to Model.", npc.Name))
 					end
 
 					prompt.Triggered:Connect(function(user)

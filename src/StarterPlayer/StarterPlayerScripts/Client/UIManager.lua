@@ -1135,6 +1135,31 @@ function UIManager._DoCancel(craftId)
 	end)
 end
 
+function UIManager._DoInstantComplete(craftId)
+	if not craftId then return end
+	
+	task.spawn(function()
+		local resultOk, response = NetClient.Request("Craft.InstantComplete.Request", {
+			craftId = craftId
+		})
+		
+		if resultOk and response and response.success ~= false then
+			UIManager.notify("즉시 완료 되었습니다! 이제 수령할 수 있습니다.", Color3.fromRGB(50, 255, 100))
+			
+			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
+			if ok and qRes and qRes.queue then
+				ActiveCraftQueue = qRes.queue
+			else
+				ActiveCraftQueue = {}
+			end
+			UIManager.RefreshWeaponCrafting()
+		else
+			UIManager.notify("즉시 완료 실패", Color3.fromRGB(255, 75, 50))
+		end
+	end)
+end
+
+
 function UIManager.RefreshWeaponCrafting()
 	if not WindowManager.isOpen("CRAFTING") then return end
 	
@@ -1142,7 +1167,7 @@ function UIManager.RefreshWeaponCrafting()
 	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" then
+		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
 			table.insert(weaponRecipes, r)
 		end
 	end
@@ -2308,7 +2333,7 @@ local function setupEventListeners()
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
 				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
-				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" then
+				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
 					table.insert(weaponRecipes, r)
 				end
 			end
