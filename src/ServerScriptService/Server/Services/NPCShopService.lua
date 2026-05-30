@@ -177,6 +177,22 @@ local function _computeSellUnitPrice(shop: any, slotData: any): (number?, string
 		return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE
 	end
 
+	-- [NEW] 판매 금지 타입 필터링 로직 (무기, 악세서리 등)
+	if shop.denySellTypes then
+		local itemData = DataService and DataService.getItem and DataService.getItem(slotData.itemId)
+		
+		if itemData then
+			-- 패시브 룬 판매 원천 차단 (액티브 룬은 판매 가능)
+			if itemData.type == "RUNE" and itemData.runeType == "PASSIVE" then
+				return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE
+			end
+			
+			if table.find(shop.denySellTypes, itemData.type) then
+				return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE
+			end
+		end
+	end
+
 	local price = tonumber(sellEntry.price) or 0
 	if price <= 0 then
 		return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE

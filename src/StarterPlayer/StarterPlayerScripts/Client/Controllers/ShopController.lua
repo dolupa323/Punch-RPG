@@ -182,6 +182,13 @@ function ShopController.Init()
 	-- 서버 이벤트 리스너 등록
 	if NetClient.On then
 		NetClient.On("Shop.GoldChanged", onGoldChanged)
+		
+		NetClient.On("Shop.OpenUI", function(data)
+			if data and data.shopId then
+				local UIManager = require(script.Parent.Parent.UIManager)
+				UIManager.openShop(data.shopId)
+			end
+		end)
 	end
 	
 	-- 초기 골드 요청

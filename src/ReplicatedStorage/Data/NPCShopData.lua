@@ -106,80 +106,32 @@ NPCShopData.BUILDING_SHOP = {
 }
 
 --========================================
--- 섬별 부산물 매입상 (Island Traders)
--- optional:
--- modelTemplateName = "MyNpcModel"  -- ReplicatedStorage/Assets/NPCModels 또는 ServerStorage/NPCModels에서 탐색
--- showAutoLabel = false             -- 커스텀 모델에 자체 이름표가 있으면 비활성화 가능
--- labelOffset = Vector3.new(0, 5, 0)
--- labelMaxDistance = 36
--- modelPositionOffset = Vector3.new(0, 0, 0)
--- modelRotationOffset = Vector3.new(0, 0, 0) -- degrees
--- interactPartSize = Vector3.new(4, 4, 4)
--- interactPartOffset = Vector3.new(0, 0, 0)
+-- 잡화상 (General Merchant)
 --========================================
-NPCShopData.ISLAND_TRADER_GRASSLAND = {
-	id = "ISLAND_TRADER_GRASSLAND",
-	name = "초원섬 부산물 상점",
-	description = "초원섬의 부산물, 채집 자원, 각종 잡템을 매입합니다.",
-	npcName = "수집상 마로",
-	zoneName = "GRASSLAND",
-	npcSpawnOffset = Vector3.new(52, 0, 34),
-	labelMaxDistance = 30,
-	modelPositionOffset = Vector3.new(0, 3.5, 0),
-	modelRotationOffset = Vector3.new(180, 0, 0),
-	interactPartSize = Vector3.new(4, 4, 4),
-	interactPartOffset = Vector3.new(0, 0, 0),
-	sellOnly = false,
+NPCShopData.MERCHANT = {
+	id = "MERCHANT",
+	name = "잡화상",
+	description = "각종 전리품과 재료를 매입하며, 유용한 잡화를 판매합니다.",
+	npcName = "잡화상",
+	
+	-- 이 상점은 모든 아이템을 매입하지만, 무기와 방어구(악세서리)는 제외합니다.
 	acceptAllItems = true,
-	dynamicSellPricing = true,
-	sellPricing = {
-		positiveLevelPenaltyPerLevel = 0.08,
-		positiveMinMultiplier = 0.35,
-		negativeLevelBonusPerLevel = 0.12,
-	},
+	denySellTypes = {"WEAPON", "ARMOR"},
+	
 	buyList = {
-		{ itemId = "ALCHEMY_STONE_LOW", price = 100, stock = -1 },
-		{ itemId = "REPAIR_TICKET_LOW", price = 120, stock = -1 },
+		-- 추후 안내될 구매 목록 대기
 	},
+	
 	sellList = {
-		{ itemId = "MEAT", price = 9 },
-		{ itemId = "FEATHER", price = 14 },
-		{ itemId = "SMALL_BONE", price = 12 },
-		{ itemId = "LEATHER", price = 17 },
-		{ itemId = "HORN", price = 24 },
-	},
-}
-
-NPCShopData.ISLAND_TRADER_TROPICAL = {
-	id = "ISLAND_TRADER_TROPICAL",
-	name = "열대섬 부산물 상점",
-	description = "열대섬의 부산물, 채집 자원, 각종 잡템을 매입합니다.",
-	npcName = "교역상 세라",
-	zoneName = "TROPICAL",
-	npcSpawnOffset = Vector3.new(132, 0, 96),
-	labelMaxDistance = 30,
-	modelPositionOffset = Vector3.new(0, 3.5, 0),
-	modelRotationOffset = Vector3.new(180, 0, 0),
-	interactPartSize = Vector3.new(4, 4, 4),
-	interactPartOffset = Vector3.new(0, 0, 0),
-	sellOnly = false,
-	acceptAllItems = true,
-	dynamicSellPricing = true,
-	sellPricing = {
-		positiveLevelPenaltyPerLevel = 0.08,
-		positiveMinMultiplier = 0.35,
-		negativeLevelBonusPerLevel = 0.12,
-	},
-	buyList = {
-		{ itemId = "ALCHEMY_STONE_LOW", price = 120, stock = -1 },
-		{ itemId = "REPAIR_TICKET_LOW", price = 150, stock = -1 },
-	},
-	sellList = {
-		{ itemId = "MEAT", price = 11 },
-		{ itemId = "TROPICAL_LEATHER", price = 26 },
-		{ itemId = "BONE", price = 17 },
-		{ itemId = "HORN", price = 32 },
-		{ itemId = "SHARP_TOOTH", price = 28 },
+		{ itemId = "EMBER", price = 300 }, -- 불씨
+		{ itemId = "DROPLET", price = 300 }, -- 물방울
+		{ itemId = "NIGHT", price = 300 }, -- 짙은 밤
+		
+		-- 하늘섬 아이템류
+		{ itemId = "GHOST_KNIGHT_SOUL", price = 120 }, -- 기사의 혼
+		{ itemId = "GHOST_WIZARD_SOUL", price = 120 }, -- 마법사의 혼
+		{ itemId = "GHOST_GIANT_PRIDE", price = 300 }, -- 기사의 긍지 (RARE, so higher than 120)
+		{ itemId = "BLUE_FIRE", price = 1200 }, -- 푸른 화염
 	},
 }
 

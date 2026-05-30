@@ -18,7 +18,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftFireHalberd",
-		name = "화극",
+		name = "파이어 핼버드",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 120,
@@ -38,7 +38,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftIronStaff",
-		name = "철봉",
+		name = "아이언 스태프",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 400,
@@ -48,7 +48,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftPoisonHornSpear",
-		name = "독각창",
+		name = "포이즌 스피어",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 450,
@@ -58,7 +58,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftKnightSpear",
-		name = "기사의 창",
+		name = "나이트 스피어",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 600,
@@ -68,7 +68,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftSoulStaff",
-		name = "영혼의 지팡이",
+		name = "소울 스태프",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 600,
@@ -78,7 +78,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftSpearOfJustice",
-		name = "정의의 창",
+		name = "저스티스 스피어",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 800,
@@ -88,7 +88,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftBlueFlameSpear",
-		name = "청화창",
+		name = "블루파이어",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 1000,

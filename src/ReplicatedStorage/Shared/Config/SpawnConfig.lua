@@ -15,45 +15,45 @@ local ZONES = {
 		min = Vector2.new(-660, 540),
 		max = Vector2.new(-260, 910),
 		spawnPoint = Vector3.new(-327.3, 25, 626.4),
-		displayName = "청운촌",
-		subName = "靑雲村",
+		displayName = "클라우드 크래스트",
+		subName = "CLOUD CREST",
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
 	},
 	SLIME_HABITAT = {
-		min = Vector2.new(-360, 350), -- MobSpawnData.lua에 명시된 정확한 슬라임 스폰 구역 범위 반영
-		max = Vector2.new(-190, 510),
+		min = Vector2.new(-430, 335), -- MobSpawnData.lua에 명시된 정확한 슬라임 스폰 구역 범위 반영
+		max = Vector2.new(-265, 510),
 		spawnPoint = Vector3.new(-266.5, 10, 498.7),
 		displayName = "슬라임 서식지",
 		subName = "SLIME HABITAT",
 		priority = 10,
 	},
 	VAMPIRE_WOLF_ZONE = {
-		min = Vector2.new(-280, -30), -- 더 넓어진 Z, X축 반영
-		max = Vector2.new(-120, 210),
+		min = Vector2.new(-75, -420), -- 새 늑대 스폰 좌표 기반 바운딩 박스
+		max = Vector2.new(50, -140),
 		spawnPoint = Vector3.new(-190, 13, 50),
 		displayName = "늑대의 초원",
 		subName = "WOLF'S PRAIRIE",
 		priority = 10,
 	},
 	EERIE_CAVE = {
-		min = Vector2.new(-250, -150),
-		max = Vector2.new(-50, -60),
+		min = Vector2.new(-280, -310),
+		max = Vector2.new(-120, -70),
 		spawnPoint = Vector3.new(-144, -5, -100),
 		displayName = "스산한 동굴",
 		subName = "EERIE CAVE",
 		priority = 10,
 	},
 	BIG_GOLEM_ZONE = {
-		min = Vector2.new(-100, 0),
-		max = Vector2.new(50, 150),
+		min = Vector2.new(40, -320), -- 새 거대 골렘 스폰 좌표 기반 바운딩 박스
+		max = Vector2.new(200, -110),
 		spawnPoint = Vector3.new(-25, 11, 60),
 		displayName = "골렘의 땅",
 		subName = "LAND OF GOLEM",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
 	},
 	POISON_NEST = {
-		min = Vector2.new(40, -30), -- 거미 구역 (X: 46~203, Z: -26~75)을 커버하는 바운딩 박스
-		max = Vector2.new(210, 80),
+		min = Vector2.new(100, -80), -- 거미 구역 커버 바운딩 박스
+		max = Vector2.new(270, 150),
 		spawnPoint = Vector3.new(125, 14, 25),
 		displayName = "맹독 둥지",
 		subName = "POISON NEST",

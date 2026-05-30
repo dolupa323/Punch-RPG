@@ -229,6 +229,10 @@ local EnhanceMasterService = require(Services.EnhanceMasterService)
 EnhanceMasterService.Init(NetController)
 ServiceRegistry.Register("EnhanceMasterService", EnhanceMasterService)
 
+local MerchantService = require(Services.MerchantService)
+MerchantService.Init(NetController)
+ServiceRegistry.Register("MerchantService", MerchantService)
+
 local TentService = require(Services.TentService)
 TentService.Init(NetController)
 ServiceRegistry.Register("TentService", TentService)

@@ -497,7 +497,7 @@ local ItemData = {
 	},
 	{
 		id = "IronStaff",
-		name = "철봉",
+		name = "아이언 스태프",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
@@ -506,14 +506,14 @@ local ItemData = {
 		damage = 60,
 		isBlunt = true,
 		slot = "HAND",
-		description = "골렘의 돌조각과 늑대의 송곳니를 제련해 만든 강력한 철봉. 뼈를 부수는 타격감을 자랑합니다.",
+		description = "골렘의 돌조각과 늑대의 송곳니를 제련해 만든 강력한 아이언 스태프. 뼈를 부수는 타격감을 자랑합니다.",
 		optimalTool = "CLUB",
 		iconName = "IronStaff",
 		modelName = "IronStaff",
 	},
 	{
 		id = "POISON_HORN_SPEAR",
-		name = "독각창",
+		name = "포이즌 스피어",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
@@ -529,7 +529,7 @@ local ItemData = {
 	},
 	{
 		id = "KNIGHT_SPEAR",
-		name = "기사의 창",
+		name = "나이트 스피어",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
@@ -545,7 +545,7 @@ local ItemData = {
 	},
 	{
 		id = "SOUL_STAFF",
-		name = "영혼의 지팡이",
+		name = "소울 스태프",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
@@ -561,7 +561,7 @@ local ItemData = {
 	},
 	{
 		id = "SPEAR_OF_JUSTICE",
-		name = "정의의 창",
+		name = "저스티스 스피어",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
@@ -577,7 +577,7 @@ local ItemData = {
 	},
 	{
 		id = "BLUE_FLAME_SPEAR",
-		name = "청화창",
+		name = "블루파이어",
 		type = "WEAPON",
 		rarity = "UNIQUE",
 		maxStack = 1,
@@ -1847,7 +1847,7 @@ local ItemData = {
 	},
 	{
 		id = "FireHalberd",
-		name = "화극",
+		name = "파이어 핼버드",
 		type = "WEAPON",
 		rarity = "EPIC",
 		maxStack = 1,
