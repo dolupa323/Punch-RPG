@@ -62,23 +62,6 @@ local function _isAdmin(userId: number): boolean
 	end
 	return userId == game.CreatorId
 end
-
-local function _getPlayerStateWithRetry(userId: number, timeoutSeconds: number?): any
-	if not SaveService or not SaveService.getPlayerState then
-		return nil
-	end
-
-	local state = SaveService.getPlayerState(userId)
-	local deadline = os.clock() + (timeoutSeconds or 5)
-
-	while not state and os.clock() < deadline do
-		task.wait(0.05)
-		state = SaveService.getPlayerState(userId)
-	end
-
-	return state
-end
-
 --========================================
 -- Internal: Shop Data
 --========================================
@@ -631,14 +614,8 @@ end
 
 --- 플레이어 골드 초기화/로드
 local function _initPlayerGold(userId: number)
-	if playerGold[userId] ~= nil then return end
-	
-	-- SaveService에서 로드
-	local state = _getPlayerStateWithRetry(userId)
-	local savedGold = state and state.gold
-	
-	playerGold[userId] = savedGold or Balance.STARTING_GOLD
-	print(string.format("[NPCShopService] Player %d gold initialized: %d", userId, playerGold[userId]))
+	if playerGold[userId] ~= nil then return true end
+	return false
 end
 
 --- 플레이어 골드 저장
@@ -713,7 +690,9 @@ end
 
 --- 골드 추가 (획득)
 function NPCShopService.addGold(userId: number, amount: number): (boolean, string?)
-	_initPlayerGold(userId)
+	local ok = _initPlayerGold(userId)
+	if not ok then return false, Enums.ErrorCode.NOT_LOADED end
+
 	if amount <= 0 then
 		return false, Enums.ErrorCode.INVALID_COUNT
 	end
@@ -735,7 +714,9 @@ end
 
 --- 골드 차감 (소비)
 function NPCShopService.removeGold(userId: number, amount: number): (boolean, string?)
-	_initPlayerGold(userId)
+	local ok = _initPlayerGold(userId)
+	if not ok then return false, Enums.ErrorCode.NOT_LOADED end
+
 	if amount <= 0 then
 		return false, Enums.ErrorCode.INVALID_COUNT
 	end
@@ -1069,8 +1050,7 @@ end
 --========================================
 
 local function _onPlayerAdded(player: Player)
-	_initPlayerGold(player.UserId)
-	_emitGoldChanged(player.UserId)
+	-- 데이터 주입은 SaveService.PlayerSaveLoaded 에서 처리됨
 end
 
 local function _onPlayerRemoving(player: Player)
@@ -1107,6 +1087,13 @@ function NPCShopService.Init(netController: any, dataService: any, inventoryServ
 	-- 플레이어 이벤트
 	Players.PlayerAdded:Connect(_onPlayerAdded)
 	Players.PlayerRemoving:Connect(_onPlayerRemoving)
+	
+	-- [신규 아키텍처] SaveService 완료 이벤트 연동
+	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)
+		playerGold[userId] = (state and state.gold) or Balance.STARTING_GOLD
+		print(string.format("[NPCShopService] Player %d gold hydrated: %d", userId, playerGold[userId]))
+		_emitGoldChanged(userId)
+	end)
 	
 	-- 이미 접속한 플레이어 처리
 	for _, player in ipairs(Players:GetPlayers()) do

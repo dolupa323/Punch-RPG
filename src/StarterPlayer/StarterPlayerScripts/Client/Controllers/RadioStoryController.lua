@@ -7,9 +7,9 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
-local Theme = require(script.Parent.Parent.UI.UITheme)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local LocaleService = require(script.Parent.Parent.Localization.LocaleService)
+local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local LocaleService = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("LocaleService"))
 
 local RadioStoryController = {}
 local C = Theme.Colors

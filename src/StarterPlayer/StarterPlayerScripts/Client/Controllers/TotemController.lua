@@ -6,11 +6,11 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local SpawnConfig = require(Shared.Config.SpawnConfig)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
+local NetClient = require(Client:WaitForChild("NetClient"))
 
 local TotemController = {}
 
@@ -331,7 +331,7 @@ local function checkTerritoryEntry(hrpPos)
 			territoryNotifyCooldown[detectedOwner] = now
 			task.spawn(function()
 				local ownerName = resolvePlayerName(detectedOwner)
-				local UIManager = require(Client.UIManager)
+				local UIManager = require(Client:WaitForChild("UIManager"))
 				UIManager.sideNotify(ownerName .. " 's territory.", Color3.fromRGB(220, 200, 140))
 			end)
 		end
@@ -649,7 +649,7 @@ end
 function TotemController.openTotem(structureId)
 	currentStructureId = structureId
 	requestInfo(structureId, function(ok, data)
-		local UIManager = require(Client.UIManager)
+		local UIManager = require(Client:WaitForChild("UIManager"))
 		if ok then
 			UIManager.openTotem(structureId, data)
 		else
@@ -776,7 +776,7 @@ function TotemController.Init()
 				fetchedAt = tick(),
 			}
 		end
-		local UIManager = require(Client.UIManager)
+		local UIManager = require(Client:WaitForChild("UIManager"))
 		if currentStructureId and sid == currentStructureId then
 			UIManager.refreshTotem()
 		end
@@ -813,7 +813,7 @@ function TotemController.Init()
 			end
 		end
 
-		local UIManager = require(Client.UIManager)
+		local UIManager = require(Client:WaitForChild("UIManager"))
 		UIManager.notify("Totem upkeep expired! Territory is now lootable.", Color3.fromRGB(255, 120, 120))
 		if currentStructureId and sid and currentStructureId == sid then
 			UIManager.refreshTotem()
@@ -876,7 +876,7 @@ function TotemController.Init()
 
 		if currentStructureId == removedId then
 			currentStructureId = nil
-			local UIManager = require(Client.UIManager)
+			local UIManager = require(Client:WaitForChild("UIManager"))
 			if UIManager.closeTotem then
 				UIManager.closeTotem()
 			end

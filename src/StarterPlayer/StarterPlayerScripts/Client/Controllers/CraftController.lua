@@ -4,9 +4,9 @@
 
 local CraftController = {}
 
-local NetClient = require(script.Parent.Parent.NetClient)
-local UIManager = require(script.Parent.Parent.UIManager)
-local DataHelper = require(game.ReplicatedStorage.Shared.Util.DataHelper)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
+local DataHelper = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local initialized = false
 local completeListeners = {}

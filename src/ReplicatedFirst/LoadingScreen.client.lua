@@ -352,11 +352,9 @@ if assetsFolder then
 end
 
 statusText.Text = "게임 정보를 동기화 중입니다..."
-local t = 0
-while not player:GetAttribute("DataLoaded") and t < 60 do
+while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) do
 	task.wait(0.2)
-	t = t + 0.2
-	-- 프로그레스 강제 업데이트 (90%까지)
+	-- 프로그레스 강제 업데이트 (95%까지)
 	if progress < 95 then
 		progress = progress + 1
 	end
@@ -455,18 +453,26 @@ invisibleStartButton.MouseButton1Click:Connect(function()
 	-- 게임 조작 복구 및 UI 제거
 	titleFrame.Visible = false
 	
+	local currentChar = player.Character
+	local currentHrp = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
+	if currentHrp then
+		currentHrp.Anchored = false
+	end
+	
+	setMovementEnabled(true)
+	
 	-- 플레이어 위치 원상복구 및 공룡 공격 회피 해제, 카메라 정상화
-	if hrp then
+	if currentHrp then
 		-- SpawnPos 속성에서 최신 서버 권위 위치 재확인
 		local sx = player:GetAttribute("SpawnPosX")
 		local sy = player:GetAttribute("SpawnPosY")
 		local sz = player:GetAttribute("SpawnPosZ")
 		if sx and sy and sz then
-			hrp.CFrame = CFrame.new(sx, sy, sz)
+			currentHrp.CFrame = CFrame.new(sx, sy, sz)
 		else
-			hrp.CFrame = initCFrame
+			currentHrp.CFrame = initCFrame
 		end
-		hrp.Anchored = false
+		currentHrp.Anchored = false
 	end
 	camera.CameraType = Enum.CameraType.Custom
 	

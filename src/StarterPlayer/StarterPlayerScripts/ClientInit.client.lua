@@ -9,13 +9,13 @@ local StarterPlayerScripts = script.Parent
 
 local Client = StarterPlayerScripts:WaitForChild("Client")
 local Controllers = Client:WaitForChild("Controllers")
-local SkillController = require(Controllers.SkillController)
-local WorldDropController = require(Controllers.WorldDropController)
+local SkillController = require(Controllers:WaitForChild("SkillController"))
+local WorldDropController = require(Controllers:WaitForChild("WorldDropController"))
 
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
-local UIManager = require(Client.UIManager)
-local Balance = require(ReplicatedStorage.Shared.Config.Balance)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UIManager = require(Client:WaitForChild("UIManager"))
+local Balance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Balance"))
 local player = Players.LocalPlayer
 
 --========================================

@@ -3,11 +3,11 @@
 -- Durango Commissioned Crafting 스타일 반영
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local Enums = require(ReplicatedStorage.Shared.Enums.Enums)
-local EnhanceUI = require(script.Parent.EnhanceUI) -- 추가
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local Enums = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Enums"):WaitForChild("Enums"))
+local EnhanceUI = require(script.Parent:WaitForChild("EnhanceUI")) -- 추가
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -596,7 +596,7 @@ function FacilityUI.RefreshQueue(fullQueue, structureId, getIcon, UIManager)
 			count = count + 1
 			local item = Utils.mkFrame({size=UDim2.new(1, -10, 0, 50), bg=C.BG_SLOT, bgT=0.5, r=4, parent=grid})
 			
-			local RecipeData = require(game.ReplicatedStorage.Data.RecipeData)
+			local RecipeData = require(game:WaitForChild("ReplicatedStorage"):WaitForChild("Data"):WaitForChild("RecipeData"))
 			local recipe = nil
 			for _, r in ipairs(RecipeData) do
 				if r.id == entry.recipeId then recipe = r; break end

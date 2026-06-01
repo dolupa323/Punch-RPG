@@ -11,7 +11,7 @@ local InventoryController
 local Balance
 local player = Players.LocalPlayer
 local mainGui
-local Theme = require(script.Parent.Parent.UI.UITheme)
+local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
 local T = Theme.Transp
 
 -- State

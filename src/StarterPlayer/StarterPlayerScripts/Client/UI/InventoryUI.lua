@@ -1,9 +1,9 @@
 -- InventoryUI.lua
 -- 듀랑고 레퍼런스 스타일 소지품(가방) UI
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 -- Local Color Override for Navy + Black Theme
 local C_Base = Theme.Colors
 local C = {}
@@ -20,10 +20,10 @@ local F = Theme.Fonts
 local T = Theme.Transp
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local Data = game:GetService("ReplicatedStorage"):WaitForChild("Data")
-local MaterialAttributeData = require(Data.MaterialAttributeData)
+local MaterialAttributeData = require(Data:WaitForChild("MaterialAttributeData"))
 
 local InventoryUI = {}
 
@@ -213,8 +213,9 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		if absSize.X <= 0 then return end
 		
 		local availableWidth = absSize.X - (pad.PaddingLeft.Offset + pad.PaddingRight.Offset + 24)
-		local cellSize = math.floor(availableWidth * 0.08)
-		local paddingSize = math.floor(availableWidth * 0.008)
+		local slotsPerRow = isSmall and 4 or 12
+		local paddingSize = math.clamp(math.floor(availableWidth * 0.01), 4, 8)
+		local cellSize = math.floor((availableWidth - (paddingSize * (slotsPerRow - 1))) / slotsPerRow)
 		
 		grid.CellSize = UDim2.new(0, cellSize, 0, cellSize)
 		grid.CellPadding = UDim2.new(0, paddingSize, 0, paddingSize)
@@ -1669,7 +1670,7 @@ function InventoryUI.ShowAnimalDetail(palData)
 		-- [UPDATE] 서버에서 전달받은 스탯 우선 사용
 		-- palData.stats.hp 는 특성까지 반영된 최종 '최대 체력'입니다.
 		-- palData.stats.currentHp 는 부상 시의 '현재 체력'이며, 풀피일 땐 nil일 수 있습니다.
-		local PalTraitData = require(game:GetService("ReplicatedStorage").Data.PalTraitData)
+		local PalTraitData = require(game:GetService("ReplicatedStorage"):WaitForChild("Data"):WaitForChild("PalTraitData"))
 		
 		local maxHp = stats.hp or stats.health or math.floor((baseStats.hp or baseStats.health or creatureData.baseHealth or 100) * PalTraitData.GetStatMultiplier(traits, "hp"))
 		local currentHp = stats.currentHp or maxHp

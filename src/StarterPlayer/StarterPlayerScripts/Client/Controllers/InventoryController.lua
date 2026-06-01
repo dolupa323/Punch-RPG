@@ -3,7 +3,7 @@
 -- 서버 Inventory 이벤트 수신 및 로컬 캐시 관리
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
 
 local InventoryController = {}
 
@@ -189,7 +189,7 @@ function InventoryController.requestUse(slot: number)
 			slot = slot
 		})
 		if ok and data and data.action == "USE_REPAIR_TICKET" then
-			local UIManager = require(script.Parent.Parent.UIManager)
+			local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 			if UIManager and UIManager.openItemSelector then
 				UIManager.openItemSelector("REPAIR", function(targetSlot)
 					if not targetSlot then return end
@@ -314,7 +314,7 @@ local function onInventoryChanged(data)
 	if data.equipment then equipmentCache = data.equipment end
 	
 	-- Toast UI Notification check (Only run if actual item count increased)
-	local UISuccess, UIMgr = pcall(function() return require(script.Parent.Parent.UIManager) end)
+	local UISuccess, UIMgr = pcall(function() return require(script.Parent.Parent:WaitForChild("UIManager")) end)
 	if data.changes and UISuccess and UIMgr and UIMgr.notify then
 		local newTotals = {}
 		for k, v in pairs(inventoryCache) do
@@ -329,7 +329,7 @@ local function onInventoryChanged(data)
 					notified[itemId] = true
 					local diff = (newTotals[itemId] or 0) - (oldTotals[itemId] or 0)
 					if diff > 0 then
-						local DSuccess, DataHelper = pcall(function() return require(ReplicatedStorage.Shared.Util.DataHelper) end)
+						local DSuccess, DataHelper = pcall(function() return require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper")) end)
 						local name = itemId
 						if DSuccess and DataHelper then
 							local itemData = DataHelper.GetData("ItemData", itemId)
@@ -381,6 +381,9 @@ function InventoryController.Init()
 	
 	-- 초기 데이터 요청 (서버쪽 SaveStore 지연으로 인한 타임아웃 방지 및 재시도)
 	task.spawn(function()
+		local player = game:GetService("Players").LocalPlayer
+		while not player:GetAttribute("DataLoaded") do task.wait(0.2) end
+		
 		local fetchedData = nil
 		local maxRetries = 15
 		local currentTry = 0
@@ -421,15 +424,25 @@ function InventoryController.Init()
 			
 			-- DNA/스탯/펫 데이터 프리로드 (로딩 화면 완료 전에 동기화)
 			pcall(function()
-				local CollectionController = require(script.Parent.CollectionController)
+				local ccModule = script.Parent:FindFirstChild("CollectionController")
+				if not ccModule then return end
+				local CollectionController = require(ccModule)
 				if CollectionController and CollectionController.Init then
 					CollectionController.Init()
 				end
-				-- 스탯/DNA 데이터 요청 (UIManager보다 먼저)
-				local ok2, statsData = NetClient.Request("Player.Stats.Request", {})
-				if ok2 and statsData then
-					if CollectionController and CollectionController.updateLocalDna then
-						CollectionController.updateLocalDna(statsData)
+				-- 스탯/DNA 데이터 요청 (UIManager보다 먼저, 타임아웃 대응 재시도 포함)
+				local statsFetched = false
+				local statsTry = 0
+				while not statsFetched and statsTry < 15 do
+					local ok2, statsData = NetClient.Request("Player.Stats.Request", {})
+					if ok2 and statsData then
+						if CollectionController and CollectionController.updateLocalDna then
+							CollectionController.updateLocalDna(statsData)
+						end
+						statsFetched = true
+					else
+						statsTry = statsTry + 1
+						task.wait(2)
 					end
 				end
 				-- 펫 슬롯 데이터 프리로드

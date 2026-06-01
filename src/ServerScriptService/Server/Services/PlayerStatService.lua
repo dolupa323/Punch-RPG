@@ -31,18 +31,8 @@ local INIT_STATE_WAIT_TIMEOUT = 45
 local INIT_STATE_WAIT_INTERVAL = 0.1
 
 local function _waitForPlayerState(userId: number)
-	if not SaveService or not SaveService.getPlayerState then
-		return nil
-	end
-
-	local state = SaveService.getPlayerState(userId)
-	local deadline = os.clock() + INIT_STATE_WAIT_TIMEOUT
-	while not state and os.clock() < deadline do
-		task.wait(INIT_STATE_WAIT_INTERVAL)
-		state = SaveService.getPlayerState(userId)
-	end
-
-	return state
+	-- [신규 아키텍처] 사용하지 않음
+	return nil
 end
 
 local function _normalizeStatInvested(raw: any): {[string]: number}
@@ -139,30 +129,16 @@ end
 
 --- 플레이어 스탯 초기화/로드
 local function _initPlayerStats(userId: number)
-	if playerStats[userId] then
-		-- SaveService 지연 로딩으로 기본값이 먼저 들어온 경우를 보정
-		if not playerStats[userId]._hydratedFromSave and SaveService and SaveService.getPlayerState then
-			local state = SaveService.getPlayerState(userId)
-			if state then
-				_hydrateStatsFromSave(userId, state)
-			end
-		end
-		return
+	if not playerStats[userId] then
+		playerStats[userId] = {
+			level = 1,
+			currentXP = 0,
+			totalXP = 0,
+			techPointsSpent = 0,
+			statInvested = _normalizeStatInvested(nil),
+			_hydratedFromSave = false,
+		}
 	end
-	
-	-- SaveService에서 로드
-	local state = _waitForPlayerState(userId)
-	local savedStats = state and state.stats
-	
-	playerStats[userId] = {
-		level = savedStats and savedStats.level or 1,
-		currentXP = savedStats and savedStats.currentXP or 0,
-		totalXP = savedStats and savedStats.totalXP or 0,
-		techPointsSpent = savedStats and savedStats.techPointsSpent or 0,
-		-- 투자된 스탯 포인트 (포인트 수치)
-		statInvested = _normalizeStatInvested(savedStats and savedStats.statInvested),
-		_hydratedFromSave = savedStats ~= nil,
-	}
 end
 
 --- 플레이어 스탯 저장
@@ -594,6 +570,11 @@ end
 --========================================
 
 local function handleGetStats(player: Player, payload: any)
+	-- 아직 세션이 온전히 불러와지지 않았다면, 서버쪽에서 45초 대기하지 않고
+	-- 클라이언트가 짧게짧게 재시도하도록 에러를 반환합니다.
+	if not player:GetAttribute("DataLoaded") then
+		return { success = false, errorCode = "NOT_LOADED" }
+	end
 	return { success = true, data = PlayerStatService.getStats(player.UserId) }
 end
 
@@ -697,7 +678,16 @@ function PlayerStatService.Init(netController, saveService, dataService, stamina
 	SaveService = saveService
 	DataService = dataService
 	StaminaService = staminaService
-	
+	-- [신규 아키텍처] SaveService 완료 이벤트 연동
+	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)
+		if state and state.stats then
+			_initPlayerStats(userId)
+			_hydrateStatsFromSave(userId, state)
+			PlayerStatService.applyStats(userId)
+			print(string.format("[PlayerStatService] Player %d stats hydrated.", userId))
+		end
+	end)
+
 	-- [PRE-CALCULATE] XP Lookup Table
 	local runningTotal = 0
 	totalXPTable[1] = 0
@@ -711,22 +701,8 @@ function PlayerStatService.Init(netController, saveService, dataService, stamina
 	local function onPlayerAdded(player)
 		_initPlayerStats(player.UserId)
 		
-		task.spawn(function()
-			-- SaveService 로딩 대기 루프
-			local deadline = os.clock() + INIT_STATE_WAIT_TIMEOUT
-			while player.Parent and os.clock() < deadline do
-				local state = SaveService and SaveService.getPlayerState and SaveService.getPlayerState(player.UserId)
-				if state and state.stats then
-					local stats = playerStats[player.UserId]
-					if stats and not stats._hydratedFromSave then
-						_hydrateStatsFromSave(player.UserId, state)
-						PlayerStatService.applyStats(player.UserId)
-					end
-					break
-				end
-				task.wait(0.5)
-			end
-		end)
+		-- [신규 아키텍처] 0.5초 간격의 폴링 루프(Race Condition 원인) 완전 제거
+		-- SaveService.PlayerSaveLoaded 에서 데이터 주입을 책임집니다.
 
 		player.CharacterAdded:Connect(function(character)
 			local humanoid = character:WaitForChild("Humanoid", 5)

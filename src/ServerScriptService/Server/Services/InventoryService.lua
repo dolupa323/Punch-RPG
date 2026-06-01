@@ -661,28 +661,13 @@ function InventoryService.getOrCreateInventory(userId: number): any
 
 	if SaveService then
 		local state = SaveService.getPlayerState(userId)
-		if not state then
-			-- SaveService가 ?? PlayerAdded 루프?서 로드??행??? ?기?는 중복 ?청 ?이 ?태 반영??기한??
-			local deadline = os.clock() + 45
-			while not state and os.clock() < deadline do
-				task.wait(0.15)
-				state = SaveService.getPlayerState(userId)
-				if not game.Players:GetPlayerByUserId(userId) then break end
-			end
-		end
-
 		if state then
 			loadedState = state
 			if state.inventory then savedInv = state.inventory end
 			if state.equipment then savedEquip = state.equipment end
 		else
-			-- [FATAL FIX] 30초? 지?도 ?이?? ?다???벤?리?부?하??것이 "?니?? ?레?어??하?????기 ?고 방?
-			warn(string.format("[InventoryService] Timed out waiting for player state %d! Kicking to prevent wipe.", userId))
-			local plr = game.Players:GetPlayerByUserId(userId)
-			if plr then
-				plr:Kick("?이??로드 ?간??초과?었?니?? ?접?해 주세??")
-			end
-			return nil -- 중단
+			-- [신규 아키텍처] SaveService.PlayerSaveLoaded 에서 데이터가 주입될 때까지 대기하지 않음
+			return nil
 		end
 	end
 
@@ -2232,11 +2217,15 @@ function InventoryService.Init(netController, dataService, saveService, playerSt
 	PlayerStatService = playerStatService
 	EquipService = equipService
 	
-	-- ?�레?�어 ?�벤???�결
+	-- [신규 아키텍처] SaveService 완료 이벤트 연동
+	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)
+		InventoryService.getOrCreateInventory(userId)
+	end)
+
+	-- ?레?레?어 ?벤???결
 	Players.PlayerAdded:Connect(onPlayerAdded)
-	-- Players.PlayerRemoving:Connect(onPlayerRemoving) -- Moved to SaveService
 	
-	-- ?��? ?�속???�레?�어 처리
+	-- ?? ?속???레?어 처리
 	for _, player in ipairs(Players:GetPlayers()) do
 		task.spawn(onPlayerAdded, player)
 	end

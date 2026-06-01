@@ -3,8 +3,8 @@
 -- 서버 StorageService와 통신 및 UI 상태 관리
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
-local InventoryController = require(script.Parent.Parent.Controllers.InventoryController)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local InventoryController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("InventoryController"))
 
 local StorageController = {}
 
@@ -33,10 +33,10 @@ function StorageController.openStorage(storageId: string)
 		lastOpenTime = tick()
 		
 		-- UIManager를 통해 UI 표시
-		local UIManager = require(script.Parent.Parent.UIManager)
+		local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 		UIManager.openStorage(currentStorageId, storageData)
 	else
-		local UIManager = require(script.Parent.Parent.UIManager)
+		local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 		if tostring(data) == "NO_PERMISSION" then
 			UIManager.notify("토템 보호가 활성화된 거점 보관함입니다. 유지비 만료 후 약탈 가능합니다.", Color3.fromRGB(255, 120, 120))
 		else
@@ -94,7 +94,7 @@ function StorageController.moveItem(slot: number, fromType: string, targetSlot: 
 	})
 
 	if not success and tostring(err) == "NO_PERMISSION" then
-		local UIManager = require(script.Parent.Parent.UIManager)
+		local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 		UIManager.notify("토템 보호가 활성화되어 아이템 이동이 차단되었습니다.", Color3.fromRGB(255, 120, 120))
 	end
 end
@@ -109,7 +109,7 @@ function StorageController.moveGold(sourceType: string, amount: number?)
 	})
 
 	if not success then
-		local UIManager = require(script.Parent.Parent.UIManager)
+		local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 		UIManager.notify("골드를 이동할 수 없습니다.", Color3.fromRGB(255, 120, 120))
 		warn("[StorageController] Failed to move gold:", err)
 	end
@@ -164,7 +164,7 @@ local function onStorageChanged(data)
 	end
 	
 	-- UI 리프레시
-	local UIManager = require(script.Parent.Parent.UIManager)
+	local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 	UIManager.refreshStorage()
 end
 

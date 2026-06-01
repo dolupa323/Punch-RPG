@@ -4,11 +4,11 @@
 
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
-local InventoryController = require(script.Parent.Parent.Controllers.InventoryController)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local InventoryController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("InventoryController"))
 
 local Data = ReplicatedStorage:WaitForChild("Data")
-local SkillTreeData = require(Data.SkillTreeData)
+local SkillTreeData = require(Data:WaitForChild("SkillTreeData"))
 
 local SkillController = {}
 
@@ -225,7 +225,7 @@ function SkillController.useSkill(slotName: string)
 	-- 3.5. [클라이언트 선호출] 로컬 사전 애니메이션 사운드 VFX 즉시 발생
 	if hrp then
 		local targetCFrame = CFrame.new(hrp.Position, hrp.Position + lookVec)
-		local AvatarController = require(script.Parent.AvatarController)
+		local AvatarController = require(script.Parent:WaitForChild("AvatarController"))
 		if AvatarController and AvatarController.playSkillCast then
 			AvatarController.playSkillCast(itemId, hrp, targetCFrame)
 		end
@@ -254,7 +254,7 @@ function SkillController.useSkill(slotName: string)
 			
 			-- 에러 피드백
 			local errorCode = data
-			local UIManager = require(script.Parent.Parent.UIManager)
+			local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 			if UIManager and UIManager.notify then
 				local msg = "스킬을 사용할 수 없습니다."
 				if errorCode == "COOLDOWN" then msg = "재사용 대기 중입니다."
@@ -285,7 +285,7 @@ end
 
 --- 룬 슬롯 쿨다운 조회
 function SkillController.getRuneCooldownRemaining(slotIndex: number): number
-	local InventoryController = require(script.Parent.InventoryController)
+	local InventoryController = require(script.Parent:WaitForChild("InventoryController"))
 	local equipment = InventoryController.getEquipment()
 	local slotKey = "RUNE" .. slotIndex
 	local eqItem = equipment[slotKey]
@@ -328,13 +328,13 @@ function SkillController.requestReset(callback: ((boolean) -> ())?)
 			playerLevel = data.level or 1
 			_fireListeners()
 			
-			local UIManager = require(script.Parent.Parent.UIManager)
+			local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 			if UIManager and UIManager.notify then
 				UIManager.notify("스킬 트리 초기화 완료! 소모 SP가 모두 환급되었습니다.", Color3.fromRGB(100, 255, 100))
 			end
 		else
 			if data == "NO_ITEM" or (type(data) == "table" and data.errorCode == "NO_ITEM") then
-				local UIManager = require(script.Parent.Parent.UIManager)
+				local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 				if UIManager and UIManager.notify then
 					UIManager.notify("스킬초기화권이 필요합니다.", Color3.fromRGB(255, 120, 120))
 				end
@@ -342,7 +342,7 @@ function SkillController.requestReset(callback: ((boolean) -> ())?)
 				return
 			end
 			
-			local UIManager = require(script.Parent.Parent.UIManager)
+			local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 			if UIManager and UIManager.notify then
 				local errMsg = "스킬 초기화에 실패했습니다."
 				if type(data) == "table" and data.message then
@@ -367,7 +367,10 @@ function SkillController.Init()
 
 	-- 초기 데이터 로드 (재시도 포함 — 서버 SaveService 로딩 대기 대응)
 	task.spawn(function()
-		for _attempt = 1, 5 do
+		local player = game:GetService("Players").LocalPlayer
+		while not player:GetAttribute("DataLoaded") do task.wait(0.2) end
+		
+		for _attempt = 1, 15 do
 			local ok, data = NetClient.Request("Skill.GetData.Request", {})
 			if ok and data then
 				unlockedSkills = data.unlockedSkills or {}
@@ -377,6 +380,8 @@ function SkillController.Init()
 				activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
 				playerLevel = data.level or 1
 				_fireListeners()
+				local player = game:GetService("Players").LocalPlayer
+				if player then player:SetAttribute("SkillLoaded", true) end
 				break
 			end
 			task.wait(2)

@@ -6,11 +6,11 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
-local UITheme = require(Client.UI.UITheme)
-local Utils = require(Client.UI.UIUtils)
-local WindowManager = require(Client.Utils.WindowManager)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local Utils = require(Client:WaitForChild("UI"):WaitForChild("UIUtils"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local C_Base = UITheme.Colors
 local C = {}

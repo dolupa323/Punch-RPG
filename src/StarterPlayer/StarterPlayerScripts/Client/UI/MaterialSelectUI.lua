@@ -3,17 +3,17 @@
 -- 속성이 있는 재료는 인벤토리 슬롯별로 선택, 속성 없는 재료는 자동 선택
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 local Data = ReplicatedStorage:WaitForChild("Data")
-local MaterialAttributeData = require(Data.MaterialAttributeData)
+local MaterialAttributeData = require(Data:WaitForChild("MaterialAttributeData"))
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local DataHelper = require(Shared.Util.DataHelper)
+local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local Controllers = script.Parent.Parent:WaitForChild("Controllers")
-local InventoryController = require(Controllers.InventoryController)
+local InventoryController = require(Controllers:WaitForChild("InventoryController"))
 
 local C = Theme.Colors
 local F = Theme.Fonts

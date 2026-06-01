@@ -8,13 +8,13 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local SpawnConfig = require(Shared.Config.SpawnConfig)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
-local NetClient = require(script.Parent.Parent.NetClient)
-local InputManager = require(script.Parent.Parent.InputManager)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local InputManager = require(script.Parent.Parent:WaitForChild("InputManager"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local BuildController = {}
 
@@ -876,7 +876,7 @@ function BuildController.startPlacement(facilityId: string)
 				-- [디버그 로그] 필요 시 주석 해제
 				-- warn(string.format("[BuildController] Client-side rejection: BlockCode=%s", tostring(currentPlacementBlockCode or "NONE (Terrain/Obstruction)")))
 				
-				local UIManager = require(script.Parent.Parent.UIManager)
+				local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 				if currentPlacementBlockCode == "STARTER_ZONE_PROTECTED" then
 					UIManager.notify("초보자 보호존에서는 건설할 수 없습니다.", Color3.fromRGB(255, 100, 100))
 				elseif currentPlacementBlockCode == "NO_PERMISSION" then
@@ -895,7 +895,7 @@ function BuildController.startPlacement(facilityId: string)
 	end)
 
     -- UI 가이드 표시 (UIManager 연동은 UIManager에서 처리하거나 여기서 호출)
-    local UIManager = require(script.Parent.Parent.UIManager)
+    local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
     UIManager.showBuildPrompt(true)
 end
 
@@ -910,7 +910,7 @@ function BuildController.cancelPlacement()
 	InputManager.unbindRightClick("BuildCancel")
 
 	-- 상호작용 키 권한 반환
-	local InteractController = require(script.Parent.Parent.Controllers.InteractController)
+	local InteractController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("InteractController"))
 	InteractController.rebindDefaultKeys()
 
 	isPlacing = false
@@ -922,7 +922,7 @@ function BuildController.cancelPlacement()
 	currentIsPlaceable = false
 	currentPlacementBlockCode = nil
 	
-    local UIManager = require(script.Parent.Parent.UIManager)
+    local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
     UIManager.showBuildPrompt(false)
 end
 
@@ -962,7 +962,7 @@ function BuildController.requestPlace(facilityId: string, position: Vector3, rot
 		BuildController.cancelPlacement()
 	else
 		warn("[BuildController] Build failed:", data)
-		local UIManager = require(script.Parent.Parent.UIManager)
+		local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 		UIManager.notify(toBuildErrorMessage(data), Color3.fromRGB(255, 100, 100))
 	end
 	

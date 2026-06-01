@@ -8,12 +8,12 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local Client = script.Parent.Parent
-local InputManager = require(Client.InputManager)
-local UITheme = require(Client.UI.UITheme)
-local WindowManager = require(Client.Utils.WindowManager)
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local PortalRadialUI = {}
 
@@ -196,13 +196,13 @@ end
 -- Handlers
 --========================================
 local function handleMove()
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	PortalRadialUI.Close()
 	UIManager.requestPortalTeleport()
 end
 
 local function handleActivate()
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	local data = currentPortalData
 	PortalRadialUI.Close()
 	-- 골드 투입 UI (기존 PortalUI를 개조)
@@ -221,7 +221,7 @@ function PortalRadialUI:Open(portalData)
 	if tick() - lastCloseTime < 0.3 then return end -- 닫은 직후 다시 열기 방지 (연타/서버 지연 대응)
 	if not portalData then return end
 
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	InputManager.setUIOpen(true)
 	UIManager.hideInteractPrompt()
 
@@ -353,7 +353,7 @@ function PortalRadialUI.Close()
 	
 	-- 상호작용 키 권한 반환 (순환 참조 방지를 위해 task.defer 사용 고려)
 	task.defer(function()
-		local InteractController = require(Client.Controllers.InteractController)
+		local InteractController = require(Client:WaitForChild("Controllers"):WaitForChild("InteractController"))
 		if InteractController and InteractController.rebindDefaultKeys then
 			InteractController.rebindDefaultKeys()
 		end

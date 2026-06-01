@@ -5,8 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 
 local C = Theme.Colors
 local F = Theme.Fonts

@@ -2,9 +2,9 @@
 -- 듀랑고 레퍼런스 스타일 제작/건축 종합 반응형 UI
 -- PC/Mobile 통합 지원
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 -- Local Color Override for Navy + Black Theme (Match Equipment/Inventory)
 local C_Base = Theme.Colors
@@ -23,7 +23,7 @@ local F = Theme.Fonts
 local T = Theme.Transp
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local CraftingUI = {}
 
@@ -109,7 +109,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 		isNegative = true,
 		bgT = 0.5, ts = 24, color = C.WHITE, r = 4, z = 100, 
 		fn = function() 
-			local WindowManager = require(script.Parent.Parent.Utils.WindowManager)
+			local WindowManager = require(script.Parent.Parent:WaitForChild("Utils"):WaitForChild("WindowManager"))
 			WindowManager.close("CRAFTING") 
 		end, 
 		parent = header
@@ -121,7 +121,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	})
 	
 	-- Left Side: Grid (Responsive Ratio)
-	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(_isSmall and 1 or 0.6, -5, 1, 0), bgT=1, parent=canvasWrapper})
+	local gridArea = Utils.mkFrame({name="GridArea", size=UDim2.new(_isSmall and 0.55 or 0.6, -5, 1, 0), bgT=1, parent=canvasWrapper})
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "GridScroll"
 	scroll.Size = UDim2.new(1, 0, 1, 0); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 4
@@ -145,24 +145,13 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	-- Right Side: Detail Panel (Responsive Ratio)
 	local detail = Utils.mkFrame({
 		name="Detail", 
-		size=UDim2.new(_isSmall and 0.9 or 0.4, -10, _isSmall and 0.8 or 1, 0),
-		pos=UDim2.new(1, 0, _isSmall and 0.5 or 0, 0),
-		anchor=Vector2.new(1, _isSmall and 0.5 or 0),
+		size=UDim2.new(_isSmall and 0.45 or 0.4, -5, 1, 0),
+		pos=UDim2.new(1, 0, 0, 0),
+		anchor=Vector2.new(1, 0),
 		bg=C.BG_DARK, bgT=0.3, r=6, stroke=true, strokeC=C.BORDER,
 		parent=canvasWrapper
 	})
 	
-	if _isSmall then
-		-- 모바일 팝업용 위치 조정 (중앙 배치)
-		detail.Position = UDim2.new(0.5, 0, 0.5, 0)
-		detail.AnchorPoint = Vector2.new(0.5, 0.5)
-		detail.ZIndex = 50
-		
-		local closeDetail = Utils.mkBtn({
-			text="<", size=UDim2.new(0, 44, 0, 44), pos=UDim2.new(0, 5, 0, 5),
-			bgT=0.5, ts=22, color=C.WHITE, r=4, fn=function() detail.Visible = false end, parent=detail
-		})
-	end
 	CraftingUI.Refs.Detail.Frame = detail
 	detail.Visible = false
 	

@@ -4,9 +4,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("ProductConfig"))
 
 local C = Theme.Colors
@@ -79,7 +79,7 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 	})
 
 	-- 아이템 데이터에서 설명 가져오기
-	local itemData = require(ReplicatedStorage.Data.ItemData)
+	local itemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
 	local desc = "설명이 없습니다."
 	for _, it in ipairs(itemData) do
 		if it.id == data.itemId then

@@ -15,8 +15,8 @@ local ZONES = {
 		min = Vector2.new(-660, 540),
 		max = Vector2.new(-260, 910),
 		spawnPoint = Vector3.new(-327.3, 25, 626.4),
-		displayName = "클라우드 크래스트",
-		subName = "CLOUD CREST",
+		displayName = "청운촌",
+		subName = "CHEONGUN VILLAGE",
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
 	},
 	SLIME_HABITAT = {

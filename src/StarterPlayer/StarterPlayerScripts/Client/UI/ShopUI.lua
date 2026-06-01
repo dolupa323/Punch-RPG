@@ -5,8 +5,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))
 
@@ -688,7 +688,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 		r = 12,
 		stroke = 2,
 		strokeC = C.BORDER,
-		ratio = ShopUI.IsMobile and 0 or 1.5,
+		ratio = not ShopUI.IsMobile and 1.5 or nil,
 		parent = ShopUI.Refs.Frame,
 	})
 	ShopUI.Refs.Main = main
@@ -767,15 +767,15 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	})
 
 	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = ShopUI.IsMobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal
+	layout.FillDirection = Enum.FillDirection.Horizontal
 	layout.Padding = UDim.new(0, ShopUI.IsMobile and 12 or 16)
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 	layout.Parent = columns
 
-	-- Make sizes responsive relative to their layout mode
-	local traderSize = ShopUI.IsMobile and UDim2.new(1, 0, 0.4, -6) or UDim2.new(0.48, -8, 1, 0)
-	local playerSize = ShopUI.IsMobile and UDim2.new(1, 0, 0.6, -6) or UDim2.new(0.52, -8, 1, 0)
+	-- Make sizes responsive relative to their layout mode (always side-by-side)
+	local traderSize = UDim2.new(0.48, -8, 1, 0)
+	local playerSize = UDim2.new(0.52, -8, 1, 0)
 
 	ShopUI.Refs.TraderPanel, ShopUI.Refs.TraderScroll = makeColumnPanel(columns, "TraderPanel", traderSize, 1)
 	ShopUI.Refs.PlayerPanel, ShopUI.Refs.PlayerScroll = makeColumnPanel(columns, "PlayerPanel", playerSize, 2)

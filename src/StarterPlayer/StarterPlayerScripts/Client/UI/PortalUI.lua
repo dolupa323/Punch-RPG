@@ -1,8 +1,8 @@
 -- PortalUI.lua
 -- 고대 포탈 골드 투입 UI (PortalRadialUI에서 호출)
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 
 local C = Theme.Colors
 local F = Theme.Fonts

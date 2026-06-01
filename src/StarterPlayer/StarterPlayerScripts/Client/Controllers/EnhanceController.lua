@@ -3,7 +3,7 @@
 -- 서버 통신 및 UI 연동
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
 
 local EnhanceController = {}
 
@@ -40,7 +40,7 @@ end
 
 function EnhanceController.Init(uiManager)
 	if initialized then return end
-	_UIManager = uiManager or require(script.Parent.Parent.UIManager)
+	_UIManager = uiManager or require(script.Parent.Parent:WaitForChild("UIManager"))
 	
 	-- 서버로부터 UI 오픈 요청 수신 (NPC ProximityPrompt 연동)
 	NetClient.On("Enhance.OpenUI", function()

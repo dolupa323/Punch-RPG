@@ -8,11 +8,11 @@ local TweenService = game:GetService("TweenService")
 
 local Client = script.Parent.Parent
 local UI = script.Parent
-local Theme = require(UI.UITheme)
-local Utils = require(UI.UIUtils)
-local UILocalizer = require(Client.Localization.UILocalizer)
-local InventoryController = require(Client.Controllers.InventoryController)
-local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+local Theme = require(UI:WaitForChild("UITheme"))
+local Utils = require(UI:WaitForChild("UIUtils"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local InventoryController = require(Client:WaitForChild("Controllers"):WaitForChild("InventoryController"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 
 -- Local Color Override for Navy + Black Theme (EquipmentUI와 동일)
 local C_Base = Theme.Colors
@@ -45,7 +45,7 @@ function SkillTreeUI.SetVisible(visible)
 		if visible then
 			SkillTreeUI.Refresh()
 		else
-			local HUDUI = require(UI.HUDUI)
+			local HUDUI = require(UI:WaitForChild("HUDUI"))
 			HUDUI.HideTooltip()
 		end
 	end
@@ -209,14 +209,14 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 						description
 					)
 					
-					local HUDUI = require(UI.HUDUI)
+					local HUDUI = require(UI:WaitForChild("HUDUI"))
 					HUDUI.ShowTooltip(itemData.name .. " 룬", bodyText)
 				end
 			end
 		end)
 		
 		slot.click.MouseLeave:Connect(function()
-			local HUDUI = require(UI.HUDUI)
+			local HUDUI = require(UI:WaitForChild("HUDUI"))
 			HUDUI.HideTooltip()
 		end)
 		

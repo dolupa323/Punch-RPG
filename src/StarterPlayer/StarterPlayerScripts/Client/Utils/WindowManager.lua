@@ -36,9 +36,38 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		-- 열려있는 창이 있을 때만 닫기 수행
 		if WindowManager.isAnyOpen() then
-			-- [주의] 모바일에서 조이스틱 조작 등으로 인한 오작동 방지 로직이 필요할 수 있음
-			-- 여기서는 단순 클릭/터치 시 모든 창을 닫음
-			WindowManager.closeAll()
+			local pos = input.Position
+			local clickedInside = false
+			
+			-- 현재 열려있는 창들의 영역 내부를 클릭했는지 확인
+			for id, isOpen in pairs(activeWindows) do
+				if isOpen then
+					local config = windowConfigs[id]
+					local frame = config.frame
+					if frame then
+						local ap = frame.AbsolutePosition
+						local as = frame.AbsoluteSize
+						if pos.X >= ap.X and pos.X <= ap.X + as.X and pos.Y >= ap.Y and pos.Y <= ap.Y + as.Y then
+							clickedInside = true
+							break
+						end
+					end
+				end
+			end
+
+			-- 모바일의 경우 가상 조이스틱 영역(좌측 하단) 터치 시 창이 닫히는 현상 방지
+			local isJoystickArea = false
+			if input.UserInputType == Enum.UserInputType.Touch then
+				local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1000, 1000)
+				-- 화면 좌측 40%, 하단 50%를 조이스틱 영역으로 간주
+				if pos.X < vpSize.X * 0.4 and pos.Y > vpSize.Y * 0.5 then
+					isJoystickArea = true
+				end
+			end
+			
+			if not clickedInside and not isJoystickArea then
+				WindowManager.closeAll()
+			end
 		end
 	end
 end)
@@ -98,64 +127,65 @@ end
 
 --- UIScale 인스턴스 가져오기 (없으면 생성)
 local function getUIScale(frame: GuiObject): UIScale
-	local uiScale = frame:FindFirstChildOfClass("UIScale")
-	if not uiScale then
-		uiScale = Instance.new("UIScale")
-		uiScale.Name = "_AnimScale"
-		uiScale.Scale = 1
-		uiScale.Parent = frame
+	local scale = frame:FindFirstChild("UIScale")
+	if not scale then
+		scale = Instance.new("UIScale")
+		scale.Parent = frame
 	end
-	return uiScale
+	return scale
 end
 
 --- 오픈 애니메이션 재생 (UIScale + 투명도)
-local function playOpenAnimation(frame: GuiObject)
+local function playOpenAnimation(frame: GuiObject?)
 	if not frame then return end
+	
 	-- 기존 트윈 취소
 	if activeTweens[frame] then
 		activeTweens[frame]:Cancel()
 		activeTweens[frame] = nil
 	end
+	
 	local uiScale = getUIScale(frame)
 	uiScale.Scale = 0.85
+	
 	local tween
 	if frame:IsA("CanvasGroup") then
 		frame.GroupTransparency = 0.6
-		local tweenScale = TweenService:Create(uiScale, OPEN_TWEEN_INFO, { Scale = 1 })
+		tween = TweenService:Create(uiScale, OPEN_TWEEN_INFO, { Scale = 1 })
 		TweenService:Create(frame, OPEN_TWEEN_INFO, { GroupTransparency = 0 }):Play()
-		tween = tweenScale
 	else
 		tween = TweenService:Create(uiScale, OPEN_TWEEN_INFO, { Scale = 1 })
 	end
+	
 	activeTweens[frame] = tween
 	tween.Completed:Once(function() activeTweens[frame] = nil end)
 	tween:Play()
 end
 
 --- 닫기 애니메이션 재생
-local function playCloseAnimation(frame: GuiObject, callback: (() -> ())?)
+local function playCloseAnimation(frame: GuiObject?, callback: (() -> ())?)
 	if not frame then
 		if callback then callback() end
 		return
 	end
+	
 	-- 기존 트윈 취소
 	if activeTweens[frame] then
 		activeTweens[frame]:Cancel()
 		activeTweens[frame] = nil
 	end
+	
 	local uiScale = getUIScale(frame)
 	local props = { Scale = 0.9 }
+	
 	if frame:IsA("CanvasGroup") then
 		TweenService:Create(frame, CLOSE_TWEEN_INFO, { GroupTransparency = 0.5 }):Play()
 	end
+	
 	local tween = TweenService:Create(uiScale, CLOSE_TWEEN_INFO, props)
 	activeTweens[frame] = tween
 	tween.Completed:Once(function()
 		activeTweens[frame] = nil
-		uiScale.Scale = 1
-		if frame:IsA("CanvasGroup") then
-			frame.GroupTransparency = 0
-		end
 		if callback then callback() end
 	end)
 	tween:Play()

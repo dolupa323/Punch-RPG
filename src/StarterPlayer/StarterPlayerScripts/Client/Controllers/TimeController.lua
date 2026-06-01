@@ -7,8 +7,8 @@ local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local NetClient = require(script.Parent.Parent.NetClient)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
 
 local TimeController = {}
 

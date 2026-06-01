@@ -9,16 +9,16 @@ local ContextActionService = game:GetService("ContextActionService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local AnimationIds = require(Shared.Config.AnimationIds)
-local Balance = require(Shared.Config.Balance)
+local AnimationIds = require(Shared:WaitForChild("Config"):WaitForChild("AnimationIds"))
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
-local UILocalizer = require(Client.Localization.UILocalizer)
-local WindowManager = require(Client.Utils.WindowManager)
-local NPCRadialUI = require(Client.UI.NPCRadialUI)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
+local NPCRadialUI = require(Client:WaitForChild("UI"):WaitForChild("NPCRadialUI"))
 
 local InteractController = {}
 
@@ -357,7 +357,7 @@ end
 --- 시설 상호작용
 local function interactFacility(target: Instance)
 	if not FacilityRadialUI then
-		FacilityRadialUI = require(Client.UI.FacilityRadialUI)
+		FacilityRadialUI = require(Client:WaitForChild("UI"):WaitForChild("FacilityRadialUI"))
 	end
 	
 	if FacilityRadialUI.IsOpen() then
@@ -378,7 +378,7 @@ function InteractController.startRest()
 	NetClient.Request("Facility.Rest.Start", {})
 	
 	-- 애니메이션 재생 (AnimationManager 사용)
-	local AnimationManager = require(Client.Utils.AnimationManager)
+	local AnimationManager = require(Client:WaitForChild("Utils"):WaitForChild("AnimationManager"))
 	local animName = AnimationIds.MISC.REST
 	if animName then
 		local track = AnimationManager.play(humanoid, animName)
@@ -489,6 +489,27 @@ end
 -- Public API
 --========================================
 
+-- Local helper to unify and execute actual interaction
+local function tryInteract()
+	if not currentTarget then return false end
+	
+	if currentTargetType == "npc" then
+		interactNPC(currentTarget)
+		return true
+	elseif currentTargetType == "portal" then
+		local portalId = currentTarget:GetAttribute("PortalId")
+		local isReturn = currentTarget:GetAttribute("IsReturn") or false
+		if portalId then
+			NetClient.Request("Portal.Interact.Request", { portalId = portalId, isReturn = isReturn })
+		end
+		return true
+	elseif currentTargetType == "facility" then
+		interactFacility(currentTarget)
+		return true
+	end
+	return false
+end
+
 --- Z키 눌림 처리 (NPC/일반 상호작용)
 function InteractController.onInteractPress()
 	InteractController.onFacilityInteractPress()
@@ -502,20 +523,7 @@ function InteractController.onFacilityInteractPress()
 		return
 	end
 
-	if currentTarget and currentTargetType == "npc" then
-		interactNPC(currentTarget)
-		return
-	end
-
-	-- 포탈 상호작용 처리
-	if currentTarget and currentTargetType == "portal" then
-		local portalId = currentTarget:GetAttribute("PortalId")
-		local isReturn = currentTarget:GetAttribute("IsReturn") or false
-		if portalId then
-			NetClient.Request("Portal.Interact.Request", { portalId = portalId, isReturn = isReturn })
-		end
-		return
-	end
+	tryInteract()
 end
 
 function InteractController.onFacilityRemovePress(skipConfirm: boolean)
@@ -744,7 +752,21 @@ function InteractController.Init()
 	
 	-- UIManager 로드 (지연)
 	task.spawn(function()
-		UIManager = require(Client.UIManager)
+		UIManager = require(Client:WaitForChild("UIManager"))
+		
+		-- [NEW] 모바일 대응: 프롬프트 터치로 상호작용
+		task.spawn(function()
+			local InteractUI = require(Client:WaitForChild("UI"):WaitForChild("InteractUI"))
+			if InteractUI and InteractUI.Refs and InteractUI.Refs.PromptFrame then
+				InteractUI.Refs.PromptFrame.Activated:Connect(function()
+					if InputManager.isUIOpen() then return end
+					local handled = tryInteract()
+					if handled then
+						InteractUI.Hide()
+					end
+				end)
+			end
+		end)
 	end)
 
 	InteractController.rebindDefaultKeys()
@@ -785,7 +807,7 @@ end
 
 --- 전역 상호작용 키 바인딩 복구 (타 UI나 모드에서 가로챈 키 반환용)
 function InteractController.rebindDefaultKeys()
-	local InputManager = require(Client.InputManager)
+	local InputManager = require(Client:WaitForChild("InputManager"))
 	
 	-- R = 모든 상호작용 통합
 	InputManager.bindKey(Enum.KeyCode.R, "InteractFacilityR", function()
@@ -797,8 +819,8 @@ function InteractController.rebindDefaultKeys()
 	-- ESC = 모든 UI 닫기 통합
 	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
 		-- UIManager가 로드되지 않았을 수 있으므로 안전하게 처리
-		local ok, UIManagerMod = pcall(require, Client.UIManager)
-		if ok and UIManagerMod then
+		local UIManagerMod = require(Client:WaitForChild("UIManager"))
+		if UIManagerMod then
 			UIManagerMod.closeInventory()
 			UIManagerMod.closeCrafting()
 			UIManagerMod.closeEquipment()
@@ -808,20 +830,20 @@ function InteractController.rebindDefaultKeys()
 		end
 		
 		-- Radial UIs
-		local FRUI = require(Client.UI.FacilityRadialUI)
+		local FRUI = require(Client:WaitForChild("UI"):WaitForChild("FacilityRadialUI"))
 		if FRUI.IsOpen() then FRUI.Close() end
 		
-		local PRUI = require(Client.UI.PalRadialUI)
+		local PRUI = require(Client:WaitForChild("UI"):WaitForChild("PalRadialUI"))
 		if PRUI.IsOpen() then PRUI.Close() end
 		
-		local PortalRUI = require(Client.UI.PortalRadialUI)
+		local PortalRUI = require(Client:WaitForChild("UI"):WaitForChild("PortalRadialUI"))
 		if PortalRUI.IsOpen() then PortalRUI.Close() end
 		
-		local HarvestUI = require(Client.UI.HarvestUI)
+		local HarvestUI = require(Client:WaitForChild("UI"):WaitForChild("HarvestUI"))
 		if HarvestUI.IsOpen() then HarvestUI.Close() end
 		
-		local ok_WM, WindowManagerMod = pcall(require, Client.Utils.WindowManager)
-		if ok_WM and WindowManagerMod and WindowManagerMod.closeAll then
+		local WindowManagerMod = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
+		if WindowManagerMod and WindowManagerMod.closeAll then
 			WindowManagerMod.closeAll()
 		end
 	end)

@@ -3,7 +3,7 @@
 -- 서버 Shop 이벤트 수신 및 로컬 캐시 관리
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
 
 local ShopController = {}
 
@@ -185,15 +185,34 @@ function ShopController.Init()
 		
 		NetClient.On("Shop.OpenUI", function(data)
 			if data and data.shopId then
-				local UIManager = require(script.Parent.Parent.UIManager)
+				local UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 				UIManager.openShop(data.shopId)
 			end
 		end)
 	end
 	
-	-- 초기 골드 요청
+	-- 초기 골드 요청 (서버쪽 SaveStore 지연으로 인한 타임아웃 방지 및 재시도)
 	task.spawn(function()
-		ShopController.requestGold()
+		local player = game:GetService("Players").LocalPlayer
+		while not player:GetAttribute("DataLoaded") do task.wait(0.2) end
+		
+		local fetched = false
+		local maxRetries = 15
+		local currentTry = 0
+		
+		while not fetched and currentTry < maxRetries do
+			local ok, data = NetClient.Request("Shop.GetGold.Request", {})
+			if ok and data then
+				goldCache = data.gold or 0
+				_fireListeners("goldChanged", goldCache)
+				fetched = true
+				local player = game:GetService("Players").LocalPlayer
+				if player then player:SetAttribute("ShopLoaded", true) end
+			else
+				currentTry = currentTry + 1
+				task.wait(2)
+			end
+		end
 	end)
 	
 	initialized = true

@@ -2,9 +2,9 @@
 -- 탭 분류, 화살표 트리형 디자인, 상세 텍스트를 줄이고 시각적 기호에 집중
 
 local TweenService = game:GetService("TweenService")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local DataHelper = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local C = Theme.Colors
 local F = Theme.Fonts
@@ -505,7 +505,7 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 		-- 비용 표시 문자열 생성
 		local costStr = ""
 		if node.cost and #node.cost > 0 then
-			local invCounts = require(game.Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController).getItemCounts()
+			local invCounts = require(game:WaitForChild("Players"):WaitForChild("LocalPlayer"):WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("Controllers"):WaitForChild("InventoryController")).getItemCounts()
 			
 			local cLines = {}
 			for _, req in ipairs(node.cost) do

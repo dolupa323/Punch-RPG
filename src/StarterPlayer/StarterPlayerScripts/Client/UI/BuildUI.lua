@@ -2,9 +2,9 @@
 -- 듀랑고 스타일 건축 설계도 UI 리팩토링
 -- 기술 연구 및 제작 UI와 통일된 디자인 언어 적용
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp

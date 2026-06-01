@@ -5,9 +5,9 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
+local NetClient = require(Client:WaitForChild("NetClient"))
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local SpawnConfig = require(Shared.Config.SpawnConfig)
+local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local BGMController = {}
 

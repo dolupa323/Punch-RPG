@@ -7,11 +7,11 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 
-local NetClient = require(script.Parent.Parent.NetClient)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local DataHelper = require(Shared.Util.DataHelper)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local WorldDropController = {}
 
@@ -374,7 +374,7 @@ local function createDropModel(dropData)
 				
 				if not success then
 					warn("[WorldDropController] 줍기 실패: ", tostring(errorCode))
-					local uiSuccess, UIManager = pcall(function() return _G.UIManager or require(script.Parent.Parent.UI.UIManager) end)
+					local uiSuccess, UIManager = pcall(function() return _G.UIManager or require(script.Parent.Parent:WaitForChild("UIManager")) end)
 					if uiSuccess and UIManager and UIManager.ShowToast then
 						if errorCode == "INV_FULL" then
 							UIManager.ShowToast("가방이 꽉 찼습니다!", 3, Color3.fromRGB(255, 50, 50))

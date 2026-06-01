@@ -7,48 +7,48 @@ local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Enums = require(Shared.Enums.Enums)
-local Balance = require(Shared.Config.Balance)
-local DataHelper = require(Shared.Util.DataHelper)
+local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local Client = script.Parent
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
-local LocaleService = require(Client.Localization.LocaleService)
-local UILocalizer = require(Client.Localization.UILocalizer)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
+local LocaleService = require(Client:WaitForChild("Localization"):WaitForChild("LocaleService"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 local Controllers = Client:WaitForChild("Controllers")
-local InventoryController = require(Controllers.InventoryController)
-local ShopController = require(Controllers.ShopController)
-local StorageController = require(Controllers.StorageController)
-local TimeController = require(Controllers.TimeController)
-local DragDropController = require(Controllers.DragDropController)
-local InteractController = require(Controllers.InteractController)
-local SkillController = require(Controllers.SkillController)
+local InventoryController = require(Controllers:WaitForChild("InventoryController"))
+local ShopController = require(Controllers:WaitForChild("ShopController"))
+local StorageController = require(Controllers:WaitForChild("StorageController"))
+local TimeController = require(Controllers:WaitForChild("TimeController"))
+local DragDropController = require(Controllers:WaitForChild("DragDropController"))
+local InteractController = require(Controllers:WaitForChild("InteractController"))
+local SkillController = require(Controllers:WaitForChild("SkillController"))
 
 -- UI Modules
-local UI = script.Parent.UI
-local Theme = require(UI.UITheme)
-local Utils = require(UI.UIUtils)
-local HUDUI = require(UI.HUDUI)
-local InventoryUI = require(UI.InventoryUI)
-local CraftingUI = require(UI.CraftingUI)
-local ShopUI = require(UI.ShopUI)
-local InteractUI = require(UI.InteractUI)
-local EquipmentUI = require(UI.EquipmentUI)
-local StorageUI = require(UI.StorageUI)
-local MaterialSelectUI = require(UI.MaterialSelectUI)
-local PremiumShopUI = require(UI.PremiumShopUI)
+local UI = script.Parent:WaitForChild("UI")
+local Theme = require(UI:WaitForChild("UITheme"))
+local Utils = require(UI:WaitForChild("UIUtils"))
+local HUDUI = require(UI:WaitForChild("HUDUI"))
+local InventoryUI = require(UI:WaitForChild("InventoryUI"))
+local CraftingUI = require(UI:WaitForChild("CraftingUI"))
+local ShopUI = require(UI:WaitForChild("ShopUI"))
+local InteractUI = require(UI:WaitForChild("InteractUI"))
+local EquipmentUI = require(UI:WaitForChild("EquipmentUI"))
+local StorageUI = require(UI:WaitForChild("StorageUI"))
+local MaterialSelectUI = require(UI:WaitForChild("MaterialSelectUI"))
+local PremiumShopUI = require(UI:WaitForChild("PremiumShopUI"))
 
-local SkillTreeUI = require(UI.SkillTreeUI)
-local PromptUI = require(UI.PromptUI)
-local PortalUI = require(UI.PortalUI)
-local PortalRadialUI = require(UI.PortalRadialUI)
-local EnhanceUI = require(UI.EnhanceUI)
-local NPCRadialUI = require(UI.NPCRadialUI)
-local TentUI = require(UI.TentUI)
+local SkillTreeUI = require(UI:WaitForChild("SkillTreeUI"))
+local PromptUI = require(UI:WaitForChild("PromptUI"))
+local PortalUI = require(UI:WaitForChild("PortalUI"))
+local PortalRadialUI = require(UI:WaitForChild("PortalRadialUI"))
+local EnhanceUI = require(UI:WaitForChild("EnhanceUI"))
+local NPCRadialUI = require(UI:WaitForChild("NPCRadialUI"))
+local TentUI = require(UI:WaitForChild("TentUI"))
 
-local WindowManager = require(Client.Utils.WindowManager)
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local UIManager = {}
 
@@ -56,7 +56,7 @@ local UIManager = {}
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local initialized = false
-local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+local isMobile = UserInputService.TouchEnabled
 local mainGui = nil
 local blurEffect = nil
 local activeShopId = nil
@@ -615,7 +615,7 @@ function UIManager.refreshInventory()
 end
 
 function UIManager.sortInventory()
-	local InventoryController = require(script.Parent.Controllers.InventoryController)
+	local InventoryController = require(script.Parent:WaitForChild("Controllers"):WaitForChild("InventoryController"))
 	if InventoryController and InventoryController.requestSort then
 		InventoryController.requestSort()
 	end
@@ -1164,7 +1164,7 @@ function UIManager.RefreshWeaponCrafting()
 	if not WindowManager.isOpen("CRAFTING") then return end
 	
 	-- 무기 장인 오픈 시의 레시피 목록(말랑봉 등) 구하기
-	local RecipeData = require(ReplicatedStorage.Data.RecipeData)
+	local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
 		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
@@ -1258,7 +1258,7 @@ function UIManager.refreshPersonalCrafting(forceRefresh)
 		for _, ch in pairs(invPersonalCraftGrid:GetChildren()) do if ch:IsA("Frame") then ch:Destroy() end end
 		personalCraftNodes = {}; selectedPersonalRecipeId = nil
 		
-		local allRecipes = require(ReplicatedStorage.Data.RecipeData)
+		local allRecipes = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 		cachedPersonalRecipes = {}
 		
 		for _, recipe in ipairs(allRecipes) do
@@ -2221,7 +2221,7 @@ local function setupEventListeners()
 
 	-- MovementController 연동 (스태미나)
 	local function setupMovementController()
-		local MovementController = require(Client.Controllers.MovementController)
+		local MovementController = require(Client:WaitForChild("Controllers"):WaitForChild("MovementController"))
 		if MovementController and MovementController.onStaminaChanged then
 			MovementController.onStaminaChanged(function(cur, max)
 				UIManager.updateStamina(cur, max)
@@ -2273,8 +2273,11 @@ local function setupEventListeners()
 
 	-- Initial stats load (재시도 포함 — 서버 SaveService 로딩 대기 대응)
 	task.spawn(function()
+		local player = game:GetService("Players").LocalPlayer
+		while not player:GetAttribute("DataLoaded") do task.wait(0.2) end
+		
 		task.wait(1)
-		for _attempt = 1, 5 do
+		for _attempt = 1, 15 do
 			local ok, d = NetClient.Request("Player.Stats.Request", {})
 			if ok and d then
 				cachedStats = d
@@ -2329,7 +2332,7 @@ local function setupEventListeners()
 
 		-- [NEW] 무기 장인 UI 오픈 이벤트
 		NetClient.On("WeaponCrafter.OpenUI", function(data)
-			local RecipeData = require(ReplicatedStorage.Data.RecipeData)
+			local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
 				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
@@ -2423,29 +2426,62 @@ function UIManager.Init()
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
 	-- 모바일 점프 버튼 등은 ContextActionService로 제어되거나 HUDUI가 덮어씌움
 
-	-- 신규 모듈형 UI 초기화
-	HUDUI.Init(mainGui, UIManager, InputManager, isMobile)
-	InventoryUI.Init(mainGui, UIManager, isMobile)
-	CraftingUI.Init(mainGui, UIManager, isMobile)
-	ShopUI.Init(mainGui, UIManager, isMobile)
-	InteractUI.Init(mainGui, isMobile)
-	EquipmentUI.Init(mainGui, UIManager, Enums, isMobile)
-	equipmentUIFrame = EquipmentUI.Refs.Frame
-	StorageUI.Init(mainGui, UIManager, isMobile)
-	MaterialSelectUI.Init(mainGui, UIManager)
-	PremiumShopUI.Init(mainGui, UIManager)
+	-- 신규 모듈형 UI 초기화 (안전한 래퍼 도입으로 특정 모듈 에러가 전체 파이프라인을 중단하지 않도록 방지)
+	local function safeInit(name, module, ...)
+		if not module then
+			warn(string.format("[UIManager] Module %s is nil, skipping Init", name))
+			return
+		end
+		local initFn = module.Init or module.init
+		if type(initFn) ~= "function" then
+			warn(string.format("[UIManager] Module %s does not have an Init function", name))
+			return
+		end
+		local success, err = pcall(initFn, ...)
+		if not success then
+			warn(string.format("[UIManager] Failed to initialize module %s: %s", name, tostring(err)))
+		else
+			-- print(string.format("[UIManager] Module %s initialized successfully.", name))
+		end
+	end
 
-	PortalUI.Init(mainGui, UIManager, isMobile)
-	PortalRadialUI:Init(UIManager)
-	EnhanceUI.Init(mainGui, UIManager)
-	NPCRadialUI.Init(UIManager)
-	TentUI.Init(UIManager)
-	SkillTreeUI.Init(mainGui, UIManager, isMobile)
-	SkillTreeUI.SetController(SkillController)
-	PromptUI.Init()
-	UILocalizer.StartAuto(mainGui)
+	-- 기존 함수 형태(콜백 등)를 위해 pcall로 별도 실행하는 헬퍼
+	local function safeCall(name, fn, ...)
+		if type(fn) ~= "function" then return end
+		local success, err = pcall(fn, ...)
+		if not success then
+			warn(string.format("[UIManager] safeCall failed for %s: %s", name, tostring(err)))
+		end
+	end
 
-	StorageController.Init()
+	safeInit("HUDUI", HUDUI, mainGui, UIManager, InputManager, isMobile)
+	safeInit("InventoryUI", InventoryUI, mainGui, UIManager, isMobile)
+	safeInit("CraftingUI", CraftingUI, mainGui, UIManager, isMobile)
+	safeInit("ShopUI", ShopUI, mainGui, UIManager, isMobile)
+	safeInit("InteractUI", InteractUI, mainGui, isMobile)
+	safeInit("EquipmentUI", EquipmentUI, mainGui, UIManager, Enums, isMobile)
+	if EquipmentUI and EquipmentUI.Refs then
+		equipmentUIFrame = EquipmentUI.Refs.Frame
+	end
+	safeInit("StorageUI", StorageUI, mainGui, UIManager, isMobile)
+	safeInit("MaterialSelectUI", MaterialSelectUI, mainGui, UIManager)
+	safeInit("PremiumShopUI", PremiumShopUI, mainGui, UIManager)
+
+	safeInit("PortalUI", PortalUI, mainGui, UIManager, isMobile)
+	if PortalRadialUI then
+		safeCall("PortalRadialUI.Init", function() PortalRadialUI:Init(UIManager) end)
+	end
+	safeInit("EnhanceUI", EnhanceUI, mainGui, UIManager)
+	safeInit("NPCRadialUI", NPCRadialUI, UIManager)
+	safeInit("TentUI", TentUI, UIManager)
+	safeInit("SkillTreeUI", SkillTreeUI, mainGui, UIManager, isMobile)
+	if SkillTreeUI and SkillTreeUI.SetController then
+		safeCall("SkillTreeUI.SetController", function() SkillTreeUI.SetController(SkillController) end)
+	end
+	safeInit("PromptUI", PromptUI)
+	safeCall("UILocalizer.StartAuto", function() UILocalizer.StartAuto(mainGui) end)
+
+	safeInit("StorageController", StorageController)
 
 
 	-- 슬롯 참조만 유지 (드래그 앤 드롭 및 리프레시 로직용)
@@ -3230,7 +3266,7 @@ function UIManager.getItemName(itemId)
 	end
 	
 	-- ItemData에 없으면 ProductConfig 확인 (로벅스 아이템 등)
-	local ProductConfig = require(ReplicatedStorage.Shared.Config.ProductConfig)
+	local ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("ProductConfig"))
 	local pData = ProductConfig.PRODUCTS[tostring(itemId)]
 	if pData and pData.name then
 		return UILocalizer.Localize(pData.name)

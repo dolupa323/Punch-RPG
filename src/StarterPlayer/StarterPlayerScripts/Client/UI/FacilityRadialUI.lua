@@ -8,14 +8,14 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
-local UITheme = require(Client.UI.UITheme)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
-local WindowManager = require(Client.Utils.WindowManager)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local FacilityRadialUI = {}
 
@@ -219,33 +219,33 @@ local function handleUse()
 	
 	local fType = data.functionType
 	if fType:find("CRAFTING") or fType == "COOKING" or fType:find("SMELTING") then
-		local FacilityController = require(Client.Controllers.FacilityController)
+		local FacilityController = require(Client:WaitForChild("Controllers"):WaitForChild("FacilityController"))
 		FacilityController.openFacility(structureId)
 	elseif fType == "STORAGE" then
-		local StorageController = require(Client.Controllers.StorageController)
+		local StorageController = require(Client:WaitForChild("Controllers"):WaitForChild("StorageController"))
 		StorageController.openStorage(structureId)
 	elseif fType == "BASE_CORE" then
-		local TotemController = require(Client.Controllers.TotemController)
+		local TotemController = require(Client:WaitForChild("Controllers"):WaitForChild("TotemController"))
 		TotemController.openTotem(structureId)
 	end
 end
 
 local function handleRemove()
-	local InteractController = require(Client.Controllers.InteractController)
+	local InteractController = require(Client:WaitForChild("Controllers"):WaitForChild("InteractController"))
 	FacilityRadialUI.Close()
 	InteractController.onFacilityRemovePress(true)
 end
 
 local function handleRest()
 	FacilityRadialUI.Close()
-	local InteractController = require(Client.Controllers.InteractController)
+	local InteractController = require(Client:WaitForChild("Controllers"):WaitForChild("InteractController"))
 	InteractController.startRest()
 end
 
 local function handleSleep()
 	local structureId = currentStructureId
 	FacilityRadialUI.Close()
-	local InteractController = require(Client.Controllers.InteractController)
+	local InteractController = require(Client:WaitForChild("Controllers"):WaitForChild("InteractController"))
 	if InteractController.showSleepConfirm then
 		InteractController.showSleepConfirm(structureId)
 	end
@@ -265,7 +265,7 @@ function FacilityRadialUI.Open(target)
 	local data = getFacilityData(target)
 	if not data then return end
 
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	InputManager.setUIOpen(true)
 	UIManager.hideInteractPrompt()
 

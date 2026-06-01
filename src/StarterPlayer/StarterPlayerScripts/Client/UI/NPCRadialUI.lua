@@ -8,12 +8,12 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
 
 local Client = script.Parent.Parent
-local InputManager = require(Client.InputManager)
-local UITheme = require(Client.UI.UITheme)
-local WindowManager = require(Client.Utils.WindowManager)
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local NPCRadialUI = {}
 
@@ -193,7 +193,7 @@ end
 -- Handlers
 --========================================
 local function handleQuest()
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	NPCRadialUI.Close()
 	-- 퀘스트 UI 열기 (추후 구현)
 	if UIManager.openQuestList then
@@ -216,7 +216,7 @@ local function handleTalk()
 	}
 	local randomQuote = quotes[math.random(1, #quotes)]
 	
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	
 	if UIManager then
 		UIManager.notify(string.format("%s: %s", npc.Name, randomQuote))
@@ -236,7 +236,7 @@ function NPCRadialUI.Open(npcModel)
 	if tick() - lastCloseTime < 0.3 then return end
 	if not npcModel then return end
 
-	if not UIManager then UIManager = require(Client.UIManager) end
+	if not UIManager then UIManager = require(Client:WaitForChild("UIManager")) end
 	InputManager.setUIOpen(true)
 	UIManager.hideInteractPrompt()
 
@@ -339,7 +339,7 @@ function NPCRadialUI.Close()
 	WindowManager.close("NPC_RADIAL")
 	
 	task.defer(function()
-		local InteractController = require(Client.Controllers.InteractController)
+		local InteractController = require(Client:WaitForChild("Controllers"):WaitForChild("InteractController"))
 		if InteractController and InteractController.rebindDefaultKeys then
 			InteractController.rebindDefaultKeys()
 		end

@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
+local NetClient = require(Client:WaitForChild("NetClient"))
 local Debris = game:GetService("Debris")
 
 local DamageUIController = {}

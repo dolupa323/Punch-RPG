@@ -3,8 +3,8 @@
 local TentController = {}
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
-local WindowManager = require(Client.Utils.WindowManager)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
 local initialized = false
 

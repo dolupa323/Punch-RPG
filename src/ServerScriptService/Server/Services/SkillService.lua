@@ -763,19 +763,9 @@ function SkillService.Init(_NetController, _PlayerStatService, _SaveService)
 
 	local Players = game:GetService("Players")
 	
-	-- 플레이어 접속 시 데이터 대기 및 초기화 (기초 스킬 자동 습득 포함)
-	Players.PlayerAdded:Connect(function(player)
-		task.spawn(function()
-			-- SaveService에 의해 데이터가 로드될 때까지 대기
-			local startAt = tick()
-			while not player:GetAttribute("DataLoaded") and (tick() - startAt) < 15 and player.Parent do
-				task.wait(0.5)
-			end
-			
-			if player.Parent then
-				_initPlayerSkills(player.UserId)
-			end
-		end)
+	-- [신규 아키텍처] SaveService 완료 이벤트 연동
+	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)
+		_initPlayerSkills(userId)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)

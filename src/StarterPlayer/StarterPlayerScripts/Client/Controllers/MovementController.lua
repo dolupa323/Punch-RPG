@@ -8,8 +8,8 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local AnimationIds = require(Shared.Config.AnimationIds)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local AnimationIds = require(Shared:WaitForChild("Config"):WaitForChild("AnimationIds"))
 
 local MovementController = {}
 
@@ -17,8 +17,8 @@ local MovementController = {}
 -- Dependencies
 --========================================
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
-local InputManager = require(Client.InputManager)
+local NetClient = require(Client:WaitForChild("NetClient"))
+local InputManager = require(Client:WaitForChild("InputManager"))
 
 --========================================
 -- Private State
@@ -78,7 +78,7 @@ local function fireStaminaChanged()
 	end
 end
 
-local AnimationManager = require(Client.Utils.AnimationManager)
+local AnimationManager = require(Client:WaitForChild("Utils"):WaitForChild("AnimationManager"))
 
 -- 현재 재생 중인 애니메이션 트랙
 local currentRollTrack = nil

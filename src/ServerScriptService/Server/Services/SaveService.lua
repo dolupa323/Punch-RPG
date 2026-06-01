@@ -18,6 +18,7 @@ local Persistence = Server:WaitForChild("Persistence")
 local DataStoreClient = require(Persistence.DataStoreClient)
 
 local SaveService = {}
+SaveService.PlayerSaveLoaded = Instance.new("BindableEvent")
 
 --========================================
 -- Configuration
@@ -796,7 +797,9 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 	if state.element then
 		player:SetAttribute("Element", state.element)
 	end
-	
+	-- [신규 아키텍처] 서버 내부 데이터 주입 레이스 컨디션 해결을 위해 중앙 통제 신호 발송
+	SaveService.PlayerSaveLoaded:Fire(player.UserId, playerStates[player.UserId])
+
 	player:SetAttribute("DataLoaded", true)
 
 	-- [수정 #1-추가] 데이터 로드 완료 신호 전파 후 1 프레임 대기

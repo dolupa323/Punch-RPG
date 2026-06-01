@@ -1,8 +1,8 @@
 -- BaseUI.lua
 -- 베이스 관리 UI (거점 이름 변경, 확장, 정보 확인)
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local C = Theme.Colors
 local F = Theme.Fonts
 
@@ -103,7 +103,7 @@ function BaseUI.Init(parent, UIManager, isMobile)
 	
 	nameInput.FocusLost:Connect(function(enterPressed)
 		if enterPressed then
-			local BaseController = require(game.Players.LocalPlayer.PlayerScripts.Client.Controllers.BaseController)
+			local BaseController = require(game:WaitForChild("Players"):WaitForChild("LocalPlayer"):WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("Controllers"):WaitForChild("BaseController"))
 			local success, err = BaseController.requestRename(nameInput.Text)
 			if success then
 				UIManager.notify("거점 이름이 변경되었습니다.")
@@ -155,7 +155,7 @@ function BaseUI.Init(parent, UIManager, isMobile)
 		font = F.TITLE,
 		r = 8,
 		fn = function()
-			local BaseController = require(game.Players.LocalPlayer.PlayerScripts.Client.Controllers.BaseController)
+			local BaseController = require(game:WaitForChild("Players"):WaitForChild("LocalPlayer"):WaitForChild("PlayerScripts"):WaitForChild("Client"):WaitForChild("Controllers"):WaitForChild("BaseController"))
 			local success, err = BaseController.requestExpand()
 			if success then
 				UIManager.notify("거점이 확장되었습니다!")

@@ -8,7 +8,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Client = script.Parent.Parent
-local NetClient = require(Client.NetClient)
+local NetClient = require(Client:WaitForChild("NetClient"))
 
 local HitFeedbackController = {}
 

@@ -1,9 +1,9 @@
 -- EquipmentUI.lua
 -- 듀랑고 레퍼런스 스타일 장비 및 스탯 종합 UI 창
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 -- Local Color Override for Navy + Black Theme
 local C_Base = Theme.Colors
 local C = {}
@@ -22,7 +22,7 @@ local F = Theme.Fonts
 local T = Theme.Transp
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data").MaterialAttributeData)
+local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))
 
 local EquipmentUI = {}
 
@@ -372,8 +372,8 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 	
 	-- 장비 아이콘 업데이트 및 호버 이벤트
 	if equipmentData then
-		local ArmorSetData = require(ReplicatedStorage:WaitForChild("Data").ArmorSetData)
-		local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+		local ArmorSetData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ArmorSetData"))
+		local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 		
 		-- 현재 장착 중인 아이템 ID 목록 (세트효과 판정용)
 		local equippedItemIds = {}
@@ -845,7 +845,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 			local mult = calc.attackMult or 1.0
 			local wData = equipmentData and equipmentData.HAND
 			if wData then
-				local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+				local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 				local itemData = DataHelper.GetData("ItemData", wData.itemId)
 				
 				local quality = (wData.attributes and wData.attributes.quality) or 100
@@ -895,7 +895,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 		local charDmg = 0
 		local wData = equipmentData and equipmentData.HAND
 		if wData then
-			local DataHelper = require(ReplicatedStorage:WaitForChild("Shared").Util.DataHelper)
+			local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 			local itemData = DataHelper.GetData("ItemData", wData.itemId)
 			local quality = (wData.attributes and wData.attributes.quality) or 100
 			local baseDmg = itemData and math.floor((itemData.damage or 0) * (quality/100)) or 0

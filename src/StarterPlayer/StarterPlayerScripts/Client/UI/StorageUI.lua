@@ -2,8 +2,8 @@
 -- Storage / pal-bag UI with drag-and-drop, hover tooltip, and gold controls
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local Balance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Balance"))
 local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))

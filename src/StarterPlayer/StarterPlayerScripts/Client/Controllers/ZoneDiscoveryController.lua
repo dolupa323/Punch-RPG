@@ -8,7 +8,7 @@ local RunService = game:GetService("RunService")
 
 local Client = script.Parent.Parent
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local SpawnConfig = require(Shared.Config.SpawnConfig)
+local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local ZoneDiscoveryController = {}
 

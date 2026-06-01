@@ -9,17 +9,17 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local AnimationIds = require(Shared.Config.AnimationIds)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local AnimationIds = require(Shared:WaitForChild("Config"):WaitForChild("AnimationIds"))
 
 local Client = script.Parent.Parent
-local InputManager = require(Client.InputManager)
-local UITheme = require(Client.UI.UITheme)
-local UILocalizer = require(Client.Localization.UILocalizer)
-local NetClient = require(Client.NetClient)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
-local WindowManager = require(Client.Utils.WindowManager)
-local AnimationManager = require(Client.Utils.AnimationManager)
+local InputManager = require(Client:WaitForChild("InputManager"))
+local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local NetClient = require(Client:WaitForChild("NetClient"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
+local AnimationManager = require(Client:WaitForChild("Utils"):WaitForChild("AnimationManager"))
 
 local HarvestUI = {}
 

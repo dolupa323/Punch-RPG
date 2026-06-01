@@ -1,9 +1,9 @@
 -- InteractUI.lua
 -- 상호작용 및 건축 가이드 프롬프트 (Original Minimal Style)
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp

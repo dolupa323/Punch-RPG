@@ -2,13 +2,13 @@
 -- 생산 시설(요리, 제련) 클라이언트 컨트롤러
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local NetClient = require(script.Parent.Parent.NetClient)
-local InventoryController = require(script.Parent.Parent.Controllers.InventoryController)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local InventoryController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("InventoryController"))
 
 local UIManager -- deferred to avoid circular dependency
 local function getUIManager()
 	if not UIManager then
-		UIManager = require(script.Parent.Parent.UIManager)
+		UIManager = require(script.Parent.Parent:WaitForChild("UIManager"))
 	end
 	return UIManager
 end

@@ -4,11 +4,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Balance = require(Shared.Config.Balance)
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local LocaleService = require(script.Parent.Parent.Localization.LocaleService)
+local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local LocaleService = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("LocaleService"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -775,7 +775,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.goldLabel = goldLabel
 	
 	task.spawn(function()
-		local ShopCtrl = require(Controllers.ShopController)
+		local ShopCtrl = require(Controllers:WaitForChild("ShopController"))
 		if ShopCtrl and ShopCtrl.getGold then HUDUI.UpdateGold(ShopCtrl.getGold()) end
 	end)
 
@@ -956,9 +956,15 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		
 		HUDUI.Refs.runeSlots[i] = slot
 		
-		-- [추가] 슬롯 직접 클릭 시 애니메이션 발동
+		-- [추가] 슬롯 직접 클릭 시 애니메이션 및 스킬 발동
 		if slot.click then
 			slot.click.MouseButton1Down:Connect(function() triggerScale(slot.frame) end)
+			slot.click.MouseButton1Click:Connect(function()
+				local SkillCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
+				if SkillCtrl and SkillCtrl.useSkill then
+					SkillCtrl.useSkill("RUNE" .. tostring(i))
+				end
+			end)
 		end
 	end
 
@@ -1019,13 +1025,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.phaseLabel = phaseLabel
 	
 	if HUDUI.Refs.hex_Attack then
-		HUDUI.Refs.hex_Attack.MouseButton1Click:Connect(function() local CC = require(Controllers.CombatController); if CC.attack then CC.attack() end end)
+		HUDUI.Refs.hex_Attack.MouseButton1Click:Connect(function() local CC = require(Controllers:WaitForChild("CombatController")); if CC.attack then CC.attack() end end)
 	end
 
 	-- Dodge & Jump (Mobile Bindings)
 	if HUDUI.Refs.hex_Dodge then
 		HUDUI.Refs.hex_Dodge.MouseButton1Click:Connect(function() 
-			local MC = require(Controllers.MovementController)
+			local MC = require(Controllers:WaitForChild("MovementController"))
 			if MC.performDodge then MC.performDodge() end -- Ensure function exists or use shared trigger
 		end)
 	end

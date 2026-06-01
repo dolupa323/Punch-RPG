@@ -1,8 +1,8 @@
 -- TotemUI.lua
 -- 거점 토템 상호작용 UI
 
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
 
 local C = Theme.Colors
 local F = Theme.Fonts

@@ -8,8 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 
 -- [Convention Integration] 기존 인벤토리/스텟 시스템과 동일한 UI 테마 및 유틸리티 도입
-local Theme = require(script.Parent.Parent.UI.UITheme)
-local Utils = require(script.Parent.Parent.UI.UIUtils)
+local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
+local Utils = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UIUtils"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -649,7 +649,7 @@ local function handleLMBAttack()
 	local comboCooldown = weaponData.cooldown or 0.28
 	
 	-- [패시브 룬 버프]: 룬 슬롯(RUNE1, RUNE2, RUNE3)에 '근성 룬(GRIT_RUNE)' 장착 시 공격 쿨다운 5% 감소 (공속 5% 증가) 적용
-	local InventoryController = require(script.Parent.InventoryController)
+	local InventoryController = require(script.Parent:WaitForChild("InventoryController"))
 	local equip = InventoryController.getEquipment()
 	if equip then
 		for _, runeSlot in ipairs({"RUNE1", "RUNE2", "RUNE3"}) do

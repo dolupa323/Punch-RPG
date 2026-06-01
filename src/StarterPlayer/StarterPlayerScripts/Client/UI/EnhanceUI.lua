@@ -3,11 +3,11 @@
 -- 듀랑고 스타일의 프리미엄 Standalone 창 레이아웃
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Theme = require(script.Parent.UITheme)
-local Utils = require(script.Parent.UIUtils)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
-local NetClient = require(script.Parent.Parent.NetClient)
-local ShopController = require(script.Parent.Parent.Controllers.ShopController)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local ShopController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("ShopController"))
 
 -- Local Color Override for Navy + Black Theme (Match Equipment/Inventory/WeaponCraft)
 local C_Base = Theme.Colors

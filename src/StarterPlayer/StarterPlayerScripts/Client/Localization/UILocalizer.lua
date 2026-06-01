@@ -1,7 +1,7 @@
 -- UILocalizer.lua
 -- UI 텍스트 한/영 자동 로컬라이징
 
-local LocaleService = require(script.Parent.LocaleService)
+local LocaleService = require(script.Parent:WaitForChild("LocaleService"))
 
 local UILocalizer = {}
 local observedInstances = setmetatable({}, { __mode = "k" })

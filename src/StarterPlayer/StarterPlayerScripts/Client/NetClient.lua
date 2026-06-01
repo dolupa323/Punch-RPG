@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Protocol = require(Shared.Net.Protocol)
+local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 
 local NetClient = {}
 
@@ -84,7 +84,7 @@ function NetClient.Request(command: string, payload: any?): (boolean, any)
 			warn("[NetClient] Request timeout:", command)
 			-- UI 프리징 해제 및 알림 (Circular Dependency 방지를 위해 지연 require)
 			task.spawn(function()
-				local UIManager = require(script.Parent.UIManager)
+				local UIManager = require(script.Parent:WaitForChild("UIManager"))
 				if UIManager then
 					if UIManager.hideAllLoading then
 						UIManager.hideAllLoading()
@@ -112,7 +112,7 @@ function NetClient.Request(command: string, payload: any?): (boolean, any)
 		local errorCode = response.errorCode or response.error or "UNKNOWN_ERROR"
 		if errorCode == "INV_FULL" then
 			task.spawn(function()
-				local UIManager = require(script.Parent.UIManager)
+				local UIManager = require(script.Parent:WaitForChild("UIManager"))
 				if UIManager and UIManager.notify then
 					UIManager.notify("가방이 가득 찼습니다.", Color3.fromRGB(255, 140, 140))
 				end
@@ -170,15 +170,15 @@ end
 
 -- 초기화
 function NetClient.Init()
-	-- RemoteFunction 대기
-	Cmd = ReplicatedStorage:WaitForChild(Protocol.CMD_NAME, 10)
+	-- RemoteFunction 대기 (모바일 환경 등 로딩 지연 대응: 타임아웃 10초 제거, 무한 대기)
+	Cmd = ReplicatedStorage:WaitForChild(Protocol.CMD_NAME, math.huge)
 	if not Cmd then
 		warn("[NetClient] Failed to find RemoteFunction:", Protocol.CMD_NAME)
 		return false
 	end
 	
 	-- RemoteEvent 대기
-	Evt = ReplicatedStorage:WaitForChild(Protocol.EVT_NAME, 10)
+	Evt = ReplicatedStorage:WaitForChild(Protocol.EVT_NAME, math.huge)
 	if not Evt then
 		warn("[NetClient] Failed to find RemoteEvent:", Protocol.EVT_NAME)
 		return false

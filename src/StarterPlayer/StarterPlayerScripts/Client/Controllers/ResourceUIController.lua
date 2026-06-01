@@ -9,8 +9,8 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CollectionService = game:GetService("CollectionService")
-local NetClient = require(script.Parent.Parent.NetClient)
-local DataHelper = require(ReplicatedStorage.Shared.Util.DataHelper)
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local ResourceUIController = {}
 

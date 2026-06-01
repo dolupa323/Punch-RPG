@@ -2,8 +2,8 @@
 -- UI 레이아웃, 액션 버튼 (Hexagon 등), 비율 유지 유틸리티
 
 local TweenService = game:GetService("TweenService")
-local Theme = require(script.Parent.UITheme)
-local UILocalizer = require(script.Parent.Parent.Localization.UILocalizer)
+local Theme = require(script.Parent:WaitForChild("UITheme"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
