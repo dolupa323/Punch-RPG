@@ -47,6 +47,7 @@ local PortalRadialUI = require(UI:WaitForChild("PortalRadialUI"))
 local EnhanceUI = require(UI:WaitForChild("EnhanceUI"))
 local NPCRadialUI = require(UI:WaitForChild("NPCRadialUI"))
 local TentUI = require(UI:WaitForChild("TentUI"))
+local DismantleUI = require(UI:WaitForChild("DismantleUI"))
 
 local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
@@ -144,6 +145,23 @@ function UIManager.closeEnhance()
 	WindowManager.close("ENHANCE")
 end
 
+function UIManager._onOpenDismantle()
+	DismantleUI.SetVisible(true)
+	DismantleUI.Refresh()
+end
+
+function UIManager._onCloseDismantle()
+	DismantleUI.SetVisible(false)
+end
+
+function UIManager.openDismantle()
+	WindowManager.open("DISMANTLE")
+end
+
+function UIManager.closeDismantle()
+	WindowManager.close("DISMANTLE")
+end
+
 function UIManager.openPortalRadial(data)
 	WindowManager.open("PORTAL_RADIAL", data)
 end
@@ -181,6 +199,7 @@ local ERROR_MESSAGES = {
 	OUT_OF_RANGE = "대상과 거리가 너무 멉니다. 더 가까이 이동하세요.",
 	COOLDOWN = "재사용 대기 중입니다.",
 	UNKNOWN = "알 수 없는 오류가 발생했습니다.",
+	UNKNOWN_ERROR = "알 수 없는 오류가 발생했습니다.",
 	NOT_ENOUGH_STAMINA = "스태미나가 부족합니다.",
 	PLAYER_DEAD = "사용할 수 없는 상태입니다.",
 	INV_FULL = "인벤토리가 가득 찼습니다.",
@@ -194,6 +213,15 @@ local ERROR_MESSAGES = {
 	TOTEM_NOT_FOUND = "토템을 찾을 수 없습니다.",
 	INVALID_COUNT = "결제 기간이 올바르지 않습니다.",
 	INSUFFICIENT_STAT_POINTS = "스탯 포인트가 부족합니다.",
+	
+	-- 상점 관련 에러 메시지
+	ITEM_NOT_SELLABLE = "판매할 수 없는 아이템입니다.",
+	ITEM_NOT_IN_SHOP = "상점에서 취급하지 않는 아이템입니다.",
+	SHOP_NOT_FOUND = "상점을 찾을 수 없습니다.",
+	SHOP_OUT_OF_STOCK = "상점 재고가 부족합니다.",
+	SHOP_TOO_FAR = "상점과 거리가 너무 멉니다.",
+	LEVEL_NOT_MET = "요구 레벨이 부족합니다.",
+	GOLD_CAP_REACHED = "골드 보유 한도를 초과할 수 없습니다.",
 }
 
 local function friendlyError(errCode)
@@ -1167,7 +1195,7 @@ function UIManager.RefreshWeaponCrafting()
 	local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 	local weaponRecipes = {}
 	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
+		if r.id == "CraftSoftClub" or r.id == "CraftGakchang" or r.id == "CraftMogwoldo" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
 			table.insert(weaponRecipes, r)
 		end
 	end
@@ -1730,6 +1758,7 @@ local function setupEventListeners()
 		if WindowManager.isOpen("STORAGE") then UIManager.refreshStorage() end
 		UIManager.refreshHotbar()
 		if HUDUI and HUDUI.UpdateRuneHotbar then HUDUI.UpdateRuneHotbar(InventoryController.getEquipment()) end
+		if HUDUI and HUDUI.UpdateConsumableHotbar then HUDUI.UpdateConsumableHotbar() end
 		if WindowManager.isOpen("EQUIP") then UIManager.refreshStats() end
 		if invCraftContainer and invCraftContainer.Visible then
 			UIManager.refreshPersonalCrafting()
@@ -2335,8 +2364,8 @@ local function setupEventListeners()
 			local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 			local weaponRecipes = {}
 			for _, r in ipairs(RecipeData) do
-				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "화극" 포함
-				if r.id == "CraftSoftClub" or r.id == "CraftFireHalberd" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
+				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "목월도" 포함
+				if r.id == "CraftSoftClub" or r.id == "CraftGakchang" or r.id == "CraftMogwoldo" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
 					table.insert(weaponRecipes, r)
 				end
 			end
@@ -2472,6 +2501,7 @@ function UIManager.Init()
 		safeCall("PortalRadialUI.Init", function() PortalRadialUI:Init(UIManager) end)
 	end
 	safeInit("EnhanceUI", EnhanceUI, mainGui, UIManager)
+	safeInit("DismantleUI", DismantleUI, mainGui, UIManager)
 	safeInit("NPCRadialUI", NPCRadialUI, UIManager)
 	safeInit("TentUI", TentUI, UIManager)
 	safeInit("SkillTreeUI", SkillTreeUI, mainGui, UIManager, isMobile)
@@ -2522,6 +2552,7 @@ function UIManager.Init()
 	WindowManager.register("PORTAL", UIManager._onOpenPortal, UIManager._onClosePortal)
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
 	WindowManager.register("ENHANCE", UIManager._onOpenEnhance, UIManager._onCloseEnhance)
+	WindowManager.register("DISMANTLE", UIManager._onOpenDismantle, UIManager._onCloseDismantle)
 
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
@@ -2556,6 +2587,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
 		WindowManager.registerFrame("PREMIUM_SHOP", PremiumShopUI.Refs.Frame)
 		WindowManager.registerFrame("ENHANCE", EnhanceUI.Refs.Frame)
+		WindowManager.registerFrame("DISMANTLE", DismantleUI.Refs.Frame)
 		WindowManager.registerFrame("TENT_UI", TentUI.Refs.Window)
 	end)
 
@@ -3350,6 +3382,94 @@ function UIManager.showEnhanceConfirm(params)
 		bg = C.GOLD,
 		color = C.BG_DARK,
 		ts = 16,
+		fn = function()
+			overlay:Destroy()
+			if params.onConfirm then params.onConfirm() end
+		end,
+		parent = btnWrap
+	})
+end
+
+function UIManager.showDismantleConfirm(params)
+	if not mainGui then return end
+	
+	local overlay = Utils.mkFrame({
+		name = "DismantleConfirmOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.6,
+		z = 2000,
+		parent = mainGui
+	})
+	
+	-- 테두리 컨벤션에 맞춘 네이비/블루 창 레이아웃
+	local win = Utils.mkWindow({
+		name = "ConfirmWindow",
+		size = UDim2.new(0, 400, 0, 320),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		stroke = 2,
+		strokeC = Color3.fromRGB(60, 85, 130), -- 테두리 블루 컨벤션 정확히 매칭!
+		r = 10,
+		parent = overlay
+	})
+	
+	Utils.mkLabel({
+		text = UILocalizer.Localize("무기 분해 확인"), -- 연금 강화 확인이 아님!
+		size = UDim2.new(1, 0, 0, 40),
+		pos = UDim2.new(0.5, 0, 0, 10),
+		anchor = Vector2.new(0.5, 0),
+		ts = 20,
+		font = Theme.Fonts.TITLE,
+		color = C.WHITE, -- 노란색 제목이 아닌 깔끔한 흰색 적용
+		parent = win
+	})
+	
+	local content = Utils.mkLabel({
+		text = params.message,
+		size = UDim2.new(0.9, 0, 0, 140),
+		pos = UDim2.new(0.5, 0, 0.45, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 15,
+		color = Color3.fromRGB(220, 220, 220),
+		rich = true,
+		wrap = true,
+		parent = win
+	})
+	
+	local btnWrap = Utils.mkFrame({
+		size = UDim2.new(1, -40, 0, 50),
+		pos = UDim2.new(0.5, 0, 1, -20),
+		anchor = Vector2.new(0.5, 1),
+		bgT = 1,
+		parent = win
+	})
+	
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0, 20)
+	list.Parent = btnWrap
+	
+	local cancelBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("취소"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = C.BG_SLOT,
+		ts = 16,
+		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
+		parent = btnWrap
+	})
+	
+	-- 확인 버튼: 노란색(골드)이 아니라 무기 분해소 컨벤션에 맞춘 위험/분해 액션 레드 컬러 적용!
+	local confirmBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("확인"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = Color3.fromRGB(180, 60, 60), -- Danger Rosewood Red!
+		color = C.WHITE,
+		ts = 16,
+		stroke = 1,
+		strokeC = Color3.fromRGB(240, 100, 100),
 		fn = function()
 			overlay:Destroy()
 			if params.onConfirm then params.onConfirm() end

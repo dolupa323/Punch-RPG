@@ -171,7 +171,13 @@ local function _computeSellUnitPrice(shop: any, slotData: any): (number?, string
 			end
 			
 			if table.find(shop.denySellTypes, itemData.type) then
-				return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE
+				-- 악세서리(EARRING, NECKLACE, RING 등)인 경우 ARMOR 차단에서 제외하여 판매 허용
+				local isAccessory = (itemData.slot == "EARRING" or itemData.slot == "NECKLACE" or itemData.slot == "RING" or itemData.slot == "RING1" or itemData.slot == "RING2")
+				if itemData.type == "ARMOR" and isAccessory then
+					-- 판매 허용 (아무것도 안 함)
+				else
+					return nil, Enums.ErrorCode.ITEM_NOT_SELLABLE
+				end
 			end
 		end
 	end

@@ -568,11 +568,28 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	InventoryUI.Refs.Detail.BtnMain = Utils.mkBtn({
 		text="[ EQUIP / USE ]", size=UDim2.new(1,0,0, isSmall and 42 or 48), bg=C.GOLD, r=4, font=F.TITLE, ts=TS_BTN, color=C.BG_DARK, parent=dFoot
 	})
+	InventoryUI.Refs.Detail.BtnMain.LayoutOrder = 1
 	InventoryUI.Refs.Detail.BtnUse = InventoryUI.Refs.Detail.BtnMain -- Alias
 	
+	local quickRow = Utils.mkFrame({name="QuickRow", size=UDim2.new(1,0,0, isSmall and 30 or 36), bgT=1, parent=dFoot})
+	quickRow.LayoutOrder = 2
+	quickRow.Visible = false
+
+	local quickList = Instance.new("UIListLayout")
+	quickList.FillDirection = Enum.FillDirection.Horizontal
+	quickList.Padding = UDim.new(0, 6)
+	quickList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	quickList.Parent = quickRow
+
+	InventoryUI.Refs.Detail.BtnQuick1 = Utils.mkBtn({text="단축 1", size=UDim2.new(0.31,0,1,0), bg=C.BG_SLOT, color=C.WHITE, r=4, font=F.TITLE, ts=TS_BTN_SUB, parent=quickRow})
+	InventoryUI.Refs.Detail.BtnQuick2 = Utils.mkBtn({text="단축 2", size=UDim2.new(0.31,0,1,0), bg=C.BG_SLOT, color=C.WHITE, r=4, font=F.TITLE, ts=TS_BTN_SUB, parent=quickRow})
+	InventoryUI.Refs.Detail.BtnQuick3 = Utils.mkBtn({text="단축 3", size=UDim2.new(0.31,0,1,0), bg=C.BG_SLOT, color=C.WHITE, r=4, font=F.TITLE, ts=TS_BTN_SUB, parent=quickRow})
+	InventoryUI.Refs.Detail.QuickRow = quickRow
+
 	InventoryUI.Refs.Detail.BtnDrop = Utils.mkBtn({
 		text="[ DROP ]", size=UDim2.new(1,0,0, isSmall and 36 or 42), isNegative=true, r=4, font=F.TITLE, ts=TS_BTN_SUB, parent=dFoot
 	})
+	InventoryUI.Refs.Detail.BtnDrop.LayoutOrder = 3
 	
 	-- Events
 	InventoryUI.Refs.Detail.BtnMain.MouseButton1Click:Connect(function() 
@@ -583,6 +600,23 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		end
 	end)
 	InventoryUI.Refs.Detail.BtnDrop.MouseButton1Click:Connect(function() if UIManager.openDropModal then UIManager.openDropModal() end end)
+	
+	local function registerQuickslot(slotIdx)
+		local d = InventoryUI.Refs.Detail
+		if not d.activeItemId then return end
+		
+		local HUDUI = require(script.Parent:WaitForChild("HUDUI"))
+		if HUDUI and HUDUI.RegisterConsumable then
+			HUDUI.RegisterConsumable(slotIdx, d.activeItemId)
+			if UIManager.notify then
+				UIManager.notify(string.format("단축슬롯 %d번에 등록되었습니다.", slotIdx))
+			end
+		end
+	end
+
+	InventoryUI.Refs.Detail.BtnQuick1.MouseButton1Click:Connect(function() registerQuickslot(1) end)
+	InventoryUI.Refs.Detail.BtnQuick2.MouseButton1Click:Connect(function() registerQuickslot(2) end)
+	InventoryUI.Refs.Detail.BtnQuick3.MouseButton1Click:Connect(function() registerQuickslot(3) end)
 	
 	-- Add Crafting Area Right Side (Same Pos as GridArea)
 	local craftArea = Utils.mkFrame({name="CraftFrame", size=isSmall and UDim2.new(1, 0, 1, 0) or UDim2.new(1, -300, 1, 0), bgT=1, vis=false, parent=content})
@@ -1026,6 +1060,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 	if data and (data.itemId or data.id) then
 		d.Frame.Visible = true
 		local itemId = data.itemId or data.id
+		d.activeItemId = itemId
 		local displayItemId = itemId
 		local itemData = DataHelper.GetData("ItemData", itemId)
 		
@@ -1290,6 +1325,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.BtnDrop.Visible = false
 			end
 		else
+			if d.QuickRow then d.QuickRow.Visible = false end
 			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
 			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM))
 			local isCaptureBox = (itemData and itemData.type == Enums.ItemType.CAPTURE_BOX)
@@ -1302,6 +1338,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("사용")
 				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
+				if d.QuickRow then d.QuickRow.Visible = true end -- 소비 단축 슬롯 활성화
 			elseif isCaptureBox then
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("길들이기")
@@ -1331,6 +1368,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			d.DurWrap.Visible = false
 		end
 	else
+		d.activeItemId = nil
+		if d.QuickRow then d.QuickRow.Visible = false end
 		d.Frame.Visible = false
 		d.Name.Text = ""
 		d.Icon.Image = ""

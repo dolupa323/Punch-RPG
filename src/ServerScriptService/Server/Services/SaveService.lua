@@ -26,7 +26,7 @@ SaveService.PlayerSaveLoaded = Instance.new("BindableEvent")
 local AUTOSAVE_INTERVAL = 30  -- 초 (데이터 유실 방지용, 60 → 30으로 단축)
 local SNAPSHOT_INTERVAL = 300 -- 초 (5분마다 스냅샷 생성 - 연산 부하 경감)
 local MAX_SNAPSHOTS = 3       -- 롤백 스냅샷 수
-local SAVE_VERSION = 3        -- 스키마 버전
+local SAVE_VERSION = 6        -- 스키마 버전 (v6: 거대 골렘 -> 스텀프 킹 아이템 마이그레이션 적용)
 local PLAYER_LOAD_RETRY_WINDOW = RunService:IsStudio() and 25 or 45
 local PLAYER_LOAD_RETRY_INTERVAL = 2
 local SESSION_LOCK_FORCE_ACQUIRE_DELAY = RunService:IsStudio() and 4 or 10
@@ -116,6 +116,7 @@ local function _getDefaultPlayerSave()
 		unlockedSkills = {},
 		combatTreeId = nil,
 		activeSkillSlots = { nil, nil, nil },
+		quickslots = { "", "", "" },
 		-- 장착 중인 아이템 (Head, Body, Feet, Hand)
 		equipment = _getDefaultEquipment(),
 		-- 고대 포탈 진행도 (개인 저장)
@@ -291,6 +292,7 @@ local function _normalizePlayerState(state: any): any
 	state.unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {}
 	state.combatTreeId = (type(state.combatTreeId) == "string") and state.combatTreeId or nil
 	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil }
+	state.quickslots = type(state.quickslots) == "table" and state.quickslots or { "", "", "" }
 	
 	-- 원소 속성 필드 정규화
 	state.element = (type(state.element) == "string") and state.element or nil

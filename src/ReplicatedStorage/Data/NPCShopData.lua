@@ -13,6 +13,10 @@ NPCShopData.GENERAL_STORE = {
 	description = "기본 물품을 판매하는 상점입니다.",
 	npcName = "상인 톰",
 	
+	-- 이 상점은 모든 아이템을 매입하지만, 무기와 방어구(악세서리)는 제외합니다.
+	acceptAllItems = true,
+	denySellTypes = {"WEAPON", "ARMOR"},
+	
 	-- 판매 상품 (플레이어가 구매 가능)
 	buyList = {
 		{ itemId = "WOOD", price = 5, stock = -1 },
@@ -22,8 +26,7 @@ NPCShopData.GENERAL_STORE = {
 		{ itemId = "RESIN", price = 10, stock = -1 },
 	},
 	
-	
-	-- 특수 구매 목록 (플레이어가 상점에 팔 수 있는 아이템)
+	-- 특수 구매 목록 (플레이어가 상점에 팔 수 있는 아이템 - 고정 가격 우선 적용)
 	sellList = {
 		{ itemId = "WOOD", price = 2 },
 		{ itemId = "STONE", price = 1 },
@@ -119,7 +122,8 @@ NPCShopData.MERCHANT = {
 	denySellTypes = {"WEAPON", "ARMOR"},
 	
 	buyList = {
-		-- 추후 안내될 구매 목록 대기
+		{ itemId = "BASIC_HP_POTION", price = 30, stock = -1 },
+		{ itemId = "BASIC_MP_POTION", price = 30, stock = -1 },
 	},
 	
 	sellList = {

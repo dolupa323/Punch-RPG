@@ -75,6 +75,102 @@ local Migrations = {
 		end
 		return oldState
 	end,
+	
+	-- 스키마 버전을 3에서 4로 업그레이드할 때 실행되는 마이그레이션 함수 (불도마뱀 전리품 -> 스텀프 전리품 자동 교체)
+	[4] = function(oldState)
+		-- 1. 인벤토리 슬롯 마이그레이션
+		if oldState.inventory then
+			for slot, node in pairs(oldState.inventory) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "FIRE_LIZARD_SCALE" then
+						node.itemId = "STUMP_BARK"
+					elseif node.itemId == "FIRE_NECKLACE" then
+						node.itemId = "STUMP_NECKLACE"
+					elseif node.itemId == "FireHalberd" then
+						node.itemId = "Mogwoldo"
+					end
+				end
+			end
+		end
+		
+		-- 2. 장착 장비 마이그레이션
+		if oldState.equipment then
+			for slot, node in pairs(oldState.equipment) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "FIRE_LIZARD_SCALE" then
+						node.itemId = "STUMP_BARK"
+					elseif node.itemId == "FIRE_NECKLACE" then
+						node.itemId = "STUMP_NECKLACE"
+					elseif node.itemId == "FireHalberd" then
+						node.itemId = "Mogwoldo"
+					end
+				end
+			end
+		end
+		
+		LiveOpsManager.Log("Migration", "INFO", "Migrated player state to v4: Converted legacy FireLizard loot/equipment to Stump loot/equipment.")
+		return oldState
+	end,
+	
+	-- 스키마 버전을 4에서 5로 업그레이드할 때 실행되는 마이그레이션 함수 (늑대의 송곳니 -> 박쥐의 송곳니 자동 교체)
+	[5] = function(oldState)
+		-- 1. 인벤토리 슬롯 마이그레이션
+		if oldState.inventory then
+			for slot, node in pairs(oldState.inventory) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "WOLF_FANG" then
+						node.itemId = "BAT_FANG"
+					end
+				end
+			end
+		end
+		
+		-- 2. 장착 장비 마이그레이션
+		if oldState.equipment then
+			for slot, node in pairs(oldState.equipment) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "WOLF_FANG" then
+						node.itemId = "BAT_FANG"
+					end
+				end
+			end
+		end
+		
+		LiveOpsManager.Log("Migration", "INFO", "Migrated player state to v5: Converted legacy VampireWolf loot/equipment to CyclopsBat loot/equipment.")
+		return oldState
+	end,
+
+	-- 스키마 버전을 5에서 6으로 업그레이드할 때 실행되는 마이그레이션 함수 (골렘의 돌조각/귀걸이 -> 나무골렘 전리품 자동 교체)
+	[6] = function(oldState)
+		-- 1. 인벤토리 슬롯 마이그레이션
+		if oldState.inventory then
+			for slot, node in pairs(oldState.inventory) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "GOLEM_STONE" then
+						node.itemId = "WOOD_GOLEM_SOUL"
+					elseif node.itemId == "GOLEM_EARRING" then
+						node.itemId = "WOOD_GOLEM_EARRING"
+					end
+				end
+			end
+		end
+		
+		-- 2. 장착 장비 마이그레이션
+		if oldState.equipment then
+			for slot, node in pairs(oldState.equipment) do
+				if type(node) == "table" and node.itemId then
+					if node.itemId == "GOLEM_STONE" then
+						node.itemId = "WOOD_GOLEM_SOUL"
+					elseif node.itemId == "GOLEM_EARRING" then
+						node.itemId = "WOOD_GOLEM_EARRING"
+					end
+				end
+			end
+		end
+		
+		LiveOpsManager.Log("Migration", "INFO", "Migrated player state to v6: Converted legacy Golem loot/equipment to Wood Golem loot/equipment.")
+		return oldState
+	end,
 }
 
 -- 데이터 세이브 시 자동 호출되어 하위 버전 유저 정보를 최신 버전으로 순차 이식

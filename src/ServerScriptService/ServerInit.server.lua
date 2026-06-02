@@ -229,6 +229,13 @@ local EnhanceMasterService = require(Services.EnhanceMasterService)
 EnhanceMasterService.Init(NetController)
 ServiceRegistry.Register("EnhanceMasterService", EnhanceMasterService)
 
+local DismantleService = require(Services.DismantleService)
+DismantleService.Init(NetController)
+for command, handler in pairs(DismantleService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("DismantleService", DismantleService)
+
 local MerchantService = require(Services.MerchantService)
 MerchantService.Init(NetController)
 ServiceRegistry.Register("MerchantService", MerchantService)

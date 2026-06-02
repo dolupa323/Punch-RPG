@@ -27,12 +27,12 @@ local ZONES = {
 		subName = "SLIME HABITAT",
 		priority = 10,
 	},
-	VAMPIRE_WOLF_ZONE = {
-		min = Vector2.new(-75, -420), -- 새 늑대 스폰 좌표 기반 바운딩 박스
+	CYCLOPS_BAT_ZONE = {
+		min = Vector2.new(-75, -420), -- 새 박쥐 스폰 좌표 기반 바운딩 박스
 		max = Vector2.new(50, -140),
 		spawnPoint = Vector3.new(-190, 13, 50),
-		displayName = "늑대의 초원",
-		subName = "WOLF'S PRAIRIE",
+		displayName = "박쥐의 언덕",
+		subName = "BAT'S RIDGE",
 		priority = 10,
 	},
 	EERIE_CAVE = {
@@ -43,12 +43,12 @@ local ZONES = {
 		subName = "EERIE CAVE",
 		priority = 10,
 	},
-	BIG_GOLEM_ZONE = {
-		min = Vector2.new(40, -320), -- 새 거대 골렘 스폰 좌표 기반 바운딩 박스
-		max = Vector2.new(200, -110),
-		spawnPoint = Vector3.new(-25, 11, 60),
-		displayName = "골렘의 땅",
-		subName = "LAND OF GOLEM",
+	STUMP_KING_ZONE = {
+		min = Vector2.new(-25, -375), -- 새 스텀프 킹 좌표를 품는 안전 바운딩 박스
+		max = Vector2.new(215, -85),
+		spawnPoint = Vector3.new(105, -15, -225),
+		displayName = "스텀프 킹의 안식처",
+		subName = "STUMP KING'S SANCTUARY",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
 	},
 	POISON_NEST = {
@@ -145,7 +145,7 @@ local ZONE_CONFIGS = {
 			{ id = "BUSH_BERRY", weight = 50 },
 		},
 	},
-	VAMPIRE_WOLF_ZONE = {
+	CYCLOPS_BAT_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},
@@ -153,7 +153,7 @@ local ZONE_CONFIGS = {
 		Creatures = {},
 		Harvests = {},
 	},
-	BIG_GOLEM_ZONE = {
+	STUMP_KING_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},

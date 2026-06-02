@@ -26,108 +26,67 @@ local MobSpawnData = {
 		}
 	},
 	
-	["DungBeetleZone"] = {
-		spawnAreaId = "DungBeetleZone",
-		mobModelName = "DungBeetle",
-		mobDisplayName = "쇠똥구리",
-		maxHealth = 120,      -- 쇠똥구리 강력함 반영
+	["HornedLarvaZone"] = {
+		spawnAreaId = "HornedLarvaZone",
+		mobModelName = "HornedLarva",
+		mobDisplayName = "뿔 애벌레",
+		maxHealth = 120,      -- 뿔 애벌레 강력함 반영
 		baseDamage = 12,      -- 슬라임보다 강력한 공격력
 		attackCooldown = 2.0, -- 공격 속도 2.0초
 		respawnDelay = 2.0,   -- 부활 딜레이 2초
-		modelScale = 0.005,   -- [초대형 에셋 보정]: 800스터드급 괴수 에셋을 알맞은 4스터드 크기로 정밀 축소!
-		walkSpeed = 6,        -- [추가] 쇠똥구리 특유의 묵직하고 씩씩한 전진 속도
+		modelScale = 0.07,    -- 몬스터 크기 정밀 축소 보정 (조금 더 선명해진 크기)
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 세로 모델의 머리 방향(아래)을 전방으로 오도록 눕힘
+		walkSpeed = 6,        -- 씩씩한 전진 속도
 		xpReward = 90,        -- 풍부한 경험치 보상
 		
-		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 쇠똥구리 5마리 랜덤 스폰!
+		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 뿔 애벌레 10마리 랜덤 스폰!
 		spawnAsPolygon = true,
-		spawnCount = 5,       
+		spawnCount = 10,       
 		
 		-- 유저 스크린샷 Properties 속성에서 100% 정밀 추출한 4개 꼭짓점 좌표
 		spawnPositions = {
-			{x = -306.025, y = -3.757, z = 349.748}, -- 꼭짓점 1번 (Realistic Stone)
-			{x = -208.725, y = 4.708, z = 361.948}, -- 꼭짓점 2번 (Realistic Stone)
-			{x = -213.225, y = 4.884, z = 288.448}, -- 꼭짓점 3번 (Realistic Stone)
-			{x = -306.025, y = -3.697, z = 288.448}  -- 꼭짓점 4번 (Realistic Stone)
+			{x = -158.764, y = -5.058, z = 113.772},
+			{x = -304.24, y = -3.904, z = 257.483},
+			{x = -45.12, y = 3.136, z = 195.686},
+			{x = -222.64, y = -3.258, z = 367.094}
 		}
 	},
 	
-	["DungBeetleZone2"] = {
-		spawnAreaId = "DungBeetleZone2",
-		mobModelName = "DungBeetle",
-		mobDisplayName = "쇠똥구리",
-		maxHealth = 120,      -- 쇠똥구리 강력함 반영
-		baseDamage = 12,      -- 슬라임보다 강력한 공격력
-		attackCooldown = 2.0, -- 공격 속도 2.0초
-		respawnDelay = 2.0,   -- 부활 딜레이 2초
-		modelScale = 0.005,   -- [초대형 에셋 보정]: 800스터드급 괴수 에셋을 알맞은 4스터드 크기로 정밀 축소!
-		walkSpeed = 6,        -- [추가] 쇠똥구리 특유의 묵직하고 씩씩한 전진 속도
-		xpReward = 90,        -- 풍부한 경험치 보상
-		
-		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 쇠똥구리 5마리 랜덤 스폰!
-		spawnAsPolygon = true,
-		spawnCount = 5,       
-		
-		-- 유저 스크린샷 Properties 속성에서 100% 정밀 추출한 4개 꼭짓점 좌표 (추가 구역)
-		spawnPositions = {
-			{x = -161.341, y = -3.258, z = 349.748},
-			{x = -161.341, y = -3.904, z = 288.448},
-			{x = -64.041, y = 3.136, z = 361.948},
-			{x = -68.541, y = 6.804, z = 253.477}
-		}
-	},
-	
-	["FireLizardZone"] = {
-		spawnAreaId = "FireLizardZone",
-		mobModelName = "FireLizard",
-		mobDisplayName = "화염의 불도마뱀",
+	["StumpZone"] = {
+		spawnAreaId = "StumpZone",
+		mobModelName = "Stump",
+		mobDisplayName = "스텀프",
 		maxHealth = 600,
 		baseDamage = 25,
-		attackCooldown = 3.0,
+		attackCooldown = 1.5, -- 마법 공격 주기 1.5초로 단축하여 다이내믹한 템포 구현
 		respawnDelay = 15.0,  -- 사망 후 정확히 15.0초 뒤 리스폰
-		modelScale = 0.015,     -- 중간보스 0.015배 정밀 다운스케일 보정 (4스터드 대비 12스터드 보스급 비율)
+		modelScale = 0.2,     -- 표준 크기 보정 (0.2 연동)
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 눕혀진 원본 모델 머리를 전방으로 세우기 위해 회전 보정
+		customHipHeight = 1.2, -- 물리 중심이 넘어지지 않고 지면에 안착되도록 정밀 조율된 힙높이
 		walkSpeed = 10,
 		xpReward = 400,
-		spawnCount = 2,
-		spawnAsPolygon = true, -- [활성화] 꼭짓점 사각형 영역 내부에 불도마뱀 스폰!
+		spawnCount = 4,
+		spawnAsPolygon = true, -- 꼭짓점 사각형 영역 내부에 스냅 스폰!
 		spawnPositions = {
-			{x = -36.217, y = -9.592, z = 312.498},
-			{x = -173.029, y = -8.214, z = 326.478},
-			{x = -179.332, y = -16.009, z = 132.245},
-			{x = -44.958, y = -17.996, z = 129.957}
+			{x = -52.426, y = 2.024, z = 148.827},
+			{x = -307.567, y = 3.402, z = 3.85},
+			{x = -266.539, y = -4.393, z = -77.533},
+			{x = -7.986, y = -6.38, z = 62.289}
 		}
 	},
 	
-	["FireLizardZone2"] = {
-		spawnAreaId = "FireLizardZone2",
-		mobModelName = "FireLizard",
-		mobDisplayName = "화염의 불도마뱀",
-		maxHealth = 600,
-		baseDamage = 25,
-		attackCooldown = 3.0,
-		respawnDelay = 15.0,
-		modelScale = 0.015,
-		walkSpeed = 10,
-		xpReward = 400,
-		spawnCount = 1,
-		spawnAsPolygon = true,
-		spawnPositions = {
-			{x = -352.516, y = -10.729, z = -110.01},
-			{x = -387.795, y = -10.48, z = -44.074},
-			{x = -275.592, y = -15.175, z = 34.348},
-			{x = -225.779, y = -17.304, z = -58.46}
-		}
-	},
-	
-	["VampireWolfZone"] = {
-		spawnAreaId = "VampireWolfZone",
-		mobModelName = "VampireWolf",
-		mobDisplayName = "흡혈 늑대",
-		maxHealth = 350,  -- [상향] 180 -> 350 (맷집 강화)
-		baseDamage = 35,  -- [상향] 18 -> 35 (치명적인 늑대 이빨 데미지)
-		attackCooldown = 1.5, -- [수정] 1.0초 시 시스템 쿨타임(1.1초)과 충돌하여 1.5로 너프
+	["CyclopsBatZone"] = {
+		spawnAreaId = "CyclopsBatZone",
+		mobModelName = "CyclopsBat",
+		mobDisplayName = "사이클롭스 박쥐",
+		maxHealth = 350,  -- 사이클롭스 박쥐 강력함 반영
+		baseDamage = 35,  
+		attackCooldown = 0.8, 
 		respawnDelay = 3.0,
-		modelScale = 0.015, -- [수정] 크기를 더 키워달라는 요청에 따라 0.008 -> 0.015배로 확대
-		walkSpeed = 10,   -- 늑대 특유의 빠른 이속
+		modelScale = 0.09, -- 박쥐 고유 에셋 규격 조율 (0.09로 적당하게 축소)
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 비행 방향을 정면 수직으로 보정
+		customHipHeight = 15.0, -- 공중 비행(Hovering) 높이 15.0 스터드로 강제 보정
+		walkSpeed = 10,   
 		xpReward = 120,
 		
 		spawnAsPolygon = true,
@@ -170,26 +129,27 @@ local MobSpawnData = {
 		}
 	},
 	
-	["BigGolemZone"] = {
-		spawnAreaId = "BigGolemZone",
-		mobModelName = "BigGolem",
-		mobDisplayName = "거대 골렘",
+	["StumpKingZone"] = {
+		spawnAreaId = "StumpKingZone",
+		mobModelName = "StumpKing",
+		mobDisplayName = "스텀프 킹",
 		maxHealth = 2000,
 		baseDamage = 50,
 		attackCooldown = 3.0,
 		respawnDelay = 20.0,
-		modelScale = 16.0,    -- 8배에서 다시 2배(총 16배)로 초대형화
+		modelScale = 0.075,    -- 검증 완료: 0.05 크기 대비 1.5배 적절하게 키운 최종 보스 황금 비율
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 원본 모델을 수직으로 세우는 회전 보정
 		walkSpeed = 8,
 		xpReward = 1000,
 		
 		spawnAsPolygon = true,
-		spawnCount = 2,
+		spawnCount = 3, -- 3마리 배치
 		
 		spawnPositions = {
-			{x = 138.214, y = -9.615, z = -120.828},
-			{x = 42.491, y = 2.785, z = -167.36},
-			{x = 116.32, y = -1.692, z = -314.499},
-			{x = 190.203, y = -7.045, z = -293.353}
+			{x = 102.705, y = -15.877, z = -369.877},
+			{x = 211.63, y = -10.09, z = -321.086},
+			{x = 128.91, y = -23.8, z = -90.572},
+			{x = -21.537, y = -11.4, z = -120.593}
 		}
 	},
 	

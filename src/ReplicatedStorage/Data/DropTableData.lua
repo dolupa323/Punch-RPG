@@ -82,25 +82,26 @@ local DropTableData = {
 		-- 일단 1% 확률은 주석 달아놓고 100%로 작업 (실서비스 반영 시: chance = 0.01)
 		{ itemId = "SLIME_EARRING", chance = 0.01, min = 1, max = 1 },
 	},
-	["DUNGBEETLE"] = {
-		-- 일단 1% 확률은 주석 달아놓고 100%로 작업 (실서비스 반영 시: chance = 0.01)
-		{ itemId = "DUNG_BEETLE_RING", chance = 0.01, min = 1, max = 1 },
+	["HORNEDLARVA"] = {
+		{ itemId = "HORNED_LARVA_HORN", chance = 1.0, min = 1, max = 2 },
+		-- 실서비스 반영 1% 드롭 확률 복원
+		{ itemId = "HORNED_LARVA_RING", chance = 0.01, min = 1, max = 1 },
 	},
-	["FIRELIZARD"] = {
-		{ itemId = "FIRE_LIZARD_SCALE", chance = 1.0, min = 2, max = 4 },
-		{ itemId = "FIRE_NECKLACE", chance = 0.015, min = 1, max = 1 },
+	["STUMP"] = {
+		{ itemId = "STUMP_BARK", chance = 1.0, min = 2, max = 4 },
+		{ itemId = "STUMP_NECKLACE", chance = 0.015, min = 1, max = 1 },
 	},
-	["VAMPIREWOLF"] = {
-		{ itemId = "WOLF_FANG", chance = 1.0, min = 1, max = 2 },
+	["CYCLOPSBAT"] = {
+		{ itemId = "BAT_FANG", chance = 1.0, min = 1, max = 2 },
 	},
 	["SMALLGOLEM"] = {
 		{ itemId = "GOLEM_STONE", chance = 1.0, min = 1, max = 3 }, -- 100% 확률로 1~3개 기본 재료 드롭
 		-- 희귀 아이템 (실서비스 반영 시 1% 확률 셋팅)
 		{ itemId = "GOLEM_RING", chance = 0.01, min = 1, max = 1 },
 	},
-	["BIGGOLEM"] = {
-		{ itemId = "GOLEM_STONE", chance = 1.0, min = 50, max = 50 }, -- 확정으로 돌조각 50개
-		{ itemId = "GOLEM_EARRING", chance = 0.05, min = 1, max = 1 }, -- 5% 확률로 귀걸이 드롭
+	["STUMPKING"] = {
+		{ itemId = "WOOD_GOLEM_SOUL", chance = 1.0, min = 50, max = 50 }, -- 확정으로 영혼조각 50개
+		{ itemId = "WOOD_GOLEM_EARRING", chance = 0.02, min = 1, max = 1 }, -- 2% 확률 귀걸이 드롭 (원복)
 	},
 	["SPIDER"] = {
 		{ itemId = "SPIDER_LEG", chance = 1.0, min = 1, max = 3 },

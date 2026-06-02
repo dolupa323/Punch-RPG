@@ -40,6 +40,8 @@ Protocol.Commands = {
 	["Inventory.Unequip.Request"] = true,
 	["Inventory.Sort.Request"] = true,       -- 인벤토리 자동 정렬
 	["Inventory.GiveItem"] = true,         -- 디버그용
+	["Inventory.GetQuickslots.Request"] = true,  -- 소비 단축슬롯 조회
+	["Inventory.SaveQuickslots.Request"] = true, -- 소비 단축슬롯 저장
 	["WeaponDraw.Request"] = true,         -- 납도/발도 상태 토글
 	
 	-- Durability 명령어
@@ -207,6 +209,9 @@ Protocol.Commands = {
 
 	-- Enhancement 명령어 (연금 강화)
 	["Enhance.Request"] = true,
+
+	-- Dismantle 명령어 (무기 분해)
+	["Dismantle.Request"] = true,
 	
 	-- Tent 명령어
 	["Tent.SetSpawn"] = true,

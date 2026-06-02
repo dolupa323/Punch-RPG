@@ -229,22 +229,30 @@ local function createDropModel(dropData)
 			if maxDim > 0 and maxDim > DROP_TARGET then
 				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
 			end
-		elseif mainObject:IsA("BasePart") then
-			local maxDim = math.max(mainObject.Size.X, mainObject.Size.Y, mainObject.Size.Z)
-			if maxDim > 0 and maxDim > DROP_TARGET then
-				local s = DROP_TARGET / maxDim
-				mainObject.Size = mainObject.Size * s
-			end
-		end
-		
-		-- [정밀 지면 밀착] 모델 고유 피벗을 해킹하지 않고 최하단 Y축 정밀 오프셋만 보정 (correctedPos 지면 좌표 적용)
-		if mainObject:IsA("Model") then
+			
 			local cframe, size = mainObject:GetBoundingBox()
 			-- 모델 피벗 중심점과 모델 최하단 바닥면 사이의 Y축 오프셋 거리 산출
 			local pivotYOffset = mainObject:GetPivot().Position.Y - (cframe.Position.Y - size.Y / 2)
 			spawnCF = CFrame.new(correctedPos + Vector3.new(0, pivotYOffset, 0))
 		else
-			spawnCF = CFrame.new(correctedPos + Vector3.new(0, mainObject.Size.Y / 2, 0))
+			-- BasePart, Accessory, Tool 등 비모델 템플릿 예외 복원
+			local targetPart = nil
+			if mainObject:IsA("BasePart") then
+				targetPart = mainObject
+			else
+				targetPart = mainObject:FindFirstChild("Handle") or mainObject:FindFirstChildWhichIsA("BasePart", true)
+			end
+			
+			if targetPart and targetPart:IsA("BasePart") then
+				local maxDim = math.max(targetPart.Size.X, targetPart.Size.Y, targetPart.Size.Z)
+				if maxDim > 0 and maxDim > DROP_TARGET then
+					local s = DROP_TARGET / maxDim
+					targetPart.Size = targetPart.Size * s
+				end
+				spawnCF = CFrame.new(correctedPos + Vector3.new(0, targetPart.Size.Y / 2, 0))
+			else
+				spawnCF = CFrame.new(correctedPos + Vector3.new(0, 0.5, 0))
+			end
 		end
 		
 		mainObject:PivotTo(spawnCF)

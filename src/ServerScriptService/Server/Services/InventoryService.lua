@@ -1443,10 +1443,11 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 	local remaining = count
 	local stackable = _isStackable(itemId)
 	local itemMaxStack = _getMaxStack(itemId)
+	local maxSlots = _getMaxSlots(userId)
 	
 	-- 1. 스택 가능 아이템만: 기존 스택 여유분 계산
 	if stackable then
-		for slot = 1, Balance.MAX_INV_SLOTS do
+		for slot = 1, maxSlots do
 			if remaining <= 0 then break end
 			
 			local slotData = inv.slots[slot]
@@ -1457,7 +1458,7 @@ function InventoryService.canAdd(userId: number, itemId: string, count: number):
 	end
 	
 	-- 2. 빈 슬롯 개수 계산 (스택 가능: itemMaxStack씩, 비스택: 1씩)
-	for slot = 1, Balance.MAX_INV_SLOTS do
+	for slot = 1, maxSlots do
 		if remaining <= 0 then break end
 		
 		if inv.slots[slot] == nil then
@@ -2058,15 +2059,22 @@ local function handleUse(player: Player, payload: any)
 	
 	-- 3. ?식 (Phase 11 ?동)
 	if itemData.type == Enums.ItemType.FOOD or itemData.foodValue then
-		local HungerService = require(game:GetService("ServerScriptService").Server.Services.HungerService)
-		local current, max = HungerService.getHunger(userId)
-		if current >= max and not itemData.healingValue then
+		local hasHungerService, HungerService = pcall(function()
+			return require(game:GetService("ServerScriptService").Server.Services.HungerService)
+		end)
+		
+		local current, max = 0, 100
+		if hasHungerService and HungerService then
+			current, max = HungerService.getHunger(userId)
+		end
+		
+		if hasHungerService and HungerService and current >= max and not itemData.healingValue and not itemData.staminaRestoreValue then
 			-- 배�? 가??차있�?치유 ?�과???�는 ?�식?�면 ??먹어�?
 			return { success = false, errorCode = "HUNGER_FULL" }
 		end
 		
 		-- 배고???�복
-		if itemData.foodValue then
+		if itemData.foodValue and hasHungerService and HungerService then
 			HungerService.eatFood(userId, itemData.foodValue)
 		end
 		
@@ -2075,11 +2083,48 @@ local function handleUse(player: Player, payload: any)
 			local character = player.Character
 			local humanoid = character and character:FindFirstChild("Humanoid")
 			if humanoid then
-				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + itemData.healingValue)
+				if itemData.gradual then
+					task.spawn(function()
+						local ticks = 6
+						local interval = 0.5
+						local healPerTick = itemData.healingValue / ticks
+						for i = 1, ticks do
+							if not player.Parent then break end
+							local char = player.Character
+							local hum = char and char:FindFirstChild("Humanoid")
+							if hum and hum.Health > 0 then
+								hum.Health = math.min(hum.MaxHealth, hum.Health + healPerTick)
+							else
+								break
+							end
+							task.wait(interval)
+						end
+					end)
+				else
+					humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + itemData.healingValue)
+				end
 			end
 		end
 		
 		-- ?�이??1�??�모
+		if itemData.staminaRestoreValue then
+			local StaminaService = require(game:GetService("ServerScriptService").Server.Services.StaminaService)
+			if itemData.gradual then
+				task.spawn(function()
+					local ticks = 6
+					local interval = 0.5
+					local staminaPerTick = itemData.staminaRestoreValue / ticks
+					for i = 1, ticks do
+						if not player.Parent then break end
+						StaminaService.addStamina(userId, staminaPerTick)
+						task.wait(interval)
+					end
+				end)
+			else
+				StaminaService.addStamina(userId, itemData.staminaRestoreValue)
+			end
+		end
+
 		InventoryService.removeItemFromSlot(userId, slot, 1)
 
 		-- ?�스??콜백 (?�식 ??��)
@@ -2325,7 +2370,26 @@ function InventoryService.GetHandlers()
 			InventoryService.sort(player.UserId)
 			return { success = true }
 		end,
-
+		["Inventory.SaveQuickslots.Request"] = function(player, payload)
+			local userId = player.UserId
+			local quickslots = payload.quickslots
+			if type(quickslots) == "table" then
+				local state = SaveService.getPlayerState(userId)
+				if state then
+					state.quickslots = quickslots
+					return { success = true }
+				end
+			end
+			return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
+		end,
+		["Inventory.GetQuickslots.Request"] = function(player, payload)
+			local userId = player.UserId
+			local state = SaveService.getPlayerState(userId)
+			if state then
+				return { success = true, quickslots = state.quickslots or { "", "", "" } }
+			end
+			return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
+		end,
 	}
 
 	if RunService:IsStudio() then

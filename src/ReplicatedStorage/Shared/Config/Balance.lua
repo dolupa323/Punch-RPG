@@ -121,7 +121,7 @@ Balance.ATTACK_PER_POINT = 0.02        -- 포인트당 공격력 증가
 -- 스태미나 & 이동 시스템 (Phase 10)
 --========================================
 Balance.STAMINA_MAX = 100              -- 최대 스태미나
-Balance.STAMINA_REGEN = 25             -- 초당 스태미나 회복량
+Balance.STAMINA_REGEN = 10             -- 초당 스태미나 회복량
 Balance.STAMINA_REGEN_DELAY = 0.8      -- 회복 시작 딜레이
 
 -- 스프린트 (빠르게 달리기)
