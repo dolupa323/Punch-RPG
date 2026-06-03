@@ -223,7 +223,7 @@ function SkillController.useSkill(slotName: string)
 	end
 
 	-- 3.5. [클라이언트 선호출] 로컬 사전 애니메이션 사운드 VFX 즉시 발생
-	if hrp then
+	if hrp and not (itemProfile and itemProfile.runeMode == "AURA") then
 		local targetCFrame = CFrame.new(hrp.Position, hrp.Position + lookVec)
 		local AvatarController = require(script.Parent:WaitForChild("AvatarController"))
 		if AvatarController and AvatarController.playSkillCast then

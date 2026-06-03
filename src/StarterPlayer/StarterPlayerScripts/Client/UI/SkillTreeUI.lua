@@ -186,6 +186,15 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 							table.insert(effects, "물 속성 액티브 스킬 가동")
 						elseif data.id == "NIGHT" then
 							table.insert(effects, "어둠 속성 액티브 스킬 가동")
+						elseif data.id == "RUNE_FLAME_ACTIVE" then
+							table.insert(effects, "플레이어 주변을 도는 화염 오라")
+							table.insert(effects, "범위 내 적에게 지속 피해")
+						elseif data.id == "RUNE_WAVE_ACTIVE" then
+							table.insert(effects, "플레이어 주변을 도는 파도 오라")
+							table.insert(effects, "범위 내 적에게 지속 피해")
+						elseif data.id == "RUNE_SHADOW_ACTIVE" then
+							table.insert(effects, "플레이어 주변을 도는 그림자 오라")
+							table.insert(effects, "범위 내 적에게 지속 피해")
 						end
 						
 						if #effects > 0 then
@@ -196,7 +205,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 					end
 					
 					-- 2. 툴팁 바디 텍스트 구조화 조립
-					local runeTypeText = (itemData.runeType == "ACTIVE" or itemData.id == "RUNE_FIREBALL" or itemData.id == "EMBER" or itemData.id == "DROPLET" or itemData.id == "NIGHT") and "액티브 (Active)" or "패시브 (Passive)"
+					local runeTypeText = (itemData.runeType == "ACTIVE" or itemData.id == "RUNE_FIREBALL" or itemData.id == "EMBER" or itemData.id == "DROPLET" or itemData.id == "NIGHT" or itemData.runeMode == "AURA") and "액티브 (Active)" or "패시브 (Passive)"
 					local elementText = itemData.element and string.format("\n[ 원소 속성 ] %s", itemData.element) or ""
 					local effectText = getRuneEffectText(itemData)
 					local description = itemData.description or ""

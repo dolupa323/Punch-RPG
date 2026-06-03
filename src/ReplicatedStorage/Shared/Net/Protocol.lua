@@ -152,6 +152,12 @@ Protocol.Commands = {
 	["Shop.Sell.Request"] = true,              -- 아이템 판매
 	["Shop.GetGold.Request"] = true,           -- 보유 골드 조회
 	["Shop.Admin.GrantGold.Request"] = true,   -- 어드민 전용 골드 지급
+
+	-- GamePass 명령어
+	["GamePass.GetOwnership.Request"] = true,  -- 게임패스 소유 여부 조회
+	["GamePass.RefreshOwnership.Request"] = true, -- 소유 여부 재동기화
+	["GamePass.DebugForceApply.Request"] = true, -- 테스트용 강제 적용
+	["GamePass.DebugForceDisable.Request"] = true, -- 테스트용 강제 해제
 	
 	-- Movement 명령어 (Phase 10)
 	["Movement.StartSprint"] = true,           -- 스프린트 시작

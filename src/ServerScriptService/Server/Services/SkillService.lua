@@ -22,6 +22,7 @@ local DataService
 -- 유저별 런타임 캐시 { [userId] = { unlockedSkills={}, combatTreeId=nil, skillPointsSpent=0, activeSkillSlots={} } }
 local playerSkillCache = {}
 local skillCooldowns = {} -- [userId][itemId] = endTime
+local activeRuneAuras = {} -- [userId][itemId] = token
 
 --========================================
 -- Internal Helpers
@@ -50,7 +51,7 @@ function _initPlayerSkills(userId: number)
 		skillPointsSpent = state.skillPointsSpent or 0,
 		activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil, nil },
 	}
-	
+
 	-- 건축 등 자동 해금 스킬 처리
 	_autoUnlockFreeSkills(userId)
 end
@@ -500,6 +501,188 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 	local char = player.Character
 	if not char then return end
 	
+	local itemData = DataService.getItem(itemId)
+	if itemData and itemData.runeMode == "AURA" then
+		local userId = player.UserId
+		local auraDuration = tonumber(itemData.auraDuration) or 8
+		local auraTickInterval = math.max(0.25, tonumber(itemData.auraTickInterval) or 0.5)
+		local auraRadius = tonumber(itemData.auraRadius) or 10
+		local auraHitScale = tonumber(itemData.auraHitScale) or 1.5
+		local auraHitRadius = math.max(1, auraRadius * auraHitScale)
+		local auraDamage = tonumber(itemData.auraDamage) or 6
+		local auraTotalDamageMult = tonumber(itemData.auraTotalDamageMult) or 8.5
+		local auraOrbCount = math.max(3, tonumber(itemData.auraOrbCount) or 3)
+		local auraOrbitSpeed = tonumber(itemData.auraOrbitSpeed) or 2.2
+		local playerStatServiceModule = PlayerStatService
+		if not playerStatServiceModule then
+			pcall(function()
+				playerStatServiceModule = require(script.Parent.PlayerStatService)
+			end)
+		end
+		local auraToken = {}
+		activeRuneAuras[userId] = activeRuneAuras[userId] or {}
+		activeRuneAuras[userId][itemId] = auraToken
+
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+		local avatarFolder = ReplicatedStorage:FindFirstChild("Avatar")
+		local vfxFolder = avatarFolder and avatarFolder:FindFirstChild("VFX")
+		local hitRemote = vfxFolder and vfxFolder:FindFirstChild("Hit")
+
+		if NetController then
+			NetController.FireClient(player, "Rune.Aura.Start", {
+				itemId = itemId,
+				duration = auraDuration,
+				radius = auraRadius,
+			})
+		end
+
+		task.spawn(function()
+			local startAt = os.clock()
+			local function pointInTriangleXZ(p, a, b, c)
+				local function sign(p1, p2, p3)
+					return (p1.X - p3.X) * (p2.Z - p3.Z) - (p2.X - p3.X) * (p1.Z - p3.Z)
+				end
+
+				local d1 = sign(p, a, b)
+				local d2 = sign(p, b, c)
+				local d3 = sign(p, c, a)
+				local hasNeg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+				local hasPos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+				return not (hasNeg and hasPos)
+			end
+
+			while os.clock() - startAt < auraDuration do
+				if not player.Parent then break end
+				if not activeRuneAuras[userId] or activeRuneAuras[userId][itemId] ~= auraToken then
+					break
+				end
+
+				local currentChar = player.Character
+				local hrp = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
+				local hum = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
+				if not currentChar or not hrp or not hum or hum.Health <= 0 then
+					break
+				end
+
+				local attackMult = 1.0
+				if playerStatServiceModule then
+					local calc = playerStatServiceModule.GetCalculatedStats(userId)
+					attackMult = calc.attackMult or 1.0
+				end
+
+				local equipment = InventoryService and InventoryService.getEquipment and InventoryService.getEquipment(userId)
+				local equippedWeapon = equipment and equipment.HAND
+				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
+				local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
+				if equippedWeapon then
+					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
+					weaponDmg = math.floor(weaponDmg * (quality / 100))
+				end
+				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
+				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+				local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
+				local auraBaseDamage = (weaponDmg * (1 + enhanceLevel * bonusRate)) + auraDamage
+				local totalAuraDamage = auraBaseDamage * attackMult * auraTotalDamageMult
+				local ticksPossible = math.max(1, math.floor(auraDuration / auraTickInterval + 0.5))
+				local finalTickDamage = math.max(1, math.floor(totalAuraDamage / ticksPossible))
+				local params = OverlapParams.new()
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				params.FilterDescendantsInstances = { currentChar }
+
+				local elapsed = os.clock() - startAt
+				local orbPositions = table.create(auraOrbCount)
+				for orbIndex = 1, auraOrbCount do
+					local offsetAngle = (elapsed * auraOrbitSpeed) + ((orbIndex - 1) * ((math.pi * 2) / auraOrbCount))
+					local yOffset = math.sin(elapsed * 2 + orbIndex) * 0.6 + 2.2
+					orbPositions[orbIndex] = hrp.Position + Vector3.new(
+						math.cos(offsetAngle) * auraHitRadius,
+						yOffset,
+						math.sin(offsetAngle) * auraHitRadius
+					)
+				end
+
+				local nearbyParts = workspace:GetPartBoundsInRadius(hrp.Position, auraHitRadius + 4, params)
+				local hitHumanoids = {}
+				local hitAny = false
+				local triA = orbPositions[1]
+				local triB = orbPositions[2]
+				local triC = orbPositions[3]
+
+				for _, part in ipairs(nearbyParts) do
+					local model = part:FindFirstAncestorOfClass("Model")
+					if model and model ~= currentChar and model:GetAttribute("MobId") then
+						local targetHum = model:FindFirstChildOfClass("Humanoid")
+						local targetRoot = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or part
+						local targetPos = targetRoot and targetRoot.Position
+						local inAura = targetPos and triA and triB and triC and pointInTriangleXZ(targetPos, triA, triB, triC)
+
+						if targetHum and targetHum.Health > 0 and inAura and not hitHumanoids[targetHum] then
+							hitHumanoids[targetHum] = true
+							hitAny = true
+
+							local wasAlive = targetHum.Health > 0
+							local tag = targetHum:FindFirstChild("creator")
+							if tag then tag:Destroy() end
+							tag = Instance.new("ObjectValue")
+							tag.Name = "creator"
+							tag.Value = player
+							tag.Parent = targetHum
+							game:GetService("Debris"):AddItem(tag, 2)
+
+							targetHum:TakeDamage(finalTickDamage)
+							print(string.format("[SkillService][Aura] %s hit %s for %d", tostring(itemId), model.Name, finalTickDamage))
+
+							if wasAlive and targetHum.Health <= 0 then
+								local xpReward = model:GetAttribute("XPReward") or 25
+								if playerStatServiceModule and playerStatServiceModule.grantActionXP then
+									local mobId = model:GetAttribute("MobId") or model.Name
+									playerStatServiceModule.grantActionXP(userId, xpReward, {
+										source = "RUNE_AURA_KILL",
+										actionKey = "AURA:" .. tostring(itemId) .. ":" .. tostring(mobId),
+										disableDiminishing = true
+									})
+								end
+							end
+
+							if hitRemote then
+								local vfxPos = (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
+									and ((model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart).Position)
+									or hrp.Position
+								hitRemote:FireAllClients({
+									target = model,
+									element = "Skill",
+									position = vfxPos,
+									damage = finalTickDamage,
+									isCritical = false,
+									skillId = itemId,
+									isMiss = false,
+									hideVfx = false,
+								})
+							end
+						end
+					end
+				end
+
+				if not hitAny then
+					print(string.format("[SkillService][Aura] %s no-hit tick (radius=%.2f, parts=%d)", tostring(itemId), auraHitRadius, #nearbyParts))
+				end
+
+				task.wait(auraTickInterval)
+			end
+
+			if activeRuneAuras[userId] then
+				activeRuneAuras[userId][itemId] = nil
+			end
+			if NetController then
+				NetController.FireClient(player, "Rune.Aura.Stop", {
+					itemId = itemId,
+				})
+			end
+		end)
+
+		return
+	end
+
 	if itemId == "EMBER" or itemId == "DROPLET" or itemId == "NIGHT" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -785,6 +968,7 @@ end
 --- 플레이어 정리 (로그아웃 시 캐시 해제)
 function SkillService.onPlayerRemoving(userId: number)
 	playerSkillCache[userId] = nil
+	activeRuneAuras[userId] = nil
 end
 
 return SkillService

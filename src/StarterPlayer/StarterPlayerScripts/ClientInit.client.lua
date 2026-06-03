@@ -15,6 +15,7 @@ local WorldDropController = require(Controllers:WaitForChild("WorldDropControlle
 local NetClient = require(Client:WaitForChild("NetClient"))
 local InputManager = require(Client:WaitForChild("InputManager"))
 local UIManager = require(Client:WaitForChild("UIManager"))
+local PremiumShopUI = require(Client:WaitForChild("UI"):WaitForChild("PremiumShopUI"))
 local Balance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Balance"))
 local player = Players.LocalPlayer
 
@@ -48,6 +49,9 @@ local function createAdminPanel()
 	frame.Size = UDim2.new(0, 220, 0, 300)
 	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 	frame.BackgroundTransparency = 0.2
+	frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	frame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	frame.ScrollingDirection = Enum.ScrollingDirection.Y
 	frame.Visible = false
 	frame.Parent = gui
 	
@@ -94,8 +98,44 @@ local function createAdminPanel()
 		return btn
 	end
 
+	local function refreshPremiumShopIfOpen()
+		if PremiumShopUI and PremiumShopUI.Refs and PremiumShopUI.Refs.Frame and PremiumShopUI.Refs.Frame.Visible then
+			PremiumShopUI.Refresh(UIManager.getItemIcon)
+		end
+	end
+
 	mkBtn("골드 +50만", Color3.fromRGB(185, 155, 80), function()
 		NetClient.Request("Shop.Admin.GrantGold.Request", { amount = 500000 })
+	end)
+
+	mkBtn("패스 적용", Color3.fromRGB(90, 140, 220), function()
+		local ok, data = NetClient.Request("GamePass.DebugForceApply.Request", { gamePassId = 1864732763 })
+		if ok then
+			UIManager.notify("드랍률 2배 패스를 강제 적용했습니다.", Color3.fromRGB(120, 190, 255))
+			refreshPremiumShopIfOpen()
+		else
+			UIManager.notify("패스 적용에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
+
+	mkBtn("패스 기능해제", Color3.fromRGB(80, 80, 95), function()
+		local ok, data = NetClient.Request("GamePass.DebugForceDisable.Request", { gamePassId = 1864732763 })
+		if ok then
+			UIManager.notify("드랍률 2배 패스를 해제했습니다.", Color3.fromRGB(180, 180, 200))
+			refreshPremiumShopIfOpen()
+		else
+			UIManager.notify("패스 해제에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
+
+	mkBtn("튜토리얼 초기화", Color3.fromRGB(85, 115, 180), function()
+		local ok, data = NetClient.Request("Tutorial.Admin.Reset.Request", {})
+		if ok and data then
+			UIManager.updateTutorialStatus(data)
+			UIManager.notify("튜토리얼 진행 단계를 초기화했습니다.", Color3.fromRGB(150, 190, 255))
+		else
+			UIManager.notify("튜토리얼 초기화에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
 	end)
 
 	mkBtn("기사의 혼 +100", Color3.fromRGB(100, 150, 200), function()

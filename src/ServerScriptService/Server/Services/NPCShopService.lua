@@ -31,8 +31,10 @@ local MaterialAttributeData = require(DataFolder:WaitForChild("MaterialAttribute
 -- Internal State
 --========================================
 local playerGold = {}        -- [userId] = goldAmount
+local playerGoldHydrated = {} -- [userId] = true once save data has been applied
 local shopStock = {}         -- [shopId] = { [itemIndex] = remainingStock }
 local lastRestockTime = os.time()
+local questPurchaseCallback = nil
 
 -- 상점 데이터 캐시
 local shopDataMap = {}       -- [shopId] = shopData
@@ -620,8 +622,23 @@ end
 
 --- 플레이어 골드 초기화/로드
 local function _initPlayerGold(userId: number)
-	if playerGold[userId] ~= nil then return true end
-	return false
+	if playerGold[userId] ~= nil then
+		return true
+	end
+
+	if SaveService and SaveService.getPlayerState then
+		local state = SaveService.getPlayerState(userId)
+		if state then
+			playerGold[userId] = tonumber(state.gold) or Balance.STARTING_GOLD
+			return true
+		end
+	end
+
+	-- 구매/지급 경로에서는 SaveService 이벤트보다 먼저 호출될 수 있으므로
+	-- 최소한 기본 골드 값으로 캐시를 세팅해 지급이 막히지 않게 한다.
+	playerGold[userId] = Balance.STARTING_GOLD
+	playerGoldHydrated[userId] = false
+	return true
 end
 
 --- 플레이어 골드 저장
@@ -851,6 +868,12 @@ function NPCShopService.buy(userId: number, shopId: string, itemId: string, coun
 	
 	print(string.format("[NPCShopService] Player %d bought %dx %s from %s (cost: %d)", 
 		userId, added, itemId, shopId, actualCost))
+
+	if questPurchaseCallback then
+		task.spawn(function()
+			questPurchaseCallback(userId, shopId, itemId, added)
+		end)
+	end
 	
 	return true, nil
 end
@@ -1063,6 +1086,7 @@ local function _onPlayerRemoving(player: Player)
 	local userId = player.UserId
 	_savePlayerGold(userId)
 	playerGold[userId] = nil
+	playerGoldHydrated[userId] = nil
 end
 
 --========================================
@@ -1096,7 +1120,13 @@ function NPCShopService.Init(netController: any, dataService: any, inventoryServ
 	
 	-- [신규 아키텍처] SaveService 완료 이벤트 연동
 	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)
-		playerGold[userId] = (state and state.gold) or Balance.STARTING_GOLD
+		local loadedGold = (state and state.gold) or Balance.STARTING_GOLD
+		if playerGold[userId] ~= nil and not playerGoldHydrated[userId] then
+			local pendingDelta = math.max(0, (playerGold[userId] or 0) - Balance.STARTING_GOLD)
+			loadedGold = math.min(Balance.GOLD_CAP, loadedGold + pendingDelta)
+		end
+		playerGold[userId] = loadedGold
+		playerGoldHydrated[userId] = true
 		print(string.format("[NPCShopService] Player %d gold hydrated: %d", userId, playerGold[userId]))
 		_emitGoldChanged(userId)
 	end)
@@ -1130,6 +1160,10 @@ function NPCShopService.GetHandlers()
 		["Shop.GetGold.Request"] = _onShopGetGoldRequest,
 		["Shop.Admin.GrantGold.Request"] = _onAdminGrantGoldRequest,
 	}
+end
+
+function NPCShopService.SetQuestCallback(callback)
+	questPurchaseCallback = callback
 end
 
 return NPCShopService

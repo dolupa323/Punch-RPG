@@ -181,6 +181,13 @@ for command, handler in pairs(NPCShopService.GetHandlers()) do
 end
 ServiceRegistry.Register("NPCShopService", NPCShopService)
 
+local TutorialQuestService = require(Services.TutorialQuestService)
+TutorialQuestService.Init(NetController, SaveService, InventoryService, PlayerStatService)
+for command, handler in pairs(TutorialQuestService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("TutorialQuestService", TutorialQuestService)
+
 for command, handler in pairs(StaminaService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
@@ -208,6 +215,17 @@ ServiceRegistry.Register("AdminCommandService", AdminCommandService)
 local AvatarService = require(Services.AvatarService)
 AvatarService.Init()
 ServiceRegistry.Register("AvatarService", AvatarService)
+
+local RuneStoneService = require(Services.RuneStoneService)
+RuneStoneService.Init(NetController)
+ServiceRegistry.Register("RuneStoneService", RuneStoneService)
+
+local GamePassService = require(Services.GamePassService)
+GamePassService.Init(NetController)
+for command, handler in pairs(GamePassService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("GamePassService", GamePassService)
 
 local TrainingDummyService = require(Services.TrainingDummyService)
 TrainingDummyService.Init(NetController)

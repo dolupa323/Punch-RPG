@@ -10,6 +10,7 @@ local Debris = game:GetService("Debris")
 -- [Convention Integration] 기존 인벤토리/스텟 시스템과 동일한 UI 테마 및 유틸리티 도입
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
 local Utils = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UIUtils"))
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -70,7 +71,16 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 		vfx.Parent = wrapper
 		vfx = wrapper
 	elseif vfx:IsA("BasePart") then
-		vfx.Transparency = 1
+		local hasEffectChildren = false
+		for _, desc in ipairs(vfx:GetDescendants()) do
+			if desc:IsA("ParticleEmitter") or desc:IsA("Attachment") then
+				hasEffectChildren = true
+				break
+			end
+		end
+		if hasEffectChildren then
+			vfx.Transparency = 1
+		end
 	end
 	
 	scaleFactor = scaleFactor or 1.0
@@ -951,9 +961,11 @@ end
 function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
 	local char = hrp.Parent
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local itemData = DataHelper.GetData("ItemData", itemId)
+	local isAuraRune = itemData and itemData.runeMode == "AURA"
 	
 	-- 1. 로컬 애니메이션 재생 (Assets/Animations/Weapons/Skill/<itemId>_Cast)
-	if hum then
+	if hum and not isAuraRune then
 		local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
 		local animationsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
 		local weaponsAnimFolder = animationsFolder and animationsFolder:FindFirstChild("Weapons")
@@ -970,34 +982,49 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	end
 
 	-- 2. Cast Sound 재생 (Assets/Sounds/Cast/<itemId>_Cast)
-	local castSoundFolder = getCombatSoundFolder("Cast")
-	if castSoundFolder then
-		local soundTemplate = castSoundFolder:FindFirstChild(itemId .. "_Cast")
-		if soundTemplate then
-			playCombatSound(soundTemplate, hrp)
-		else
-			warn(string.format("[SOUND INFO] '%s_Cast' not found in Assets.Sounds.Cast", itemId))
+	if not isAuraRune then
+		local castSoundFolder = getCombatSoundFolder("Cast")
+		if castSoundFolder then
+			local soundTemplate = castSoundFolder:FindFirstChild(itemId .. "_Cast")
+			if soundTemplate then
+				playCombatSound(soundTemplate, hrp)
+			else
+				warn(string.format("[SOUND INFO] '%s_Cast' not found in Assets.Sounds.Cast", itemId))
+			end
 		end
 	end
 
 	-- 3. Cast VFX 재생 (Assets/VFX/Cast/<itemId>_Cast)
-	local castVFXFolder = getElementVFXFolder("Cast")
-	if castVFXFolder then
-		local vfxTemplate = castVFXFolder:FindFirstChild(itemId .. "_Cast")
-		if vfxTemplate then
-			-- 스킬의 경우 투사체가 날아갈 수 있도록 moveForwardDist 부여 (예: 20 스터드)
-			spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, 1.0, 20.0)
-		else
-			warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", itemId))
+	if not isAuraRune then
+		local castVFXFolder = getElementVFXFolder("Cast")
+		if castVFXFolder then
+			local vfxTemplate = castVFXFolder:FindFirstChild(itemId .. "_Cast")
+			if vfxTemplate then
+				-- 스킬의 경우 투사체가 날아갈 수 있도록 moveForwardDist 부여 (예: 20 스터드)
+				spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, 1.0, 20.0)
+			else
+				warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", itemId))
+			end
 		end
 	end
 end
 
 function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: BasePart?)
+	local itemData = DataHelper.GetData("ItemData", itemId)
+	local isAuraRune = itemData and itemData.runeMode == "AURA"
+	local auraHitVfxName = itemData and itemData.auraHitVfxName
+
 	-- 1. 공용 Hit Sound 재생 (룬이든 평타든 모두 동일하게)
 	local hitSoundFolder = getCombatSoundFolder("Hit")
 	if hitSoundFolder then
-		local soundTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit") or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
+		local soundTemplate
+		if isAuraRune then
+			soundTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit")
+		else
+			soundTemplate = hitSoundFolder:FindFirstChild(itemId .. "_Hit")
+				or hitSoundFolder:FindFirstChild("Default_Attack_Hit")
+				or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
+		end
 		if soundTemplate and targetHrp then
 			playCombatSound(soundTemplate, targetHrp)
 		else
@@ -1010,11 +1037,21 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 	-- 2. Hit VFX 재생 (Assets/VFX/Hit/<itemId>_Hit)
 	local hitVFXFolder = getElementVFXFolder("Hit")
 	if hitVFXFolder then
-		local vfxTemplate = hitVFXFolder:FindFirstChild(itemId .. "_Hit")
+		local vfxTemplate
+		if isAuraRune then
+			vfxTemplate = (type(auraHitVfxName) == "string" and hitVFXFolder:FindFirstChild(auraHitVfxName))
+				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
+				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+		else
+			vfxTemplate = hitVFXFolder:FindFirstChild(itemId .. "_Hit")
+				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
+				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+		end
 		if vfxTemplate then
 			-- 타격 이펙트가 캐릭터의 발 밑이나 너무 낮게 생성되지 않도록 Y축 보정(예: +3 스터드 위로)
 			local adjustedPos = pos + Vector3.new(0, 3, 0)
-			spawnCombatVFX(vfxTemplate, CFrame.new(adjustedPos), 2.0)
+			local hitLifetime = isAuraRune and 4.0 or 2.0
+			spawnCombatVFX(vfxTemplate, CFrame.new(adjustedPos), hitLifetime)
 		else
 			warn(string.format("[VFX INFO] '%s_Hit' not found in Assets.VFX.Hit", itemId))
 		end

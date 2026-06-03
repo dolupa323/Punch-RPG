@@ -103,6 +103,7 @@ local function _getDefaultPlayerSave()
 			currentXP = 0,
 			totalXP = 0,
 			techPointsSpent = 0,
+			inventoryBonusSlots = 0,
 			statInvested = {
 				[Enums.StatId.MAX_HEALTH] = 0,
 				[Enums.StatId.MAX_STAMINA] = 0,
@@ -126,6 +127,8 @@ local function _getDefaultPlayerSave()
 		lastPosition = nil,
 		-- 플레이어 원소 속성 (Fire, Water, Dark 등)
 		element = nil,
+		-- 룬스톤 획득 누적 횟수
+		runeStoneClaims = 0,
 		-- 세션 제어 (Session Locking)
 		_session = {
 			jobId = nil,
@@ -135,6 +138,16 @@ local function _getDefaultPlayerSave()
 		introTutorial = {
 			stepIndex = 0,
 			completed = false,
+		},
+		-- RPG 튜토리얼 퀘스트 진행도 (v2)
+		rpgTutorialQuest = {
+			active = true,
+			completed = false,
+			stepIndex = 1,
+			startedAt = os.time(),
+			completedAt = nil,
+			progressByStep = {},
+			version = 1,
 		},
 		-- 스냅샷 (롤백용)
 		snapshots = {},
@@ -300,6 +313,7 @@ local function _normalizePlayerState(state: any): any
 	state.stats = type(state.stats) == "table" and state.stats or {}
 	state.stats.lastLogin = state.stats.lastLogin or 0
 	state.stats.mobKills = type(state.stats.mobKills) == "table" and state.stats.mobKills or {}
+	state.stats.inventoryBonusSlots = math.max(0, math.floor(tonumber(state.stats.inventoryBonusSlots) or 0))
 	state.snapshots = type(state.snapshots) == "table" and state.snapshots or {}
 	state._session = type(state._session) == "table" and state._session or { jobId = nil, timestamp = 0 }
 
@@ -312,6 +326,28 @@ local function _normalizePlayerState(state: any): any
 	
 	-- 원소 속성 필드 정규화
 	state.element = (type(state.element) == "string") and state.element or nil
+	state.runeStoneClaims = math.max(0, math.floor(tonumber(state.runeStoneClaims) or 0))
+	do
+		local tutorialQuest = state.rpgTutorialQuest
+		if type(tutorialQuest) ~= "table"
+			or tonumber(tutorialQuest.version) ~= 4
+			or tonumber(tutorialQuest.schemaVersion) ~= 1
+			or tostring(tutorialQuest.resetMarker or "") ~= "RPG_TUTORIAL_RESET_20260603_V2" then
+			tutorialQuest = {
+				active = true,
+				completed = false,
+				stepIndex = 1,
+				startedAt = os.time(),
+				completedAt = nil,
+				progressByStep = {},
+				version = 4,
+				schemaVersion = 1,
+				resetMarker = "RPG_TUTORIAL_RESET_20260603_V2",
+			}
+		end
+		state.rpgTutorialQuest = tutorialQuest
+	end
+	state.tutorialQuest = nil
 
 	-- ★ SPEAR → SWORD 마이그레이션 (v1 레거시 세이브 호환)
 	if state.combatTreeId == "SPEAR" then
@@ -468,6 +504,7 @@ function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolea
 		end
 		
 		-- 저장 전 데이터 직렬화
+		state.tutorialQuest = nil
 		local serializedState = Serialization.serialize(state)
 		
 		-- 세션 유지 또는 해제

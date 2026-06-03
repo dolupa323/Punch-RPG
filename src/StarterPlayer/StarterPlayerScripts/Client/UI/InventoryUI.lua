@@ -1327,7 +1327,8 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 		else
 			if d.QuickRow then d.QuickRow.Visible = false end
 			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
-			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM))
+			local isStarterBox = (itemData and itemData.id == "STARTER_PACK_BOX")
+			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM or isStarterBox))
 			local isCaptureBox = (itemData and itemData.type == Enums.ItemType.CAPTURE_BOX)
 			
 			if isArmor then
@@ -1338,7 +1339,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("사용")
 				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
-				if d.QuickRow then d.QuickRow.Visible = true end -- 소비 단축 슬롯 활성화
+				if d.QuickRow then d.QuickRow.Visible = (itemData and itemData.type == Enums.ItemType.CONSUMABLE) end -- 소비 단축 슬롯 활성화
 			elseif isCaptureBox then
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("길들이기")

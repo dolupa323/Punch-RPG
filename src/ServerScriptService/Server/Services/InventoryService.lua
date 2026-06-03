@@ -33,6 +33,8 @@ local DataService = nil
 local SaveService = nil
 -- PlayerStatService 참조 (?�탯??
 local PlayerStatService = nil
+-- NPCShopService 참조 (골드 지급용)
+local NPCShopService = nil
 -- EquipService 참조 (?�각?�용)
 local EquipService = nil
 -- ?�토리얼/?�스?�용 ?�이???�득 콜백
@@ -120,6 +122,108 @@ local function _getMaxStack(itemId: string): number
 		if itemData and itemData.maxStack then return itemData.maxStack end
 	end
 	return Balance.MAX_STACK
+end
+
+local function _cloneSlotData(slotData)
+	if type(slotData) ~= "table" then
+		return nil
+	end
+
+	return {
+		itemId = slotData.itemId,
+		count = slotData.count,
+		durability = slotData.durability,
+		attributes = slotData.attributes,
+	}
+end
+
+local function _cloneInventorySlots(inv, ignoreSlot: number?)
+	local cloned = {}
+	if type(inv) ~= "table" or type(inv.slots) ~= "table" then
+		return cloned
+	end
+
+	for slot, slotData in pairs(inv.slots) do
+		if ignoreSlot == nil or slot ~= ignoreSlot then
+			cloned[slot] = _cloneSlotData(slotData)
+		end
+	end
+
+	return cloned
+end
+
+local function _simulateAddItemToSlots(slots, maxSlots: number, itemId: string, count: number, durability: number?, attributes: any?): boolean
+	if type(slots) ~= "table" or not itemId or count <= 0 then
+		return false
+	end
+
+	local remaining = count
+	local stackable = _isStackable(itemId)
+	local itemMaxStack = _getMaxStack(itemId)
+
+	if stackable and not durability then
+		for slot = 1, maxSlots do
+			if remaining <= 0 then break end
+
+			local slotData = slots[slot]
+			if slotData and slotData.itemId == itemId and slotData.count < itemMaxStack and not slotData.durability then
+				local canAddByStack = itemMaxStack - slotData.count
+				local canAdd = math.min(remaining, canAddByStack)
+				if canAdd > 0 then
+					slotData.count = slotData.count + canAdd
+					remaining = remaining - canAdd
+				end
+			end
+		end
+	end
+
+	for slot = 1, maxSlots do
+		if remaining <= 0 then break end
+
+		if slots[slot] == nil then
+			local canAdd = stackable and math.min(remaining, itemMaxStack) or 1
+			if canAdd <= 0 then break end
+
+			slots[slot] = {
+				itemId = itemId,
+				count = canAdd,
+				durability = durability,
+				attributes = attributes,
+			}
+			remaining = remaining - canAdd
+		end
+	end
+
+	return remaining <= 0
+end
+
+local function _canAddRewardBundle(userId: number, rewards: { [number]: any }, ignoreSlot: number?): boolean
+	local inv = playerInventories[userId]
+	if not inv then return false end
+
+	local slots = _cloneInventorySlots(inv, ignoreSlot)
+	local maxSlots = Balance.BASE_INV_SLOTS
+	if PlayerStatService and PlayerStatService.GetCalculatedStats then
+		local ok, calc = pcall(function()
+			return PlayerStatService.GetCalculatedStats(userId)
+		end)
+		if ok and type(calc) == "table" and calc.maxSlots then
+			maxSlots = calc.maxSlots
+		end
+	end
+
+	for _, reward in ipairs(rewards or {}) do
+		local itemId = reward and reward.itemId
+		local amount = tonumber(reward and reward.count) or 1
+		if type(itemId) ~= "string" or itemId == "" then
+			return false
+		end
+		if not _simulateAddItemToSlots(slots, maxSlots, itemId, amount, reward and reward.durability, reward and reward.attributes) then
+			return false
+		end
+	end
+
+	return true
 end
 
 local function _normalizeEquipmentSlots(equipment: any): any
@@ -730,8 +834,8 @@ end
 	-- [Defensive Fix] ?토리얼 초반(1?계)?데 BRANCH가 비정??최??택?로 로드?면 1개로 보정
 	-- ?상 진행 ????보유 ???건드리? ?기 ?해 "초반 + 미완? ?태?서??용
 	local sanitizedBranch = false
-	if loadedState and type(loadedState.tutorialQuest) == "table" then
-		local tq = loadedState.tutorialQuest
+	if loadedState and (type(loadedState.rpgTutorialQuest) == "table" or type(loadedState.tutorialQuest) == "table") then
+		local tq = loadedState.rpgTutorialQuest or loadedState.tutorialQuest
 		local isEarlyTutorial = (tq.completed ~= true) and ((tonumber(tq.stepIndex) or 1) <= 1)
 		if isEarlyTutorial then
 			for slot, node in pairs(normalizedSlots) do
@@ -1846,7 +1950,57 @@ local function handleUse(player: Player, payload: any)
 	
 	local itemData = DataService.getItem(slotData.itemId)
 	if not itemData then return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM } end
-	
+
+	-- 초보자 스타터팩 상자: 사용 시 포션/링/골드 지급
+	if slotData.itemId == "STARTER_PACK_BOX" then
+		local rewards = {
+			{ itemId = "BASIC_HP_POTION", count = 50 },
+			{ itemId = "BASIC_MP_POTION", count = 50 },
+			{ itemId = "WELCOME_RING", count = 1, attributes = { quality = 100 } },
+		}
+
+		if not _canAddRewardBundle(userId, rewards, slot) then
+			return { success = false, errorCode = Enums.ErrorCode.INV_FULL }
+		end
+
+		local goldService = NPCShopService
+		if not goldService then
+			local okReq, svc = pcall(function()
+				return require(Services.NPCShopService)
+			end)
+			if okReq then
+				goldService = svc
+				NPCShopService = svc
+			end
+		end
+		if not goldService then
+			return { success = false, errorCode = Enums.ErrorCode.INTERNAL_ERROR }
+		end
+
+		InventoryService.removeItemFromSlot(userId, slot, 1)
+
+		for _, reward in ipairs(rewards) do
+			local added, remaining = InventoryService.addItem(userId, reward.itemId, reward.count or 1, reward.durability, reward.attributes)
+			if remaining ~= 0 then
+				warn(string.format("[InventoryService] Starter pack reward add mismatch for user %d: %s remaining=%d", userId, reward.itemId, remaining))
+			end
+		end
+
+		local okGold, errGold = goldService.addGold(userId, 1000)
+		if not okGold then
+			warn(string.format("[InventoryService] Starter pack gold grant failed for user %d: %s", userId, tostring(errGold)))
+			return { success = false, errorCode = errGold or Enums.ErrorCode.INTERNAL_ERROR }
+		end
+
+		if NetController then
+			NetController.FireClient(player, "Notify.Message", {
+				text = "초보자 스타터팩을 사용했습니다! 포션, 웰컴 링, 골드 1000을 획득했습니다.",
+			})
+		end
+
+		return { success = true, data = { action = "STARTER_PACK_OPENED" } }
+	end
+
 	-- 1. ?착 가???이??(무기, ?구 ??
 	if itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL or itemData.type == Enums.ItemType.ARMOR then
 		-- ?? ?바(1-8)???는 경우 -> ?성 ?롯?로 ?정
@@ -2447,16 +2601,67 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 	
 	if ProductConfig and ProductConfig.PRODUCTS then
 		local productData = ProductConfig.PRODUCTS[productId]
-		if productData and productData.itemId then
-			local itemId = productData.itemId
-			local amount = productData.amount or 1
-			local added, remaining = InventoryService.addItem(userId, itemId, amount)
-			if added > 0 then
-				print(string.format("[Purchase] Successfully awarded %d of %s to player %s for product %s", amount, itemId, player.Name, productId))
-				return Enum.ProductPurchaseDecision.PurchaseGranted
-			else
-				warn(string.format("[Purchase] Failed to award %s to player %s - Inventory Full?", itemId, player.Name))
+		if productData then
+			if productData.rewardType == "INVENTORY_EXPAND" then
+				local slots = tonumber(productData.slots) or 30
+				if PlayerStatService and PlayerStatService.grantInventoryBonusSlots then
+					local ok, newMaxSlots, appliedSlots = PlayerStatService.grantInventoryBonusSlots(userId, slots)
+					if ok then
+						print(string.format("[Purchase] Inventory expansion granted to %s (+%d slots, max=%d) for product %s",
+							player.Name, appliedSlots or 0, newMaxSlots or 0, productId))
+						return Enum.ProductPurchaseDecision.PurchaseGranted
+					end
+				end
+				warn(string.format("[Purchase] Inventory expansion failed for %s (product %s)", player.Name, productId))
 				return Enum.ProductPurchaseDecision.NotProcessedYet
+			elseif productData.rewardType == "STARTER_PACK" then
+				local boxItemId = productData.itemId or productData.boxItemId
+				local amount = tonumber(productData.amount) or 1
+				if type(boxItemId) == "string" and boxItemId ~= "" then
+					local added, remaining = InventoryService.addItem(userId, boxItemId, amount)
+					if added > 0 and remaining == 0 then
+						print(string.format("[Purchase] Successfully awarded starter pack box (%s) to player %s for product %s", boxItemId, player.Name, productId))
+						return Enum.ProductPurchaseDecision.PurchaseGranted
+					end
+					warn(string.format("[Purchase] Failed to award starter pack box to player %s - Inventory Full? product %s", player.Name, productId))
+				else
+					warn(string.format("[Purchase] Starter pack missing box itemId for product %s (player=%s)", productId, player.Name))
+				end
+				return Enum.ProductPurchaseDecision.NotProcessedYet
+			elseif productData.rewardType == "GOLD" then
+				local amount = tonumber(productData.amount) or 0
+				local goldService = NPCShopService
+				if not goldService then
+					local okReq, svc = pcall(function()
+						return require(Services.NPCShopService)
+					end)
+					if okReq then
+						goldService = svc
+						NPCShopService = svc
+					end
+				end
+				if goldService and amount > 0 then
+					local ok, err = goldService.addGold(userId, amount)
+					if ok then
+						print(string.format("[Purchase] Successfully awarded %d gold to player %s for product %s", amount, player.Name, productId))
+						return Enum.ProductPurchaseDecision.PurchaseGranted
+					end
+					warn(string.format("[Purchase] Failed to award gold to player %s - %s", player.Name, tostring(err)))
+				else
+					warn(string.format("[Purchase] Gold service unavailable or invalid amount for product %s (player=%s, amount=%s)", productId, player.Name, tostring(amount)))
+				end
+				return Enum.ProductPurchaseDecision.NotProcessedYet
+			elseif productData.itemId then
+				local itemId = productData.itemId
+				local amount = productData.amount or 1
+				local added, remaining = InventoryService.addItem(userId, itemId, amount)
+				if added > 0 then
+					print(string.format("[Purchase] Successfully awarded %d of %s to player %s for product %s", amount, itemId, player.Name, productId))
+					return Enum.ProductPurchaseDecision.PurchaseGranted
+				else
+					warn(string.format("[Purchase] Failed to award %s to player %s - Inventory Full?", itemId, player.Name))
+					return Enum.ProductPurchaseDecision.NotProcessedYet
+				end
 			end
 		end
 	end

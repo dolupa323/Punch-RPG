@@ -35,7 +35,8 @@ local function giveEnhanceSet(player: Player)
 	
 	InventoryService.addItem(userId, "ALCHEMY_STONE_MID", 10)
 	InventoryService.addItem(userId, "ALCHEMY_STONE_HIGH", 10)
-	InventoryService.addItem(userId, "3586927112", 10) -- 하락방지권
+	InventoryService.addItem(userId, "3602118498", 10) -- 하락방지권
+	InventoryService.addItem(userId, "3586927112", 10) -- 레거시 하락방지권
 	InventoryService.addItem(userId, "3586927381", 10) -- 파괴방지권
 	InventoryService.addItem(userId, "REPAIR_TICKET_LOW", 10)  -- 하급 수리권 10개 지급
 	InventoryService.addItem(userId, "REPAIR_TICKET_HIGH", 10) -- 상급 수리 키트 10개 지급
@@ -54,6 +55,8 @@ local function resetAccount(player: Player)
 		SaveService.updatePlayerState(userId, function(state)
 			state.inventory = { slots = {}, maxSlots = Balance.BASE_INVENTORY_SLOTS or 20 }
 			state.equipment = { HEAD = nil, SUIT = nil, HAND = nil }
+			state.stats = state.stats or {}
+			state.stats.inventoryBonusSlots = 0
 			return state
 		end)
 	end

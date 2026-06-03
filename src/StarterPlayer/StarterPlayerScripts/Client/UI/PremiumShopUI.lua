@@ -7,12 +7,27 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Theme = require(script.Parent:WaitForChild("UITheme"))
 local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local NetClient = require(script.Parent.Parent:WaitForChild("NetClient"))
+local InventoryController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("InventoryController"))
+local ShopController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("ShopController"))
 local ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("ProductConfig"))
 
-local C = Theme.Colors
+local C_Base = Theme.Colors
+local C = {}
+for k, v in pairs(C_Base) do C[k] = v end
+C.BG_PANEL = Color3.fromRGB(10, 15, 25)
+C.BG_DARK = Color3.fromRGB(5, 5, 10)
+C.BG_SLOT = Color3.fromRGB(12, 12, 15)
+C.GOLD = Color3.fromRGB(255, 255, 255)
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160)
+C.BORDER = Color3.fromRGB(60, 85, 130)
+C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
+C.BTN = Color3.fromRGB(40, 80, 160)
 local T = Theme.Transp
 
 local PremiumShopUI = {}
+local UI_MANAGER = nil
+local gamePassOwnershipCache = {}
 PremiumShopUI.Refs = {
 	Frame = nil,
 	Main = nil,
@@ -33,28 +48,101 @@ local function clearContainer(container: Instance)
 	end
 end
 
+local function refreshGoldFromServer()
+	if not UI_MANAGER or not ShopController or not ShopController.requestGold then
+		return
+	end
+
+	ShopController.requestGold(function(ok, gold)
+		if ok then
+			UI_MANAGER.updateGold(gold)
+		end
+	end)
+end
+
+local function getInventoryMaxSlots()
+	local _, maxSlots = InventoryController.getSlotInfo()
+	return tonumber(maxSlots) or 0
+end
+
+local function getGamePassOwnership(gamePassId: number): boolean
+	gamePassId = tonumber(gamePassId)
+	if not gamePassId then
+		return false
+	end
+
+	local ok, data = NetClient.Request("GamePass.GetOwnership.Request", { gamePassId = gamePassId })
+	if ok and type(data) == "table" then
+		local owned = data.owned == true
+		gamePassOwnershipCache[gamePassId] = owned
+		return owned
+	end
+
+	local cached = gamePassOwnershipCache[gamePassId]
+	return cached == true
+end
+
+local function resolveProductIcon(data, getItemIcon)
+	if type(data) ~= "table" then
+		return ""
+	end
+
+	local candidates = {}
+	local function push(value)
+		if type(value) == "string" and value ~= "" then
+			table.insert(candidates, value)
+		end
+	end
+
+	push(data.itemId)
+	push(data.iconName)
+
+	for _, candidate in ipairs(candidates) do
+		local icon = getItemIcon(candidate)
+		if icon and icon ~= "" then
+			return icon
+		end
+	end
+
+	return getItemIcon("Icon_Shop")
+end
+
 local function makeProductRow(parent: Instance, productId: string, data: any, getItemIcon: any)
-	local rowHeight = 100
+	local rowHeight = 118
 	local row = Utils.mkFrame({
 		name = "Product_" .. productId,
 		size = UDim2.new(1, 0, 0, rowHeight),
-		bg = C.BG_PANEL_L,
-		bgT = 0.5,
-		r = 10,
-		stroke = 1,
-		strokeC = C.GOLD, -- 프리미엄 느낌을 위해 금색 테두리
+		bg = C.BG_DARK,
+		bgT = 0.18,
+		r = 12,
+		stroke = 1.5,
+		strokeC = C.BORDER,
 		parent = parent,
 	})
+
+	local accent = Utils.mkFrame({
+		name = "Accent",
+		size = UDim2.new(0, 4, 1, -18),
+		pos = UDim2.new(0, 10, 0.5, 0),
+		anchor = Vector2.new(0, 0.5),
+		bg = C.GOLD_SEL,
+		bgT = 0.05,
+		r = 2,
+		parent = row,
+	})
+	accent.ZIndex = row.ZIndex + 1
 
 	-- 아이콘
 	local iconWrap = Utils.mkFrame({
 		name = "IconWrap",
-		size = UDim2.new(0, 70, 0, 70),
-		pos = UDim2.new(0, 15, 0.5, 0),
+		size = UDim2.new(0, 76, 0, 76),
+		pos = UDim2.new(0, 28, 0.5, 0),
 		anchor = Vector2.new(0, 0.5),
-		bg = C.BG_DARK,
-		bgT = 0.3,
-		r = 8,
+		bg = C.BG_SLOT,
+		bgT = 0.08,
+		r = 12,
+		stroke = 1,
+		strokeC = C.BORDER_DIM,
 		parent = row,
 	})
 
@@ -63,35 +151,37 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 	icon.Position = UDim2.new(0.5, 0, 0.5, 0)
 	icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.BackgroundTransparency = 1
-	icon.Image = getItemIcon(data.itemId)
+	icon.Image = resolveProductIcon(data, getItemIcon)
 	icon.Parent = iconWrap
 
 	-- 이름 및 설명
 	local nameLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(data.name or "상품"),
-		size = UDim2.new(1, -220, 0, 30),
-		pos = UDim2.new(0, 100, 0, 15),
-		ts = 18,
+		size = UDim2.new(1, -240, 0, 28),
+		pos = UDim2.new(0, 118, 0, 12),
+		ts = 17,
 		bold = true,
 		color = C.WHITE,
 		ax = Enum.TextXAlignment.Left,
 		parent = row,
 	})
 
-	-- 아이템 데이터에서 설명 가져오기
+	-- 아이템 데이터 또는 상품 설명 사용
 	local itemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
-	local desc = "설명이 없습니다."
-	for _, it in ipairs(itemData) do
-		if it.id == data.itemId then
-			desc = it.description or desc
-			break
+	local desc = data.description or "설명이 없습니다."
+	if type(data.itemId) == "string" then
+		for _, it in ipairs(itemData) do
+			if it.id == data.itemId then
+				desc = it.description or desc
+				break
+			end
 		end
 	end
 
 	local descLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(desc),
-		size = UDim2.new(1, -220, 0, 40),
-		pos = UDim2.new(0, 100, 0, 45),
+		size = UDim2.new(1, -250, 0, 48),
+		pos = UDim2.new(0, 118, 0, 40),
 		ts = 13,
 		color = C.GRAY,
 		ax = Enum.TextXAlignment.Left,
@@ -99,20 +189,51 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 		parent = row,
 	})
 
-	-- 구매 버튼 (로벅스 아이콘 포함)
+	-- 구매 버튼 (상품 유형별 분기)
+	local isInventoryExpand = data.rewardType == "INVENTORY_EXPAND"
+	local isGamePass = data.rewardType == "GAMEPASS"
+	local isMaxed = isInventoryExpand and getInventoryMaxSlots() >= 120
+	local gamePassId = tonumber(data.gamePassId or productId)
+	local ownsGamePass = isGamePass and getGamePassOwnership(gamePassId)
+	local buttonText = "구매하기"
+	if isMaxed then
+		buttonText = "구매 불가"
+	elseif ownsGamePass then
+		buttonText = "보유중"
+	end
 	local buyBtn = Utils.mkBtn({
-		text = "구매",
-		size = UDim2.new(0, 100, 0, 40),
-		pos = UDim2.new(1, -15, 0.5, 0),
+		text = buttonText,
+		size = UDim2.new(0, 110, 0, 42),
+		pos = UDim2.new(1, -18, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
-		bg = Color3.fromRGB(0, 162, 255), -- 로블록스 블루
-		ts = 16,
-		r = 8,
+		bg = (isMaxed or ownsGamePass) and C.BG_SLOT or C.BTN,
+		color = (isMaxed or ownsGamePass) and C.GRAY or C.WHITE,
+		ts = 15,
+		font = Theme.Fonts.TITLE,
+		r = 10,
 		fn = function()
+			if isInventoryExpand and getInventoryMaxSlots() >= 120 then
+				if UI_MANAGER and UI_MANAGER.notify then
+					UI_MANAGER.notify("인벤토리 칸이 이미 최대입니다.", C.RED)
+				end
+				return
+			end
+			if isGamePass then
+				if ownsGamePass then
+					if UI_MANAGER and UI_MANAGER.notify then
+						UI_MANAGER.notify("이미 보유한 패스입니다.", C.GRAY)
+					end
+					return
+				end
+				MarketplaceService:PromptGamePassPurchase(game.Players.LocalPlayer, gamePassId)
+				return
+			end
 			MarketplaceService:PromptProductPurchase(game.Players.LocalPlayer, tonumber(productId))
 		end,
 		parent = row,
 	})
+	buyBtn.Active = not isMaxed and not ownsGamePass
+	buyBtn.AutoButtonColor = not isMaxed and not ownsGamePass
 	
 	-- 로벅스 아이콘 (구매 텍스트 옆에 작게 추가 가능하지만 일단 심플하게 유지)
 
@@ -124,12 +245,23 @@ function PremiumShopUI.Refresh(getItemIcon)
 	clearContainer(PremiumShopUI.Refs.Scroll)
 
 	-- ProductConfig에서 상품 목록 가져와서 생성
-	for productId, data in pairs(ProductConfig.PRODUCTS) do
-		makeProductRow(PremiumShopUI.Refs.Scroll, productId, data, getItemIcon)
+	local productIds = {}
+	for productId in pairs(ProductConfig.PRODUCTS) do
+		table.insert(productIds, productId)
+	end
+	table.sort(productIds, function(a, b)
+		return tonumber(a) < tonumber(b)
+	end)
+	for _, productId in ipairs(productIds) do
+		local data = ProductConfig.PRODUCTS[productId]
+		if data and data.showInPremiumShop ~= false then
+			makeProductRow(PremiumShopUI.Refs.Scroll, productId, data, getItemIcon)
+		end
 	end
 end
 
 function PremiumShopUI.Init(parent, UIManager)
+	UI_MANAGER = UIManager
 	PremiumShopUI.Refs.Frame = Utils.mkFrame({
 		name = "PremiumShop",
 		size = UDim2.new(1, 0, 1, 0),
@@ -141,14 +273,14 @@ function PremiumShopUI.Init(parent, UIManager)
 
 	local main = Utils.mkWindow({
 		name = "Main",
-		size = UDim2.new(0, 500, 0, 600),
+		size = UDim2.new(0, 560, 0, 660),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
 		bgT = T.PANEL,
 		r = 10,
 		stroke = 2,
-		strokeC = C.GOLD, -- 상점의 특별함을 위해 금색 테두리
+		strokeC = C.BORDER,
 		parent = PremiumShopUI.Refs.Frame,
 	})
 	PremiumShopUI.Refs.Main = main
@@ -156,18 +288,29 @@ function PremiumShopUI.Init(parent, UIManager)
 	-- 헤더
 	local header = Utils.mkFrame({
 		name = "Header",
-		size = UDim2.new(1, -30, 0, 60),
+		size = UDim2.new(1, -30, 0, 72),
 		pos = UDim2.new(0, 15, 0, 10),
 		bgT = 1,
 		parent = main,
 	})
 
 	Utils.mkLabel({
-		text = "상점",
+		text = "게임 패스",
 		size = UDim2.new(1, 0, 1, 0),
-		ts = 28,
+		ts = 26,
 		bold = true,
 		color = C.GOLD,
+		ax = Enum.TextXAlignment.Center,
+		parent = header,
+	})
+
+	Utils.mkLabel({
+		text = "게임 플레이에 직접 도움이 되는 상품을 구매할 수 있습니다.",
+		size = UDim2.new(1, -24, 0, 18),
+		pos = UDim2.new(0.5, 0, 1, -8),
+		anchor = Vector2.new(0.5, 1),
+		ts = 12,
+		color = C.GRAY,
 		ax = Enum.TextXAlignment.Center,
 		parent = header,
 	})
@@ -189,18 +332,18 @@ function PremiumShopUI.Init(parent, UIManager)
 	-- 상품 리스트 스크롤 영역
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "ProductList"
-	scroll.Size = UDim2.new(1, -30, 1, -90)
-	scroll.Position = UDim2.new(0, 15, 0, 75)
+	scroll.Size = UDim2.new(1, -30, 1, -110)
+	scroll.Position = UDim2.new(0, 15, 0, 92)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 4
-	scroll.ScrollBarImageColor3 = C.GOLD
+	scroll.ScrollBarImageColor3 = C.BORDER
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new()
 	scroll.Parent = main
 
 	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 10)
+	list.Padding = UDim.new(0, 12)
 	list.Parent = scroll
 
 	local pad = Instance.new("UIPadding")
@@ -211,6 +354,39 @@ function PremiumShopUI.Init(parent, UIManager)
 	pad.Parent = scroll
 
 	PremiumShopUI.Refs.Scroll = scroll
+
+	InventoryController.onChanged(function()
+		if PremiumShopUI.Refs.Frame and PremiumShopUI.Refs.Frame.Visible then
+			PremiumShopUI.Refresh(UIManager.getItemIcon)
+		end
+	end)
+
+	MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, productId, isPurchased)
+		if player ~= game.Players.LocalPlayer or not isPurchased then
+			return
+		end
+
+		task.delay(0.8, refreshGoldFromServer)
+		task.delay(2.0, refreshGoldFromServer)
+	end)
+
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, isPurchased)
+		if player ~= game.Players.LocalPlayer or not isPurchased then
+			return
+		end
+
+		if tonumber(gamePassId) == 1864732763 then
+			gamePassOwnershipCache[1864732763] = nil
+			task.spawn(function()
+				NetClient.Request("GamePass.RefreshOwnership.Request", { gamePassId = 1864732763 })
+			end)
+			task.delay(0.15, function()
+				if PremiumShopUI.Refs.Frame and PremiumShopUI.Refs.Frame.Visible then
+					PremiumShopUI.Refresh(UIManager.getItemIcon)
+				end
+			end)
+		end
+	end)
 end
 
 return PremiumShopUI

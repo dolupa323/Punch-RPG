@@ -41,6 +41,12 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 	for i, entry in ipairs(dropTable) do
 		local roll = math.random()
 		local chance = entry.chance or 1.0
+		local dropMultiplier = 1
+		if killerPlayer then
+			local attrMult = tonumber(killerPlayer:GetAttribute("DropRateMultiplier")) or 1
+			dropMultiplier = math.max(1, attrMult)
+		end
+		chance = math.clamp(chance * dropMultiplier, 0, 1)
 		if roll <= chance then
 			local count = math.random(entry.min or 1, entry.max or 1)
 			print(string.format("[MobSpawnService] -> Roll success (%.2f <= %.2f): Spawning %d of '%s'", roll, chance, count, entry.itemId))

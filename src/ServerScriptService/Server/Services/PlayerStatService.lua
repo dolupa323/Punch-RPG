@@ -17,6 +17,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local Enums = require(Shared.Enums.Enums)
 local DataHelper = require(Shared.Util.DataHelper)
+local ServiceRegistry = require(Shared.Utils.ServiceRegistry)
 
 --========================================
 -- Internal State
@@ -76,6 +77,7 @@ local function _hydrateStatsFromSave(userId: number, state: any): boolean
 	target.totalXP = savedStats.totalXP or target.totalXP or 0
 	target.techPointsSpent = savedStats.techPointsSpent or target.techPointsSpent or 0
 	target.statInvested = _normalizeStatInvested(savedStats.statInvested)
+	target.inventoryBonusSlots = math.max(0, math.floor(tonumber(savedStats.inventoryBonusSlots) or target.inventoryBonusSlots or 0))
 	target._hydratedFromSave = true
 	return true
 end
@@ -136,6 +138,7 @@ local function _initPlayerStats(userId: number)
 			totalXP = 0,
 			techPointsSpent = 0,
 			statInvested = _normalizeStatInvested(nil),
+			inventoryBonusSlots = 0,
 			_hydratedFromSave = false,
 		}
 	end
@@ -154,6 +157,7 @@ local function _savePlayerStats(userId: number)
 			state.stats.totalXP = stats.totalXP
 			state.stats.techPointsSpent = stats.techPointsSpent
 			state.stats.statInvested = stats.statInvested
+			state.stats.inventoryBonusSlots = stats.inventoryBonusSlots or 0
 			return state
 		end)
 	end
@@ -363,6 +367,7 @@ end
 function PlayerStatService.GetCalculatedStats(userId: number)
 	_initPlayerStats(userId)
 	local stats = playerStats[userId].statInvested
+	local purchaseBonusSlots = playerStats[userId].inventoryBonusSlots or 0
 	
 	local defense = 0
 	local setBonuses = nil
@@ -417,7 +422,7 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		maxStamina = finalSta,
 		maxSlots = math.min(
 			Balance.MAX_INV_SLOTS,
-			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT)
+			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT) + purchaseBonusSlots
 		),
 		attackMult = math.max(0.1, finalAtk),
 		defense = defense,
@@ -495,6 +500,13 @@ function PlayerStatService.incrementKill(userId: number, mobDisplayName: string)
 			return state
 		end)
 	end
+
+	local tutorialService = ServiceRegistry.Get("TutorialQuestService")
+	if tutorialService and tutorialService.OnMobKilled then
+		task.spawn(function()
+			tutorialService.OnMobKilled(userId, mobDisplayName)
+		end)
+	end
 end
 
 function PlayerStatService.getStats(userId: number): { [string]: any }
@@ -517,9 +529,36 @@ function PlayerStatService.getStats(userId: number): { [string]: any }
 		totalXP = stats.totalXP,
 		statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		statInvested = stats.statInvested,
+		inventoryBonusSlots = stats.inventoryBonusSlots or 0,
 		calculated = PlayerStatService.GetCalculatedStats(userId),
 		mobKills = mobKills,
 	}
+end
+
+function PlayerStatService.grantInventoryBonusSlots(userId: number, amount: number): (boolean, number, number)
+	_initPlayerStats(userId)
+	local stats = playerStats[userId]
+	if type(amount) ~= "number" then
+		return false, PlayerStatService.GetCalculatedStats(userId).maxSlots or Balance.BASE_INV_SLOTS, 0
+	end
+
+	local add = math.max(0, math.floor(amount))
+	if add <= 0 then
+		return false, PlayerStatService.GetCalculatedStats(userId).maxSlots or Balance.BASE_INV_SLOTS, 0
+	end
+
+	local currentMax = PlayerStatService.GetCalculatedStats(userId).maxSlots or Balance.BASE_INV_SLOTS
+	if currentMax >= Balance.MAX_INV_SLOTS then
+		return true, currentMax, 0
+	end
+
+	local currentBonus = stats.inventoryBonusSlots or 0
+	local room = math.max(0, Balance.MAX_INV_SLOTS - currentMax)
+	local applied = math.min(add, room)
+	stats.inventoryBonusSlots = currentBonus + applied
+	_savePlayerStats(userId)
+	PlayerStatService.applyStats(userId)
+	return true, PlayerStatService.GetCalculatedStats(userId).maxSlots or currentMax, applied
 end
 
 --========================================

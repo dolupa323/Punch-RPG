@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
@@ -9,6 +10,7 @@ local GuiService = game:GetService("GuiService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
 local Balance = require(Shared:WaitForChild("Config"):WaitForChild("Balance"))
+local ProductConfig = require(Shared:WaitForChild("Config"):WaitForChild("ProductConfig"))
 local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local Client = script.Parent
@@ -69,6 +71,7 @@ local personalCraftNodes = {}
 -- (Building state removed)
 local pendingStats = {}
 local cachedStats = {}
+local STARTER_PACK_PRODUCT_ID = "3602119011"
 
 -- Constants
 local C = Theme.Colors
@@ -143,6 +146,19 @@ end
 
 function UIManager.closeEnhance()
 	WindowManager.close("ENHANCE")
+end
+
+function UIManager.requestTutorialStepComplete()
+	task.spawn(function()
+		local ok, data = NetClient.Request("Tutorial.Step.Complete.Request", {})
+		if ok and data then
+			UIManager.updateTutorialStatus(data)
+		end
+	end)
+end
+
+function UIManager.requestQuestStepComplete()
+	UIManager.requestTutorialStepComplete()
 end
 
 function UIManager._onOpenDismantle()
@@ -288,7 +304,12 @@ local equipmentUIFrame
 function UIManager.updateHealth(cur, max) HUDUI.UpdateHealth(cur, max) end
 function UIManager.updateStamina(cur, max) HUDUI.UpdateStamina(cur, max) end
 function UIManager.updateXP(cur, max) HUDUI.UpdateXP(cur, max) end
-function UIManager.updateLevel(lvl) HUDUI.UpdateLevel(lvl) end
+function UIManager.updateLevel(lvl)
+	HUDUI.UpdateLevel(lvl)
+	if UIManager.refreshStarterPackButton then
+		UIManager.refreshStarterPackButton()
+	end
+end
 function UIManager.updateStatPoints(pts) HUDUI.UpdateStatPoints(pts) end
 function UIManager.setTutorialVisible(visible) HUDUI.SetTutorialVisible(visible) end
 function UIManager.updateTutorialStatus(status) HUDUI.UpdateTutorialStatus(status) end
@@ -1739,8 +1760,58 @@ function UIManager.updateXP(cur, max)
 	HUDUI.UpdateXP(cur, max)
 end
 
-function UIManager.updateLevel(lv)
-	HUDUI.UpdateLevel(lv)
+local function getStarterPackConfig()
+	return ProductConfig.PRODUCTS and ProductConfig.PRODUCTS[STARTER_PACK_PRODUCT_ID] or nil
+end
+
+local function getCurrentPlayerLevel()
+	local lvl = cachedStats and cachedStats.level
+	if type(lvl) == "number" then
+		return lvl
+	end
+
+	lvl = player and player:GetAttribute("Level")
+	return tonumber(lvl) or 0
+end
+
+function UIManager.canShowStarterPackButton()
+	local data = getStarterPackConfig()
+	if not data or data.showInPremiumShop == true then
+		return false
+	end
+
+	local limit = tonumber(data.levelThreshold) or 0
+	if limit > 0 then
+		return getCurrentPlayerLevel() <= limit
+	end
+
+	return true
+end
+
+function UIManager.refreshStarterPackButton()
+	if HUDUI and HUDUI.SetStarterPackVisible then
+		HUDUI.SetStarterPackVisible(UIManager.canShowStarterPackButton())
+	end
+end
+
+function UIManager.promptStarterPackPurchase()
+	local data = getStarterPackConfig()
+	if not data then
+		if UIManager.notify then
+			UIManager.notify("스타터팩 정보를 찾을 수 없습니다.", C.RED)
+		end
+		return
+	end
+
+	local limit = tonumber(data.levelThreshold) or 0
+	if limit > 0 and getCurrentPlayerLevel() > limit then
+		if UIManager.notify then
+			UIManager.notify(string.format("초보자 스타터 팩은 %d레벨 이하만 구매할 수 있습니다.", limit), C.RED)
+		end
+		return
+	end
+
+	MarketplaceService:PromptProductPurchase(player, tonumber(STARTER_PACK_PRODUCT_ID))
 end
 
 function UIManager.updateStatPoints(available)
@@ -1857,7 +1928,12 @@ local function setupEventListeners()
 					InventoryController.setMaxSlots(d.calculated.maxSlots)
 				end
 				UIManager.refreshInventory()
+				UIManager.refreshStarterPackButton()
 			end
+		end)
+
+		NetClient.On("Tutorial.Status.Changed", function(status)
+			UIManager.updateTutorialStatus(status)
 		end)
 	end
 
@@ -2293,6 +2369,7 @@ local function setupEventListeners()
 					if d2.level then UIManager.updateLevel(d2.level) end
 					if d2.currentXP and d2.requiredXP then UIManager.updateXP(d2.currentXP, d2.requiredXP) end
 					if d2.statPointsAvailable then UIManager.updateStatPoints(d2.statPointsAvailable) end
+					UIManager.refreshStarterPackButton()
 				end
 				
 -- (Hunger respawn removed)
@@ -2313,6 +2390,7 @@ local function setupEventListeners()
 				if d.level then UIManager.updateLevel(d.level) end
 				if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
 				if d.statPointsAvailable then UIManager.updateStatPoints(d.statPointsAvailable) end
+				UIManager.refreshStarterPackButton()
 				break
 			end
 			task.wait(2)
@@ -2537,6 +2615,12 @@ function UIManager.Init()
 	UIManager.updateStamina(100,100)
 	UIManager.updateXP(0,100)
 	UIManager.updateLevel(1)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Tutorial.GetStatus.Request", {})
+		if ok and data then
+			UIManager.updateTutorialStatus(data)
+		end
+	end)
 	
 	-- 알림 라벨 (사용 중단되거나 제거)
 	UIManager._notifyLabel = nil
@@ -2849,6 +2933,11 @@ function UIManager.openPremiumShop()
 	PremiumShopUI.Refresh(UIManager.getItemIcon)
 	PremiumShopUI.SetVisible(true)
 	WindowManager.open("PREMIUM_SHOP")
+	ShopController.requestGold(function(ok, gold)
+		if ok then
+			UIManager.updateGold(gold)
+		end
+	end)
 	
 	updateUIMode()
 end
@@ -3056,13 +3145,13 @@ function UIManager.openItemSelector(mode, callback)
 		elseif mode == "ENHANCE_SCROLL" then
 			if itemData and itemData.type == "ENHANCE_SCROLL" then
 				isValid = true
-			elseif data.itemId == "3586927112" or data.itemId == "3586927381" then
+			elseif data.itemId == "3586927112" or data.itemId == "3586927381" or data.itemId == "3602118498" then
 				isValid = true
 			elseif data.itemId and data.itemId:find("SCROLL") then
 				isValid = true
 			end
 		elseif mode == "DOWN_PROTECT" then
-			if data.itemId == "3586927112" then
+			if data.itemId == "3586927112" or data.itemId == "3602118498" then
 				isValid = true
 			elseif itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDownProtect then
 				isValid = true
@@ -3214,6 +3303,7 @@ function UIManager.showEnhanceResult(result, data)
 	})
 	
 	local isSuccess = (result == "SUCCESS")
+	local isProtected = (result == "PROTECTED")
 	local isDestroyed = (result == "DESTROYED")
 	
 	local titleText = ""
@@ -3221,6 +3311,9 @@ function UIManager.showEnhanceResult(result, data)
 	
 	if isSuccess then
 		titleText = "연금 성공!"
+		titleColor = C.GOLD
+	elseif isProtected then
+		titleText = "하락 방지 성공!"
 		titleColor = C.GOLD
 	elseif isDestroyed then
 		titleText = "아이템 파괴!"
@@ -3256,9 +3349,9 @@ function UIManager.showEnhanceResult(result, data)
 	})
 	
 	-- Success subtitle (New Level)
-	if isSuccess and data and data.newLevel then
+	if (isSuccess or isProtected) and data and data.newLevel then
 		Utils.mkLabel({
-			text = "+" .. data.newLevel,
+			text = isProtected and ("+" .. data.newLevel .. " 유지") or ("+" .. data.newLevel),
 			size = UDim2.new(1, 0, 0, 40),
 			pos = UDim2.new(0.5, 0, 0.75, 0),
 			anchor = Vector2.new(0.5, 0.5),
@@ -3326,18 +3419,20 @@ function UIManager.showEnhanceConfirm(params)
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
 		bg = C.BG_PANEL,
+		stroke = 2,
+		strokeC = C.BORDER,
 		r = 8,
 		parent = overlay
 	})
 	
 	Utils.mkLabel({
-		text = UILocalizer.Localize("연금 강화 확인"),
+		text = UILocalizer.Localize(params.title or "연금 강화 확인"),
 		size = UDim2.new(1, 0, 0, 40),
 		pos = UDim2.new(0.5, 0, 0, 10),
 		anchor = Vector2.new(0.5, 0),
 		ts = 20,
 		font = Theme.Fonts.TITLE,
-		color = C.GOLD,
+		color = C.WHITE,
 		parent = win
 	})
 	
@@ -3371,6 +3466,7 @@ function UIManager.showEnhanceConfirm(params)
 		text = UILocalizer.Localize("취소"),
 		size = UDim2.new(0, 120, 1, 0),
 		bg = C.BG_SLOT,
+		color = C.WHITE,
 		ts = 16,
 		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
 		parent = btnWrap
@@ -3379,8 +3475,8 @@ function UIManager.showEnhanceConfirm(params)
 	local confirmBtn = Utils.mkBtn({
 		text = UILocalizer.Localize("확인"),
 		size = UDim2.new(0, 120, 1, 0),
-		bg = C.GOLD,
-		color = C.BG_DARK,
+		bg = C.BTN,
+		color = C.WHITE,
 		ts = 16,
 		fn = function()
 			overlay:Destroy()
@@ -3456,20 +3552,18 @@ function UIManager.showDismantleConfirm(params)
 		text = UILocalizer.Localize("취소"),
 		size = UDim2.new(0, 120, 1, 0),
 		bg = C.BG_SLOT,
+		color = C.WHITE,
 		ts = 16,
 		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
 		parent = btnWrap
 	})
 	
-	-- 확인 버튼: 노란색(골드)이 아니라 무기 분해소 컨벤션에 맞춘 위험/분해 액션 레드 컬러 적용!
 	local confirmBtn = Utils.mkBtn({
 		text = UILocalizer.Localize("확인"),
 		size = UDim2.new(0, 120, 1, 0),
-		bg = Color3.fromRGB(180, 60, 60), -- Danger Rosewood Red!
+		bg = C.BTN,
 		color = C.WHITE,
 		ts = 16,
-		stroke = 1,
-		strokeC = Color3.fromRGB(240, 100, 100),
 		fn = function()
 			overlay:Destroy()
 			if params.onConfirm then params.onConfirm() end

@@ -27,6 +27,7 @@ local tutorialPulseTween = nil
 local tutorialHintPulseTween = nil
 local tutorialClickPulseTween = nil
 local tutorialRelayoutFn = nil
+local starterPackWantedVisible = false
 HUDUI.LastStatus = nil
 local questTokenNameCache = {}
 local TOOLTIP_WIDTH = 280
@@ -184,6 +185,14 @@ local function localizeQuestRuntimeText(text: string?): string
 	return UILocalizer.Localize(replaced)
 end
 
+local function stripRichTextTags(text: string?): string
+	if type(text) ~= "string" or text == "" then
+		return ""
+	end
+
+	return (text:gsub("<.->", ""))
+end
+
 local function localizeTutorialStepField(status, fieldName: string): string
 	local base = status and status[fieldName]
 	if type(base) ~= "string" then
@@ -286,6 +295,7 @@ HUDUI.Refs = {
 	tutorialReadyHint = nil,
 	tutorialCompleteBtn = nil,
 	tutorialClickArea = nil,
+	starterPackButton = nil,
 }
 
 function HUDUI.Init(parent, UIManager, InputManager, isMobile)
@@ -434,6 +444,48 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
 	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function() end)
 
+	local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+	local starterBtnPx = math.clamp(
+		math.floor(viewport.X * (isSmall and 0.15 or 0.085)),
+		isSmall and 72 or 86,
+		isSmall and 104 or 124
+	)
+
+	local starterPackButton = Utils.mkBtn({
+		name = "StarterPackButton",
+		size = UDim2.new(0, starterBtnPx, 0, starterBtnPx),
+		pos = UDim2.new(1, -12, 1, -(isSmall and 192 or 206)),
+		anchor = Vector2.new(1, 1),
+		bg = Color3.fromRGB(85, 76, 39),
+		bgT = 1,
+		stroke = false,
+		color = C.WHITE,
+		ts = isSmall and 12 or 14,
+		font = F.TITLE,
+		r = 12,
+		z = 25,
+		noHover = true,
+		vis = false,
+		parent = parent,
+		fn = function()
+			if UIManager and UIManager.promptStarterPackPurchase then
+				UIManager.promptStarterPackPurchase()
+			end
+		end,
+	})
+	starterPackButton.Text = ""
+	local starterPackIcon = Instance.new("ImageLabel")
+	starterPackIcon.Name = "StarterPackIcon"
+	starterPackIcon.Size = UDim2.new(0.72, 0, 0.72, 0)
+	starterPackIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+	starterPackIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+	starterPackIcon.BackgroundTransparency = 1
+	starterPackIcon.ScaleType = Enum.ScaleType.Fit
+	starterPackIcon.Image = UIManager.getItemIcon and UIManager.getItemIcon("Icon_StarterPack") or ""
+	starterPackIcon.ZIndex = starterPackButton.ZIndex + 1
+	starterPackIcon.Parent = starterPackButton
+	HUDUI.Refs.starterPackButton = starterPackButton
+
 	HUDUI.Refs.hungerBar = {container = Instance.new("Frame"), fill = Instance.new("Frame"), label = Instance.new("TextLabel")}
 	HUDUI.Refs.xpPctLabel = Instance.new("TextLabel")
 	HUDUI.Refs.bottomEdge = mainContainer 
@@ -443,14 +495,15 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- Tutorial quest: ultra-minimalist responsive HUD panel
 	local tutorialFrame = Utils.mkFrame({
 		name = "TutorialPanel",
-		size = UDim2.new(isSmall and 0.4 or 0.2, 0, 0, isSmall and 75 or 65),
-		pos = UDim2.new(1, -12, 0, 180),
-		anchor = Vector2.new(1, 0),
-		bg = C.BG_PANEL,
-		bgT = 0.5,
+		size = UDim2.new(isSmall and 0.42 or 0.24, 0, 0, isSmall and 92 or 82),
+		pos = UDim2.new(0, 12, 0, 180),
+		anchor = Vector2.new(0, 0),
+		bg = Color3.fromRGB(10, 15, 25),
+		bgT = 0,
 		r = 6,
 		stroke = 1,
-		strokeC = C.BORDER,
+		strokeC = Color3.fromRGB(60, 85, 130),
+		strokeT = 0.05,
 		vis = false,
 		parent = parent,
 	})
@@ -460,7 +513,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local function updateTutorialMinimize()
 		-- [Fix] 하드코딩된 큰 수치 제거 및 동적 너비 유지
 		local vp = workspace.CurrentCamera.ViewportSize
-		local panelWidth = math.clamp(math.floor(vp.X * (isSmall and 0.25 or 0.12)), 130, 180)
+		local panelWidth = math.clamp(math.floor(vp.X * (isSmall and 0.28 or 0.16)), isSmall and 160 or 180, isSmall and 220 or 260)
 		
 		if isTutorialMinimized then
 			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 48)
@@ -499,13 +552,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	HUDUI.Refs.tutorialTitle = Utils.mkLabel({
 		name = "TutorialTitle",
-		text = UILocalizer.Localize("퀘스트"),
+		text = UILocalizer.Localize("튜토리얼 퀘스트"),
 		size = UDim2.new(1, -16, 0, 24),
 		pos = UDim2.new(0, 10, 0, 4),
 		ax = Enum.TextXAlignment.Left,
 		font = F.TITLE,
 		ts = 16,
-		color = C.GOLD,
+		color = C.WHITE,
 		parent = tutorialFrame,
 	})
 	
@@ -520,7 +573,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		stroke = false,
 		ts = 18, -- Reduced from 20+
 		font = F.TITLE,
-		color = C.GOLD,
+		color = Color3.fromRGB(110, 140, 200),
 		z = 100, -- Ensure it's above TutorialClickArea
 		fn = function()
 			isTutorialMinimized = not isTutorialMinimized
@@ -538,6 +591,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		ax = Enum.TextXAlignment.Left,
 		ay = Enum.TextYAlignment.Top,
 		wrap = true,
+		rich = true,
 		ts = 13,
 		color = C.WHITE,
 		parent = tutorialFrame,
@@ -567,7 +621,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		ax = Enum.TextXAlignment.Right,
 		ts = 18,
 		font = F.TITLE,
-		color = C.GOLD,
+		color = Color3.fromRGB(110, 140, 200),
 		vis = false,
 		parent = tutorialFrame,
 	})
@@ -631,13 +685,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local rowGap = 2
 		local bottomPadding = 6
 
-		-- [중요] '진행도' 글씨 제거 및 타이틀 옆에 수량 강제 병합
-		local titleBase = UILocalizer.Localize("퀘스트")
-		local progressText = _buildProgressText(HUDUI.LastStatus) or "0/1"
+		-- [중요] 전체 퀘스트 진행도 표시
+		local titleBase = UILocalizer.Localize("튜토리얼 퀘스트")
+		local status = HUDUI.LastStatus or {}
+		if status.completed then
+			return
+		end
+		local progressText = string.format("%d/%d", math.clamp(tonumber(status.stepIndex) or 0, 0, tonumber(status.totalSteps) or 0), tonumber(status.totalSteps) or 0)
 		HUDUI.Refs.tutorialTitle.Text = string.format("%s (%s)", titleBase, progressText)
 
 		local titleH = math.ceil(HUDUI.Refs.tutorialTitle.TextSize * 1.3)
-		local stepBounds = TextService:GetTextSize(HUDUI.Refs.tutorialStep.Text or "", HUDUI.Refs.tutorialStep.TextSize, HUDUI.Refs.tutorialStep.Font, Vector2.new(contentWidth, 10000))
+		local stepBounds = TextService:GetTextSize(stripRichTextTags(HUDUI.Refs.tutorialStep.Text or ""), HUDUI.Refs.tutorialStep.TextSize, HUDUI.Refs.tutorialStep.Font, Vector2.new(contentWidth, 10000))
 		local stepH = stepBounds.Y + 6
 
 		local wantedHeight = topPadding + titleH + rowGap + stepH + bottomPadding
@@ -668,11 +726,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		end
 
 		local vp = camera.ViewportSize
-		local panelWidth = math.floor(vp.X * (isSmall and 0.25 or 0.12))
-		panelWidth = math.clamp(panelWidth, 130, 180) -- 160~200 -> 130~180 (너비 축소)
+		local panelWidth = math.floor(vp.X * (isSmall and 0.28 or 0.16))
+		panelWidth = math.clamp(panelWidth, isSmall and 160 or 180, isSmall and 220 or 260)
 
 		tutorialFrame.Size = UDim2.new(0, panelWidth, 0, tutorialFrame.Size.Y.Offset)
-		tutorialFrame.Position = UDim2.new(1, -12, 0, 260) -- 210 -> 260 (위치 내림)
+		tutorialFrame.Position = UDim2.new(0, 12, 0, 180)
 
 		local titleSize = math.clamp(math.floor(vp.Y * (isSmall and 0.022 or 0.018)), 14, 20)
 		local bodySize = math.clamp(math.floor(vp.Y * (isSmall and 0.018 or 0.015)), 12, 16)
@@ -1539,17 +1597,9 @@ local function _setReadyPulse(ready)
 	local stroke = HUDUI.Refs.tutorialFrame:FindFirstChildOfClass("UIStroke")
 	if ready then
 		if stroke then
-			stroke.Color = C.GOLD
+			stroke.Color = Color3.fromRGB(60, 85, 130)
 			stroke.Transparency = 0.05
 		end
-		HUDUI.Refs.tutorialFrame.BackgroundTransparency = 0.97
-		tutorialPulseTween = TweenService:Create(
-			HUDUI.Refs.tutorialFrame,
-			TweenInfo.new(0.28, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-			{ BackgroundTransparency = 0.8 }
-		)
-		tutorialPulseTween:Play()
-
 		if HUDUI.Refs.tutorialReadyHint then
 			HUDUI.Refs.tutorialReadyHint.Visible = false
 			HUDUI.Refs.tutorialReadyHint.TextTransparency = 0
@@ -1562,19 +1612,13 @@ local function _setReadyPulse(ready)
 		end
 
 		if HUDUI.Refs.tutorialClickArea then
-			HUDUI.Refs.tutorialClickArea.BackgroundTransparency = 0.92
-			tutorialClickPulseTween = TweenService:Create(
-				HUDUI.Refs.tutorialClickArea,
-				TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ BackgroundTransparency = 0.6 }
-			)
-			tutorialClickPulseTween:Play()
+			HUDUI.Refs.tutorialClickArea.BackgroundTransparency = 1
 		end
 	else
-		HUDUI.Refs.tutorialFrame.BackgroundTransparency = 0.96
+		HUDUI.Refs.tutorialFrame.BackgroundTransparency = 0
 		if stroke then
-			stroke.Color = C.BORDER
-			stroke.Transparency = 0.4
+			stroke.Color = Color3.fromRGB(60, 85, 130)
+			stroke.Transparency = 0.05
 		end
 		if HUDUI.Refs.tutorialReadyHint then
 			HUDUI.Refs.tutorialReadyHint.Visible = false
@@ -1591,8 +1635,19 @@ function HUDUI.SetVisible(visible)
 	if HUDUI.Refs.bottomEdge then HUDUI.Refs.bottomEdge.Visible = visible end
 	if HUDUI.Refs.menuRow then HUDUI.Refs.menuRow.Visible = visible end
 	if HUDUI.Refs.hex_Attack then HUDUI.Refs.hex_Attack.Parent.Visible = visible end
+	if HUDUI.Refs.starterPackButton then
+		HUDUI.Refs.starterPackButton.Visible = visible and starterPackWantedVisible
+	end
 	if HUDUI.Refs.tutorialFrame then
 		HUDUI.Refs.tutorialFrame.Visible = visible and tutorialWantedVisible
+	end
+end
+
+function HUDUI.SetStarterPackVisible(visible)
+	starterPackWantedVisible = visible == true
+	if HUDUI.Refs.starterPackButton then
+		local hudVisible = (HUDUI.Refs.statusPanel == nil) or HUDUI.Refs.statusPanel.Visible
+		HUDUI.Refs.starterPackButton.Visible = starterPackWantedVisible and hudVisible
 	end
 end
 
@@ -1611,8 +1666,8 @@ function HUDUI.UpdateTutorialStatus(status)
 	end
 
 	if status.completed then
-		HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트 완료")
-		HUDUI.Refs.tutorialStep.Text = UILocalizer.Localize("기본 생존 가이드를 모두 마쳤습니다.\n가이드: 이제부터는 네 판단으로 살아남아.")
+		HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("튜토리얼 퀘스트 완료")
+		HUDUI.Refs.tutorialStep.Text = UILocalizer.Localize("튜토리얼 퀘스트를 모두 마쳤습니다.\n이제 RPG의 기본 루프를 자유롭게 진행하세요.")
 		local completedReward = _buildRewardText(status.reward or status.rewardPreview)
 		HUDUI.Refs.tutorialProgress.Text = UILocalizer.Localize("보상이 지급되었습니다")
 		HUDUI.Refs.tutorialReward.Text = completedReward ~= "" and (UILocalizer.Localize("획득:") .. " " .. completedReward) or (UILocalizer.Localize("획득:") .. " -")
@@ -1636,8 +1691,9 @@ function HUDUI.UpdateTutorialStatus(status)
 		return
 	end
 
-	local progText = _buildProgressText(status)
-	HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트") .. " " .. (progText or "0/1")
+	local stepIndex = tonumber(status.stepIndex) or 0
+	local totalSteps = tonumber(status.totalSteps) or 0
+	HUDUI.Refs.tutorialTitle.Text = string.format("%s (%d/%d)", UILocalizer.Localize("튜토리얼 퀘스트"), stepIndex, totalSteps)
 	
 	HUDUI.Refs.tutorialProgress.Visible = false
 	HUDUI.Refs.tutorialReward.Visible = false
@@ -1645,12 +1701,16 @@ function HUDUI.UpdateTutorialStatus(status)
 	local stepLines = {}
 	local currentStepText = localizeTutorialStepField(status, "currentStepText")
 	if currentStepText ~= "" then
-		table.insert(stepLines, localizeQuestRuntimeText(currentStepText))
+		table.insert(stepLines, "<font color=\"#DCE7FF\">" .. localizeQuestRuntimeText(currentStepText) .. "</font>")
 	end
 	local stepCommand = localizeTutorialStepField(status, "stepCommand")
 	if stepCommand ~= "" then
 		-- '진행도' 단어 제거, 목푯값만 표시
-		table.insert(stepLines, localizeQuestRuntimeText(stepCommand))
+		table.insert(stepLines, "<font color=\"#B8C7FF\">" .. localizeQuestRuntimeText(stepCommand) .. "</font>")
+	end
+	local rewardText = _buildRewardText(status.rewardPreview or status.reward)
+	if rewardText ~= "" then
+		table.insert(stepLines, "<font color=\"#7FA8FF\">" .. UILocalizer.Localize("보상:") .. "</font> " .. rewardText)
 	end
 	HUDUI.Refs.tutorialStep.Text = (#stepLines > 0) and table.concat(stepLines, "\n") or UILocalizer.Localize("다음 목표 대기 중")
 	

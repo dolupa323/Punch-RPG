@@ -1,0 +1,876 @@
+-- TutorialQuestService.lua
+-- RPG 전용 초반 튜토리얼 퀘스트 체인
+
+local TutorialQuestService = {}
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Enums = require(Shared.Enums.Enums)
+local ServiceRegistry = require(Shared.Utils.ServiceRegistry)
+local Balance = require(Shared.Config.Balance)
+
+local initialized = false
+local NetController
+local SaveService
+local InventoryService
+local PlayerStatService
+
+local questStates = {} -- [userId] = state table
+local playerConnections = {} -- [userId] = { RBXScriptConnection, ... }
+
+local QUEST_ID = "RPG_TUTORIAL"
+local QUEST_TITLE = "튜토리얼 퀘스트"
+local TOTAL_STEPS = 10
+local QUEST_VERSION = 4
+local QUEST_SCHEMA_VERSION = 1
+local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260603_V2"
+local QUEST_SAVE_KEY = "rpgTutorialQuest"
+local LEGACY_SAVE_KEY = "tutorialQuest"
+
+local _getMobKillCount
+local _countInventoryItem
+local _hasInventoryOrEquipItem
+local _hasEnhancedItem
+
+local STEP_DEFS = {
+	[1] = {
+		id = "SELECT_ELEMENT",
+		currentStepText = "1. 속성 스승에게 가서 속성 하나 고르기",
+		stepCommand = "속성 스승과 대화해서 불 / 물 / 어둠 중 하나를 선택하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			local player = Players:GetPlayerByUserId(userId)
+			local element = player and player:GetAttribute("Element")
+			local done = type(element) == "string" and element ~= "" and element ~= "None"
+			progress.count = math.max(progress.count or 0, done and 1 or 0)
+		end,
+	},
+	[2] = {
+		id = "KILL_SLIME",
+		currentStepText = "2. 슬라임 잡기",
+		stepCommand = "슬라임 1마리를 처치하세요.",
+		stepKind = "KILL",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "슬라임"))
+		end,
+	},
+	[3] = {
+		id = "COLLECT_SLIME_MUCUS",
+		currentStepText = "3. 슬라임 점액 모으기",
+		stepCommand = "슬라임 점액 10개를 모아 말랑봉 재료를 준비하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 10,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "SLIME_MUCUS"))
+		end,
+	},
+	[4] = {
+		id = "CRAFT_SOFTCLUB",
+		currentStepText = "4. 말랑봉 만들기",
+		stepCommand = "말랑봉을 제작하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "SoftClub") and 1 or 0)
+		end,
+	},
+	[5] = {
+		id = "KILL_HORNED_LARVA",
+		currentStepText = "5. 뿔 애벌레 잡기",
+		stepCommand = "뿔 애벌레 1마리를 처치하세요.",
+		stepKind = "KILL",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "뿔 애벌레"))
+		end,
+	},
+	[6] = {
+		id = "CRAFT_GAKCHANG",
+		currentStepText = "6. 각창 만들기",
+		stepCommand = "각창을 제작하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "Gakchang") and 1 or 0)
+		end,
+	},
+	[7] = {
+		id = "ENHANCE_GAKCHANG",
+		currentStepText = "7. 각창 1강 강화해보기",
+		stepCommand = "각창을 +1 이상으로 강화하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _hasEnhancedItem(userId, "Gakchang", 1) and 1 or 0)
+		end,
+	},
+	[8] = {
+		id = "BUY_POTION",
+		currentStepText = "8. 잡화점에서 포션 사보기",
+		stepCommand = "잡화상에서 기초 HP 포션 또는 기초 MP 포션을 1개 구매하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, tonumber(progress.count) or 0)
+		end,
+	},
+	[9] = {
+		id = "KILL_STUMP",
+		currentStepText = "9. 스텀프 잡기",
+		stepCommand = "스텀프 1마리를 처치하세요.",
+		stepKind = "KILL",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "스텀프"))
+		end,
+	},
+	[10] = {
+		id = "CRAFT_MOGWOLDO",
+		currentStepText = "10. 목월도 만들기",
+		stepCommand = "목월도를 제작하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 200,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "Mogwoldo") and 1 or 0)
+		end,
+	},
+}
+
+local function _getDefaultState()
+	return {
+		active = true,
+		completed = false,
+		stepIndex = 1,
+		startedAt = os.time(),
+		completedAt = nil,
+		progressByStep = {},
+		version = QUEST_VERSION,
+		schemaVersion = QUEST_SCHEMA_VERSION,
+		resetMarker = QUEST_RESET_MARKER,
+	}
+end
+
+local function _ensureState(userId: number)
+	if not SaveService or not SaveService.getPlayerState then
+		return nil
+	end
+
+	local saveState = SaveService.getPlayerState(userId)
+	if not saveState then
+		return nil
+	end
+
+	local state = saveState[QUEST_SAVE_KEY]
+	if type(state) ~= "table" or tonumber(state.version) ~= QUEST_VERSION or tonumber(state.schemaVersion) ~= QUEST_SCHEMA_VERSION or tostring(state.resetMarker or "") ~= QUEST_RESET_MARKER then
+		state = _getDefaultState()
+		saveState[QUEST_SAVE_KEY] = state
+	end
+	saveState[LEGACY_SAVE_KEY] = nil
+
+	state.active = state.completed ~= true
+	state.completed = state.completed == true
+	state.stepIndex = math.clamp(math.floor(tonumber(state.stepIndex) or 1), 1, TOTAL_STEPS)
+	if state.completed then
+		state.active = false
+		state.stepIndex = TOTAL_STEPS
+	end
+	state.progressByStep = type(state.progressByStep) == "table" and state.progressByStep or {}
+	for i = 1, TOTAL_STEPS do
+		state.progressByStep[i] = type(state.progressByStep[i]) == "table" and state.progressByStep[i] or {}
+		state.progressByStep[i].count = math.max(0, math.floor(tonumber(state.progressByStep[i].count) or 0))
+		state.progressByStep[i].done = state.progressByStep[i].done == true
+	end
+
+	questStates[userId] = state
+	return state
+end
+
+local function _persistState(userId: number)
+	if not SaveService or not SaveService.updatePlayerState then
+		return
+	end
+
+	local state = questStates[userId]
+	if not state then
+		return
+	end
+
+	SaveService.updatePlayerState(userId, function(saveState)
+		saveState[QUEST_SAVE_KEY] = state
+		saveState[LEGACY_SAVE_KEY] = nil
+		return saveState
+	end)
+end
+
+local function _notify(player: Player?, text: string, color: string?)
+	if not player or not NetController then
+		return
+	end
+	NetController.FireClient(player, "Notify.Message", {
+		text = text,
+		color = color or "WHITE",
+	})
+end
+
+local function _getGoldService()
+	return ServiceRegistry.Get("NPCShopService")
+end
+
+local function _addGold(userId: number, amount: number)
+	if amount <= 0 then
+		return true
+	end
+	local goldService = _getGoldService()
+	if goldService and goldService.addGold then
+		local ok, err = goldService.addGold(userId, amount)
+		if not ok then
+			warn(string.format("[TutorialQuestService] Gold reward failed for user %d: %s", userId, tostring(err)))
+		end
+		return ok
+	end
+
+	warn(string.format("[TutorialQuestService] NPCShopService not ready while rewarding user %d", userId))
+	return false
+end
+
+local function _getPlayer(userId: number): Player?
+	return Players:GetPlayerByUserId(userId)
+end
+
+_getMobKillCount = function(userId: number, mobDisplayName: string): number
+	if not PlayerStatService or not PlayerStatService.getStats then
+		return 0
+	end
+
+	local stats = PlayerStatService.getStats(userId)
+	local mobKills = stats and stats.mobKills or {}
+	return math.max(0, math.floor(tonumber(mobKills and mobKills[mobDisplayName]) or 0))
+end
+
+_countInventoryItem = function(userId: number, itemId: string): number
+	if not InventoryService or not InventoryService.getInventory then
+		return 0
+	end
+
+	local inv = InventoryService.getInventory(userId)
+	if not inv then
+		return 0
+	end
+
+	local total = 0
+	for _, slotData in pairs(inv.slots or {}) do
+		if slotData and slotData.itemId == itemId then
+			total += tonumber(slotData.count) or 1
+		end
+	end
+
+	for _, equipData in pairs(inv.equipment or {}) do
+		if equipData and equipData.itemId == itemId then
+			total += 1
+		end
+	end
+
+	return total
+end
+
+_hasInventoryOrEquipItem = function(userId: number, itemId: string): boolean
+	return _countInventoryItem(userId, itemId) > 0
+end
+
+_hasEnhancedItem = function(userId: number, itemId: string, minLevel: number): boolean
+	if not InventoryService or not InventoryService.getInventory then
+		return false
+	end
+
+	local inv = InventoryService.getInventory(userId)
+	if not inv then
+		return false
+	end
+
+	local function checkNode(node)
+		if not node or node.itemId ~= itemId then
+			return false
+		end
+		local level = tonumber(node.attributes and node.attributes.enhanceLevel) or 0
+		return level >= minLevel
+	end
+
+	for _, slotData in pairs(inv.slots or {}) do
+		if checkNode(slotData) then
+			return true
+		end
+	end
+
+	for _, equipData in pairs(inv.equipment or {}) do
+		if checkNode(equipData) then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function _getStepDef(stepIndex: number)
+	return STEP_DEFS[stepIndex]
+end
+
+local function _getStepProgress(state, stepIndex: number)
+	state.progressByStep = state.progressByStep or {}
+	local progress = state.progressByStep[stepIndex]
+	if type(progress) ~= "table" then
+		progress = {}
+		state.progressByStep[stepIndex] = progress
+	end
+	progress.count = math.max(0, math.floor(tonumber(progress.count) or 0))
+	progress.done = progress.done == true
+	return progress
+end
+
+local function _syncStepProgress(userId: number, state, stepIndex: number)
+	local stepDef = _getStepDef(stepIndex)
+	if not stepDef then
+		return
+	end
+
+	local progress = _getStepProgress(state, stepIndex)
+	if type(stepDef.sync) == "function" then
+		stepDef.sync(userId, state, progress)
+	end
+
+	progress.count = math.max(0, math.floor(tonumber(progress.count) or 0))
+	progress.done = progress.done == true or (progress.count >= (stepDef.stepCount or 1))
+	state.progressByStep[stepIndex] = progress
+end
+
+local function _isStepSatisfied(state, stepIndex: number)
+	local stepDef = _getStepDef(stepIndex)
+	if not stepDef then
+		return false
+	end
+	local progress = _getStepProgress(state, stepIndex)
+	return progress.count >= (stepDef.stepCount or 1)
+end
+
+local function _buildStatus(userId: number)
+	local state = _ensureState(userId)
+	if not state then
+		return {
+			questId = QUEST_ID,
+			active = false,
+			completed = false,
+			stepIndex = 0,
+			totalSteps = TOTAL_STEPS,
+		}
+	end
+
+	local stepIndex = math.clamp(state.stepIndex or 1, 1, TOTAL_STEPS)
+	local stepDef = _getStepDef(stepIndex)
+	_syncStepProgress(userId, state, stepIndex)
+	local progress = _getStepProgress(state, stepIndex)
+
+	if state.completed then
+		return {
+			questId = QUEST_ID,
+			questName = QUEST_TITLE,
+			active = false,
+			completed = true,
+			stepIndex = TOTAL_STEPS,
+			totalSteps = TOTAL_STEPS,
+			currentStepText = "튜토리얼 퀘스트를 모두 마쳤습니다.",
+			stepCommand = "이제 RPG 루프를 자유롭게 진행하세요.",
+			reward = { gold = 0 },
+			rewardPreview = { gold = 0 },
+			progress = { count = TOTAL_STEPS, done = true },
+			stepKind = "ITEM_ANY",
+			stepCount = 1,
+			stepKey = "COMPLETED",
+		}
+	end
+
+	return {
+		questId = QUEST_ID,
+		questName = QUEST_TITLE,
+		active = state.active ~= false,
+		completed = false,
+		stepIndex = stepIndex,
+		totalSteps = TOTAL_STEPS,
+		stepKey = stepDef and stepDef.id or "UNKNOWN",
+		currentStepText = stepDef and stepDef.currentStepText or "다음 목표를 확인하세요.",
+		stepCommand = stepDef and stepDef.stepCommand or "",
+		stepKind = stepDef and stepDef.stepKind or "ITEM_ANY",
+		stepCount = stepDef and (stepDef.stepCount or 1) or 1,
+		progress = {
+			count = progress.count or 0,
+			done = progress.done == true,
+		},
+		reward = { gold = (stepDef and stepDef.rewardGold) or 0 },
+		rewardPreview = { gold = (stepDef and stepDef.rewardGold) or 0 },
+	}
+end
+
+local function _broadcastStatus(userId: number)
+	local player = _getPlayer(userId)
+	if not player or not NetController then
+		return
+	end
+
+	local status = _buildStatus(userId)
+	NetController.FireClient(player, "Tutorial.Status.Changed", status)
+	NetController.FireClient(player, "Quest.Status.Changed", status)
+end
+
+local function _grantCurrentStepReward(userId: number, stepIndex: number)
+	local stepDef = _getStepDef(stepIndex)
+	if not stepDef then
+		return
+	end
+
+	local rewardGold = tonumber(stepDef.rewardGold) or 0
+	if rewardGold > 0 then
+		_addGold(userId, rewardGold)
+	end
+end
+
+local function _advanceIfSatisfied(userId: number, reason: string?)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	local changed = false
+	while not state.completed do
+		local stepIndex = math.clamp(state.stepIndex or 1, 1, TOTAL_STEPS)
+		_syncStepProgress(userId, state, stepIndex)
+		local progress = _getStepProgress(state, stepIndex)
+		if progress.done ~= true and progress.count < ((_getStepDef(stepIndex) and _getStepDef(stepIndex).stepCount) or 1) then
+			break
+		end
+
+		if not progress.done then
+			progress.done = true
+			state.progressByStep[stepIndex] = progress
+		end
+
+		_grantCurrentStepReward(userId, stepIndex)
+		changed = true
+
+		if stepIndex >= TOTAL_STEPS then
+			state.completed = true
+			state.active = false
+			state.completedAt = os.time()
+			state.stepIndex = TOTAL_STEPS
+			break
+		end
+
+		state.stepIndex = stepIndex + 1
+		state.active = true
+		state.progressByStep[state.stepIndex] = _getStepProgress(state, state.stepIndex)
+	end
+
+	if changed then
+		_persistState(userId)
+		_broadcastStatus(userId)
+	else
+		-- 퀘스트는 유지 중이지만, 현재 step이 이미 달성되어 있으면 상태를 바로 갱신
+		_broadcastStatus(userId)
+	end
+end
+
+local function _forceReset(userId: number)
+	local saveState = SaveService and SaveService.getPlayerState and SaveService.getPlayerState(userId)
+	if not saveState then
+		return false
+	end
+
+	saveState[QUEST_SAVE_KEY] = _getDefaultState()
+	saveState[LEGACY_SAVE_KEY] = nil
+	questStates[userId] = saveState[QUEST_SAVE_KEY]
+	_persistState(userId)
+	_broadcastStatus(userId)
+	return true
+end
+
+local function _forceSetStep(userId: number, stepIndex: number)
+	local saveState = SaveService and SaveService.getPlayerState and SaveService.getPlayerState(userId)
+	if not saveState then
+		return false
+	end
+
+	local clamped = math.clamp(math.floor(tonumber(stepIndex) or 1), 1, TOTAL_STEPS)
+	saveState[QUEST_SAVE_KEY] = saveState[QUEST_SAVE_KEY] or _getDefaultState()
+	saveState[LEGACY_SAVE_KEY] = nil
+	local state = saveState[QUEST_SAVE_KEY]
+	state.active = true
+	state.completed = false
+	state.stepIndex = clamped
+	state.progressByStep = state.progressByStep or {}
+	state.progressByStep[clamped] = state.progressByStep[clamped] or { count = 0, done = false }
+	questStates[userId] = state
+	_persistState(userId)
+	_broadcastStatus(userId)
+	return true
+end
+
+local function _ensurePlayerHook(player: Player)
+	local userId = player.UserId
+	if playerConnections[userId] then
+		return
+	end
+
+	playerConnections[userId] = {}
+
+	local function attachElementWatcher()
+		local current = player:GetAttribute("Element")
+		if type(current) == "string" and current ~= "" and current ~= "None" then
+			_advanceIfSatisfied(userId, "element")
+		else
+			_broadcastStatus(userId)
+		end
+	end
+
+	table.insert(playerConnections[userId], player:GetAttributeChangedSignal("Element"):Connect(function()
+		_advanceIfSatisfied(userId, "element")
+	end))
+
+	-- 저장 데이터가 아직 완전히 올라오기 전일 수 있으니, 아주 짧게 한 번 더 확인
+	task.delay(0.3, function()
+		if player.Parent then
+			attachElementWatcher()
+		end
+	end)
+end
+
+local function _cleanupPlayer(userId: number)
+	local conns = playerConnections[userId]
+	if conns then
+		for _, conn in ipairs(conns) do
+			pcall(function()
+				conn:Disconnect()
+			end)
+		end
+	end
+	playerConnections[userId] = nil
+	questStates[userId] = nil
+end
+
+function TutorialQuestService.OnElementChanged(userId: number)
+	_advanceIfSatisfied(userId, "element")
+end
+
+function TutorialQuestService.OnMobKilled(userId: number, mobDisplayName: string)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	local stepIndex = state.stepIndex or 1
+	local progress = _getStepProgress(state, stepIndex)
+
+	if stepIndex == 2 and mobDisplayName == "슬라임" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "kill_slime")
+	elseif stepIndex == 5 and mobDisplayName == "뿔 애벌레" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "kill_larva")
+	elseif stepIndex == 9 and mobDisplayName == "스텀프" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "kill_stump")
+	end
+end
+
+function TutorialQuestService.OnItemAdded(userId: number, itemId: string, added: number)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	if state.stepIndex ~= 3 or itemId ~= "SLIME_MUCUS" then
+		return
+	end
+
+	local progress = _getStepProgress(state, 3)
+	progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "SLIME_MUCUS"))
+	state.progressByStep[3] = progress
+	_persistState(userId)
+	_advanceIfSatisfied(userId, "collect_slime_mucus")
+end
+
+function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	local stepIndex = state.stepIndex or 1
+	local progress = _getStepProgress(state, stepIndex)
+
+	if stepIndex == 4 and recipeId == "CraftSoftClub" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "craft_softclub")
+	elseif stepIndex == 6 and recipeId == "CraftGakchang" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "craft_gakchang")
+	elseif stepIndex == 10 and recipeId == "CraftMogwoldo" then
+		progress.count = math.max(progress.count or 0, 1)
+		state.progressByStep[stepIndex] = progress
+		_advanceIfSatisfied(userId, "craft_mogwoldo")
+	end
+end
+
+function TutorialQuestService.OnShopPurchased(userId: number, shopId: string, itemId: string, count: number)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	if state.stepIndex ~= 8 then
+		return
+	end
+
+	if itemId ~= "BASIC_HP_POTION" and itemId ~= "BASIC_MP_POTION" then
+		return
+	end
+
+	local progress = _getStepProgress(state, 8)
+	progress.count = math.max(progress.count or 0, (tonumber(progress.count) or 0) + math.max(1, math.floor(tonumber(count) or 1)))
+	state.progressByStep[8] = progress
+	_advanceIfSatisfied(userId, "buy_potion")
+end
+
+function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string, newLevel: number)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	if state.stepIndex ~= 7 then
+		return
+	end
+
+	if itemId ~= "Gakchang" or (tonumber(newLevel) or 0) < 1 then
+		return
+	end
+
+	local progress = _getStepProgress(state, 7)
+	progress.count = math.max(progress.count or 0, 1)
+	state.progressByStep[7] = progress
+	_advanceIfSatisfied(userId, "enhance_gakchang")
+end
+
+function TutorialQuestService.StartForPlayer(userId: number)
+	_ensureState(userId)
+	_advanceIfSatisfied(userId, "start")
+	return _buildStatus(userId)
+end
+
+function TutorialQuestService.GetStatus(userId: number)
+	_ensureState(userId)
+	_advanceIfSatisfied(userId, "status")
+	return _buildStatus(userId)
+end
+
+function TutorialQuestService.GetList()
+	local steps = {}
+	for index = 1, TOTAL_STEPS do
+		local def = STEP_DEFS[index]
+		table.insert(steps, {
+			index = index,
+			id = def.id,
+			title = def.currentStepText,
+			description = def.stepCommand,
+			reward = { gold = def.rewardGold or 0 },
+		})
+	end
+
+	return {
+		questId = QUEST_ID,
+		questName = QUEST_TITLE,
+		description = "게임 시작 후 바로 진행되는 RPG 입문 튜토리얼입니다.",
+		steps = steps,
+	}
+end
+
+function TutorialQuestService.Init(_NetController, _SaveService, _InventoryService, _PlayerStatService)
+	if initialized then
+		return
+	end
+
+	NetController = _NetController
+	SaveService = _SaveService
+	InventoryService = _InventoryService
+	PlayerStatService = _PlayerStatService
+
+	if InventoryService and InventoryService.SetQuestItemCallback then
+		InventoryService.SetQuestItemCallback(function(userId, itemId, added)
+			TutorialQuestService.OnItemAdded(userId, itemId, added)
+		end)
+	end
+
+	local craftingService = require(game:GetService("ServerScriptService").Server.Services.CraftingService)
+	if craftingService and craftingService.SetQuestCallback then
+		craftingService.SetQuestCallback(function(userId, recipeId)
+			TutorialQuestService.OnCraftCompleted(userId, recipeId)
+		end)
+	end
+
+	local enhanceService = require(game:GetService("ServerScriptService").Server.Services.EnhanceService)
+	if enhanceService and enhanceService.SetQuestCallback then
+		enhanceService.SetQuestCallback(function(userId, itemId, newLevel)
+			TutorialQuestService.OnEnhanceCompleted(userId, itemId, newLevel)
+		end)
+	end
+
+	local shopService = require(game:GetService("ServerScriptService").Server.Services.NPCShopService)
+	if shopService and shopService.SetQuestCallback then
+		shopService.SetQuestCallback(function(userId, shopId, itemId, count)
+			TutorialQuestService.OnShopPurchased(userId, shopId, itemId, count)
+		end)
+	end
+
+	Players.PlayerAdded:Connect(function(player)
+		_ensurePlayerHook(player)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		_cleanupPlayer(player.UserId)
+	end)
+
+	if SaveService and SaveService.PlayerSaveLoaded and SaveService.PlayerSaveLoaded.Event then
+		SaveService.PlayerSaveLoaded.Event:Connect(function(userId, _state)
+			local player = Players:GetPlayerByUserId(userId)
+			if player then
+				_ensurePlayerHook(player)
+			end
+			_ensureState(userId)
+			_advanceIfSatisfied(userId, "player_loaded")
+		end)
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		_ensurePlayerHook(player)
+		_ensureState(player.UserId)
+		_broadcastStatus(player.UserId)
+	end
+
+	initialized = true
+	print("[TutorialQuestService] Initialized")
+end
+
+local function _isAdmin(player: Player): boolean
+	if RunService:IsStudio() then
+		return true
+	end
+	return Balance.ADMIN_IDS and Balance.ADMIN_IDS[player.UserId] == true
+end
+
+function TutorialQuestService.GetHandlers()
+	return {
+		["Tutorial.Start.Request"] = function(player, _payload)
+			local status = TutorialQuestService.StartForPlayer(player.UserId)
+			return { success = true, data = status }
+		end,
+		["Tutorial.GetStatus.Request"] = function(player, _payload)
+			local status = TutorialQuestService.GetStatus(player.UserId)
+			return { success = true, data = status }
+		end,
+		["Tutorial.Step.Complete.Request"] = function(player, _payload)
+			local state = _ensureState(player.UserId)
+			if not state or state.completed then
+				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+			end
+
+			_advanceIfSatisfied(player.UserId, "manual_complete")
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Tutorial.Admin.Reset.Request"] = function(player, _payload)
+			if not _isAdmin(player) then
+				return { success = false, errorCode = Enums.ErrorCode.NO_PERMISSION }
+			end
+			local ok = _forceReset(player.UserId)
+			if not ok then
+				return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
+			end
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Tutorial.Admin.SetStep.Request"] = function(player, payload)
+			if not _isAdmin(player) then
+				return { success = false, errorCode = Enums.ErrorCode.NO_PERMISSION }
+			end
+			local stepIndex = payload and payload.stepIndex
+			local ok = _forceSetStep(player.UserId, stepIndex)
+			if not ok then
+				return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
+			end
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Tutorial.Admin.ForceStart.Request"] = function(player, _payload)
+			if not _isAdmin(player) then
+				return { success = false, errorCode = Enums.ErrorCode.NO_PERMISSION }
+			end
+			local ok = _forceSetStep(player.UserId, 1)
+			if not ok then
+				return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
+			end
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+
+		["Quest.GetList.Request"] = function(player, _payload)
+			return { success = true, data = { quests = { TutorialQuestService.GetList() } } }
+		end,
+		["Quest.Accept.Request"] = function(player, _payload)
+			local status = TutorialQuestService.StartForPlayer(player.UserId)
+			return { success = true, data = status }
+		end,
+		["Quest.Complete.Request"] = function(player, _payload)
+			local state = _ensureState(player.UserId)
+			if not state or state.completed then
+				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+			end
+			_advanceIfSatisfied(player.UserId, "quest_complete")
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Quest.GetStatus.Request"] = function(player, _payload)
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Quest.Step.Complete.Request"] = function(player, _payload)
+			local state = _ensureState(player.UserId)
+			if not state or state.completed then
+				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+			end
+			_advanceIfSatisfied(player.UserId, "quest_step_complete")
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+		["Quest.Admin.Reset.Request"] = function(player, _payload)
+			if not _isAdmin(player) then
+				return { success = false, errorCode = Enums.ErrorCode.NO_PERMISSION }
+			end
+			local ok = _forceReset(player.UserId)
+			if not ok then
+				return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
+			end
+			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
+		end,
+	}
+end
+
+return TutorialQuestService
