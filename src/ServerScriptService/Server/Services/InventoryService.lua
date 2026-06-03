@@ -61,6 +61,22 @@ local function _getDefaultEquipment()
 	}
 end
 
+local function _normalizeQuickslots(quickslots: any): {string}
+	local normalized = { "", "", "" }
+	if type(quickslots) ~= "table" then
+		return normalized
+	end
+
+	for i = 1, 3 do
+		local value = quickslots[i]
+		if type(value) == "string" and value ~= "" then
+			normalized[i] = value
+		end
+	end
+
+	return normalized
+end
+
 local HOTBAR_SLOT_MAX = 8
 
 local function _isArmorItemId(itemId: string): boolean
@@ -2376,7 +2392,7 @@ function InventoryService.GetHandlers()
 			if type(quickslots) == "table" then
 				local state = SaveService.getPlayerState(userId)
 				if state then
-					state.quickslots = quickslots
+					state.quickslots = _normalizeQuickslots(quickslots)
 					return { success = true }
 				end
 			end
@@ -2386,7 +2402,7 @@ function InventoryService.GetHandlers()
 			local userId = player.UserId
 			local state = SaveService.getPlayerState(userId)
 			if state then
-				return { success = true, quickslots = state.quickslots or { "", "", "" } }
+				return { success = true, quickslots = _normalizeQuickslots(state.quickslots) }
 			end
 			return { success = false, errorCode = Enums.ErrorCode.NOT_FOUND }
 		end,

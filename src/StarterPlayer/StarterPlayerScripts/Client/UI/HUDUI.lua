@@ -896,7 +896,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.coordLabel = coordLabel
 	
 	-- 4. Consumable Hotbar (1, 2, 3) - Positioned dynamically slightly above the right of the Mana bar
-	local consumableQuickslots = { [1] = nil, [2] = nil, [3] = nil }
+	local consumableQuickslots = { "", "", "" }
 	HUDUI.ConsumableQuickslots = consumableQuickslots
 
 	local consumableFrame = Utils.mkFrame({
@@ -964,35 +964,40 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	mainAnchor:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncConsumableHotbarPosition)
 	task.spawn(function() task.wait(0.15); syncConsumableHotbarPosition() end)
 
+	local function safeRequest(requestName, payload)
+		if NetClient and NetClient.Request then
+			return NetClient.Request(requestName, payload)
+		else
+			warn("NetClient not available for request:", requestName)
+			return false, nil
+		end
+	end
+
+	local function cloneConsumableQuickslots()
+		return {
+			consumableQuickslots[1] or "",
+			consumableQuickslots[2] or "",
+			consumableQuickslots[3] or "",
+		}
+	end
+
 	function HUDUI.RegisterConsumable(slotIdx, itemId)
-		consumableQuickslots[slotIdx] = itemId
+		consumableQuickslots[slotIdx] = itemId or ""
 		HUDUI.UpdateConsumableHotbar()
 		
 		-- 서버에 즉시 영속 저장 요청
 		task.spawn(function()
-			safeRequest("Inventory.SaveQuickslots.Request", { quickslots = consumableQuickslots })
+			safeRequest("Inventory.SaveQuickslots.Request", { quickslots = cloneConsumableQuickslots() })
 		end)
 	end
-
-local function safeRequest(requestName, payload)
-    if NetClient and NetClient.Request then
-        return NetClient.Request(requestName, payload)
-    else
-        warn("NetClient not available for request:", requestName)
-        return false, nil
-    end
-end
 
 	-- 서버로부터 저장된 단축슬롯 정보 로드
 	task.spawn(function()
 		local success, result = safeRequest("Inventory.GetQuickslots.Request")
 		if success and result and result.quickslots then
-			for idx, itemId in ipairs(result.quickslots) do
-				if itemId ~= "" then
-					consumableQuickslots[idx] = itemId
-				else
-					consumableQuickslots[idx] = nil
-				end
+			for i = 1, 3 do
+				local itemId = result.quickslots[i]
+				consumableQuickslots[i] = (type(itemId) == "string" and itemId ~= "") and itemId or ""
 			end
 			HUDUI.UpdateConsumableHotbar()
 		end
@@ -1044,7 +1049,7 @@ end
 			local slot = HUDUI.Refs.consumableSlots[i]
 			if slot then
 				local itemId = consumableQuickslots[i]
-				if itemId then
+				if itemId and itemId ~= "" then
 					local count = counts[itemId] or 0
 					local icon = _UIManager.getItemIcon(itemId)
 					

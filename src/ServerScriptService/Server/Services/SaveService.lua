@@ -141,6 +141,22 @@ local function _getDefaultPlayerSave()
 	}
 end
 
+local function _normalizeQuickslots(quickslots: any): {string}
+	local normalized = { "", "", "" }
+	if type(quickslots) ~= "table" then
+		return normalized
+	end
+
+	for i = 1, 3 do
+		local value = quickslots[i]
+		if type(value) == "string" and value ~= "" then
+			normalized[i] = value
+		end
+	end
+
+	return normalized
+end
+
 --- 기본 월드 저장 스키마
 local function _getDefaultWorldSave()
 	return {
@@ -292,7 +308,7 @@ local function _normalizePlayerState(state: any): any
 	state.unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {}
 	state.combatTreeId = (type(state.combatTreeId) == "string") and state.combatTreeId or nil
 	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil }
-	state.quickslots = type(state.quickslots) == "table" and state.quickslots or { "", "", "" }
+	state.quickslots = _normalizeQuickslots(state.quickslots)
 	
 	-- 원소 속성 필드 정규화
 	state.element = (type(state.element) == "string") and state.element or nil
