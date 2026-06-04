@@ -761,14 +761,16 @@ function PlayerStatService.Init(netController, saveService, dataService, stamina
 		onPlayerAdded(player)
 	end
 
-	-- Player 퇴장 시 정리
-	game:GetService("Players").PlayerRemoving:Connect(function(player)
-		_savePlayerStats(player.UserId)
-		playerStats[player.UserId] = nil
-		recentActionXP[player.UserId] = nil
-	end)
-
 	print("[PlayerStatService] Initialized (with CharacterAdded fix)")
+end
+
+function PlayerStatService.flushToSaveState(userId: number)
+	_savePlayerStats(userId)
+end
+
+function PlayerStatService.cleanup(userId: number)
+	playerStats[userId] = nil
+	recentActionXP[userId] = nil
 end
 
 function PlayerStatService.SetLevelUpCallback(callback)

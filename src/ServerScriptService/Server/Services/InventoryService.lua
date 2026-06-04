@@ -758,6 +758,25 @@ end
 -- Public API: Inventory Management
 --========================================
 
+local function hasRawInventoryItems(rawInv)
+	if type(rawInv) ~= "table" then
+		return false
+	end
+
+	local source = rawInv
+	if type(rawInv.slots) == "table" then
+		source = rawInv.slots
+	end
+
+	for _, node in pairs(source) do
+		if type(node) == "table" and type(node.itemId) == "string" and node.itemId ~= "" then
+			return true
+		end
+	end
+
+	return false
+end
+
 --- ?레?어 ?벤?리 가?오??는 ?성
 function InventoryService.getOrCreateInventory(userId: number): any
 	if playerInventories[userId] then
@@ -798,27 +817,40 @@ function InventoryService.getOrCreateInventory(userId: number): any
 
 	-- ?이???규???마이그레?션 (?구???락 ???????자 ?덱??강제)
 	local normalizedSlots = {}
-	if savedInv then
-		for k, node in pairs(savedInv) do
+	local inventorySource = savedInv
+
+	if type(savedInv) == "table" and type(savedInv.slots) == "table" then
+		inventorySource = savedInv.slots
+	end
+
+	if inventorySource then
+		for k, node in pairs(inventorySource) do
 			if type(node) == "table" then
 				local numKey = tonumber(k) or node.slot
 				if numKey and node.itemId then
 					local item = DataService.getItem(node.itemId)
-				if item and item.durability and not node.durability then
-					node.durability = item.durability -- ?락???구??초기??
+					if item and item.durability and not node.durability then
+						node.durability = item.durability -- ?락???구??초기??
+					end
+					
+					normalizedSlots[numKey] = {
+						itemId = node.itemId,
+						count = node.count or 1,
+						durability = node.durability,
+						attributes = (node.attributes) or (node.attribute and node.attributeLevel and { [node.attribute] = node.attributeLevel }) or nil,
+					}
 				end
-				
-				-- 명시?으??로???자??기반 ?셔?리?구축 (JSON 문자?????류 ?천 차단)
-				normalizedSlots[numKey] = {
-					itemId = node.itemId,
-					count = node.count or 1,
-					durability = node.durability,
-					attributes = (node.attributes) or (node.attribute and node.attributeLevel and { [node.attribute] = node.attributeLevel }) or nil,
-				}
 			end
 		end
 	end
-end
+
+	if hasRawInventoryItems(savedInv) and next(normalizedSlots) == nil then
+		warn(string.format(
+			"[InventoryService] BLOCKED empty inventory creation for user %d: raw inventory existed but parsed 0 slots",
+			userId
+		))
+		return nil
+	end
 	
 	if savedEquip then
 		for _, node in pairs(savedEquip) do
@@ -2649,6 +2681,29 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 					warn(string.format("[Purchase] Failed to award gold to player %s - %s", player.Name, tostring(err)))
 				else
 					warn(string.format("[Purchase] Gold service unavailable or invalid amount for product %s (player=%s, amount=%s)", productId, player.Name, tostring(amount)))
+				end
+				return Enum.ProductPurchaseDecision.NotProcessedYet
+			elseif productData.rewardType == "CRAFT_SPEEDUP" then
+				local craftId = player:GetAttribute("PendingInstantCompleteCraftId")
+				if craftId and craftId ~= "" then
+					local CraftingService = nil
+					pcall(function()
+						CraftingService = require(ServerScriptService.Server.Services.CraftingService)
+					end)
+					if CraftingService then
+						local ok, err, data = CraftingService.instantComplete(player, craftId)
+						if ok then
+							player:SetAttribute("PendingInstantCompleteCraftId", nil)
+							print(string.format("[Purchase] Successfully speeded up craft %s for player %s via product %s", craftId, player.Name, productId))
+							return Enum.ProductPurchaseDecision.PurchaseGranted
+						else
+							warn(string.format("[Purchase] Failed to speed up craft %s for player %s: %s", craftId, player.Name, tostring(err)))
+						end
+					else
+						warn("[Purchase] CraftingService not found for speedup")
+					end
+				else
+					warn(string.format("[Purchase] No PendingInstantCompleteCraftId found for player %s on speedup purchase", player.Name))
 				end
 				return Enum.ProductPurchaseDecision.NotProcessedYet
 			elseif productData.itemId then

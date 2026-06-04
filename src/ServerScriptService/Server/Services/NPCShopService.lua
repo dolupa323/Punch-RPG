@@ -847,27 +847,40 @@ function NPCShopService.buy(userId: number, shopId: string, itemId: string, coun
 		return false, Enums.ErrorCode.INTERNAL_ERROR
 	end
 	
-	local added, remaining = InventoryService.addItem(userId, itemId, count)
-	if added <= 0 then
+	-- 1. 인벤토리 공간 사전 검증
+	if not InventoryService.canAdd(userId, itemId, count) then
 		return false, Enums.ErrorCode.INV_FULL
 	end
-	
-	-- 실제 추가된 수량만큼 비용 재계산
-	local actualCost = price * added
-	
-	-- 골드 차감
-	playerGold[userId] = currentGold - actualCost
-	_savePlayerGold(userId)
-	_emitGoldChanged(userId)
-	
-	-- 재고 차감 (실제 추가된 만큼만)
+
+	-- 2. 골드 선차감
+	local deductOk, deductErr = NPCShopService.removeGold(userId, totalCost)
+	if not deductOk then
+		return false, deductErr or Enums.ErrorCode.INSUFFICIENT_GOLD
+	end
+
+	-- 3. 아이템 지급
+	local added, remaining = InventoryService.addItem(userId, itemId, count)
+	if added <= 0 then
+		-- 아이템 지급 실패: 전액 환불(롤백)
+		NPCShopService.addGold(userId, totalCost)
+		return false, Enums.ErrorCode.INV_FULL
+	end
+
+	-- 4. 만약 부분적으로만 추가되었다면 미지급분에 대한 부분 환불(롤백)
+	if remaining > 0 then
+		local refundAmount = remaining * price
+		NPCShopService.addGold(userId, refundAmount)
+		warn(string.format("[NPCShopService] Partial purchase rollback: refunded %d gold for %d unadded items", refundAmount, remaining))
+	end
+
+	-- 5. 재고 차감 (실제 추가된 만큼만)
 	local stock = shopStock[shopId][itemIndex]
 	if stock ~= nil and stock > 0 then
 		shopStock[shopId][itemIndex] = stock - added
 	end
 	
 	print(string.format("[NPCShopService] Player %d bought %dx %s from %s (cost: %d)", 
-		userId, added, itemId, shopId, actualCost))
+		userId, added, itemId, shopId, price * added))
 
 	if questPurchaseCallback then
 		task.spawn(function()
@@ -1082,9 +1095,11 @@ local function _onPlayerAdded(player: Player)
 	-- 데이터 주입은 SaveService.PlayerSaveLoaded 에서 처리됨
 end
 
-local function _onPlayerRemoving(player: Player)
-	local userId = player.UserId
+function NPCShopService.flushToSaveState(userId: number)
 	_savePlayerGold(userId)
+end
+
+function NPCShopService.cleanup(userId: number)
 	playerGold[userId] = nil
 	playerGoldHydrated[userId] = nil
 end
@@ -1114,9 +1129,8 @@ function NPCShopService.Init(netController: any, dataService: any, inventoryServ
 	_loadShopData()
 	_spawnWorldShopNPCs()
 	
-	-- 플레이어 이벤트
+	-- 플레이어 이벤트 (PlayerRemoving 리스너 제거, SaveService에서 통합 처리)
 	Players.PlayerAdded:Connect(_onPlayerAdded)
-	Players.PlayerRemoving:Connect(_onPlayerRemoving)
 	
 	-- [신규 아키텍처] SaveService 완료 이벤트 연동
 	SaveService.PlayerSaveLoaded.Event:Connect(function(userId, state)

@@ -46,7 +46,52 @@ for _, entry in ipairs(FacilityData) do
 end
 
 local function _canAccessStorage(player: Player, storageId: string): boolean
-	-- [Simplified] RPG 모드: 모든 유저 창고 접근 허용
+	if not storageId or type(storageId) ~= "string" then
+		return false
+	end
+
+	-- facilitiesFolder 내에 해당 storageId 모델이 실제로 존재하는지 검증
+	local facilitiesFolder = workspace:FindFirstChild("Facilities")
+	if not facilitiesFolder then
+		return false
+	end
+
+	local model = facilitiesFolder:FindFirstChild(storageId)
+	if not model then
+		-- NPCs 폴더 내부도 폴백으로 체크 (만약 상인이나 특수 NPC 상자가 있을 경우를 대비)
+		local npcsFolder = workspace:FindFirstChild("NPCs")
+		if npcsFolder then
+			model = npcsFolder:FindFirstChild(storageId)
+		end
+	end
+
+	if not model then
+		return false
+	end
+
+	-- 플레이어 캐릭터와의 거리 검사 (최대 30 studs)
+	local character = player.Character
+	if not character then
+		return false
+	end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return false
+	end
+
+	local modelPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true) or model
+	if not modelPart then
+		return false
+	end
+
+	local position = modelPart:IsA("BasePart") and modelPart.Position or model:GetPivot().Position
+	local dist = (hrp.Position - position).Magnitude
+	if dist > 30 then
+		warn(string.format("[StorageService] Access denied for %s: out of range (dist=%.1f)", player.Name, dist))
+		return false
+	end
+
 	return true
 end
 
@@ -211,7 +256,17 @@ function StorageService.open(player: Player, storageId: string): (boolean, strin
 		return false, Enums.ErrorCode.NO_PERMISSION, nil
 	end
 	
-	local storage = _getOrCreateStorage(storageId)
+	local storage = _getStorage(storageId)
+	if not storage then
+		-- 월드에는 존재하나 데이터가 아직 없는 경우에만 새로 생성 허용
+		local facilitiesFolder = workspace:FindFirstChild("Facilities")
+		local existsInWorld = facilitiesFolder and facilitiesFolder:FindFirstChild(storageId)
+		if existsInWorld then
+			storage = _getOrCreateStorage(storageId)
+		else
+			return false, Enums.ErrorCode.NOT_FOUND, nil
+		end
+	end
 	
 	-- 슬롯 데이터 변환
 	local slots = {}
@@ -288,10 +343,13 @@ function StorageService.move(
 		return false, Enums.ErrorCode.NO_PERMISSION, nil
 	end
 	
-	-- 컨테이너 참조 가져오기
-	local storage = _getOrCreateStorage(storageId)
+	-- 컨테이너 참조 가져오기 (원격 요청이므로 생성 금지)
+	local storage = _getStorage(storageId)
+	if not storage then
+		return false, Enums.ErrorCode.NOT_FOUND, nil
+	end
+
 	local playerInv = InventoryService.getInventory(userId)
-	
 	if not playerInv then
 		return false, Enums.ErrorCode.NOT_FOUND, nil
 	end
@@ -350,6 +408,12 @@ function StorageService.move(
 			userId = userId,
 			changes = invChanges,
 		})
+		-- 인벤토리 즉시 동기화
+		SaveService.updatePlayerState(userId, function(state)
+			state.inventory = playerInv.slots
+			state.equipment = playerInv.equipment
+			return state
+		end)
 	end
 	
 	-- 2. 창고 변경 시 Storage.Changed (모든 클라이언트에게)
@@ -397,7 +461,11 @@ function StorageService.moveGold(player: Player, storageId: string, sourceType: 
 		return false, Enums.ErrorCode.NO_PERMISSION, nil
 	end
 
-	local storage = _getOrCreateStorage(storageId)
+	local storage = _getStorage(storageId)
+	if not storage then
+		return false, Enums.ErrorCode.NOT_FOUND, nil
+	end
+
 	local goldService = _getGoldService()
 	local userId = player.UserId
 	local available = sourceType == "player" and goldService.getGold(userId) or (storage.gold or 0)
@@ -524,6 +592,7 @@ function StorageService.addItemInternal(storageId: string, itemId: string, count
 	
 	-- 변경 사항 브로드캐스트
 	if #changes > 0 then
+		_markStorageDirty(storageId)
 		_emitStorageChanged(storageId, changes)
 	end
 	
@@ -535,6 +604,9 @@ end
 --========================================
 
 local function handleOpen(player: Player, payload: any)
+	if not player:GetAttribute("DataLoaded") then
+		return { success = false, errorCode = "NOT_LOADED" }
+	end
 	local storageId = payload.storageId
 	
 	local success, errorCode, data = StorageService.open(player, storageId)
@@ -546,6 +618,9 @@ local function handleOpen(player: Player, payload: any)
 end
 
 local function handleClose(player: Player, payload: any)
+	if not player:GetAttribute("DataLoaded") then
+		return { success = false, errorCode = "NOT_LOADED" }
+	end
 	local storageId = payload.storageId
 	
 	local success, errorCode, data = StorageService.close(player, storageId)
@@ -557,6 +632,9 @@ local function handleClose(player: Player, payload: any)
 end
 
 local function handleMove(player: Player, payload: any)
+	if not player:GetAttribute("DataLoaded") then
+		return { success = false, errorCode = "NOT_LOADED" }
+	end
 	local storageId = payload.storageId
 	local sourceType = payload.sourceType
 	local sourceSlot = payload.sourceSlot
@@ -575,6 +653,9 @@ local function handleMove(player: Player, payload: any)
 end
 
 local function handleMoveGold(player: Player, payload: any)
+	if not player:GetAttribute("DataLoaded") then
+		return { success = false, errorCode = "NOT_LOADED" }
+	end
 	local storageId = payload.storageId
 	local sourceType = payload.sourceType
 	local amount = payload.amount

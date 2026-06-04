@@ -11,7 +11,7 @@ local MobSpawnData = {
 		attackCooldown = 1.5, -- 공격 주기(초)
 		respawnDelay = 1.0,
 		modelScale = 0.8,
-		xpReward = 45, -- 슬라임 처치 시 기본 경험치
+		xpReward = 10, -- 슬라임 처치 시 기본 경험치 (하향)
 		
 		-- [활성화]: 4개의 좌표를 꼭짓점 삼아 그 '내부 영역 전체'에 무작위 랜덤 스폰합니다!
 		spawnAsPolygon = true, 

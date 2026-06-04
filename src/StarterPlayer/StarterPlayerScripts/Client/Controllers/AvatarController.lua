@@ -647,12 +647,15 @@ local function handleLMBAttack()
 
 	-- [Data-Driven 무기 및 콤보 정보 획득]
 	local WeaponComboData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("WeaponComboData"))
-	local equippedWeapon = player:GetAttribute("EquippedWeapon") or "WOODEN_STAFF"
+	local equippedWeapon = player:GetAttribute("EquippedWeapon")
+	if not equippedWeapon or equippedWeapon == "" then
+		equippedWeapon = "NONE"
+	end
 	local weaponData = WeaponComboData[equippedWeapon]
 	if not weaponData then return end
 
 	-- 무기 장착 확인 (실물 3D Accessory 또는 어트리뷰트 감지)
-	local hasStaff = char:FindFirstChild(equippedWeapon) or player:GetAttribute("EquippedWeapon") == equippedWeapon
+	local hasStaff = (equippedWeapon == "NONE") or char:FindFirstChild(equippedWeapon) or player:GetAttribute("EquippedWeapon") == equippedWeapon
 	if not hasStaff then return end
 
 	attackCooldown = true
@@ -821,6 +824,11 @@ local function handleLMBAttack()
 		attackRemote:FireServer({targetModel = targetMob, combo = comboIndex})
 	end
 end
+
+function AvatarController.attack()
+	handleLMBAttack()
+end
+
 
 
 

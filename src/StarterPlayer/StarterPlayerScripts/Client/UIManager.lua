@@ -28,6 +28,8 @@ local DragDropController = require(Controllers:WaitForChild("DragDropController"
 local InteractController = require(Controllers:WaitForChild("InteractController"))
 local SkillController = require(Controllers:WaitForChild("SkillController"))
 
+local NavigationController = require(Controllers:WaitForChild("NavigationController"))
+
 -- UI Modules
 local UI = script.Parent:WaitForChild("UI")
 local Theme = require(UI:WaitForChild("UITheme"))
@@ -312,7 +314,10 @@ function UIManager.updateLevel(lvl)
 end
 function UIManager.updateStatPoints(pts) HUDUI.UpdateStatPoints(pts) end
 function UIManager.setTutorialVisible(visible) HUDUI.SetTutorialVisible(visible) end
-function UIManager.updateTutorialStatus(status) HUDUI.UpdateTutorialStatus(status) end
+function UIManager.updateTutorialStatus(status)
+	HUDUI.UpdateTutorialStatus(status)
+	NavigationController.UpdateTutorialStatus(status)
+end
 
 function UIManager.getPendingStatCount(statId)
 	return pendingStats[statId] or 0
@@ -1193,17 +1198,11 @@ function UIManager._DoInstantComplete(craftId)
 		})
 		
 		if resultOk and response and response.success ~= false then
-			UIManager.notify("즉시 완료 되었습니다! 이제 수령할 수 있습니다.", Color3.fromRGB(50, 255, 100))
-			
-			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
-			if ok and qRes and qRes.queue then
-				ActiveCraftQueue = qRes.queue
-			else
-				ActiveCraftQueue = {}
-			end
-			UIManager.RefreshWeaponCrafting()
+			local MarketplaceService = game:GetService("MarketplaceService")
+			local Players = game:GetService("Players")
+			MarketplaceService:PromptProductPurchase(Players.LocalPlayer, 3602616787)
 		else
-			UIManager.notify("즉시 완료 실패", Color3.fromRGB(255, 75, 50))
+			UIManager.notify("즉시 완료 요청 실패", Color3.fromRGB(255, 75, 50))
 		end
 	end)
 end

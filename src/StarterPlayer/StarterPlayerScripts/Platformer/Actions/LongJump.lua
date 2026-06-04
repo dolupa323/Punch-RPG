@@ -84,7 +84,13 @@ function Action.perform(characterController)
 
 		-- If the character starts swimming or climbing, finish
 		if characterController:isSwimming() or characterController:isClimbing() then
-			finish()
+			characterController:setAction("None")
+			return
+		end
+
+		-- Safety timeout: if we've been long jumping for too long (e.g., stuck against a wall in the air), force end it
+		if characterController:getTimeSinceAction("LongJump") > 1.0 then
+			characterController:setAction("None")
 			return
 		end
 	end

@@ -1006,6 +1006,160 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs.consumableSlots[i] = slot
 	end
 
+	-- UI Assets Folder check
+	local uiAssets = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("UI")
+	local function getIconImage(name)
+		if not uiAssets then return nil end
+		local asset = uiAssets:FindFirstChild(name)
+		if not asset then return nil end
+		if asset:IsA("ImageLabel") or asset:IsA("ImageAsset") then
+			return asset.Image
+		elseif asset:IsA("Decal") then
+			return asset.Texture
+		end
+		return nil
+	end
+
+	-- 5. Mobile/Universal Attack Button (Styled to match other slots)
+	local attackSlot = Utils.mkSlot({
+		name = "AttackSlot",
+		size = UDim2.new(0, 48, 0, 48),
+		bg = C.BG_SLOT,
+		bgT = 0.4,
+		r = 6,
+		z = 10,
+		parent = parent
+	})
+	
+	local attackIconId = getIconImage("Attack")
+	if attackIconId and attackIconId ~= "" then
+		attackSlot.icon.Image = attackIconId
+		attackSlot.icon.Visible = true
+	else
+		attackSlot.icon.Visible = false
+	end
+	
+	local attackLabel = Utils.mkLabel({
+		text = attackIconId and "" or "공격",
+		size = UDim2.new(1, 0, 1, 0),
+		font = F.TITLE,
+		color = C.WHITE,
+		ts = 13,
+		z = 12,
+		parent = attackSlot.frame
+	})
+	attackLabel.TextScaled = true
+
+	if attackSlot.click then
+		attackSlot.click.MouseButton1Down:Connect(function()
+			triggerScale(attackSlot.frame)
+		end)
+		attackSlot.click.Activated:Connect(function()
+			local AvatarCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("AvatarController"))
+			if AvatarCtrl and AvatarCtrl.attack then
+				AvatarCtrl.attack()
+			end
+		end)
+	end
+
+	-- 6. Mobile/Universal Jump Button (Styled to match other slots)
+	local jumpSlot = Utils.mkSlot({
+		name = "JumpSlot",
+		size = UDim2.new(0, 48, 0, 48),
+		bg = C.BG_SLOT,
+		bgT = 0.4,
+		r = 6,
+		z = 10,
+		parent = parent
+	})
+	
+	local jumpIconId = getIconImage("Jump")
+	if jumpIconId and jumpIconId ~= "" then
+		jumpSlot.icon.Image = jumpIconId
+		jumpSlot.icon.Visible = true
+	else
+		jumpSlot.icon.Visible = false
+	end
+
+	local jumpLabel = Utils.mkLabel({
+		text = jumpIconId and "" or "점프",
+		size = UDim2.new(1, 0, 1, 0),
+		font = F.TITLE,
+		color = C.WHITE,
+		ts = 13,
+		z = 12,
+		parent = jumpSlot.frame
+	})
+	jumpLabel.TextScaled = true
+
+	if jumpSlot.click then
+		jumpSlot.click.MouseButton1Down:Connect(function()
+			triggerScale(jumpSlot.frame)
+		end)
+		jumpSlot.click.Activated:Connect(function()
+			if _G.PlatformerJump then
+				_G.PlatformerJump()
+			else
+				-- Fallback attribute if not loaded yet
+				local Players = game:GetService("Players")
+				local localPlayer = Players.LocalPlayer
+				local char = localPlayer and localPlayer.Character
+				if char then
+					char:SetAttribute("JumpRequested", true)
+				end
+			end
+		end)
+	end
+
+	-- 7. Mobile/Universal Dash Button (Styled to match other slots)
+	local dashSlot = Utils.mkSlot({
+		name = "DashSlot",
+		size = UDim2.new(0, 48, 0, 48),
+		bg = C.BG_SLOT,
+		bgT = 0.4,
+		r = 6,
+		z = 10,
+		parent = parent
+	})
+	
+	local dashIconId = getIconImage("Dash")
+	if dashIconId and dashIconId ~= "" then
+		dashSlot.icon.Image = dashIconId
+		dashSlot.icon.Visible = true
+	else
+		dashSlot.icon.Visible = false
+	end
+
+	local dashLabel = Utils.mkLabel({
+		text = dashIconId and "" or "대쉬",
+		size = UDim2.new(1, 0, 1, 0),
+		font = F.TITLE,
+		color = C.WHITE,
+		ts = 13,
+		z = 12,
+		parent = dashSlot.frame
+	})
+	dashLabel.TextScaled = true
+
+	if dashSlot.click then
+		dashSlot.click.MouseButton1Down:Connect(function()
+			triggerScale(dashSlot.frame)
+		end)
+		dashSlot.click.Activated:Connect(function()
+			if _G.PlatformerSpecial then
+				_G.PlatformerSpecial()
+			else
+				-- Fallback attribute if not loaded yet
+				local Players = game:GetService("Players")
+				local localPlayer = Players.LocalPlayer
+				local char = localPlayer and localPlayer.Character
+				if char then
+					char:SetAttribute("SpecialRequested", true)
+				end
+			end
+		end)
+	end
+
 	local function syncConsumableHotbarPosition()
 		if not mainAnchor or not consumableFrame then return end
 		local ap = mainAnchor.AbsolutePosition
@@ -1016,6 +1170,40 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			0, (ap.X + as.X) / scale + 12,
 			0, ap.Y / scale + as.Y * 0.35
 		)
+
+		-- Get the viewport size to prevent buttons from going off-screen
+		local camera = workspace.CurrentCamera
+		local vpSize = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		local screenWidth = vpSize.X / scale
+
+		local attackX = (ap.X + as.X) / scale + 90
+		local jumpX = attackX + 48 + 8
+		local dashX = jumpX + 48 + 8
+
+		-- If the buttons would go off-screen, align them from the right edge of the screen instead
+		if dashX + 48 > screenWidth - 10 then
+			dashX = screenWidth - 16 - 48
+			jumpX = dashX - 8 - 48
+			attackX = jumpX - 8 - 48
+		end
+
+		if attackSlot and attackSlot.frame then
+			attackSlot.frame.Position = UDim2.new(0, attackX, 0, ap.Y / scale + as.Y * 0.35)
+		end
+
+		if jumpSlot and jumpSlot.frame then
+			jumpSlot.frame.Position = UDim2.new(
+				0, (ap.X + as.X) / scale + 90 + 48 + 8,
+				0, ap.Y / scale + as.Y * 0.35
+			)
+		end
+
+		if dashSlot and dashSlot.frame then
+			dashSlot.frame.Position = UDim2.new(
+				0, (ap.X + as.X) / scale + 90 + 48 + 8 + 48 + 8,
+				0, ap.Y / scale + as.Y * 0.35
+			)
+		end
 	end
 
 	mainAnchor:GetPropertyChangedSignal("AbsolutePosition"):Connect(syncConsumableHotbarPosition)
@@ -1599,20 +1787,27 @@ local function _setReadyPulse(ready)
 		if stroke then
 			stroke.Color = Color3.fromRGB(60, 85, 130)
 			stroke.Transparency = 0.05
+			tutorialPulseTween = TweenService:Create(
+				stroke,
+				TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ Color = Color3.fromRGB(240, 190, 60), Transparency = 0.1 }
+			)
+			tutorialPulseTween:Play()
 		end
 		if HUDUI.Refs.tutorialReadyHint then
-			HUDUI.Refs.tutorialReadyHint.Visible = false
+			HUDUI.Refs.tutorialReadyHint.Visible = true
+			HUDUI.Refs.tutorialReadyHint.Text = UILocalizer.Localize("클릭/터치하여 완료")
 			HUDUI.Refs.tutorialReadyHint.TextTransparency = 0
 			tutorialHintPulseTween = TweenService:Create(
 				HUDUI.Refs.tutorialReadyHint,
-				TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-				{ TextTransparency = 0.82 }
+				TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ TextTransparency = 0.5 }
 			)
 			tutorialHintPulseTween:Play()
 		end
 
 		if HUDUI.Refs.tutorialClickArea then
-			HUDUI.Refs.tutorialClickArea.BackgroundTransparency = 1
+			HUDUI.Refs.tutorialClickArea.Active = true
 		end
 	else
 		HUDUI.Refs.tutorialFrame.BackgroundTransparency = 0
@@ -1625,7 +1820,7 @@ local function _setReadyPulse(ready)
 			HUDUI.Refs.tutorialReadyHint.TextTransparency = 0
 		end
 		if HUDUI.Refs.tutorialClickArea then
-			HUDUI.Refs.tutorialClickArea.BackgroundTransparency = 1
+			HUDUI.Refs.tutorialClickArea.Active = false
 		end
 	end
 end
@@ -1698,6 +1893,13 @@ function HUDUI.UpdateTutorialStatus(status)
 	HUDUI.Refs.tutorialProgress.Visible = false
 	HUDUI.Refs.tutorialReward.Visible = false
 	
+	local done = status.progress and status.progress.done == true
+
+	local progressText = ""
+	if status.progress and status.stepCount and status.stepCount > 0 then
+		progressText = string.format(" [%d/%d]", status.progress.count or 0, status.stepCount)
+	end
+
 	local stepLines = {}
 	local currentStepText = localizeTutorialStepField(status, "currentStepText")
 	if currentStepText ~= "" then
@@ -1705,8 +1907,11 @@ function HUDUI.UpdateTutorialStatus(status)
 	end
 	local stepCommand = localizeTutorialStepField(status, "stepCommand")
 	if stepCommand ~= "" then
-		-- '진행도' 단어 제거, 목푯값만 표시
-		table.insert(stepLines, "<font color=\"#B8C7FF\">" .. localizeQuestRuntimeText(stepCommand) .. "</font>")
+		local commandText = localizeQuestRuntimeText(stepCommand)
+		if progressText ~= "" then
+			commandText = commandText .. " <font color=\"#FFFF80\">" .. progressText .. "</font>"
+		end
+		table.insert(stepLines, "<font color=\"#B8C7FF\">" .. commandText .. "</font>")
 	end
 	local rewardText = _buildRewardText(status.rewardPreview or status.reward)
 	if rewardText ~= "" then
@@ -1724,14 +1929,13 @@ function HUDUI.UpdateTutorialStatus(status)
 		HUDUI.Refs.tutorialCompleteBtn.Visible = false
 	end
 	if HUDUI.Refs.tutorialReadyHint then
-		HUDUI.Refs.tutorialReadyHint.Visible = false
+		HUDUI.Refs.tutorialReadyHint.Visible = done
 	end
 	if HUDUI.Refs.tutorialClickArea then
-		HUDUI.Refs.tutorialClickArea.Active = false
+		HUDUI.Refs.tutorialClickArea.Active = done
 	end
-	_setReadyPulse(false)
+	_setReadyPulse(done)
 	
-	-- 접힌 상태 레이아웃 강제 업데이트
 	if isTutorialMinimized then
 		for _, child in ipairs(HUDUI.Refs.tutorialFrame:GetChildren()) do
 			if child.Name ~= "TutorialTitle" and child.Name ~= "MinimizeBtn" and child:IsA("GuiObject") and child.Name ~= "UIGradient" then

@@ -57,20 +57,14 @@ local STEP_DEFS = {
 		stepKind = "KILL",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "슬라임"))
-		end,
 	},
 	[3] = {
 		id = "COLLECT_SLIME_MUCUS",
 		currentStepText = "3. 슬라임 점액 모으기",
-		stepCommand = "슬라임 점액 10개를 모아 말랑봉 재료를 준비하세요.",
+		stepCommand = "슬라임 점액 10개를 모으세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 10,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "SLIME_MUCUS"))
-		end,
 	},
 	[4] = {
 		id = "CRAFT_SOFTCLUB",
@@ -79,20 +73,14 @@ local STEP_DEFS = {
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "SoftClub") and 1 or 0)
-		end,
 	},
 	[5] = {
 		id = "KILL_HORNED_LARVA",
 		currentStepText = "5. 뿔 애벌레 잡기",
-		stepCommand = "뿔 애벌레 1마리를 처치하세요.",
+		stepCommand = "뿔 애벌레 15마리를 처치하세요.",
 		stepKind = "KILL",
-		stepCount = 1,
+		stepCount = 15,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "뿔 애벌레"))
-		end,
 	},
 	[6] = {
 		id = "CRAFT_GAKCHANG",
@@ -101,9 +89,6 @@ local STEP_DEFS = {
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "Gakchang") and 1 or 0)
-		end,
 	},
 	[7] = {
 		id = "ENHANCE_GAKCHANG",
@@ -112,9 +97,6 @@ local STEP_DEFS = {
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _hasEnhancedItem(userId, "Gakchang", 1) and 1 or 0)
-		end,
 	},
 	[8] = {
 		id = "BUY_POTION",
@@ -123,9 +105,6 @@ local STEP_DEFS = {
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, tonumber(progress.count) or 0)
-		end,
 	},
 	[9] = {
 		id = "KILL_STUMP",
@@ -134,9 +113,6 @@ local STEP_DEFS = {
 		stepKind = "KILL",
 		stepCount = 1,
 		rewardGold = 100,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _getMobKillCount(userId, "스텀프"))
-		end,
 	},
 	[10] = {
 		id = "CRAFT_MOGWOLDO",
@@ -145,9 +121,6 @@ local STEP_DEFS = {
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 200,
-		sync = function(userId, state, progress)
-			progress.count = math.max(progress.count or 0, _hasInventoryOrEquipItem(userId, "Mogwoldo") and 1 or 0)
-		end,
 	},
 }
 
@@ -446,49 +419,51 @@ local function _grantCurrentStepReward(userId: number, stepIndex: number)
 	end
 end
 
-local function _advanceIfSatisfied(userId: number, reason: string?)
+local function _updateProgressAndSync(userId: number)
 	local state = _ensureState(userId)
-	if not state or state.completed then
+	if not state then
 		return
 	end
 
-	local changed = false
-	while not state.completed do
-		local stepIndex = math.clamp(state.stepIndex or 1, 1, TOTAL_STEPS)
-		_syncStepProgress(userId, state, stepIndex)
-		local progress = _getStepProgress(state, stepIndex)
-		if progress.done ~= true and progress.count < ((_getStepDef(stepIndex) and _getStepDef(stepIndex).stepCount) or 1) then
-			break
-		end
+	local stepIndex = math.clamp(state.stepIndex or 1, 1, TOTAL_STEPS)
+	_syncStepProgress(userId, state, stepIndex)
+	_persistState(userId)
+	_broadcastStatus(userId)
+end
 
-		if not progress.done then
-			progress.done = true
-			state.progressByStep[stepIndex] = progress
-		end
+local function _tryCompleteStep(userId: number): boolean
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return false
+	end
 
+	local stepIndex = math.clamp(state.stepIndex or 1, 1, TOTAL_STEPS)
+	_syncStepProgress(userId, state, stepIndex)
+	local progress = _getStepProgress(state, stepIndex)
+	local stepDef = _getStepDef(stepIndex)
+
+	if progress.done or (stepDef and progress.count >= (stepDef.stepCount or 1)) then
 		_grantCurrentStepReward(userId, stepIndex)
-		changed = true
 
 		if stepIndex >= TOTAL_STEPS then
 			state.completed = true
 			state.active = false
 			state.completedAt = os.time()
 			state.stepIndex = TOTAL_STEPS
-			break
+		else
+			state.stepIndex = stepIndex + 1
+			state.active = true
+			local nextProgress = _getStepProgress(state, state.stepIndex)
+			nextProgress.count = 0
+			nextProgress.done = false
 		end
 
-		state.stepIndex = stepIndex + 1
-		state.active = true
-		state.progressByStep[state.stepIndex] = _getStepProgress(state, state.stepIndex)
-	end
-
-	if changed then
 		_persistState(userId)
 		_broadcastStatus(userId)
-	else
-		-- 퀘스트는 유지 중이지만, 현재 step이 이미 달성되어 있으면 상태를 바로 갱신
-		_broadcastStatus(userId)
+		return true
 	end
+
+	return false
 end
 
 local function _forceReset(userId: number)
@@ -537,17 +512,16 @@ local function _ensurePlayerHook(player: Player)
 	local function attachElementWatcher()
 		local current = player:GetAttribute("Element")
 		if type(current) == "string" and current ~= "" and current ~= "None" then
-			_advanceIfSatisfied(userId, "element")
+			_updateProgressAndSync(userId)
 		else
 			_broadcastStatus(userId)
 		end
 	end
 
 	table.insert(playerConnections[userId], player:GetAttributeChangedSignal("Element"):Connect(function()
-		_advanceIfSatisfied(userId, "element")
+		_updateProgressAndSync(userId)
 	end))
 
-	-- 저장 데이터가 아직 완전히 올라오기 전일 수 있으니, 아주 짧게 한 번 더 확인
 	task.delay(0.3, function()
 		if player.Parent then
 			attachElementWatcher()
@@ -569,7 +543,7 @@ local function _cleanupPlayer(userId: number)
 end
 
 function TutorialQuestService.OnElementChanged(userId: number)
-	_advanceIfSatisfied(userId, "element")
+	_updateProgressAndSync(userId)
 end
 
 function TutorialQuestService.OnMobKilled(userId: number, mobDisplayName: string)
@@ -582,17 +556,17 @@ function TutorialQuestService.OnMobKilled(userId: number, mobDisplayName: string
 	local progress = _getStepProgress(state, stepIndex)
 
 	if stepIndex == 2 and mobDisplayName == "슬라임" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = (progress.count or 0) + 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "kill_slime")
+		_updateProgressAndSync(userId)
 	elseif stepIndex == 5 and mobDisplayName == "뿔 애벌레" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = (progress.count or 0) + 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "kill_larva")
+		_updateProgressAndSync(userId)
 	elseif stepIndex == 9 and mobDisplayName == "스텀프" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = (progress.count or 0) + 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "kill_stump")
+		_updateProgressAndSync(userId)
 	end
 end
 
@@ -607,10 +581,10 @@ function TutorialQuestService.OnItemAdded(userId: number, itemId: string, added:
 	end
 
 	local progress = _getStepProgress(state, 3)
-	progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "SLIME_MUCUS"))
+	progress.count = (progress.count or 0) + added
 	state.progressByStep[3] = progress
 	_persistState(userId)
-	_advanceIfSatisfied(userId, "collect_slime_mucus")
+	_updateProgressAndSync(userId)
 end
 
 function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
@@ -623,17 +597,17 @@ function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
 	local progress = _getStepProgress(state, stepIndex)
 
 	if stepIndex == 4 and recipeId == "CraftSoftClub" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "craft_softclub")
+		_updateProgressAndSync(userId)
 	elseif stepIndex == 6 and recipeId == "CraftGakchang" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "craft_gakchang")
+		_updateProgressAndSync(userId)
 	elseif stepIndex == 10 and recipeId == "CraftMogwoldo" then
-		progress.count = math.max(progress.count or 0, 1)
+		progress.count = 1
 		state.progressByStep[stepIndex] = progress
-		_advanceIfSatisfied(userId, "craft_mogwoldo")
+		_updateProgressAndSync(userId)
 	end
 end
 
@@ -652,9 +626,9 @@ function TutorialQuestService.OnShopPurchased(userId: number, shopId: string, it
 	end
 
 	local progress = _getStepProgress(state, 8)
-	progress.count = math.max(progress.count or 0, (tonumber(progress.count) or 0) + math.max(1, math.floor(tonumber(count) or 1)))
+	progress.count = (progress.count or 0) + math.max(1, math.floor(tonumber(count) or 1))
 	state.progressByStep[8] = progress
-	_advanceIfSatisfied(userId, "buy_potion")
+	_updateProgressAndSync(userId)
 end
 
 function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string, newLevel: number)
@@ -672,20 +646,20 @@ function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string,
 	end
 
 	local progress = _getStepProgress(state, 7)
-	progress.count = math.max(progress.count or 0, 1)
+	progress.count = 1
 	state.progressByStep[7] = progress
-	_advanceIfSatisfied(userId, "enhance_gakchang")
+	_updateProgressAndSync(userId)
 end
 
 function TutorialQuestService.StartForPlayer(userId: number)
 	_ensureState(userId)
-	_advanceIfSatisfied(userId, "start")
+	_updateProgressAndSync(userId)
 	return _buildStatus(userId)
 end
 
 function TutorialQuestService.GetStatus(userId: number)
 	_ensureState(userId)
-	_advanceIfSatisfied(userId, "status")
+	_updateProgressAndSync(userId)
 	return _buildStatus(userId)
 end
 
@@ -762,7 +736,7 @@ function TutorialQuestService.Init(_NetController, _SaveService, _InventoryServi
 				_ensurePlayerHook(player)
 			end
 			_ensureState(userId)
-			_advanceIfSatisfied(userId, "player_loaded")
+			_updateProgressAndSync(userId)
 		end)
 	end
 
@@ -799,7 +773,7 @@ function TutorialQuestService.GetHandlers()
 				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 			end
 
-			_advanceIfSatisfied(player.UserId, "manual_complete")
+			_tryCompleteStep(player.UserId)
 			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 		end,
 		["Tutorial.Admin.Reset.Request"] = function(player, _payload)
@@ -846,7 +820,7 @@ function TutorialQuestService.GetHandlers()
 			if not state or state.completed then
 				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 			end
-			_advanceIfSatisfied(player.UserId, "quest_complete")
+			_tryCompleteStep(player.UserId)
 			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 		end,
 		["Quest.GetStatus.Request"] = function(player, _payload)
@@ -857,7 +831,7 @@ function TutorialQuestService.GetHandlers()
 			if not state or state.completed then
 				return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 			end
-			_advanceIfSatisfied(player.UserId, "quest_step_complete")
+			_tryCompleteStep(player.UserId)
 			return { success = true, data = TutorialQuestService.GetStatus(player.UserId) }
 		end,
 		["Quest.Admin.Reset.Request"] = function(player, _payload)

@@ -512,7 +512,7 @@ function AvatarService.Init()
 				local equipment = InventoryService and InventoryService.getEquipment(userId)
 				local equippedWeapon = equipment and equipment.HAND
 				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
-				local baseDamage = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
+				local baseDamage = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 1
 				
 				if equippedWeapon then
 					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100

@@ -15,6 +15,40 @@ local NetController = {}
 local requestCache = {}
 local REQUEST_TTL = 10
 
+local ADMIN_COMMANDS = {
+	["Save.Now"] = true,
+	["Time.Warp"] = true,
+	["Time.WarpToPhase"] = true,
+	["Time.Debug"] = true,
+	["Inventory.GiveItem"] = true,
+	["Craft.InstantComplete.Request"] = true,
+	["Shop.Admin.GrantGold.Request"] = true,
+	["GamePass.DebugForceApply.Request"] = true,
+	["GamePass.DebugForceDisable.Request"] = true,
+	["Tutorial.Admin.Reset.Request"] = true,
+	["Tutorial.Admin.SetStep.Request"] = true,
+	["Tutorial.Admin.ForceStart.Request"] = true,
+	["Quest.Admin.Reset.Request"] = true,
+	["Skill.Reset.Request"] = true,
+	["Admin.FullReset.Request"] = true,
+	["Admin.SetLevel.Request"] = true,
+	["Admin.GiveEnhanceSet.Request"] = true,
+	["Admin.GiveItem.Request"] = true,
+	["Admin.SetElement.Request"] = true,
+}
+
+local function isAdmin(player: Player): boolean
+	if game:GetService("RunService"):IsStudio() then
+		return true
+	end
+
+	if Balance.ADMIN_IDS and Balance.ADMIN_IDS[player.UserId] == true then
+		return true
+	end
+
+	return player.UserId == game.CreatorId
+end
+
 -- RemoteFunction / RemoteEvent 인스턴스
 local Cmd: RemoteFunction
 local Evt: RemoteEvent
@@ -27,17 +61,17 @@ Handlers["Net.Ping"] = function(player, payload)
 	return { ok = true }
 end
 
--- Echo 핸들러
-Handlers["Net.Echo"] = function(player, payload)
-	return { text = payload.text }
+local function makeRequestKey(player: Player, requestId: string): string
+	return tostring(player.UserId) .. ":" .. tostring(requestId)
 end
 
 -- requestId 중복 체크
-local function isDuplicate(requestId: string): boolean
+local function isDuplicate(player: Player, requestId: string): boolean
 	if not requestId then return false end
 	
 	local now = os.clock()
-	local entry = requestCache[requestId]
+	local key = makeRequestKey(player, requestId)
+	local entry = requestCache[key]
 	
 	if entry and (now - entry) < REQUEST_TTL then
 		return true
@@ -47,17 +81,18 @@ local function isDuplicate(requestId: string): boolean
 end
 
 -- requestId 등록
-local function registerRequest(requestId: string)
+local function registerRequest(player: Player, requestId: string)
 	if not requestId then return end
-	requestCache[requestId] = os.clock()
+	local key = makeRequestKey(player, requestId)
+	requestCache[key] = os.clock()
 end
 
 -- 오래된 requestId 정리 (주기적 호출)
 local function cleanupRequests()
 	local now = os.clock()
-	for id, timestamp in pairs(requestCache) do
+	for key, timestamp in pairs(requestCache) do
 		if (now - timestamp) >= REQUEST_TTL then
-			requestCache[id] = nil
+			requestCache[key] = nil
 		end
 	end
 end
@@ -84,8 +119,16 @@ local function onServerInvoke(player: Player, request)
 		}
 	end
 	
+	-- 어드민 명령어 가드
+	if ADMIN_COMMANDS[command] and not isAdmin(player) then
+		return {
+			success = false,
+			error = Enums.ErrorCode.NO_PERMISSION or "NO_PERMISSION",
+		}
+	end
+	
 	-- requestId 중복 체크
-	if isDuplicate(requestId) then
+	if isDuplicate(player, requestId) then
 		return {
 			success = false,
 			error = Enums.ErrorCode.NET_DUPLICATE_REQUEST,
@@ -93,7 +136,7 @@ local function onServerInvoke(player: Player, request)
 	end
 	
 	-- requestId 등록
-	registerRequest(requestId)
+	registerRequest(player, requestId)
 	
 	-- 핸들러 실행
 	local handler = Handlers[command]

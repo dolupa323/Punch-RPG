@@ -908,8 +908,16 @@ function CraftingService.instantComplete(player: Player, craftId: string)
 	
 	_syncToSave(userId)
 	
-	-- 서버 틱에 의해 바로 Craft.Ready 이벤트가 발생하게 하거나, 여기서 수거(collect) 호출
-	-- 여기선 상태만 즉시 완료로 변경하고 클라이언트가 알아서 수거하게 둠.
+	-- 즉시 완료 상태 알림 발행
+	emitCraftEvent("Craft.Ready", player, {
+		craftId = craftId,
+		recipeId = entry.recipeId,
+		producedCount = entry.completedCount - entry.collectedCount,
+		readyCount = entry.completedCount - entry.collectedCount,
+		batchCount = getBatchCount(entry),
+		completedCount = entry.completedCount,
+	})
+	
 	return true, nil, { craftId = craftId }
 end
 
@@ -1183,9 +1191,9 @@ function CraftingService.GetHandlers()
 			if not craftId or type(craftId) ~= "string" then
 				return { success = false, errorCode = Enums.ErrorCode.BAD_REQUEST }
 			end
-			local success, errorCode, data = CraftingService.instantComplete(player, craftId)
-			if not success then return { success = false, errorCode = errorCode } end
-			return { success = true, data = data }
+			-- Register the pending craft ID on the player attribute for Robux purchase processing
+			player:SetAttribute("PendingInstantCompleteCraftId", craftId)
+			return { success = true }
 		end,
 	}
 end

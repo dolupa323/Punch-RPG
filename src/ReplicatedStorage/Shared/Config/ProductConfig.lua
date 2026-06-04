@@ -57,6 +57,12 @@ local ProductConfig = {
 			amount = 1000,
 			iconName = "Icon_Gold",
 		},
+		["3602616787"] = {
+			name = "제작 즉시 완료",
+			description = "진행 중인 제작 작업을 즉시 완료합니다.",
+			rewardType = "CRAFT_SPEEDUP",
+			iconName = "Icon_Speedup",
+		},
 	}
 }
 

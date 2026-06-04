@@ -38,6 +38,18 @@ local function onCharacterAdded(character: Model)
 	end)
 
 	currentController = controller
+
+	_G.PlatformerJump = function()
+		if currentController then
+			currentController:performAction("BaseJump")
+		end
+	end
+
+	_G.PlatformerSpecial = function()
+		if currentController then
+			currentController:performAction("BaseSpecial")
+		end
+	end
 end
 
 local function onRenderStep(deltaTime: number)
@@ -51,11 +63,14 @@ local function onRenderStep(deltaTime: number)
 	if currentController.humanoid.WalkSpeed ~= 0 then
 		moveDirection = currentController.humanoid:GetMoveVelocity() / currentController.humanoid.WalkSpeed
 	end
-	local isJumping = currentController.humanoid.Jump
+	local isJumping = currentController.humanoid.Jump or currentController.character:GetAttribute("JumpRequested") == true
 	local shouldJump = isJumping and not wasJumping
 
 	-- Reset humanoid Jump to false to disable the default jumping mechanics
 	currentController.humanoid.Jump = false
+	if currentController.character:GetAttribute("JumpRequested") then
+		currentController.character:SetAttribute("JumpRequested", nil)
+	end
 	wasJumping = isJumping
 
 	-- Update our own controller with the move direction
@@ -65,6 +80,12 @@ local function onRenderStep(deltaTime: number)
 	-- If the humanoid was attempting to jump, perform a jump action
 	if shouldJump then
 		currentController:performAction("BaseJump")
+	end
+
+	-- If special action (dash/roll) was requested via attribute, perform it
+	if currentController.character:GetAttribute("SpecialRequested") == true then
+		currentController.character:SetAttribute("SpecialRequested", nil)
+		currentController:performAction("BaseSpecial")
 	end
 end
 

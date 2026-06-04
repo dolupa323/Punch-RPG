@@ -29,7 +29,7 @@ local MAX_SNAPSHOTS = 3       -- 롤백 스냅샷 수
 local SAVE_VERSION = 6        -- 스키마 버전 (v6: 거대 골렘 -> 스텀프 킹 아이템 마이그레이션 적용)
 local PLAYER_LOAD_RETRY_WINDOW = RunService:IsStudio() and 25 or 45
 local PLAYER_LOAD_RETRY_INTERVAL = 2
-local SESSION_LOCK_FORCE_ACQUIRE_DELAY = RunService:IsStudio() and 4 or 10
+local SESSION_LOCK_FORCE_ACQUIRE_DELAY = RunService:IsStudio() and 4 or 45
 local ENABLE_SESSION_LOCK_FORCE_ACQUIRE = true
 -- [수정 #5] 간단화: 3초 이상 안정적이면 강제 획득 시도
 -- (이전: 복잡한 수식으로 계산 → 유지보수 어려움 + 엣지 케이스 누락)
@@ -456,6 +456,25 @@ function SaveService.loadPlayer(userId: number, forceAcquire: boolean?): (boolea
 	return true, state
 end
 
+local function _hasInventoryItems(inv: any): boolean
+	if type(inv) ~= "table" then
+		return false
+	end
+
+	local source = inv
+	if type(inv.slots) == "table" then
+		source = inv.slots
+	end
+
+	for _, node in pairs(source) do
+		if type(node) == "table" and type(node.itemId) == "string" and node.itemId ~= "" then
+			return true
+		end
+	end
+
+	return false
+end
+
 --- 플레이어 데이터 저장 (UpdateAsync)
 function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolean?): (boolean, string?)
 	local state = snapshot or playerStates[userId]
@@ -501,6 +520,19 @@ function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolea
 		if oldData and oldData._session and oldData._session.jobId and oldData._session.jobId ~= CURRENT_JOB_ID then
 			warn(string.format("[SaveService] Refusing to overwrite player %d: Session owned by %s", userId, oldData._session.jobId))
 			return nil 
+		end
+		
+		-- [취약점 방어] 인벤토리 빈 값 덮어쓰기 차단
+		local oldDeserialized = oldData and Serialization.deserialize(oldData)
+		local oldHasInventory = oldDeserialized and _hasInventoryItems(oldDeserialized.inventory)
+		local newHasInventory = _hasInventoryItems(state.inventory)
+		
+		if oldHasInventory and not newHasInventory then
+			warn(string.format(
+				"[SaveService] BLOCKED empty inventory overwrite for user %d",
+				userId
+			))
+			return oldData
 		end
 		
 		-- 저장 전 데이터 직렬화
@@ -955,8 +987,7 @@ local function onPlayerRemoving(player: Player)
 	local userId = player.UserId
 	print(string.format("[SaveService] Handling PlayerRemoving for %d...", userId))
 	
-	-- 1. [CRITICAL] 시스템별 순차 정리 시작
-	-- (상태 변경 -> 데이터 동기화 -> 최종 저장 순서 엄수)
+	-- 1. [CRITICAL] 시스템별 순차 정리 및 캐시 동기화 시작 (상태 변경 -> 데이터 동기화 -> 최종 저장 순서 엄수)
 	
 	-- A. 파티/소환 정리 (PalboxState 변경을 수반하므로 먼저 실행)
 	local partyOk, PartyService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.PartyService) end)
@@ -969,6 +1000,18 @@ local function onPlayerRemoving(player: Player)
 	if palOk and PalboxService and PalboxService.prepareLogout then
 		PalboxService.prepareLogout(player)
 	end
+
+	-- C. 플레이어 스텟 캐시 동기화
+	local statOk, PlayerStatService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.PlayerStatService) end)
+	if statOk and PlayerStatService and PlayerStatService.flushToSaveState then
+		PlayerStatService.flushToSaveState(userId)
+	end
+
+	-- D. 플레이어 상점 골드 캐시 동기화
+	local shopOk, NPCShopService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.NPCShopService) end)
+	if shopOk and NPCShopService and NPCShopService.flushToSaveState then
+		NPCShopService.flushToSaveState(userId)
+	end
 	
 	-- 2. 최종 저장 (isLogout=true로 세션 잠금 해제)
 	local ok, err = SaveService.savePlayer(userId, nil, true)
@@ -980,11 +1023,21 @@ local function onPlayerRemoving(player: Player)
 
 	-- 2b. 월드/파티션 저장은 BindToClose에서 일괄 처리 (DataStore 큐 오버플로 방지)
 	
-	-- 3. 메모리 정리
+	-- 3. 각 서비스 메모리 정리 (Cleanup)
 	-- 인벤토리 서비스 정리
 	local invOk, InventoryService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.InventoryService) end)
 	if invOk and InventoryService and InventoryService.removeInventory then
 		InventoryService.removeInventory(userId)
+	end
+
+	-- 스텟 서비스 정리
+	if statOk and PlayerStatService and PlayerStatService.cleanup then
+		PlayerStatService.cleanup(userId)
+	end
+
+	-- 상점 서비스 정리
+	if shopOk and NPCShopService and NPCShopService.cleanup then
+		NPCShopService.cleanup(userId)
 	end
 	
 	-- 캐시 제거
@@ -1005,8 +1058,27 @@ end
 -- Network Handlers
 --========================================
 
+local function _isAdmin(player: Player): boolean
+	if RunService:IsStudio() then
+		return true
+	end
+
+	if Balance.ADMIN_IDS and Balance.ADMIN_IDS[player.UserId] == true then
+		return true
+	end
+
+	return player.UserId == game.CreatorId
+end
+
 --- Save.Now 핸들러 (디버그/어드민용)
 local function handleSaveNow(player: Player, payload: any)
+	if not _isAdmin(player) then
+		return {
+			success = false,
+			errorCode = "NO_PERMISSION",
+		}
+	end
+
 	local worldOk, playerOk, playerFail = SaveService.saveNow()
 	return {
 		worldSaved = worldOk,
