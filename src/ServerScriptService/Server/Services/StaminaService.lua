@@ -108,9 +108,13 @@ function StaminaService.Init(_NetController)
 		
 		NetController.RegisterHandler("Movement.ConsumeStamina", function(player, data)
 			if type(data.amount) == "number" and data.amount > 0 and data.amount <= 100 then
-				StaminaService.consumeStamina(player.UserId, data.amount)
+				local consumed = StaminaService.consumeStamina(player.UserId, data.amount)
+				return {
+					success = consumed,
+					errorCode = consumed and nil or "NOT_ENOUGH_STAMINA",
+				}
 			end
-			return { success = true }
+			return { success = false, errorCode = "INVALID_AMOUNT" }
 		end)
 	end
 	

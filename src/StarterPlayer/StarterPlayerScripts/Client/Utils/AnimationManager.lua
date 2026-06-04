@@ -1,5 +1,5 @@
 -- AnimationManager.lua
--- 자산(Assets) 폴더의 애니메이션 개체를 관리하는 중앙 관리자
+-- 애니메이션 개체를 관리하는 중앙 관리자
 -- 하드코딩된 ID 대신 애니메이션 이름을 사용하여 재생하며, 트랙을 캐싱하여 64개 한계 초과를 방지
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,17 +22,31 @@ local trackCache = {}
 
 --- 애니메이션 개체 찾기
 local function findAnimation(animName: string): Animation?
-	-- 1. 지정된 경로(Assets/Animations) 우선 검색
+	-- 1. Studio 기준 경로(Platformer/Animations) 우선 검색
+	local platformer = ReplicatedStorage:FindFirstChild("Platformer")
+	if platformer then
+		local animFolder = platformer:FindFirstChild("Animations")
+		if animFolder then
+			local found = animFolder:FindFirstChild(animName, true)
+			if found then
+				return found
+			end
+		end
+	end
+
+	-- 2. 기존 경로(Assets/Animations) 폴백
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	if assets then
 		local animFolder = assets:FindFirstChild("Animations")
 		if animFolder then
 			local found = animFolder:FindFirstChild(animName, true)
-			if found then return found end
+			if found then
+				return found
+			end
 		end
 	end
 	
-	-- 2. 폴백: ReplicatedStorage 전체에서 검색 (Rojo 설정이나 수동 배치 대응)
+	-- 3. 폴백: ReplicatedStorage 전체에서 검색 (Rojo 설정이나 수동 배치 대응)
 	return ReplicatedStorage:FindFirstChild(animName, true)
 end
 

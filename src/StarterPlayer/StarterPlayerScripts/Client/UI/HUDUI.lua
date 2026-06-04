@@ -10,6 +10,7 @@ local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local Client = script.Parent.Parent
 local NetClient = require(Client:WaitForChild("NetClient"))
+local PlatformerInput = require(Client:WaitForChild("Controllers"):WaitForChild("PlatformerInput"))
 local LocaleService = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("LocaleService"))
 local C = Theme.Colors
 local F = Theme.Fonts
@@ -41,6 +42,49 @@ local function triggerScale(btn)
 	task.delay(0.05, function()
 		if not uiScale or not uiScale.Parent then return end
 		TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+	end)
+end
+
+local function bindSlotAction(slot, actionName, actionFn)
+	if not slot or not slot.click or type(actionFn) ~= "function" then
+		return
+	end
+
+	slot.click.Active = true
+	slot.click.Selectable = false
+	slot.click.AutoButtonColor = false
+	slot.click.Modal = false
+
+	local touchHandled = false
+	local label = actionName or slot.Name or "Slot"
+
+	slot.click.MouseButton1Down:Connect(function()
+		triggerScale(slot.frame)
+	end)
+
+	slot.click.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			touchHandled = true
+			if isMobile then
+				print(string.format("[HUDUI][%s] TouchDown", label))
+			end
+			triggerScale(slot.frame)
+			actionFn()
+		end
+	end)
+
+	slot.click.Activated:Connect(function()
+		if touchHandled then
+			touchHandled = false
+			if isMobile then
+				print(string.format("[HUDUI][%s] ActivatedSkippedAfterTouch", label))
+			end
+			return
+		end
+		if isMobile then
+			print(string.format("[HUDUI][%s] Activated", label))
+		end
+		actionFn()
 	end)
 end
 
@@ -309,6 +353,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 
 	local isSmall = isMobile 
+	local actionButtonSize = isMobile and 56 or 48
+	local actionButtonGap = isMobile and 6 or 8
 	
 	-- [FIX] Moved OUT of the MainHUDContainer to solve the total container height stacking bug!
 	local debuffRow = Utils.mkFrame({
@@ -1023,7 +1069,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- 5. Mobile/Universal Attack Button (Styled to match other slots)
 	local attackSlot = Utils.mkSlot({
 		name = "AttackSlot",
-		size = UDim2.new(0, 48, 0, 48),
+		size = UDim2.new(0, actionButtonSize, 0, actionButtonSize),
 		bg = C.BG_SLOT,
 		bgT = 0.4,
 		r = 6,
@@ -1050,22 +1096,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	})
 	attackLabel.TextScaled = true
 
-	if attackSlot.click then
-		attackSlot.click.MouseButton1Down:Connect(function()
-			triggerScale(attackSlot.frame)
-		end)
-		attackSlot.click.Activated:Connect(function()
-			local AvatarCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("AvatarController"))
-			if AvatarCtrl and AvatarCtrl.attack then
-				AvatarCtrl.attack()
-			end
-		end)
-	end
+	bindSlotAction(attackSlot, "Attack", function()
+		local AvatarCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("AvatarController"))
+		if AvatarCtrl and AvatarCtrl.attack then
+			AvatarCtrl.attack()
+		end
+	end)
 
 	-- 6. Mobile/Universal Jump Button (Styled to match other slots)
 	local jumpSlot = Utils.mkSlot({
 		name = "JumpSlot",
-		size = UDim2.new(0, 48, 0, 48),
+		size = UDim2.new(0, actionButtonSize, 0, actionButtonSize),
 		bg = C.BG_SLOT,
 		bgT = 0.4,
 		r = 6,
@@ -1092,29 +1133,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	})
 	jumpLabel.TextScaled = true
 
-	if jumpSlot.click then
-		jumpSlot.click.MouseButton1Down:Connect(function()
-			triggerScale(jumpSlot.frame)
-		end)
-		jumpSlot.click.Activated:Connect(function()
-			if _G.PlatformerJump then
-				_G.PlatformerJump()
-			else
-				-- Fallback attribute if not loaded yet
-				local Players = game:GetService("Players")
-				local localPlayer = Players.LocalPlayer
-				local char = localPlayer and localPlayer.Character
-				if char then
-					char:SetAttribute("JumpRequested", true)
-				end
-			end
-		end)
-	end
+	bindSlotAction(jumpSlot, "Jump", function()
+		PlatformerInput.requestJump()
+	end)
 
 	-- 7. Mobile/Universal Dash Button (Styled to match other slots)
 	local dashSlot = Utils.mkSlot({
 		name = "DashSlot",
-		size = UDim2.new(0, 48, 0, 48),
+		size = UDim2.new(0, actionButtonSize, 0, actionButtonSize),
 		bg = C.BG_SLOT,
 		bgT = 0.4,
 		r = 6,
@@ -1141,24 +1167,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	})
 	dashLabel.TextScaled = true
 
-	if dashSlot.click then
-		dashSlot.click.MouseButton1Down:Connect(function()
-			triggerScale(dashSlot.frame)
-		end)
-		dashSlot.click.Activated:Connect(function()
-			if _G.PlatformerSpecial then
-				_G.PlatformerSpecial()
-			else
-				-- Fallback attribute if not loaded yet
-				local Players = game:GetService("Players")
-				local localPlayer = Players.LocalPlayer
-				local char = localPlayer and localPlayer.Character
-				if char then
-					char:SetAttribute("SpecialRequested", true)
-				end
-			end
-		end)
-	end
+	bindSlotAction(dashSlot, "Dash", function()
+		PlatformerInput.requestSpecial()
+	end)
 
 	local function syncConsumableHotbarPosition()
 		if not mainAnchor or not consumableFrame then return end
@@ -1177,14 +1188,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local screenWidth = vpSize.X / scale
 
 		local attackX = (ap.X + as.X) / scale + 90
-		local jumpX = attackX + 48 + 8
-		local dashX = jumpX + 48 + 8
+		local jumpX = attackX + actionButtonSize + actionButtonGap
+		local dashX = jumpX + actionButtonSize + actionButtonGap
 
 		-- If the buttons would go off-screen, align them from the right edge of the screen instead
-		if dashX + 48 > screenWidth - 10 then
-			dashX = screenWidth - 16 - 48
-			jumpX = dashX - 8 - 48
-			attackX = jumpX - 8 - 48
+		if dashX + actionButtonSize > screenWidth - 10 then
+			dashX = screenWidth - 16 - actionButtonSize
+			jumpX = dashX - actionButtonGap - actionButtonSize
+			attackX = jumpX - actionButtonGap - actionButtonSize
 		end
 
 		if attackSlot and attackSlot.frame then
@@ -1193,14 +1204,14 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 		if jumpSlot and jumpSlot.frame then
 			jumpSlot.frame.Position = UDim2.new(
-				0, (ap.X + as.X) / scale + 90 + 48 + 8,
+				0, jumpX,
 				0, ap.Y / scale + as.Y * 0.35
 			)
 		end
 
 		if dashSlot and dashSlot.frame then
 			dashSlot.frame.Position = UDim2.new(
-				0, (ap.X + as.X) / scale + 90 + 48 + 8 + 48 + 8,
+				0, dashX,
 				0, ap.Y / scale + as.Y * 0.35
 			)
 		end

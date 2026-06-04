@@ -137,6 +137,24 @@ Balance.DODGE_DURATION = 0.4           -- 구르기 소요 시간
 Balance.DODGE_IFRAMES = 0.35           -- 무적 프레임 지속 시간
 
 --========================================
+-- 코드 제어 이동 능력
+--========================================
+Balance.MOVEMENT_JUMP_HEIGHT = 7            -- 기본 점프 높이
+Balance.MOVEMENT_JUMP_COYOTE_TIME = 0.12    -- 점프 코요테 타임
+Balance.MOVEMENT_DOUBLE_JUMP_HEIGHT = 9.5   -- 이단점프 높이
+Balance.MOVEMENT_SUPER_JUMP_HEIGHT = 14      -- 슈퍼점프 높이
+Balance.MOVEMENT_DASH_SPEED = 90             -- 대쉬 속도
+Balance.MOVEMENT_DASH_DURATION = 0.22        -- 대쉬 지속 시간
+Balance.MOVEMENT_DASH_COOLDOWN = 0.7         -- 대쉬 쿨다운
+Balance.MOVEMENT_DASH_STAMINA_COST = 20       -- 대쉬 스태미나 소모
+Balance.MOVEMENT_DOUBLE_JUMP_STAMINA_COST = 15 -- 이단점프 스태미나 소모
+Balance.MOVEMENT_SUPER_JUMP_STAMINA_COST = 25  -- 슈퍼점프 스태미나 소모
+Balance.MOVEMENT_HIT_REACTION_FORCE = 32       -- 피격 반응 넉백 강도
+Balance.MOVEMENT_HIT_REACTION_UPWARD = 10      -- 피격 반응 상향 힘
+Balance.MOVEMENT_HIT_REACTION_DURATION = 0.18  -- 피격 반응 지속 시간
+Balance.MOVEMENT_HIT_STUN_TIME = 0.25          -- 피격 경직 시간
+
+--========================================
 -- 수확 및 공격 판정 (Phase 7)
 --========================================
 Balance.HARVEST_COOLDOWN = 0.4         -- 연속 타격 쿨다운

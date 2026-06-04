@@ -311,6 +311,10 @@ function UIUtils.mkSlot(p)
 	click.Size = UDim2.new(1, 0, 1, 0)
 	click.BackgroundTransparency = 1
 	click.Text = ""
+	click.Active = true
+	click.Selectable = false
+	click.AutoButtonColor = false
+	click.Modal = false
 	click.ZIndex = slot.ZIndex + 5
 	click.Parent = slot
 	
