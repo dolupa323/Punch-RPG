@@ -88,6 +88,49 @@ local function bindSlotAction(slot, actionName, actionFn)
 	end)
 end
 
+local function bindRuneSlotAction(slot, slotIndex, actionFn)
+	if not slot or not slot.click or type(actionFn) ~= "function" then
+		return
+	end
+
+	slot.click.Active = true
+	slot.click.Selectable = false
+	slot.click.AutoButtonColor = false
+	slot.click.Modal = false
+
+	local touchHandled = false
+	local label = string.format("Rune%d", tonumber(slotIndex) or 0)
+
+	slot.click.MouseButton1Down:Connect(function()
+		triggerScale(slot.frame)
+	end)
+
+	slot.click.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			touchHandled = true
+			if isMobile then
+				print(string.format("[HUDUI][%s] TouchDown", label))
+			end
+			triggerScale(slot.frame)
+			actionFn()
+		end
+	end)
+
+	slot.click.Activated:Connect(function()
+		if touchHandled then
+			touchHandled = false
+			if isMobile then
+				print(string.format("[HUDUI][%s] ActivatedSkippedAfterTouch", label))
+			end
+			return
+		end
+		if isMobile then
+			print(string.format("[HUDUI][%s] Activated", label))
+		end
+		actionFn()
+	end)
+end
+
 local function buildIdLookup(tableModule)
 	local out = {}
 	if type(tableModule) ~= "table" then
@@ -1389,15 +1432,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs.runeSlots[i] = slot
 		
 		-- [추가] 슬롯 직접 클릭 시 애니메이션 및 스킬 발동
-		if slot.click then
-			slot.click.MouseButton1Down:Connect(function() triggerScale(slot.frame) end)
-			slot.click.MouseButton1Click:Connect(function()
-				local SkillCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
-				if SkillCtrl and SkillCtrl.useSkill then
-					SkillCtrl.useSkill("RUNE" .. tostring(i))
-				end
-			end)
-		end
+		bindRuneSlotAction(slot, i, function()
+			local SkillCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
+			if SkillCtrl and SkillCtrl.useSkill then
+				SkillCtrl.useSkill("RUNE" .. tostring(i))
+			end
+		end)
 	end
 
 	local dayNightRing = Utils.mkFrame({

@@ -23,7 +23,7 @@ SaveService.PlayerSaveLoaded = Instance.new("BindableEvent")
 --========================================
 -- Configuration
 --========================================
-local AUTOSAVE_INTERVAL = 30  -- 초 (데이터 유실 방지용, 60 → 30으로 단축)
+local AUTOSAVE_INTERVAL = 90  -- 초 (저장 부하 완화용)
 local SNAPSHOT_INTERVAL = 300 -- 초 (5분마다 스냅샷 생성 - 연산 부하 경감)
 local MAX_SNAPSHOTS = 3       -- 롤백 스냅샷 수
 local SAVE_VERSION = 6        -- 스키마 버전 (v6: 거대 골렘 -> 스텀프 킹 아이템 마이그레이션 적용)
@@ -42,6 +42,9 @@ local initialized = false
 local playerStates = {}   -- [userId] = playerState
 local worldState = nil    -- 월드 상태 (Global: Metadata, Time 등)
 local partitionStates = {} -- [partitionId] = partitionState (Local: Base-specific structures, storages)
+local dirtyPlayers = {}
+local dirtyWorld = false
+local dirtyPartitions = {} -- [partitionId] = true
 local lastSaveTime = 0
 local CURRENT_JOB_ID = game.JobId
 
@@ -268,6 +271,34 @@ local function _makeWorldSnapshot(worldStateData: any): any
 	return snapshot
 end
 
+local function _markPlayerDirty(userId: number)
+	if userId then
+		dirtyPlayers[userId] = true
+	end
+end
+
+local function _markWorldDirty()
+	dirtyWorld = true
+end
+
+local function _markPartitionDirty(partitionId: string)
+	if partitionId and partitionId ~= "" then
+		dirtyPartitions[partitionId] = true
+	end
+end
+
+local function _clearPlayerDirty(userId: number)
+	dirtyPlayers[userId] = nil
+end
+
+local function _clearWorldDirty()
+	dirtyWorld = false
+end
+
+local function _clearPartitionDirty(partitionId: string)
+	dirtyPartitions[partitionId] = nil
+end
+
 local function _normalizeEquipment(equipment: any): any
 	local normalized = _getDefaultEquipment()
 	if type(equipment) ~= "table" then
@@ -449,6 +480,7 @@ function SaveService.loadPlayer(userId: number, forceAcquire: boolean?): (boolea
 	
 	local state = _normalizePlayerState(deserialized)
 	state.stats.lastLogin = os.time()
+	_markPlayerDirty(userId)
 	
 	-- 메모리에 캐시
 	playerStates[userId] = state
@@ -552,6 +584,8 @@ function SaveService.savePlayer(userId: number, snapshot: any?, isLogout: boolea
 	
 	if not success then
 		warn(string.format("[SaveService] Failed to save/update player %d: %s", userId, tostring(result)))
+	else
+		_clearPlayerDirty(userId)
 	end
 	
 	return success, result
@@ -567,7 +601,12 @@ function SaveService.updatePlayerState(userId: number, updateFn: (any) -> any)
 	local state = playerStates[userId]
 	if state then
 		playerStates[userId] = updateFn(state)
+		_markPlayerDirty(userId)
 	end
+end
+
+function SaveService.markPlayerDirty(userId: number)
+	_markPlayerDirty(userId)
 end
 
 --========================================
@@ -601,9 +640,9 @@ end
 local _lastWorldSaveTime = 0
 local WORLD_SAVE_DEBOUNCE = 3 -- 3초 이내 중복 저장 방지
 
-function SaveService.saveWorld(snapshot: any?): (boolean, string?)
+function SaveService.saveWorld(snapshot: any?, force: boolean?): (boolean, string?)
 	local now = os.clock()
-	if not snapshot and (now - _lastWorldSaveTime) < WORLD_SAVE_DEBOUNCE then
+	if not snapshot and not force and (now - _lastWorldSaveTime) < WORLD_SAVE_DEBOUNCE then
 		return true, "DEBOUNCED"
 	end
 	
@@ -647,6 +686,8 @@ function SaveService.saveWorld(snapshot: any?): (boolean, string?)
 	
 	if not success then
 		warn(string.format("[SaveService] Failed to save world: %s", tostring(err)))
+	elseif err ~= "DEBOUNCED" then
+		_clearWorldDirty()
 	end
 	
 	return success, err
@@ -661,7 +702,12 @@ end
 function SaveService.updateWorldState(updateFn: (any) -> any)
 	if worldState then
 		worldState = updateFn(worldState)
+		_markWorldDirty()
 	end
+end
+
+function SaveService.markWorldDirty()
+	_markWorldDirty()
 end
 
 --========================================
@@ -707,6 +753,9 @@ function SaveService.savePartition(partitionId: string, snapshot: any?): (boolea
 		
 		return Serialization.serialize(state)
 	end)
+	if success then
+		_clearPartitionDirty(partitionId)
+	end
 	
 	return success, err
 end
@@ -727,10 +776,15 @@ function SaveService.updatePartition(partitionId: string, updateFn: (any) -> any
 	local state = partitionStates[partitionId]
 	if state then
 		partitionStates[partitionId] = updateFn(state)
+		_markPartitionDirty(partitionId)
 		return true
 	end
 	warn(string.format("[SaveService] Partition '%s' not found for update", partitionId))
 	return false
+end
+
+function SaveService.markPartitionDirty(partitionId: string)
+	_markPartitionDirty(partitionId)
 end
 
 --- 파티션 삭제
@@ -745,35 +799,47 @@ end
 --========================================
 
 --- 전체 저장 (모든 플레이어 + 월드)
-function SaveService.saveNow(): (boolean, number, number)
+function SaveService.saveNow(forceAll: boolean?): (boolean, number, number)
 	local playerSuccess = 0
 	local playerFail = 0
+	local saveAll = forceAll == true
 	
-	-- 모든 플레이어 저장 (Staggered: API 부하 분산)
+	-- 플레이어 저장 (Staggered: API 부하 분산)
 	local STAGGER_INTERVAL = 0.5 
 	for userId, _ in pairs(playerStates) do
-		local ok, _ = SaveService.savePlayer(userId)
-		if ok then
-			playerSuccess += 1
-		else
-			playerFail += 1
+		if saveAll or dirtyPlayers[userId] then
+			local ok, _ = SaveService.savePlayer(userId)
+			if ok then
+				playerSuccess += 1
+				_clearPlayerDirty(userId)
+			else
+				playerFail += 1
+			end
+
+			-- [중요] 일시에 모든 유저를 저장하면 Throttling 리밋에 걸리므로 간격을 둠
+			task.wait(STAGGER_INTERVAL)
 		end
-		
-		-- [중요] 일시에 모든 유저를 저장하면 Throttling 리밋에 걸리므로 간격을 둠
-		task.wait(STAGGER_INTERVAL)
 	end
-	
+
 	-- 월드 저장
-	local worldOk, _ = SaveService.saveWorld()
-	
-	-- 모든 파티션 저장 (Staggered)
+	local worldOk = true
+	if saveAll or dirtyWorld then
+		worldOk = select(1, SaveService.saveWorld(nil, saveAll))
+	end
+
+	-- 파티션 저장 (Staggered)
 	local partitionCount = 0
 	for pId, _ in pairs(partitionStates) do
-		SaveService.savePartition(pId)
-		partitionCount += 1
-		if partitionCount % 5 == 0 then task.wait(0.1) end
+		if saveAll or dirtyPartitions[pId] then
+			local ok = SaveService.savePartition(pId)
+			if ok then
+				_clearPartitionDirty(pId)
+			end
+			partitionCount += 1
+			if partitionCount % 5 == 0 then task.wait(0.1) end
+		end
 	end
-	
+
 	lastSaveTime = os.time()
 	
 	return worldOk, playerSuccess, playerFail
@@ -1079,7 +1145,7 @@ local function handleSaveNow(player: Player, payload: any)
 		}
 	end
 
-	local worldOk, playerOk, playerFail = SaveService.saveNow()
+	local worldOk, playerOk, playerFail = SaveService.saveNow(true)
 	return {
 		worldSaved = worldOk,
 		playersSaved = playerOk,
@@ -1138,7 +1204,7 @@ function SaveService.Init(netController: any)
 		end
 		-- 월드 저장 (saveWorld 내부 디바운스가 중복 호출 방지)
 		_lastWorldSaveTime = 0 -- BindToClose는 반드시 저장
-		pcall(SaveService.saveWorld)
+		pcall(SaveService.saveWorld, nil, true)
 		for pId, _ in pairs(partitionStates) do
 			pcall(SaveService.savePartition, pId)
 		end

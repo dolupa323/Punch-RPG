@@ -20,20 +20,26 @@ local ZONES = {
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
 	},
 	SLIME_HABITAT = {
-		min = Vector2.new(-430, 335), -- MobSpawnData.lua에 명시된 정확한 슬라임 스폰 구역 범위 반영
-		max = Vector2.new(-265, 510),
-		spawnPoint = Vector3.new(-266.5, 10, 498.7),
+		min = Vector2.new(-381.799, 354.384), -- MobSpawnData.lua에 명시된 최신 슬라임 스폰 구역 범위 반영
+		max = Vector2.new(-245.027, 498.664),
+		spawnPoint = Vector3.new(-309.554, 10, 425.738),
 		displayName = "슬라임 서식지",
 		subName = "SLIME HABITAT",
 		priority = 10,
 	},
-	CYCLOPS_BAT_ZONE = {
-		min = Vector2.new(-75, -420), -- 새 박쥐 스폰 좌표 기반 바운딩 박스
-		max = Vector2.new(50, -140),
-		spawnPoint = Vector3.new(-190, 13, 50),
-		displayName = "박쥐의 언덕",
-		subName = "BAT'S RIDGE",
+	HornedLarvaZone = {
+		min = Vector2.new(-208.31, 284.44), -- MobSpawnData.lua에 명시된 최신 뿔 애벌레 스폰 구역 범위 반영
+		max = Vector2.new(183.792, 614.425),
+		spawnPoint = Vector3.new(-4.65, 8, 466.528),
+		displayName = "애벌래의 숲",
+		subName = "HORNED LARVA FOREST",
 		priority = 10,
+	},
+	CYCLOPS_BAT_ZONE = {
+		min = Vector2.new(-646.149, -309.221),
+		max = Vector2.new(-415.675, -34.78),
+		spawnPoint = Vector3.new(-536.614, 12.858, -171.047),
+		priority = 20,
 	},
 	EERIE_CAVE = {
 		min = Vector2.new(-280, -310),
@@ -43,6 +49,14 @@ local ZONES = {
 		subName = "EERIE CAVE",
 		priority = 10,
 	},
+	STUMP_ZONE = {
+		min = Vector2.new(145.363, 541.738),
+		max = Vector2.new(329.314, 738.197),
+		spawnPoint = Vector3.new(240.8065, 70.2, 642.298),
+		displayName = "스텀프의 땅",
+		subName = "STUMP LANDS",
+		priority = 20,
+	},
 	STUMP_KING_ZONE = {
 		min = Vector2.new(-25, -375), -- 새 스텀프 킹 좌표를 품는 안전 바운딩 박스
 		max = Vector2.new(215, -85),
@@ -50,6 +64,22 @@ local ZONES = {
 		displayName = "스텀프 킹의 안식처",
 		subName = "STUMP KING'S SANCTUARY",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
+	},
+	SMALL_GOLEM_ZONE = {
+		min = Vector2.new(-375.838, -41.156),
+		max = Vector2.new(-137.064, 265.511),
+		spawnPoint = Vector3.new(-243.022, 6.104, 132.982),
+		displayName = "스산한 동굴",
+		subName = "EERIE CAVE",
+		priority = 10,
+	},
+	SPIDER_ZONE = {
+		min = Vector2.new(1004.143, 847.913),
+		max = Vector2.new(1161.21, 1088.014),
+		spawnPoint = Vector3.new(1082.106, -13.388, 967.914),
+		displayName = "망가진 마을",
+		subName = "BROKEN VILLAGE",
+		priority = 20,
 	},
 	POISON_NEST = {
 		min = Vector2.new(100, -80), -- 거미 구역 커버 바운딩 박스
@@ -145,8 +175,18 @@ local ZONE_CONFIGS = {
 			{ id = "BUSH_BERRY", weight = 50 },
 		},
 	},
-	CYCLOPS_BAT_ZONE = {
+	HornedLarvaZone = {
 		Creatures = {},
+		Harvests = {
+			{ id = "TREE_THIN", weight = 45 },
+			{ id = "GROUND_BRANCH", weight = 70 },
+			{ id = "ROCK_SOFT", weight = 35 },
+		},
+	},
+	CYCLOPS_BAT_ZONE = {
+		Creatures = {
+			{ id = "CYCLOPSBAT", weight = 100 },
+		},
 		Harvests = {},
 	},
 	EERIE_CAVE = {
@@ -154,6 +194,18 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	STUMP_KING_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	STUMP_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	SMALL_GOLEM_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	SPIDER_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},

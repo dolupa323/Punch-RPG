@@ -14,6 +14,27 @@ local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
 local MobSpawnService = {}
 local activeMobs = {} -- areaId_index -> Model Instance
 
+local function resolveSpawnConfig(config, index)
+	if type(config) ~= "table" then
+		return config
+	end
+
+	local entry = config.spawnEntries and config.spawnEntries[index]
+	if type(entry) ~= "table" then
+		return config
+	end
+
+	local merged = {}
+	for key, value in pairs(config) do
+		merged[key] = value
+	end
+	for key, value in pairs(entry) do
+		merged[key] = value
+	end
+
+	return merged
+end
+
 --========================================
 -- Internal: Loot 생성
 --========================================
@@ -124,8 +145,8 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		end
 	end
 	
-	-- [Active Rune Drop Logic] 스텀프 처치 시 룬 15% 드롭
-	if mobName == "Stump" and killerPlayer then
+	-- [Active Rune Drop Logic] 작은골렘 처치 시 룬 15% 드롭
+	if mobName == "SmallGolem" and killerPlayer then
 		local element = killerPlayer:GetAttribute("Element")
 		if element and element ~= "None" then
 			local runeRoll = math.random(1, 100)
@@ -136,7 +157,7 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 				
 				local ok, err = WorldDropService.spawnDrop(pos, runeItemId, 1)
 				if ok then
-					print(string.format("[MobSpawnService] Boss Rune Dropped for %s (%s)", killerPlayer.Name, runeItemId))
+					print(string.format("[MobSpawnService] Rune Dropped for %s (%s)", killerPlayer.Name, runeItemId))
 				else
 					warn("[MobSpawnService] Boss Rune Drop Failed: ", tostring(err))
 				end
@@ -3983,7 +4004,7 @@ local function createMobModel(areaId, index, config)
 			
 			local key = areaId .. "_" .. index
 			-- 재스폰 시 다시 createMobModel을 호출하여 '새로운 랜덤 위치'를 추출하게 함!
-			activeMobs[key] = createMobModel(areaId, index, config)
+			activeMobs[key] = createMobModel(areaId, index, resolveSpawnConfig(config, index))
 		end)
 	end
 
@@ -4019,12 +4040,12 @@ function MobSpawnService.Init()
 		if not spawnDataList then return end
 
 		for areaId, config in pairs(spawnDataList) do
-			-- 루프 횟수 결정: spawnCount가 있으면 우선 사용, 없으면 spawnPositions 개수 사용
-			local spawnLoopCount = config.spawnCount or (config.spawnPositions and #config.spawnPositions) or 0
+			-- 루프 횟수 결정: spawnEntries가 있으면 그것을 우선 사용, 없으면 spawnCount/positions 사용
+			local spawnLoopCount = (config.spawnEntries and #config.spawnEntries) or config.spawnCount or (config.spawnPositions and #config.spawnPositions) or 0
 			
 			for idx = 1, spawnLoopCount do
 				local key = areaId .. "_" .. idx
-				activeMobs[key] = createMobModel(areaId, idx, config)
+				activeMobs[key] = createMobModel(areaId, idx, resolveSpawnConfig(config, idx))
 			end
 			
 			-- print(string.format("[MobSpawnService] Successfully auto-spawned %d Mobs for Area: %s!", spawnLoopCount, areaId))

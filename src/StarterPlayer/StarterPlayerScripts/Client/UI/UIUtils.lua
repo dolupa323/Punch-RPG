@@ -175,7 +175,7 @@ function UIUtils.mkBtn(p)
 		end)
 	end
 	
-	if p.fn then b.MouseButton1Click:Connect(p.fn) end
+	if p.fn then b.Activated:Connect(p.fn) end
 	return b
 end
 
@@ -236,7 +236,7 @@ function UIUtils.mkHexBtn(p)
 		TweenService:Create(scale, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
 	end)
 	
-	if p.fn then b.MouseButton1Click:Connect(p.fn) end
+	if p.fn then b.Activated:Connect(p.fn) end
 	return b
 end
 
@@ -469,7 +469,7 @@ function UIUtils.CreateCloseButton(UIManager, winId)
 		bg = C.RED,
 		r = "full"
 	})
-	btn.MouseButton1Click:Connect(function()
+	btn.Activated:Connect(function()
 		if UIManager.closeCollection and winId == "COLLECTION" then
 			UIManager.closeCollection()
 		elseif UIManager.closeInventory and winId == "INV" then

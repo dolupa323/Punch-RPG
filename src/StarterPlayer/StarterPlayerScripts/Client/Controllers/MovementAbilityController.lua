@@ -337,12 +337,13 @@ function MovementAbilityController.applyHitReaction(bounceDirection: Vector3?)
 	stunnedUntil = os.clock() + Balance.MOVEMENT_HIT_STUN_TIME
 	clearDash()
 	setMovementFlags(false, false, false, true)
+	AnimationManager.stop(humanoid, "Stun", 0.05)
 
 	local existing = root.AssemblyLinearVelocity
 	root.AssemblyLinearVelocity = direction * Balance.MOVEMENT_HIT_REACTION_FORCE + Vector3.new(0, Balance.MOVEMENT_HIT_REACTION_UPWARD, 0)
 	humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 
-	playAnimation("Stun")
+	-- 히트 시 애니메이션은 재생하지 않고 물리 넉백과 이펙트만 남긴다.
 	emitEffect("WallImpactParticles", 8)
 
 	task.delay(Balance.MOVEMENT_HIT_REACTION_DURATION, function()

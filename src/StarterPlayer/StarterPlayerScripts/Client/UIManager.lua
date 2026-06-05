@@ -2764,10 +2764,10 @@ function UIManager.toggleQuest()
 		parent = mainGui
 	})
 	
-	local winWidth = isMobile and 0.8 or 0.45
-	local winHeight = isMobile and 0.8 or 0.65
-	local maxW = isMobile and 600 or 500
-	local maxH = isMobile and 500 or 450
+	local winWidth = isMobile and 0.94 or 0.45
+	local winHeight = isMobile and 0.90 or 0.65
+	local maxW = isMobile and 760 or 500
+	local maxH = isMobile and 760 or 450
 	
 	local main = Utils.mkWindow({
 		name = "StatsWindow",
@@ -2801,9 +2801,9 @@ function UIManager.toggleQuest()
 	-- Title
 	Utils.mkLabel({
 		text = UILocalizer.Localize("사냥 통계 (Monster Hunt Stats)"),
-		size = UDim2.new(1, 0, 0, 50),
-		pos = UDim2.new(0, 0, 0, 15),
-		ts = 22,
+		size = UDim2.new(1, 0, 0, isMobile and 58 or 50),
+		pos = UDim2.new(0, 0, 0, isMobile and 12 or 15),
+		ts = isMobile and 24 or 22,
 		font = F.TITLE,
 		color = Color3.fromRGB(255, 215, 0), -- Gold Title
 		ax = Enum.TextXAlignment.Center,
@@ -2814,12 +2814,12 @@ function UIManager.toggleQuest()
 	local closeBtn = Utils.mkBtn({
 		name = "CloseBtn",
 		text = "X",
-		size = UDim2.new(0, 30, 0, 30),
-		pos = UDim2.new(1, -15, 0, 15),
+		size = UDim2.new(0, isMobile and 40 or 30, 0, isMobile and 40 or 30),
+		pos = UDim2.new(1, isMobile and -10 or -15, 0, isMobile and 10 or 15),
 		anchor = Vector2.new(1, 0),
 		bgT = 1,
 		stroke = false,
-		ts = 18,
+		ts = isMobile and 22 or 18,
 		font = F.TITLE,
 		color = Color3.fromRGB(200, 200, 200),
 		fn = function()
@@ -2833,12 +2833,12 @@ function UIManager.toggleQuest()
 	
 	-- Scrollable frame for list
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Size = UDim2.new(1, -40, 1, -100)
-	scroll.Position = UDim2.new(0.5, 0, 0, 80)
+	scroll.Size = UDim2.new(1, isMobile and -20 or -40, 1, isMobile and -92 or -100)
+	scroll.Position = UDim2.new(0.5, 0, 0, isMobile and 74 or 80)
 	scroll.AnchorPoint = Vector2.new(0.5, 0)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 4
+	scroll.ScrollBarThickness = isMobile and 8 or 4
 	scroll.ScrollBarImageColor3 = C_Override.BORDER
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -2871,7 +2871,7 @@ function UIManager.toggleQuest()
 			text = UILocalizer.Localize("아직 처치한 몬스터가 없습니다."),
 			size = UDim2.new(1, 0, 0, 50),
 			pos = UDim2.new(0, 0, 0.4, 0),
-			ts = 16,
+			ts = isMobile and 18 or 16,
 			font = F.TITLE,
 			color = Color3.fromRGB(150, 150, 150),
 			ax = Enum.TextXAlignment.Center,
@@ -2881,7 +2881,7 @@ function UIManager.toggleQuest()
 		for _, entry in ipairs(sortedKills) do
 			local row = Utils.mkFrame({
 				name = "MobKillRow",
-				size = UDim2.new(1, 0, 0, 45),
+				size = UDim2.new(1, 0, 0, isMobile and 58 or 45),
 				bg = C_Override.BG_SLOT,
 				bgT = 0.2,
 				r = 6,
@@ -2894,7 +2894,7 @@ function UIManager.toggleQuest()
 				text = UILocalizer.Localize(entry.name),
 				size = UDim2.new(0.7, 0, 1, 0),
 				pos = UDim2.new(0, 15, 0, 0),
-				ts = 15,
+				ts = isMobile and 18 or 15,
 				font = F.TITLE,
 				color = C_Override.GOLD,
 				ax = Enum.TextXAlignment.Left,
@@ -2906,7 +2906,7 @@ function UIManager.toggleQuest()
 				size = UDim2.new(0.2, 0, 1, 0),
 				pos = UDim2.new(1, -15, 0, 0),
 				anchor = Vector2.new(1, 0),
-				ts = 15,
+				ts = isMobile and 18 or 15,
 				font = F.NUM,
 				color = Color3.fromRGB(120, 220, 100), -- Greenish color for kills
 				ax = Enum.TextXAlignment.Right,

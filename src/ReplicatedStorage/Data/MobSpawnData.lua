@@ -18,11 +18,12 @@ local MobSpawnData = {
 		spawnCount = 6, -- 총 6마리 슬라임이 구역 안에서 제멋대로 젠 됩니다.
 		
 		-- [확정]: 사용자 스크린샷 기반 절대 좌표 반영
+		-- 순서는 외곽을 따라가도록 맞춰서 polygon 삼각분할이 안정적으로 동작하게 유지
 		spawnPositions = {
-			{x = -270.011, y = 17.239, z = 409.002},
-			{x = -340.511, y = 15.912, z = 505.033},
-			{x = -425.011, y = 16.507, z = 440.902},
-			{x = -329.297, y = 15.520, z = 337.943}
+			{x = -336.844, y = -3.487, z = 354.384},
+			{x = -381.799, y = 7.296, z = 440.902},
+			{x = -274.545, y = 4.601, z = 498.664},
+			{x = -245.027, y = 4.042, z = 409.002}
 		}
 	},
 	
@@ -44,34 +45,78 @@ local MobSpawnData = {
 		spawnCount = 10,       
 		
 		-- 유저 스크린샷 Properties 속성에서 100% 정밀 추출한 4개 꼭짓점 좌표
+		-- 외곽을 따라가는 순서로 배치
 		spawnPositions = {
-			{x = -158.764, y = -5.058, z = 113.772},
-			{x = -304.24, y = -3.904, z = 257.483},
-			{x = -45.12, y = 3.136, z = 195.686},
-			{x = -222.64, y = -3.258, z = 367.094}
+			{x = 105.235, y = 5.555, z = 284.44},
+			{x = 183.792, y = 1.896, z = 429.931},
+			{x = -99.317, y = 11.57, z = 614.425},
+			{x = -208.31, y = 10.924, z = 537.316}
 		}
 	},
 	
 	["StumpZone"] = {
 		spawnAreaId = "StumpZone",
-		mobModelName = "Stump",
-		mobDisplayName = "스텀프",
-		maxHealth = 600,
-		baseDamage = 25,
-		attackCooldown = 1.5, -- 마법 공격 주기 1.5초로 단축하여 다이내믹한 템포 구현
-		respawnDelay = 15.0,  -- 사망 후 정확히 15.0초 뒤 리스폰
-		modelScale = 0.2,     -- 표준 크기 보정 (0.2 연동)
-		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 눕혀진 원본 모델 머리를 전방으로 세우기 위해 회전 보정
-		customHipHeight = 1.2, -- 물리 중심이 넘어지지 않고 지면에 안착되도록 정밀 조율된 힙높이
+		spawnCount = 5,
+		spawnAsPolygon = false,
+		respawnDelay = 15.0,
+		spawnRotationOffset = {x = 90, y = 0, z = 0},
+		customHipHeight = 1.2,
 		walkSpeed = 10,
-		xpReward = 400,
-		spawnCount = 4,
-		spawnAsPolygon = true, -- 꼭짓점 사각형 영역 내부에 스냅 스폰!
+		-- 스텀프 4 + 스텀프 킹 1, 같은 구역에서 함께 스폰
+		spawnEntries = {
+			{
+				mobModelName = "Stump",
+				mobDisplayName = "스텀프",
+				maxHealth = 600,
+				baseDamage = 25,
+				attackCooldown = 1.5,
+				modelScale = 0.2,
+				xpReward = 400,
+			},
+			{
+				mobModelName = "Stump",
+				mobDisplayName = "스텀프",
+				maxHealth = 600,
+				baseDamage = 25,
+				attackCooldown = 1.5,
+				modelScale = 0.2,
+				xpReward = 400,
+			},
+			{
+				mobModelName = "Stump",
+				mobDisplayName = "스텀프",
+				maxHealth = 600,
+				baseDamage = 25,
+				attackCooldown = 1.5,
+				modelScale = 0.2,
+				xpReward = 400,
+			},
+			{
+				mobModelName = "Stump",
+				mobDisplayName = "스텀프",
+				maxHealth = 600,
+				baseDamage = 25,
+				attackCooldown = 1.5,
+				modelScale = 0.2,
+				xpReward = 400,
+			},
+			{
+				mobModelName = "StumpKing",
+				mobDisplayName = "스텀프 킹",
+				maxHealth = 2000,
+				baseDamage = 50,
+				attackCooldown = 3.0,
+				modelScale = 0.075,
+				walkSpeed = 8,
+				xpReward = 1000,
+			},
+		},
 		spawnPositions = {
-			{x = -182.605, y = -7.751, z = 73.701},
-			{x = -292.491, y = -0.718, z = -86.676},
-			{x = -131.693, y = -7.407, z = -8.74},
-			{x = -333.519, y = 7.077, z = -5.293}
+			{x = 166.146, y = 71.463, z = 738.197},
+			{x = 145.363, y = 62.808, z = 569.69},
+			{x = 329.314, y = 71.807, z = 719.567},
+			{x = 322.403, y = 74.722, z = 541.738},
+			{x = 240.8065, y = 70.2, z = 642.298}
 		}
 	},
 	
@@ -91,12 +136,14 @@ local MobSpawnData = {
 		
 		spawnAsPolygon = true,
 		spawnCount = 4, -- 4마리 배치
+		isIndoor = true,
+		skipTerrainScan = true,
 		
 		spawnPositions = {
-			{x = -72.788, y = -11.347, z = -154.403},
-			{x = 22.992, y = -3.737, z = -143.84},
-			{x = -40.922, y = -8.358, z = -415.091},
-			{x = 48.014, y = -10.638, z = -416.017}
+			{x = -493.393, y = 10.246, z = -34.78},
+			{x = -646.149, y = 15.539, z = -248.414},
+			{x = -581.241, y = 13.259, z = -309.221},
+			{x = -415.675, y = 12.391, z = -91.748}
 		}
 	},
 	
@@ -108,24 +155,21 @@ local MobSpawnData = {
 		baseDamage = 30,     -- 묵직한 데미지
 		attackCooldown = 2.5, -- 공격 속도는 다소 느림
 		respawnDelay = 5.0,
-		modelScale = 4.0,    -- [수정] 살짝 더 키워달라는 요청 반영 (3.0 -> 4.0배 확대)
+		modelScale = 4.5,    -- [수정] 살짝 더 키워달라는 요청 반영 (4.0 -> 4.5배 확대)
 		walkSpeed = 5,       -- 느릿하고 묵직한 이동
 		xpReward = 150,      -- 높은 경험치 보상
 		
-		spawnAsPolygon = false,
-		spawnCount = 7,
+		spawnAsPolygon = true,
+		spawnCount = 6,
 		
 		isIndoor = true,
-		skipTerrainScan = true, -- [추가] 천장이 매우 낮은 좁은 동굴이므로 레이캐스트를 생략하고 고정 좌표에 즉시 스폰
+		skipTerrainScan = false, -- [수정] 천장 고려는 유지하되, 바닥 정확도 보정을 위해 레이캐스트를 다시 사용
 		
 		spawnPositions = {
-			{x = -257.456, y = -59.146, z = -90.758},
-			{x = -265.767, y = -56.683, z = -116.873},
-			{x = -137.064, y = -66.545, z = -184.328},
-			{x = -185.809, y = -66.258, z = -287.735},
-			{x = -214.250, y = -66.869, z = -286.742},
-			{x = -206.721, y = -65.324, z = -232.047},
-			{x = -183.517, y = -64.792, z = -241.182}
+			{x = -183.281, y = -2.118, z = 265.511},
+			{x = -137.064, y = 8.837, z = 228.576},
+			{x = -375.838, y = 8.848, z = 78.995},
+			{x = -275.904, y = 8.848, z = -41.156}
 		}
 	},
 	
@@ -143,7 +187,7 @@ local MobSpawnData = {
 		xpReward = 1000,
 		
 		spawnAsPolygon = true,
-		spawnCount = 3, -- 3마리 배치
+		spawnCount = 0, -- 레거시 분리 스폰 비활성화 (StumpZone 통합 스폰 사용)
 		
 		spawnPositions = {
 			{x = 102.705, y = -15.877, z = -369.877},
@@ -166,13 +210,15 @@ local MobSpawnData = {
 		xpReward = 500,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500)
 		
 		spawnAsPolygon = true,
-		spawnCount = 5,
+		spawnCount = 4,
+		isIndoor = true,
+		skipTerrainScan = true,
 		
 		spawnPositions = {
-			{x = 109.783, y = 13.695, z = -77.87},
-			{x = 265.316, y = 14.127, z = 116.704},
-			{x = 261.501, y = 14.837, z = -55.239},
-			{x = 108.249, y = 13.686, z = 146.901}
+			{x = 1004.143, y = -24.672, z = 1088.014},
+			{x = 1161.21, y = 8.572, z = 1057.817},
+			{x = 1157.395, y = -16.804, z = 847.913},
+			{x = 1005.677, y = -16.647, z = 878.84}
 		}
 	},
 	

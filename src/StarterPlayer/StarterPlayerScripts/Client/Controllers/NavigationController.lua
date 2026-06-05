@@ -3,9 +3,9 @@
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PathfindingService = game:GetService("PathfindingService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
@@ -25,16 +25,23 @@ local wispPart = nil
 local wispLight = nil
 local wispTrail = nil
 
--- 지능형 노드(체크포인트) 제어 변수
 local wispCurrentPos = nil
-local pathWaypoints = nil
-local pathWaypointIndex = 1
-local pathGoalPos = nil
-local nextPathRebuildAt = 0
-local MAX_PATH_REBUILD_INTERVAL = 1.25
-local WISP_FOLLOW_SPEED = 18
+local currentPath = nil
+local currentWaypoints = nil
+local currentWaypointIndex = 1
+local currentPathGoal = nil
+local pathRequestToken = 0
+local pathRequestPending = false
+local pathRequestStartedAt = 0
+local pathNextRetryAt = 0
+local pathRailFolder = nil
+local WISP_FOLLOW_SPEED = 32
 local WISP_HOVER_HEIGHT = 4.2
-local WISP_REACH_DISTANCE = 2.5
+local WISP_REACH_DISTANCE = 1.5
+local WISP_IDLE_BOB_AMPLITUDE = 0.25
+local WISP_IDLE_BOB_SPEED = 3.0
+local PATH_RAIL_THICKNESS = 0.28
+local PATH_NODE_SIZE = 0.5
 
 -- 디자인 색상 상수
 local COLOR_NORMAL = Color3.fromRGB(0, 220, 255)  -- 정상 안내 시: 네온 싸이언
@@ -194,6 +201,222 @@ local function resolveMonsterGuidePosition(zoneName: string, spawnDataKey: strin
 	return fallbackPos
 end
 
+-- 지면 높이를 구하는 함수
+local function getGroundY(position: Vector3, char: Model?): number
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	local filterList = {Workspace:FindFirstChild("__NavigationGuide")}
+	if char then
+		table.insert(filterList, char)
+	end
+	raycastParams.FilterDescendantsInstances = filterList
+
+	local origin = position + Vector3.new(0, 15, 0)
+	local direction = Vector3.new(0, -30, 0)
+	local result = Workspace:Raycast(origin, direction, raycastParams)
+
+	if result then
+		return result.Position.Y
+	end
+	return position.Y
+end
+
+local function groundProject(position: Vector3, char: Model?): Vector3
+	return Vector3.new(position.X, getGroundY(position, char), position.Z)
+end
+
+local function clearPathState()
+	currentPath = nil
+	currentWaypoints = nil
+	currentWaypointIndex = 1
+	currentPathGoal = nil
+	pathRequestPending = false
+	pathRequestStartedAt = 0
+	pathNextRetryAt = 0
+	if pathRailFolder then
+		pathRailFolder:Destroy()
+		pathRailFolder = nil
+	end
+end
+
+local function buildPathRail(waypoints, char: Model?)
+	if not guideFolder then
+		return
+	end
+
+	if pathRailFolder then
+		pathRailFolder:Destroy()
+		pathRailFolder = nil
+	end
+
+	pathRailFolder = Instance.new("Folder")
+	pathRailFolder.Name = "GuideRail"
+	pathRailFolder.Parent = guideFolder
+
+	local sampledPoints = {}
+	for index = 1, #waypoints do
+		local waypoint = waypoints[index]
+		local waypointPos = waypoint and waypoint.Position
+		if waypointPos then
+			local projected = groundProject(waypointPos, char) + Vector3.new(0, 0.15, 0)
+			sampledPoints[#sampledPoints + 1] = projected
+		end
+	end
+
+	local expandedPoints = {}
+	for index = 1, #sampledPoints do
+		local currentPoint = sampledPoints[index]
+		expandedPoints[#expandedPoints + 1] = currentPoint
+
+		local nextPoint = sampledPoints[index + 1]
+		if nextPoint then
+			local delta = nextPoint - currentPoint
+			local distance = delta.Magnitude
+			local segmentCount = math.max(1, math.ceil(distance / 8))
+			for segmentIndex = 1, segmentCount - 1 do
+				local alpha = segmentIndex / segmentCount
+				local sample = currentPoint:Lerp(nextPoint, alpha)
+				sample = groundProject(sample, char) + Vector3.new(0, 0.15, 0)
+				expandedPoints[#expandedPoints + 1] = sample
+			end
+		end
+	end
+
+	for index = 1, #expandedPoints do
+		local point = expandedPoints[index]
+		local node = Instance.new("Part")
+		node.Name = ("Node_%02d"):format(index)
+		node.Shape = Enum.PartType.Ball
+		node.Size = Vector3.new(PATH_NODE_SIZE, PATH_NODE_SIZE, PATH_NODE_SIZE)
+		node.Material = Enum.Material.Neon
+		node.Color = COLOR_NORMAL
+		node.Transparency = 0.18
+		node.CanCollide = false
+		node.CanQuery = false
+		node.CanTouch = false
+		node.CastShadow = false
+		node.Anchored = true
+		node.Parent = pathRailFolder
+		node.CFrame = CFrame.new(point)
+
+		local nextPoint = expandedPoints[index + 1]
+		if nextPoint then
+			local startPos = point
+			local endPos = nextPoint
+			local delta = endPos - startPos
+			local length = delta.Magnitude
+			if length > 0.1 then
+				local rail = Instance.new("Part")
+				rail.Name = ("Rail_%02d"):format(index)
+				rail.Shape = Enum.PartType.Block
+				rail.Size = Vector3.new(PATH_RAIL_THICKNESS, PATH_RAIL_THICKNESS, length)
+				rail.Material = Enum.Material.Neon
+				rail.Color = COLOR_NORMAL
+				rail.Transparency = 0.35
+				rail.CanCollide = false
+				rail.CanQuery = false
+				rail.CanTouch = false
+				rail.CastShadow = false
+				rail.Anchored = true
+				rail.Parent = pathRailFolder
+				rail.CFrame = CFrame.lookAt(startPos:Lerp(endPos, 0.5), endPos)
+			end
+		end
+	end
+end
+
+local function buildFallbackWaypoints(startPos: Vector3, goalPos: Vector3, char: Model?)
+	local points = {}
+	local startFlat = Vector3.new(startPos.X, 0, startPos.Z)
+	local goalFlat = Vector3.new(goalPos.X, 0, goalPos.Z)
+	local flatDelta = goalFlat - startFlat
+	local totalDistance = flatDelta.Magnitude
+	local segments = math.clamp(math.floor(totalDistance / 18) + 2, 4, 12)
+	local topY = math.max(startPos.Y, goalPos.Y) + 50
+
+	for index = 0, segments do
+		local alpha = index / segments
+		local xz = startFlat:Lerp(goalFlat, alpha)
+		local sampleOrigin = Vector3.new(xz.X, topY, xz.Z)
+		local groundY = getGroundY(sampleOrigin, char)
+		points[#points + 1] = {
+			Position = Vector3.new(xz.X, groundY, xz.Z),
+		}
+	end
+
+	return points
+end
+
+local function requestPathRebuild(startPos: Vector3, goalPos: Vector3, char: Model?)
+	if pathRequestPending then
+		return
+	end
+	local now = os.clock()
+	if now < pathNextRetryAt then
+		return
+	end
+
+	pathRequestToken += 1
+	local token = pathRequestToken
+	local startFlat = groundProject(startPos, char)
+	local goalFlat = groundProject(goalPos, char)
+	pathRequestPending = true
+	pathRequestStartedAt = os.clock()
+
+	task.spawn(function()
+		local path = PathfindingService:CreatePath({
+			AgentRadius = 2,
+			AgentHeight = 5,
+			AgentCanJump = true,
+			AgentCanClimb = false,
+			WaypointSpacing = 4,
+		})
+
+		local ok = pcall(function()
+			path:ComputeAsync(startFlat, goalFlat)
+		end)
+		if not ok or path.Status ~= Enum.PathStatus.Success then
+			local fallbackWaypoints = buildFallbackWaypoints(startFlat, goalFlat, char)
+			currentPath = nil
+			currentWaypoints = fallbackWaypoints
+			currentWaypointIndex = 1
+			currentPathGoal = goalPos
+			buildPathRail(fallbackWaypoints, char)
+			pathRequestPending = false
+			pathRequestStartedAt = 0
+			pathNextRetryAt = os.clock() + 0.75
+			return
+		end
+		local waypoints = path:GetWaypoints()
+		if not waypoints or #waypoints == 0 then
+			local fallbackWaypoints = buildFallbackWaypoints(startFlat, goalFlat, char)
+			currentPath = nil
+			currentWaypoints = fallbackWaypoints
+			currentWaypointIndex = 1
+			currentPathGoal = goalPos
+			buildPathRail(fallbackWaypoints, char)
+			pathRequestPending = false
+			pathRequestStartedAt = 0
+			pathNextRetryAt = os.clock() + 0.75
+			return
+		end
+		if token ~= pathRequestToken or activeTargetPos ~= goalPos then
+			pathRequestPending = false
+			pathRequestStartedAt = 0
+			return
+		end
+
+		currentPath = path
+		currentWaypoints = waypoints
+		currentWaypointIndex = 1
+		currentPathGoal = goalPos
+		pathRequestPending = false
+		pathRequestStartedAt = 0
+		buildPathRail(waypoints, char)
+		pathNextRetryAt = 0
+	end)
+end
+
 local STEP_TARGETS = {
 	SELECT_ELEMENT = {
 		kind = "npc",
@@ -204,13 +427,13 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-341.2, 16.3, 423.2),
+		fallback = Vector3.new(-309.554, 10, 425.738),
 	},
 	COLLECT_SLIME_MUCUS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-341.2, 16.3, 423.2),
+		fallback = Vector3.new(-309.554, 10, 425.738),
 	},
 	CRAFT_SOFTCLUB = {
 		kind = "npc",
@@ -221,7 +444,7 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "HornedLarvaZone",
 		spawnDataKey = "HornedLarvaZone",
-		fallback = Vector3.new(-222.64, -3.258, 195.686),
+		fallback = Vector3.new(-4.65, 8, 466.528),
 	},
 	CRAFT_GAKCHANG = {
 		kind = "npc",
@@ -240,9 +463,9 @@ local STEP_TARGETS = {
 	},
 	KILL_STUMP = {
 		kind = "monster",
-		zoneName = "StumpZone",
+		zoneName = "STUMP_ZONE",
 		spawnDataKey = "StumpZone",
-		fallback = Vector3.new(-235.1, -2.2, -6.7),
+		fallback = Vector3.new(240.8065, 70.2, 642.298),
 	},
 	CRAFT_MOGWOLDO = {
 		kind = "npc",
@@ -301,10 +524,7 @@ local function cleanupVisuals()
 	wispLight = nil
 	wispTrail = nil
 	wispCurrentPos = nil
-	pathWaypoints = nil
-	pathWaypointIndex = 1
-	pathGoalPos = nil
-	nextPathRebuildAt = 0
+	clearPathState()
 end
 
 -- 비주얼 가이드 오브젝트 생성
@@ -360,89 +580,6 @@ local function setupVisuals()
 end
 
 -- 지면 높이를 구하는 함수
-local function getGroundY(position: Vector3, char: Model?): number
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	local filterList = {Workspace:FindFirstChild("__NavigationGuide")}
-	if char then
-		table.insert(filterList, char)
-	end
-	raycastParams.FilterDescendantsInstances = filterList
-
-	local origin = position + Vector3.new(0, 15, 0)
-	local direction = Vector3.new(0, -30, 0)
-	local result = Workspace:Raycast(origin, direction, raycastParams)
-
-	if result then
-		return result.Position.Y
-	end
-	return position.Y
-end
-
-local function getRaycastParams(char: Model?)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local filterList = {Workspace:FindFirstChild("__NavigationGuide")}
-	if char then
-		table.insert(filterList, char)
-	end
-	params.FilterDescendantsInstances = filterList
-	return params
-end
-
-local function clampToClearPath(fromPos: Vector3, desiredPos: Vector3, char: Model?): Vector3
-	local params = getRaycastParams(char)
-	local delta = desiredPos - fromPos
-	local dist = delta.Magnitude
-	if dist <= 0.001 then
-		return desiredPos
-	end
-
-	local result = Workspace:Raycast(fromPos, delta, params)
-	if not result then
-		return desiredPos
-	end
-
-	local backOff = math.max(0.75, math.min(2.5, dist * 0.15))
-	return result.Position - delta.Unit * backOff + Vector3.new(0, 0.75, 0)
-end
-
-local function rebuildPath(fromPos: Vector3, goalPos: Vector3, char: Model?)
-	local safeFrom = fromPos + Vector3.new(0, 1.5, 0)
-	local safeGoal = goalPos + Vector3.new(0, 1.5, 0)
-
-	local path = PathfindingService:CreatePath({
-		AgentRadius = 1.0,
-		AgentHeight = 3.5,
-		AgentCanJump = false,
-		AgentCanClimb = false,
-		WaypointSpacing = 4,
-	})
-
-	local ok = pcall(function()
-		path:ComputeAsync(safeFrom, safeGoal)
-	end)
-	if not ok or path.Status ~= Enum.PathStatus.Success then
-		pathWaypoints = nil
-		pathWaypointIndex = 1
-		return false
-	end
-
-	local waypoints = path:GetWaypoints()
-	if type(waypoints) ~= "table" or #waypoints == 0 then
-		pathWaypoints = nil
-		pathWaypointIndex = 1
-		return false
-	end
-
-	pathWaypoints = waypoints
-	pathWaypointIndex = 1
-	if #waypoints > 1 then
-		pathWaypointIndex = 2
-	end
-	return true
-end
-
 -- 튜토리얼 상태 갱신 함수
 function NavigationController.UpdateTutorialStatus(status)
 	if type(status) ~= "table" then
@@ -471,10 +608,7 @@ function NavigationController.UpdateTutorialStatus(status)
 		activeTargetPos = targetPos
 		activeStepIndex = stepIndex
 		wispCurrentPos = nil
-		pathWaypoints = nil
-		pathWaypointIndex = 1
-		pathGoalPos = nil
-		nextPathRebuildAt = 0
+		clearPathState()
 		setupVisuals()
 	end
 end
@@ -486,10 +620,7 @@ function NavigationController.Init()
 	player.CharacterAdded:Connect(function()
 		if activeTargetPos then
 			wispCurrentPos = nil
-			pathWaypoints = nil
-			pathWaypointIndex = 1
-			pathGoalPos = nil
-			nextPathRebuildAt = 0
+			clearPathState()
 			setupVisuals()
 		else
 			cleanupVisuals()
@@ -499,6 +630,9 @@ function NavigationController.Init()
 	-- 매 프레임 업데이트 루프
 	RunService.RenderStepped:Connect(function(dt)
 		if not activeTargetPos or not wispPart or not wispLight or not wispTrail then
+			return
+		end
+		if typeof(activeTargetPos) ~= "Vector3" then
 			return
 		end
 
@@ -513,72 +647,84 @@ function NavigationController.Init()
 
 		local playerPos = hrp.Position
 		local guideGoal = activeTargetPos
-		local now = os.clock()
-
 		if not wispCurrentPos then
-			local spawnOffset = hrp.CFrame.LookVector * 4
-			wispCurrentPos = playerPos + spawnOffset + Vector3.new(0, WISP_HOVER_HEIGHT, 0)
-		end
-
-		if pathGoalPos ~= guideGoal then
-			pathGoalPos = guideGoal
-			pathWaypoints = nil
-			pathWaypointIndex = 1
-			nextPathRebuildAt = 0
-		end
-
-		if now >= nextPathRebuildAt or not pathWaypoints or pathWaypointIndex > #pathWaypoints then
-			rebuildPath(wispCurrentPos, guideGoal, char)
-			nextPathRebuildAt = now + MAX_PATH_REBUILD_INTERVAL
-		end
-
-		local targetPos = guideGoal
-		if pathWaypoints and pathWaypointIndex <= #pathWaypoints then
-			local waypoint = pathWaypoints[pathWaypointIndex]
-			if waypoint then
-				targetPos = waypoint.Position
+			local startDirection = guideGoal - playerPos
+			if startDirection.Magnitude < 0.1 then
+				startDirection = hrp.CFrame.LookVector
 			end
+			startDirection = Vector3.new(startDirection.X, 0, startDirection.Z)
+			if startDirection.Magnitude < 0.1 then
+				startDirection = Vector3.new(0, 0, -1)
+			end
+			local playerGroundY = getGroundY(playerPos, char)
+			wispCurrentPos = Vector3.new(playerPos.X, playerGroundY + WISP_HOVER_HEIGHT, playerPos.Z) + startDirection.Unit * 5
 		end
 
-		local toTarget = targetPos - wispCurrentPos
-		local distToTarget = toTarget.Magnitude
-		if distToTarget <= WISP_REACH_DISTANCE then
-			if pathWaypoints and pathWaypointIndex < #pathWaypoints then
-				pathWaypointIndex += 1
+		if not currentWaypoints or currentPathGoal ~= guideGoal then
+			requestPathRebuild(playerPos, guideGoal, char)
+		end
+
+		if pathRequestPending and (not currentWaypoints) and pathRequestStartedAt > 0 and (os.clock() - pathRequestStartedAt) > 0.6 then
+			local fallbackWaypoints = buildFallbackWaypoints(playerPos, guideGoal, char)
+			currentPath = nil
+			currentWaypoints = fallbackWaypoints
+			currentWaypointIndex = 1
+			currentPathGoal = guideGoal
+			pathRequestPending = false
+			pathRequestStartedAt = 0
+			pathNextRetryAt = os.clock() + 0.75
+			buildPathRail(fallbackWaypoints, char)
+		end
+
+		local finalPos = wispCurrentPos
+		local facingDir = guideGoal - wispCurrentPos
+		local targetColor = COLOR_NORMAL
+		local currentTransparency = 0.05
+
+		if currentWaypoints then
+			local waypoint = currentWaypoints[currentWaypointIndex] or currentWaypoints[#currentWaypoints]
+			local pathTarget = waypoint and (groundProject(waypoint.Position, char) + Vector3.new(0, WISP_HOVER_HEIGHT, 0)) or guideGoal
+			local toTarget = pathTarget - wispCurrentPos
+			local targetDistance = toTarget.Magnitude
+			local moveStep = math.max(WISP_FOLLOW_SPEED * dt, 0)
+			local isLastWaypoint = currentWaypointIndex >= #currentWaypoints
+			facingDir = toTarget
+			if facingDir.Magnitude < 0.1 then
+				facingDir = (guideGoal - wispCurrentPos)
+			end
+
+			if targetDistance <= WISP_REACH_DISTANCE then
+				if not isLastWaypoint then
+					currentWaypointIndex += 1
+				else
+					local bob = math.sin(os.clock() * WISP_IDLE_BOB_SPEED) * WISP_IDLE_BOB_AMPLITUDE
+					wispCurrentPos = pathTarget + Vector3.new(0, bob, 0)
+					finalPos = wispCurrentPos
+				end
+			else
+				local step = math.min(moveStep, targetDistance)
+				wispCurrentPos = wispCurrentPos + toTarget.Unit * step
+				finalPos = wispCurrentPos
 			end
 		else
-			local step = math.min(distToTarget, WISP_FOLLOW_SPEED * dt)
-			local nextPos = wispCurrentPos + toTarget.Unit * step
-			wispCurrentPos = clampToClearPath(wispCurrentPos, nextPos, char)
+			local idleY = getGroundY(wispCurrentPos, char) + WISP_HOVER_HEIGHT
+			local bob = math.sin(os.clock() * WISP_IDLE_BOB_SPEED) * WISP_IDLE_BOB_AMPLITUDE
+			finalPos = Vector3.new(wispCurrentPos.X, idleY + bob, wispCurrentPos.Z)
+			wispCurrentPos = finalPos
+			targetColor = COLOR_WARNING
 		end
 
-		local groundY = getGroundY(wispCurrentPos, char)
-		local finalPos = Vector3.new(wispCurrentPos.X, groundY + WISP_HOVER_HEIGHT, wispCurrentPos.Z)
-		local timeVal = os.clock()
-
-		local targetColor = COLOR_NORMAL
-		local baseBrightness = 2.5
-		local currentTransparency = 0.2
-		local distToGoal = (activeTargetPos - playerPos).Magnitude
-
-		wispPart.Size = Vector3.new(0.5, 0.5, 0.5)
+		wispPart.Size = Vector3.new(1.2, 1.2, 1.2)
 		wispPart.Transparency = currentTransparency
-		wispLight.Brightness = baseBrightness
-		wispTrail.Lifetime = 0.40
-
-		if distToGoal < 15 then
-			local fade = math.clamp(distToGoal / 15, 0, 1)
-			wispPart.Transparency = 1.0 - ((1.0 - currentTransparency) * fade)
-			wispLight.Brightness = baseBrightness * fade
-			wispTrail.Lifetime = 0.40 * fade
-		end
+		wispLight.Brightness = 5
+		wispTrail.Lifetime = 0.65
 
 		-- 색상 보간 적용
 		wispPart.Color = wispPart.Color:Lerp(targetColor, math.clamp(dt * 8, 0, 1))
 		wispLight.Color = wispPart.Color
 		wispTrail.Color = ColorSequence.new(wispPart.Color)
 
-		wispPart.CFrame = CFrame.new(finalPos)
+		wispPart.CFrame = CFrame.lookAt(finalPos, finalPos + facingDir.Unit)
 	end)
 
 	print("[NavigationController] Pioneer Waypoint Wisp Guide Initialized")

@@ -146,6 +146,9 @@ local function _getStorages(storageId: string): {[string]: any}
 		-- 하위 호환성: 기존 storages가 있으면 wildernessStorages로 간주
 		worldState.wildernessStorages = worldState.storages or {}
 		worldState.storages = nil
+		if SaveService.markWorldDirty then
+			SaveService.markWorldDirty()
+		end
 	end
 	
 	return worldState.wildernessStorages
@@ -179,6 +182,9 @@ local function _markStorageDirty(storageId: string)
 	local storage = _getStorage(storageId)
 	if storage then
 		storage.updatedAt = os.time()
+		if SaveService.markWorldDirty then
+			SaveService.markWorldDirty()
+		end
 	end
 end
 

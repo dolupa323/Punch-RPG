@@ -12,6 +12,7 @@ local DataStoreClient = {}
 local RETRY_COUNT = 3
 local RETRY_DELAY = 1
 local STUDIO_FALLBACK_TO_MOCK_ON_FAILURE = true
+local UPDATE_BUDGET_TIMEOUT = 10
 
 -- DataStore 인스턴스 (스튜디오에서는 nil)
 local mainStore = nil
@@ -70,6 +71,20 @@ local function withRetry(operation: () -> any, operationName: string): (boolean,
 	end
 	
 	return false, "MAX_RETRIES_EXCEEDED"
+end
+
+local function waitForBudget(requestType: Enum.DataStoreRequestType, timeoutSeconds: number): boolean
+	local start = os.clock()
+	timeoutSeconds = timeoutSeconds or UPDATE_BUDGET_TIMEOUT
+
+	while DataStoreService:GetRequestBudgetForRequestType(requestType) <= 0 do
+		if os.clock() - start >= timeoutSeconds then
+			return false
+		end
+		task.wait(0.25)
+	end
+
+	return true
 end
 
 --========================================
@@ -149,6 +164,10 @@ function DataStoreClient.update(key: string, updateFn: (any) -> any): (boolean, 
 	
 	if not mainStore then
 		return false, "DATASTORE_NOT_INITIALIZED"
+	end
+
+	if not waitForBudget(Enum.DataStoreRequestType.UpdateAsync, UPDATE_BUDGET_TIMEOUT) then
+		return false, "DATASTORE_BUDGET_TIMEOUT"
 	end
 	
 	local success, result = withRetry(function()
