@@ -11,6 +11,7 @@ local Debris = game:GetService("Debris")
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
 local Utils = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UIUtils"))
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -313,7 +314,7 @@ local function createSelectionUI()
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, 0, 0, 80)
 	title.Position = UDim2.new(0, 0, 0.15, 0)
-	title.Text = "아바타 아앙의 전설: 검술 RPG"
+	title.Text = UILocalizer.Localize("아바타 아앙의 전설: 검술 RPG")
 	title.TextColor3 = Color3.fromRGB(255, 240, 200)
 	title.TextSize = 36
 	title.Font = Enum.Font.SourceSansBold
@@ -324,7 +325,7 @@ local function createSelectionUI()
 	local subtitle = Instance.new("TextLabel")
 	subtitle.Size = UDim2.new(1, 0, 0, 40)
 	subtitle.Position = UDim2.new(0, 0, 0.23, 0)
-	subtitle.Text = "숙명의 원소 속성을 선택하여 검의 지배자가 되십시오"
+	subtitle.Text = UILocalizer.Localize("숙명의 원소 속성을 선택하여 검의 지배자가 되십시오")
 	subtitle.TextColor3 = Color3.fromRGB(180, 180, 190)
 	subtitle.TextSize = 18
 	subtitle.Font = Enum.Font.SourceSans
@@ -376,7 +377,7 @@ local function createSelectionUI()
 		local nameLbl = Instance.new("TextLabel")
 		nameLbl.Size = UDim2.new(1, 0, 0, 40)
 		nameLbl.Position = UDim2.new(0, 0, 0.2, 0)
-		nameLbl.Text = el.name
+		nameLbl.Text = UILocalizer.Localize(el.name)
 		nameLbl.TextColor3 = el.color
 		nameLbl.TextSize = 20
 		nameLbl.Font = Enum.Font.SourceSansBold
@@ -387,7 +388,7 @@ local function createSelectionUI()
 		descLbl.Size = UDim2.new(0.85, 0, 0.4, 0)
 		descLbl.Position = UDim2.new(0.5, 0, 0.45, 0)
 		descLbl.AnchorPoint = Vector2.new(0.5, 0)
-		descLbl.Text = el.desc
+		descLbl.Text = UILocalizer.Localize(el.desc)
 		descLbl.TextColor3 = Color3.fromRGB(180, 180, 180)
 		descLbl.TextSize = 14
 		descLbl.Font = Enum.Font.SourceSans
@@ -473,14 +474,14 @@ local function createDialogueUI(element)
 	local masterTitle = ""
 	local dialogueText = ""
 	if element == "Water" then
-		masterTitle = "물의 스승"
-		dialogueText = "“세상은 언제나 변한다.\n강한 자가 살아남는 것이 아니라, 흐름을 아는 자가 살아남는다.\n자, 선택하라. 너는 물처럼 변하고, 다시 일어설 수 있느냐?”"
+		masterTitle = UILocalizer.Localize("물의 스승")
+		dialogueText = UILocalizer.Localize("“세상은 언제나 변한다.\n강한 자가 살아남는 것이 아니라, 흐름을 아는 자가 살아남는다.\n자, 선택하라. 너는 물처럼 변하고, 다시 일어설 수 있느냐?”")
 	elseif element == "Fire" then
-		masterTitle = "불의 스승"
-		dialogueText = "“내 힘을 받는 순간, 너는 더 이상 뒤로 물러설 수 없다.\n적을 베고, 어둠을 태우고, 네 길을 스스로 밝혀라.\n자, 선택하라. 너의 심장은 불타고 있느냐?”"
+		masterTitle = UILocalizer.Localize("불의 스승")
+		dialogueText = UILocalizer.Localize("“내 힘을 받는 순간, 너는 더 이상 뒤로 물러설 수 없다.\n적을 베고, 어둠을 태우고, 네 길을 스스로 밝혀라.\n자, 선택하라. 너의 심장은 불타고 있느냐?”")
 	else
-		masterTitle = "어둠의 스승"
-		dialogueText = "“빛은 필연적으로 그림자를 드리운다.\n모두가 빛을 우러러볼 때, 어둠은 묵묵히 모든 것을 삼킨다.\n자, 선택하라. 너는 기꺼이 심연 속으로 걸어갈 수 있느냐?”"
+		masterTitle = UILocalizer.Localize("어둠의 스승")
+		dialogueText = UILocalizer.Localize("“빛은 필연적으로 그림자를 드리운다.\n모두가 빛을 우러러볼 때, 어둠은 묵묵히 모든 것을 삼킨다.\n자, 선택하라. 너는 기꺼이 심연 속으로 걸어갈 수 있느냐?”")
 	end
 
 	-- 3. 타이틀 레이블 (Scale 좌표계 적용)
@@ -532,7 +533,7 @@ local function createDialogueUI(element)
 
 	-- 6. "예" 수락 버튼 (액션 버튼 컬러)
 	local yesBtn = Utils.mkBtn({
-		text = "예 (Choose)",
+		text = UILocalizer.Localize("예 (Choose)"),
 		size = UDim2.new(0.45, 0, 1, 0),
 		bg = themeColor, -- 테마 컬러를 버튼에도 살짝 주입하여 포인트 강화
 		bgT = 0.3,
@@ -546,7 +547,7 @@ local function createDialogueUI(element)
 
 	-- 7. "아니오" 취소 버튼 (Negative Gray 컨벤션)
 	local noBtn = Utils.mkBtn({
-		text = "아니오 (Cancel)",
+		text = UILocalizer.Localize("아니오 (Cancel)"),
 		size = UDim2.new(0.45, 0, 1, 0),
 		isNegative = true,
 		ts = 16,

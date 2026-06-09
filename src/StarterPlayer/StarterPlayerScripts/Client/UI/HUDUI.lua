@@ -152,37 +152,49 @@ local recipeLookup = {}
 local creatureLookup = {}
 
 local TUTORIAL_STEP_EN = {
-	COLLECT_BASICS = {
-		currentStepText = "Gather 1 Small Stone and 1 Branch first",
-		stepCommand = "Pick up 1 SMALL_STONE + 1 BRANCH nearby",
+	SELECT_ELEMENT = {
+		currentStepText = "1. Choose an element from the Element Master",
+		stepCommand = "Talk to the Element Master and choose Fire, Water, or Dark.",
 	},
-	CRAFT_AXE = {
-		currentStepText = "Craft a Crude Stone Axe",
-		stepCommand = "Craft CRAFT_CRUDE_STONE_AXE in the inventory crafting tab",
+	KILL_SLIME = {
+		currentStepText = "2. Hunt a Slime",
+		stepCommand = "Defeat 1 Slime.",
 	},
-	GET_WOOD = {
-		currentStepText = "Secure wood resources",
-		stepCommand = "Obtain at least 1 WOOD or LOG",
+	COLLECT_SLIME_MUCUS = {
+		currentStepText = "3. Gather Slime Mucus",
+		stepCommand = "Gather 10 Slime Mucus.",
 	},
-	KILL_DODO = {
-		currentStepText = "Hunt for food",
-		stepCommand = "Kill 1 DODO",
+	CRAFT_SOFTCLUB = {
+		currentStepText = "4. Craft a Soft Club",
+		stepCommand = "Craft a Soft Club.",
 	},
-	BUILD_CAMPFIRE = {
-		currentStepText = "Build a warmth point before night",
-		stepCommand = "Place 1 CAMPFIRE",
+	KILL_HORNED_LARVA = {
+		currentStepText = "5. Hunt Horned Larva",
+		stepCommand = "Defeat 15 Horned Larvas.",
 	},
-	COOK_MEAT = {
-		currentStepText = "Cook 1 meat",
-		stepCommand = "Craft CRAFT_COOKED_MEAT",
+	CRAFT_GAKCHANG = {
+		currentStepText = "6. Craft a Gakchang",
+		stepCommand = "Craft a Gakchang.",
 	},
-	PLACE_TOTEM = {
-		currentStepText = "Secure a base center point",
-		stepCommand = "Place 1 CAMP_TOTEM",
+	ENHANCE_GAKCHANG = {
+		currentStepText = "7. Try enhancing Gakchang",
+		stepCommand = "Enhance a Gakchang to +1 or higher.",
 	},
-	BUILD_LEAN_TO = {
-		currentStepText = "Secure a sleep/respawn point",
-		stepCommand = "Place 1 BED_T1",
+	BUY_POTION = {
+		currentStepText = "8. Buy a potion from the shop",
+		stepCommand = "Buy 1 Basic HP Potion or Basic MP Potion from the General Merchant.",
+	},
+	KILL_STUMP = {
+		currentStepText = "9. Hunt a Stump",
+		stepCommand = "Defeat 1 Stump.",
+	},
+	CRAFT_MOGWOLDO = {
+		currentStepText = "10. Craft a Mogwoldo",
+		stepCommand = "Craft a Mogwoldo.",
+	},
+	COMPLETED = {
+		currentStepText = "You have completed all tutorial quests.",
+		stepCommand = "Now proceed with the RPG loop freely.",
 	},
 }
 
@@ -513,7 +525,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local inner = Instance.new("ImageLabel")
 		inner.Size = UDim2.new(0.4, 0, 0.6, 0); inner.Position = UDim2.new(0.5, 0, 0.35, 0); inner.AnchorPoint = Vector2.new(0.5, 0.5); inner.BackgroundTransparency = 1; inner.ScaleType = Enum.ScaleType.Fit; inner.Image = iconId; inner.Parent = btn
 		local asp = Instance.new("UIAspectRatioConstraint"); asp.AspectRatio = 1; asp.Parent = inner
-		local txt = Utils.mkLabel({text=label, size=UDim2.new(0.9, 0, 0.3, 0), pos=UDim2.new(0.5, 0, 0.8, 0), anchor=Vector2.new(0.5, 0.5), font=F.TITLE, color=C.WHITE, st=1, parent=btn})
+		local txt = Utils.mkLabel({text=UILocalizer.Localize(label), size=UDim2.new(0.9, 0, 0.3, 0), pos=UDim2.new(0.5, 0, 0.8, 0), anchor=Vector2.new(0.5, 0.5), font=F.TITLE, color=C.WHITE, st=1, parent=btn})
 		txt.TextScaled = true
 		local clk = Instance.new("TextButton")
 		clk.Size = UDim2.new(1,0,1,0); clk.BackgroundTransparency=1; clk.Text=""; clk.Parent=btn
@@ -587,12 +599,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		size = UDim2.new(isSmall and 0.42 or 0.24, 0, 0, isSmall and 92 or 82),
 		pos = UDim2.new(0, 12, 0, 180),
 		anchor = Vector2.new(0, 0),
-		bg = Color3.fromRGB(10, 15, 25),
-		bgT = 0,
-		r = 6,
-		stroke = 1,
+		bg = Color3.fromRGB(15, 20, 30),
+		bgT = 0.2,
+		r = 12,
+		stroke = 1.5,
 		strokeC = Color3.fromRGB(60, 85, 130),
-		strokeT = 0.05,
+		strokeT = 0.2,
 		vis = false,
 		parent = parent,
 	})
@@ -629,14 +641,6 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- isTutorialMinimized는 항상 false로 유지
 	isTutorialMinimized = false
 
-	local tutorialGradient = Instance.new("UIGradient")
-	tutorialGradient.Rotation = 90
-	tutorialGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.25),
-		NumberSequenceKeypoint.new(0.35, 0.40),
-		NumberSequenceKeypoint.new(1, 0.65),
-	})
-	tutorialGradient.Parent = tutorialFrame
 	HUDUI.Refs.tutorialFrame = tutorialFrame
 
 	HUDUI.Refs.tutorialTitle = Utils.mkLabel({
@@ -647,7 +651,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		ax = Enum.TextXAlignment.Left,
 		font = F.TITLE,
 		ts = 16,
-		color = C.WHITE,
+		color = Color3.fromRGB(255, 220, 120), -- Gold color matching dialog speaker
 		parent = tutorialFrame,
 	})
 	
@@ -718,15 +722,18 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local tutorialCompleteBtn = Utils.mkBtn({
 		name = "TutorialCompleteBtn",
 		text = "완료",
-		size = UDim2.new(0, 96, 0, 32),
-		pos = UDim2.new(1, -10, 1, -30),
+		size = UDim2.new(0, 75, 0, 26),
+		pos = UDim2.new(1, -10, 1, -8),
 		anchor = Vector2.new(1, 1),
-		bg = C.BG_PANEL_L,
-		bgT = 0.94,
-		stroke = false,
-		ts = 17,
+		bg = Color3.fromRGB(25, 35, 55),
+		bgT = 0.3,
+		stroke = 1,
+		strokeC = Color3.fromRGB(60, 85, 130),
+		strokeT = 0.2,
+		r = 6,
+		ts = 13,
 		font = F.TITLE,
-		color = C.WHITE,
+		color = Color3.fromRGB(255, 220, 120), -- Gold text
 		fn = function()
 			if UIManager and UIManager.requestTutorialStepComplete then
 				UIManager.requestTutorialStepComplete()
@@ -734,14 +741,6 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		end,
 		parent = tutorialFrame,
 	})
-
-	local btnGradient = Instance.new("UIGradient")
-	btnGradient.Rotation = 90
-	btnGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.16),
-		NumberSequenceKeypoint.new(1, 0.38),
-	})
-	btnGradient.Parent = tutorialCompleteBtn
 	HUDUI.Refs.tutorialCompleteBtn = tutorialCompleteBtn
 
 	local tutorialClickArea = Instance.new("TextButton")
@@ -1129,7 +1128,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end
 	
 	local attackLabel = Utils.mkLabel({
-		text = attackIconId and "" or "공격",
+		text = attackIconId and "" or UILocalizer.Localize("공격"),
 		size = UDim2.new(1, 0, 1, 0),
 		font = F.TITLE,
 		color = C.WHITE,
@@ -1166,7 +1165,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end
 
 	local jumpLabel = Utils.mkLabel({
-		text = jumpIconId and "" or "점프",
+		text = jumpIconId and "" or UILocalizer.Localize("점프"),
 		size = UDim2.new(1, 0, 1, 0),
 		font = F.TITLE,
 		color = C.WHITE,
@@ -1200,7 +1199,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end
 
 	local dashLabel = Utils.mkLabel({
-		text = dashIconId and "" or "대쉬",
+		text = dashIconId and "" or UILocalizer.Localize("대쉬"),
 		size = UDim2.new(1, 0, 1, 0),
 		font = F.TITLE,
 		color = C.WHITE,
@@ -1521,7 +1520,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.harvestFrame = Utils.mkFrame({name="Harvest", size=UDim2.new(0, 300, 0, 60), pos=UDim2.new(0.4, 0, 0.5, 0), anchor=Vector2.new(0.5, 0.5), bgT=1, vis=false, parent=parent})
 	local hBar = Utils.mkBar({size=UDim2.new(1, 0, 0, 6), pos=UDim2.new(0.5, 0, 0, 30), anchor=Vector2.new(0.5, 0), fillC=C.WHITE, parent=HUDUI.Refs.harvestFrame})
 	HUDUI.Refs.harvestBar = hBar.fill
-	HUDUI.Refs.harvestName = Utils.mkLabel({text="채집 중...", size=UDim2.new(1, 0, 0, 25), ts=16, bold=true, rich=true, parent=HUDUI.Refs.harvestFrame})
+	HUDUI.Refs.harvestName = Utils.mkLabel({text=UILocalizer.Localize("채집 중..."), size=UDim2.new(1, 0, 0, 25), ts=16, bold=true, rich=true, parent=HUDUI.Refs.harvestFrame})
 	HUDUI.Refs.harvestPct = Utils.mkLabel({text="0%", size=UDim2.new(1, 0, 0, 20), pos=UDim2.new(0.5, 0, 0, 45), anchor=Vector2.new(0.5, 0), ts=14, color=C.GOLD, parent=HUDUI.Refs.harvestFrame})
 
 	-- =============================================
@@ -1954,19 +1953,19 @@ function HUDUI.UpdateTutorialStatus(status)
 	local stepLines = {}
 	local currentStepText = localizeTutorialStepField(status, "currentStepText")
 	if currentStepText ~= "" then
-		table.insert(stepLines, "<font color=\"#DCE7FF\">" .. localizeQuestRuntimeText(currentStepText) .. "</font>")
+		table.insert(stepLines, "<font color=\"#FFFFFF\">" .. localizeQuestRuntimeText(currentStepText) .. "</font>")
 	end
 	local stepCommand = localizeTutorialStepField(status, "stepCommand")
 	if stepCommand ~= "" then
 		local commandText = localizeQuestRuntimeText(stepCommand)
 		if progressText ~= "" then
-			commandText = commandText .. " <font color=\"#FFFF80\">" .. progressText .. "</font>"
+			commandText = commandText .. " <font color=\"#FFDD78\">" .. progressText .. "</font>"
 		end
-		table.insert(stepLines, "<font color=\"#B8C7FF\">" .. commandText .. "</font>")
+		table.insert(stepLines, "<font color=\"#FFD278\">" .. commandText .. "</font>")
 	end
 	local rewardText = _buildRewardText(status.rewardPreview or status.reward)
 	if rewardText ~= "" then
-		table.insert(stepLines, "<font color=\"#7FA8FF\">" .. UILocalizer.Localize("보상:") .. "</font> " .. rewardText)
+		table.insert(stepLines, "<font color=\"#A5C4FF\">" .. UILocalizer.Localize("보상:") .. "</font> <font color=\"#FFFFFF\">" .. rewardText .. "</font>")
 	end
 	HUDUI.Refs.tutorialStep.Text = (#stepLines > 0) and table.concat(stepLines, "\n") or UILocalizer.Localize("다음 목표 대기 중")
 	
@@ -2091,7 +2090,7 @@ function HUDUI.ShowHarvestProgress(totalTime, targetName)
 		if harvestConn then harvestConn:Disconnect(); harvestConn = nil end
 		
 		if HUDUI.Refs.harvestBar then HUDUI.Refs.harvestBar.Size = UDim2.new(0, 0, 1, 0) end
-		if HUDUI.Refs.harvestName then HUDUI.Refs.harvestName.Text = targetName or "채집 중..." end
+		if HUDUI.Refs.harvestName then HUDUI.Refs.harvestName.Text = UILocalizer.Localize(targetName or "채집 중...") end
 		if HUDUI.Refs.harvestPct then HUDUI.Refs.harvestPct.Text = "0%" end
 		
 		if type(totalTime) == "number" and totalTime > 0 then

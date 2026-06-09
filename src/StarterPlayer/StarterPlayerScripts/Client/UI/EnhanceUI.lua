@@ -83,7 +83,7 @@ local function syncDownProtectSelection(allowPrompt)
 		end
 		if EnhanceUI.State.pendingDownProtectWarning and allowPrompt and EnhanceUI.Refs.Frame and EnhanceUI.Refs.Frame.Visible and not EnhanceUI.State.isProcessing then
 			UI_MANAGER.showEnhanceConfirm({
-				title = "하락방지권 없음",
+				title = UILocalizer.Localize("하락방지권 없음"),
 				message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
 				onConfirm = function()
 					EnhanceUI.State.pendingDownProtectWarning = false
@@ -124,7 +124,7 @@ local function syncDownProtectSelection(allowPrompt)
 		elseif not EnhanceUI.State.pendingDownProtectWarning then
 			EnhanceUI.State.pendingDownProtectWarning = true
 			UI_MANAGER.showEnhanceConfirm({
-				title = "하락방지권 없음",
+				title = UILocalizer.Localize("하락방지권 없음"),
 				message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
 				onConfirm = function()
 					EnhanceUI.State.pendingDownProtectWarning = false
@@ -559,7 +559,7 @@ function EnhanceUI.StartEnhance()
 	local hasProtect = syncDownProtectSelection(false)
 	if not hasProtect then
 		UI_MANAGER.showEnhanceConfirm({
-			title = "하락방지권 없음",
+			title = UILocalizer.Localize("하락방지권 없음"),
 			message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
 			onConfirm = function()
 				EnhanceUI.State.pendingDownProtectWarning = false

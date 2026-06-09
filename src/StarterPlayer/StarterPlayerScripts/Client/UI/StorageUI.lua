@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(script.Parent:WaitForChild("UITheme"))
 local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local Balance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Balance"))
 local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))
@@ -41,7 +42,7 @@ local function formatAttributes(attributes)
 	for attrId, level in pairs(attributes) do
 		local attrInfo = MaterialAttributeData.getAttribute(attrId)
 		if attrInfo then
-			table.insert(parts, string.format("%s Lv.%d", attrInfo.name, tonumber(level) or 1))
+			table.insert(parts, string.format("%s Lv.%d", UILocalizer.Localize(attrInfo.name), tonumber(level) or 1))
 		end
 	end
 	table.sort(parts)
@@ -50,24 +51,25 @@ end
 
 local function describeItem(itemData, item)
 	if not item or not item.itemId then
-		return "빈 슬롯"
+		return UILocalizer.Localize("빈 슬롯")
 	end
 
 	local name = (itemData and itemData.name) or item.itemId
+	name = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", name)
 	local count = tonumber(item.count) or 1
 	local lines = {
 		string.format("%s", name),
-		string.format("수량: %d", count),
+		string.format(UILocalizer.Localize("수량: %d"), count),
 	}
 	
 	if itemData and (itemData.type == "WEAPON" or itemData.type == "ARMOR") then
 		local quality = (item.attributes and item.attributes.quality) or 100
-		table.insert(lines, string.format("품질: %d / 100", quality))
+		table.insert(lines, string.format(UILocalizer.Localize("품질: %d / 100"), quality))
 	end
 
 	local attrText = formatAttributes(item.attributes)
 	if attrText ~= "" then
-		table.insert(lines, "속성: " .. attrText)
+		table.insert(lines, UILocalizer.Localize("속성: ") .. attrText)
 	end
 
 	-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
@@ -76,7 +78,8 @@ local function describeItem(itemData, item)
 	end
 
 	if itemData and itemData.description then
-		table.insert(lines, itemData.description)
+		local desc = UILocalizer.LocalizeDataText("ItemData", item.itemId, "description", itemData.description)
+		table.insert(lines, desc)
 	end
 
 	return table.concat(lines, "\n")
@@ -84,10 +87,10 @@ end
 
 local function updateTooltip(title, body)
 	if StorageUI.Refs.TooltipTitle then
-		StorageUI.Refs.TooltipTitle.Text = title or "아이템 정보"
+		StorageUI.Refs.TooltipTitle.Text = UILocalizer.Localize(title or "아이템 정보")
 	end
 	if StorageUI.Refs.TooltipBody then
-		StorageUI.Refs.TooltipBody.Text = body or "슬롯 위에 마우스를 올리면 정보를 볼 수 있습니다."
+		StorageUI.Refs.TooltipBody.Text = UILocalizer.Localize(body or "슬롯 위에 마우스를 올리면 정보를 볼 수 있습니다.")
 	end
 end
 
@@ -151,7 +154,7 @@ local function buildPanel(parent, panelName, title, titleColor, isSmall)
 	panel.LayoutOrder = (panelName == "Left") and 1 or 2
 
 	Utils.mkLabel({
-		text = title,
+		text = UILocalizer.Localize(title),
 		size = UDim2.new(1, -16, 0, 26),
 		pos = UDim2.new(0, 10, 0, 6),
 		color = titleColor,
@@ -174,7 +177,7 @@ local function buildPanel(parent, panelName, title, titleColor, isSmall)
 	})
 
 	local goldLabel = Utils.mkLabel({
-		text = "골드: 0",
+		text = UILocalizer.Localize("골드: 0"),
 		size = UDim2.new(1, -110, 0, 22),
 		pos = UDim2.new(0, 10, 0, 8),
 		ts = 14,
@@ -185,7 +188,7 @@ local function buildPanel(parent, panelName, title, titleColor, isSmall)
 	})
 
 	local goldDesc = Utils.mkLabel({
-		text = "아이템과 별도로 보관되는 골드입니다.",
+		text = UILocalizer.Localize("아이템과 별도로 보관되는 골드입니다."),
 		size = UDim2.new(1, -20, 0, 16),
 		pos = UDim2.new(0, 10, 0, 30),
 		ts = 11,
@@ -250,7 +253,7 @@ function StorageUI.ShowTooltip(entry)
 	end
 
 	if entry.kind == "gold" then
-		updateTooltip(entry.title or "골드", string.format("보유 골드: %d\n상점, 토템 유지비, 거래에 사용하는 화폐입니다.", tonumber(entry.amount) or 0))
+		updateTooltip(UILocalizer.Localize(entry.title or "골드"), string.format(UILocalizer.Localize("보유 골드: %d\n상점, 토템 유지비, 거래에 사용하는 화폐입니다."), tonumber(entry.amount) or 0))
 		return
 	end
 
@@ -296,7 +299,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 
 	local header = Utils.mkFrame({ name = "Header", size = UDim2.new(1, 0, 0, 45), bgT = 1, parent = main })
 	StorageUI.Refs.Title = Utils.mkLabel({
-		text = "보관함",
+		text = UILocalizer.Localize("보관함"),
 		pos = UDim2.new(0, 20, 0.5, 0),
 		anchor = Vector2.new(0, 0.5),
 		ts = 20,
@@ -350,7 +353,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	StorageUI.Refs.PlayerGoldLabel = playerGoldLabel
 
 	StorageUI.Refs.StorageGoldBtn = Utils.mkBtn({
-		text = "골드 인출",
+		text = UILocalizer.Localize("골드 인출"),
 		size = UDim2.new(0, isSmall and 82 or 94, 0, isSmall and 28 or 30),
 		pos = UDim2.new(1, -10, 0, 8),
 		anchor = Vector2.new(1, 0),
@@ -365,7 +368,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	})
 
 	StorageUI.Refs.PlayerGoldBtn = Utils.mkBtn({
-		text = "골드 보관",
+		text = UILocalizer.Localize("골드 보관"),
 		size = UDim2.new(0, isSmall and 82 or 94, 0, isSmall and 28 or 30),
 		pos = UDim2.new(1, -10, 0, 8),
 		anchor = Vector2.new(1, 0),
@@ -404,7 +407,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 	})
 	StorageUI.Refs.TooltipFrame = tooltip
 	StorageUI.Refs.TooltipTitle = Utils.mkLabel({
-		text = "아이템 정보",
+		text = UILocalizer.Localize("아이템 정보"),
 		size = UDim2.new(1, -20, 0, 22),
 		pos = UDim2.new(0, 10, 0, 8),
 		ts = isSmall and 14 or 15,
@@ -414,7 +417,7 @@ function StorageUI.Init(parent, UIManager, isMobile)
 		parent = tooltip,
 	})
 	StorageUI.Refs.TooltipBody = Utils.mkLabel({
-		text = "슬롯 위에 마우스를 올리면 정보를 볼 수 있습니다.",
+		text = UILocalizer.Localize("슬롯 위에 마우스를 올리면 정보를 볼 수 있습니다."),
 		size = UDim2.new(1, -20, 1, -34),
 		pos = UDim2.new(0, 10, 0, 30),
 		ts = isSmall and 11 or 12,
@@ -432,10 +435,10 @@ function StorageUI.Refresh(storageData, inventoryData, playerGold, getItemIcon, 
 	end
 
 	if StorageUI.Refs.StorageGoldLabel then
-		StorageUI.Refs.StorageGoldLabel.Text = string.format("보관 골드: %d", tonumber(storageData.gold) or 0)
+		StorageUI.Refs.StorageGoldLabel.Text = string.format(UILocalizer.Localize("보관 골드: %d"), tonumber(storageData.gold) or 0)
 	end
 	if StorageUI.Refs.PlayerGoldLabel then
-		StorageUI.Refs.PlayerGoldLabel.Text = string.format("소지 골드: %d", tonumber(playerGold) or 0)
+		StorageUI.Refs.PlayerGoldLabel.Text = string.format(UILocalizer.Localize("소지 골드: %d"), tonumber(playerGold) or 0)
 	end
 
 	local maxSlots = storageData.maxSlots or Balance.STORAGE_SLOTS

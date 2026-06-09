@@ -14,6 +14,21 @@ local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
 local MobSpawnService = {}
 local activeMobs = {} -- areaId_index -> Model Instance
 
+local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number)
+	if not phum or phum.Health <= 0 then return end
+	local char = phum.Parent
+	local defense = 0
+	if char then
+		defense = tonumber(char:GetAttribute("Defense")) or 0
+	end
+	
+	-- Defense damage reduction formula: damage = rawDamage * (100 / (100 + defense))
+	local finalDamage = rawDamage * (100 / (100 + defense))
+	finalDamage = math.max(1, math.floor(finalDamage + 0.5))
+	
+	phum:TakeDamage(finalDamage)
+end
+
 local function resolveSpawnConfig(config, index)
 	if type(config) ~= "table" then
 		return config
@@ -404,6 +419,7 @@ local function createMobModel(areaId, index, config)
 	model:SetAttribute("CurrentHealth", config.maxHealth or 100)
 	model:SetAttribute("MobId", config.mobModelName or "Slime")
 	model:SetAttribute("XPReward", config.xpReward or 25)
+	model:SetAttribute("Level", config.level or 1)
 
 	-- [추가] 지형 파고듦 방지 엔진 (Dynamic Rig Setup & HipHeight Calibration)
 	if humanoid then
@@ -871,8 +887,8 @@ local function createMobModel(areaId, index, config)
 				crater.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
 				crater.Anchored = true
 				crater.CanCollide = false
-				crater.Material = Enum.Material.Grass
-				crater.Color = Color3.fromRGB(46, 110, 30) -- 무성한 잔디색
+				crater.Material = Enum.Material.Sand
+				crater.Color = Color3.fromRGB(210, 180, 140) -- 모래색
 				crater.Parent = workspace
 				ts:Create(crater, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
 				game:GetService("Debris"):AddItem(crater, 3.5)
@@ -891,8 +907,8 @@ local function createMobModel(areaId, index, config)
 					local wood = Instance.new("Part")
 					wood.Size = Vector3.new(math.random(2, 4), math.random(2, 4), math.random(2, 4))
 					wood.Position = pos + Vector3.new(math.random(-3, 3), 2, math.random(-3, 3))
-					wood.Material = Enum.Material.Wood
-					wood.Color = Color3.fromRGB(110, 75, 35) -- 나무색
+					wood.Material = Enum.Material.Sandstone
+					wood.Color = Color3.fromRGB(195, 145, 95) -- 사암 모래색
 					wood.CanCollide = true
 					wood.Anchored = false
 					wood.Parent = workspace
@@ -917,7 +933,7 @@ local function createMobModel(areaId, index, config)
 				
 				local pe = Instance.new("ParticleEmitter")
 				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
-				pe.Color = ColorSequence.new(Color3.fromRGB(34, 139, 34), Color3.fromRGB(144, 238, 144))
+				pe.Color = ColorSequence.new(Color3.fromRGB(225, 190, 130), Color3.fromRGB(190, 150, 95)) -- 사막 모래 먼지색
 				pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 0)})
 				pe.Transparency = NumberSequence.new(0.4, 1)
 				pe.Lifetime = NumberRange.new(0.8, 1.5)
@@ -938,7 +954,7 @@ local function createMobModel(areaId, index, config)
 				shockwave.Anchored = true
 				shockwave.CanCollide = false
 				shockwave.Material = Enum.Material.Neon
-				shockwave.Color = Color3.fromRGB(60, 150, 40) -- 형광 초록빛 대지의 충격파
+				shockwave.Color = Color3.fromRGB(230, 180, 100) -- 모래 황금빛 충격파
 				shockwave.Parent = workspace
 				ts:Create(shockwave, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 					Size = Vector3.new(0.5, radius * 2, radius * 2),
@@ -1128,7 +1144,7 @@ local function createMobModel(areaId, index, config)
 								warnCircle.CanQuery = false
 								warnCircle.CastShadow = false
 								warnCircle.Material = Enum.Material.Neon
-								warnCircle.Color = Color3.fromRGB(110, 80, 30) -- 어스 브라운 톤
+								warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 예고 이펙트
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
 								
@@ -1155,7 +1171,7 @@ local function createMobModel(areaId, index, config)
 								local ts = game:GetService("TweenService")
 								local flashTween = ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									Transparency = 0.4,
-									Color = Color3.fromRGB(70, 110, 50) -- 나무느낌에 맞춘 초록/갈색 점멸
+									Color = Color3.fromRGB(255, 200, 100) -- 모래/지진 느낌에 맞춘 황금빛 점멸
 								})
 								flashTween:Play()
 								
@@ -1180,57 +1196,44 @@ local function createMobModel(areaId, index, config)
 								local magicSpikeModel = Instance.new("Model")
 								magicSpikeModel.Name = "MagicTreeSpike"
 								
-								-- A. 나무 둥치 (갈색 실린더 - 나무 재질 반영)
-								local trunk = Instance.new("Part")
-								trunk.Name = "Trunk"
-								trunk.Shape = Enum.PartType.Cylinder
-								trunk.Size = Vector3.new(12, 3, 3) -- 지름 3스터드짜리 튼튼한 나무
-								trunk.Color = Color3.fromRGB(100, 65, 30) -- 리치 딥 브라운
-								trunk.Material = Enum.Material.Wood
-								trunk.CanCollide = false
-								trunk.Anchored = true
-								trunk.Parent = magicSpikeModel
+								-- A. 중앙 메인 사암 가시 (WedgePart로 뾰족한 형상 구현)
+								local mainSpire = Instance.new("WedgePart")
+								mainSpire.Name = "MainSpire"
+								mainSpire.Size = Vector3.new(3.5, 12, 3.5)
+								mainSpire.Color = Color3.fromRGB(195, 145, 95) -- 사암색
+								mainSpire.Material = Enum.Material.Sandstone
+								mainSpire.CanCollide = false
+								mainSpire.Anchored = true
+								mainSpire.Parent = magicSpikeModel
 								
-								-- B. 무성한 나뭇잎 구체 1 (가운데 상단)
-								local leaf1 = Instance.new("Part")
-								leaf1.Shape = Enum.PartType.Ball
-								leaf1.Size = Vector3.new(5.5, 5.5, 5.5)
-								leaf1.Color = Color3.fromRGB(34, 139, 34) -- 깊은 나뭇잎 녹색
-								leaf1.Material = Enum.Material.Grass
-								leaf1.CanCollide = false
-								leaf1.Anchored = true
-								leaf1.Parent = magicSpikeModel
+								-- B. 주변 보조 사암 파편 1 (좌측 경사 쐐기)
+								local sideShard1 = Instance.new("WedgePart")
+								sideShard1.Name = "SideShard1"
+								sideShard1.Size = Vector3.new(2, 6, 2)
+								sideShard1.Color = Color3.fromRGB(180, 130, 80) -- 약간 어두운 사암
+								sideShard1.Material = Enum.Material.Sandstone
+								sideShard1.CanCollide = false
+								sideShard1.Anchored = true
+								sideShard1.Parent = magicSpikeModel
 								
-								-- C. 무성한 나뭇잎 구체 2 (좌측)
-								local leaf2 = Instance.new("Part")
-								leaf2.Shape = Enum.PartType.Ball
-								leaf2.Size = Vector3.new(4, 4, 4)
-								leaf2.Color = Color3.fromRGB(46, 170, 46) -- 연한 하이라이트 녹색
-								leaf2.Material = Enum.Material.Grass
-								leaf2.CanCollide = false
-								leaf2.Anchored = true
-								leaf2.Parent = magicSpikeModel
-								
-								-- D. 무성한 나뭇잎 구체 3 (우측)
-								local leaf3 = Instance.new("Part")
-								leaf3.Shape = Enum.PartType.Ball
-								leaf3.Size = Vector3.new(4, 4, 4)
-								leaf3.Color = Color3.fromRGB(20, 100, 25) -- 어두운 나뭇잎 그늘 녹색
-								leaf3.Material = Enum.Material.Grass
-								leaf3.CanCollide = false
-								leaf3.Anchored = true
-								leaf3.Parent = magicSpikeModel
+								-- C. 주변 보조 사암 파편 2 (우측 경사 쐐기)
+								local sideShard2 = Instance.new("WedgePart")
+								sideShard2.Name = "SideShard2"
+								sideShard2.Size = Vector3.new(1.8, 4, 1.8)
+								sideShard2.Color = Color3.fromRGB(210, 160, 110) -- 약간 밝은 사암
+								sideShard2.Material = Enum.Material.Sandstone
+								sideShard2.CanCollide = false
+								sideShard2.Anchored = true
+								sideShard2.Parent = magicSpikeModel
 								
 								-- 일관적인 위치 보정 함수 (트윈/수학적 루프 연산용)
 								local function updateSpikeCF(centerPos, verticalOffset)
 									local baseCF = CFrame.new(centerPos + Vector3.new(0, verticalOffset, 0))
-									trunk.CFrame = baseCF * CFrame.Angles(0, 0, math.rad(90))
-									leaf1.CFrame = baseCF * CFrame.new(0, 6, 0) -- 기둥 꼭대기
-									leaf2.CFrame = baseCF * CFrame.new(-1.8, 3.5, 1.2) -- 좌측 가지
-									leaf3.CFrame = baseCF * CFrame.new(1.8, 4.0, -1.2) -- 우측 가지
+									mainSpire.CFrame = baseCF * CFrame.Angles(0, 0, 0)
+									sideShard1.CFrame = baseCF * CFrame.new(-1.2, -3, 0.8) * CFrame.Angles(math.rad(15), 0, math.rad(15))
+									sideShard2.CFrame = baseCF * CFrame.new(1.2, -4, -0.8) * CFrame.Angles(math.rad(-15), 0, math.rad(-15))
 								end
 								
-								-- 초기 지면 아래 위치
 								updateSpikeCF(attackPos, -7)
 								magicSpikeModel.Parent = workspace
 								
@@ -1263,7 +1266,7 @@ local function createMobModel(areaId, index, config)
 										if phum and phum.Health > 0 and pRoot then
 											local dist = (pRoot.Position - attackPos).Magnitude
 											if dist <= 12 then -- 피해 반경 12스터드로 확장
-												phum:TakeDamage(config.baseDamage or 25)
+												dealDamageToHumanoid(phum, config.baseDamage or 25)
 												
 												local bounceDir = (pRoot.Position - attackPos)
 												bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -1366,7 +1369,7 @@ local function createMobModel(areaId, index, config)
 								if isAlive and phrp and phum and phum.Health > 0 then
 									local dist = (hrp.Position - phrp.Position).Magnitude
 									if dist <= 12 then
-										phum:TakeDamage(config.baseDamage or 25)
+										dealDamageToHumanoid(phum, config.baseDamage or 25)
 										
 										local bounceDir = (phrp.Position - hrp.Position)
 										bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -1585,7 +1588,7 @@ local function createMobModel(areaId, index, config)
 									if phum and phum.Health > 0 and pRoot then
 										local dist = (pRoot.Position - endLaserPos).Magnitude
 										if dist <= 9 then
-											phum:TakeDamage(config.baseDamage or 35)
+											dealDamageToHumanoid(phum, config.baseDamage or 35)
 											
 											local bounceDir = (pRoot.Position - endLaserPos)
 											bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -1657,14 +1660,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Anchored = true
 							warnCircle.CanCollide = false
 							warnCircle.Material = Enum.Material.Neon
-							warnCircle.Color = Color3.fromRGB(110, 80, 30) -- 대지 브라운 경고
+							warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 대지 경고
 							warnCircle.Transparency = 0.85
 							warnCircle.Parent = workspace
 							
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 								Transparency = 0.4,
-								Color = Color3.fromRGB(70, 110, 50) -- 나무빛 녹색으로 점멸
+								Color = Color3.fromRGB(255, 200, 100) -- 모래 황금빛으로 점멸
 							}):Play()
 							
 							-- 애니메이션 (Stump 에셋 기반이므로 Stump_Magic/Stump_Attack 시도)
@@ -1720,7 +1723,7 @@ local function createMobModel(areaId, index, config)
 										if heightDiff > 7.0 then
 											-- 타이밍 맞춰 점프함 (데미지 무시)
 										else
-											phum:TakeDamage(config.baseDamage or 50)
+											dealDamageToHumanoid(phum, config.baseDamage or 50)
 											local bounceDir = (pRoot.Position - groundPos)
 											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
 											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
@@ -1781,7 +1784,7 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Anchored = true
 								warnCircle.CanCollide = false
 								warnCircle.Material = Enum.Material.Neon
-								warnCircle.Color = Color3.fromRGB(70, 110, 50) -- 나무빛 초록 장판
+								warnCircle.Color = Color3.fromRGB(230, 180, 100) -- 모래 황금빛 장판
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
 								
@@ -1794,21 +1797,21 @@ local function createMobModel(areaId, index, config)
 								
 								-- 나무 둥치 모델 생성 (대형 통나무)
 								local trunk = Instance.new("Part")
-								trunk.Name = "FallingTrunk"
-								trunk.Shape = Enum.PartType.Cylinder
-								trunk.Size = Vector3.new(16, 4, 4) -- 거대한 통나무 형태
-								trunk.Color = Color3.fromRGB(100, 65, 30) -- 나무색
-								trunk.Material = Enum.Material.Wood
+								trunk.Name = "FallingBoulder"
+								trunk.Shape = Enum.PartType.Block
+								trunk.Size = Vector3.new(8, 10, 8) -- 거대한 사암 바위
+								trunk.Color = Color3.fromRGB(195, 145, 95) -- 사암색
+								trunk.Material = Enum.Material.Sandstone
 								trunk.CanCollide = false
 								trunk.Anchored = true
 								
 								-- 하늘에서 서서히 돌면서 떨어지는 CFrame 연출
 								local startPos = targetFloorPos + Vector3.new(0, 40, 0)
-								trunk.CFrame = CFrame.new(startPos) * CFrame.Angles(0, 0, math.rad(90))
+								trunk.CFrame = CFrame.new(startPos) * CFrame.Angles(math.rad(45), math.rad(45), 0)
 								trunk.Parent = workspace
 								
 								local fallTween = ts:Create(trunk, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-									CFrame = CFrame.new(targetFloorPos) * CFrame.Angles(math.rad(45), math.rad(45), math.rad(90))
+									CFrame = CFrame.new(targetFloorPos) * CFrame.Angles(math.rad(135), math.rad(90), math.rad(45))
 								})
 								fallTween:Play()
 								task.wait(0.3)
@@ -1832,7 +1835,7 @@ local function createMobModel(areaId, index, config)
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
 										if phum and phum.Health > 0 and pRoot then
 											if (pRoot.Position - targetFloorPos).Magnitude <= 12 then
-												phum:TakeDamage(config.baseDamage or 50)
+												dealDamageToHumanoid(phum, config.baseDamage or 50)
 												local bounceDir = Vector3.new(pRoot.Position.X - targetFloorPos.X, 0, pRoot.Position.Z - targetFloorPos.Z).Unit
 												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
 												local NetController = require(Controllers:WaitForChild("NetController"))
@@ -1841,8 +1844,8 @@ local function createMobModel(areaId, index, config)
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
 													highlight.Name = "DamageFlash"
-													highlight.FillColor = Color3.fromRGB(34, 139, 34) -- 나무 데미지색
-													highlight.OutlineColor = Color3.fromRGB(100, 255, 100)
+													highlight.FillColor = Color3.fromRGB(244, 164, 96) -- 모래 데미지색
+													highlight.OutlineColor = Color3.fromRGB(255, 200, 100)
 													highlight.FillTransparency = 0.4
 													highlight.OutlineTransparency = 0
 													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -1944,7 +1947,7 @@ local function createMobModel(areaId, index, config)
 										if phum and phum.Health > 0 and pRoot then
 											local dXZ = math.sqrt(math.pow(pRoot.Position.X - cloudFloorPos.X, 2) + math.pow(pRoot.Position.Z - cloudFloorPos.Z, 2))
 											if dXZ <= pRadius and math.abs(pRoot.Position.Y - cloudFloorPos.Y) < 10 then
-												phum:TakeDamage(pDamage)
+												dealDamageToHumanoid(phum, pDamage)
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
 													highlight.FillColor = Color3.fromRGB(150, 0, 200)
@@ -2024,7 +2027,7 @@ local function createMobModel(areaId, index, config)
 									if (hrp.Position - currentPhrp.Position).Magnitude <= MELEE_RANGE + 1.5 then
 										local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 										if currentPhum and currentPhum.Health > 0 then
-											currentPhum:TakeDamage(config.baseDamage or 15)
+											dealDamageToHumanoid(currentPhum, config.baseDamage or 15)
 											local bounceDir = (currentPhrp.Position - hrp.Position)
 											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
 											local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
@@ -2196,7 +2199,7 @@ local function createMobModel(areaId, index, config)
 											-- 돌진 전방 경로 안에 있고, 좌우폭 내인 경우 적중
 											if forwardDist > 0 and forwardDist <= chargeLength + 3 and math.abs(rightDist) <= chargeWidth/2 + 1 and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 												hitPlayers[p.UserId] = true
-												phum:TakeDamage(80) -- 돌진 데미지 80
+												dealDamageToHumanoid(phum, 80) -- 돌진 데미지 80
 												
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
@@ -2363,7 +2366,7 @@ local function createMobModel(areaId, index, config)
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
 										if phum and phum.Health > 0 and pRoot then
 											if (pRoot.Position - Vector3.new(currentTargetPos.X, targetFloorY, currentTargetPos.Z)).Magnitude <= 8 then
-												phum:TakeDamage(55)
+												dealDamageToHumanoid(phum, 55)
 												local NetController = require(ServerScriptService.Server.Controllers.NetController)
 												local bounceDir = (pRoot.Position - Vector3.new(currentTargetPos.X, targetFloorY, currentTargetPos.Z)).Unit
 												bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -2481,7 +2484,7 @@ local function createMobModel(areaId, index, config)
 										if phum and phum.Health > 0 and pRoot then
 											local dXZ = Vector3.new(pRoot.Position.X - hitCenter.X, 0, pRoot.Position.Z - hitCenter.Z).Magnitude
 											if dXZ <= atkRadius and math.abs(pRoot.Position.Y - hitCenter.Y) < 12 then
-												phum:TakeDamage(45) -- 평타 데미지 45
+												dealDamageToHumanoid(phum, 45) -- 평타 데미지 45
 												
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
@@ -2703,7 +2706,7 @@ local function createMobModel(areaId, index, config)
 														-- 정밀 마찰 판정 (오차 2.0 스터드 내로 좁히고 시인성 일치)
 														if dXZ >= (currentRadius - 2.5) and dXZ <= (currentRadius + 1.0) and dY < 3.2 then
 															hitPlayers[p.UserId] = true
-															phum:TakeDamage(180) -- 즉사급 데미지로 대폭 상향 (기믹 1)
+															dealDamageToHumanoid(phum, 180) -- 즉사급 데미지로 대폭 상향 (기믹 1)
 															print(string.format("[Gimmick 1 DEBUG] Player %s hit by WaveRing! Damage: 180", p.Name))
 															
 															-- 넉백 처리
@@ -2883,7 +2886,7 @@ local function createMobModel(areaId, index, config)
 													-- [쿨다운 증가] 다단히트 주기 연장 0.5 -> 0.8초 (순간 삭제 방지)
 													if not lastLaserHitTick[uId] or nowHit - lastLaserHitTick[uId] >= 0.8 then
 														lastLaserHitTick[uId] = nowHit
-														phum:TakeDamage(350) -- [데미지 즉사급 상향] 레이저 데미지 350
+														dealDamageToHumanoid(phum, 350) -- [데미지 즉사급 상향] 레이저 데미지 350
 														print(string.format("[Gimmick 2 DEBUG] Player %s hit by Laser! Damage: 350", p.Name))
 														
 														-- 경미한 Stun
@@ -3076,7 +3079,7 @@ local function createMobModel(areaId, index, config)
 													local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(tPos.X, 0, tPos.Z)).Magnitude
 													if dist <= (tornadoWidth/2 + 2) and math.abs(pRoot.Position.Y - tPos.Y) < 15 then
 														hitPlayers[p.UserId] = true
-														phum:TakeDamage(250) -- 회오리 데미지 대폭 상향
+														dealDamageToHumanoid(phum, 250) -- 회오리 데미지 대폭 상향
 														
 														local hitPlayer = Players:GetPlayerFromCharacter(char)
 														if hitPlayer then
@@ -3217,7 +3220,7 @@ local function createMobModel(areaId, index, config)
 											-- 정확한 실린더 범위 내 판정
 											local dXZ = Vector3.new(pRoot.Position.X - targetLandPos.X, 0, pRoot.Position.Z - targetLandPos.Z).Magnitude
 											if dXZ <= telegraphRadius and math.abs(pRoot.Position.Y - targetLandPos.Y) < 15 then
-												phum:TakeDamage(350) -- 도약 강타 즉사급 데미지로 상향
+												dealDamageToHumanoid(phum, 350) -- 도약 강타 즉사급 데미지로 상향
 												
 												-- 넉백
 												local bounceDir = (pRoot.Position - targetLandPos)
@@ -3316,7 +3319,7 @@ local function createMobModel(areaId, index, config)
 											
 											-- 전방 0~18 스터드 안쪽, 좌우폭 3스터드(총 너비 6) 안쪽일 경우 적중
 											if forwardDist > 0 and forwardDist <= thrustLength and math.abs(rightDist) <= thrustWidth/2 and math.abs(pRoot.Position.Y - hrp.Position.Y) < 10 then
-												phum:TakeDamage(300) -- 찌르기 데미지 대폭 상향
+												dealDamageToHumanoid(phum, 300) -- 찌르기 데미지 대폭 상향
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -3412,7 +3415,7 @@ local function createMobModel(areaId, index, config)
 												-- 장판과 일치하는 히트박스 검사
 												local dXZ = Vector3.new(pRoot.Position.X - hitCenter.X, 0, pRoot.Position.Z - hitCenter.Z).Magnitude
 												if dXZ <= atkRadius and math.abs(pRoot.Position.Y - hitCenter.Y) < 10 then
-													phum:TakeDamage(200) -- 평타 데미지 대폭 상향
+													dealDamageToHumanoid(phum, 200) -- 평타 데미지 대폭 상향
 													local hitPlayer = Players:GetPlayerFromCharacter(char)
 													if hitPlayer then
 														local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -3599,7 +3602,7 @@ local function createMobModel(areaId, index, config)
 											if phum and phum.Health > 0 and pRoot then
 												local dist = (pRoot.Position - attackPos).Magnitude
 												if dist <= 8 then
-													phum:TakeDamage(config.baseDamage)
+													dealDamageToHumanoid(phum, config.baseDamage)
 													
 													local bounceDir = (pRoot.Position - attackPos)
 													bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -3692,7 +3695,7 @@ local function createMobModel(areaId, index, config)
 												if phum and phum.Health > 0 and pRoot then
 													local dXZ = math.sqrt(math.pow(pRoot.Position.X - cloudFloorPos.X, 2) + math.pow(pRoot.Position.Z - cloudFloorPos.Z, 2))
 													if dXZ <= pRadius and math.abs(pRoot.Position.Y - cloudFloorPos.Y) < 10 then
-														phum:TakeDamage(pDamage)
+														dealDamageToHumanoid(phum, pDamage)
 														task.spawn(function()
 															local highlight = Instance.new("Highlight")
 															highlight.FillColor = Color3.fromRGB(150, 0, 200)
@@ -3810,7 +3813,7 @@ local function createMobModel(areaId, index, config)
 											local dmg = config.baseDamage or 5
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
-												currentPhum:TakeDamage(dmg)
+												dealDamageToHumanoid(currentPhum, dmg)
 												
 												-- [Knockback Stun]
 												local bounceDir = (currentPhrp.Position - mobRootPos)

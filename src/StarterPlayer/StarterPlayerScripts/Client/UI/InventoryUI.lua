@@ -131,14 +131,14 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 	local leftHeader = Utils.mkFrame({size=UDim2.new(0.65, -10, 1, 0), pos=UDim2.new(0, 10, 0, 0), bgT=1, parent=header})
 	local titleList = Instance.new("UIListLayout"); titleList.FillDirection=Enum.FillDirection.Horizontal; titleList.VerticalAlignment=Enum.VerticalAlignment.Center; titleList.Padding=UDim.new(0, isSmall and 10 or 20); titleList.Parent=leftHeader
 	
-	InventoryUI.Refs.TabBag = Utils.mkBtn({text="인벤토리 [Inventory]", size=UDim2.new(0, isSmall and 120 or 150, 0, isSmall and 32 or 35), bg=C.GOLD_SEL, bgT=0.2, font=F.TITLE, ts=TS_TAB, color=C.WHITE, noHover=true, parent=leftHeader})
-	InventoryUI.Refs.TabCraft = Utils.mkBtn({text="간이제작", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
-	InventoryUI.Refs.TabAnimal = Utils.mkBtn({text="동물 관리", size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
+	InventoryUI.Refs.TabBag = Utils.mkBtn({text=UILocalizer.Localize("인벤토리"), size=UDim2.new(0, isSmall and 120 or 150, 0, isSmall and 32 or 35), bg=C.GOLD_SEL, bgT=0.2, font=F.TITLE, ts=TS_TAB, color=C.WHITE, noHover=true, parent=leftHeader})
+	InventoryUI.Refs.TabCraft = Utils.mkBtn({text=UILocalizer.Localize("간이제작"), size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
+	InventoryUI.Refs.TabAnimal = Utils.mkBtn({text=UILocalizer.Localize("동물 관리"), size=UDim2.new(0, isSmall and 80 or 140, 0, isSmall and 32 or 35), bg=C.BTN_GRAY, bgT=0.6, font=F.TITLE, ts=TS_TAB, color=C.GRAY, noHover=true, vis=false, parent=leftHeader}) -- [비활성화]
 	
 	InventoryUI.Refs.WeightText = Utils.mkLabel({text="0 / 60", size=UDim2.new(0, isSmall and 60 or 80, 1, 0), ts=TS_SMALL, color=C.GRAY, parent=leftHeader})
 
 	-- 자동정렬 버튼
-	InventoryUI.Refs.SortBtn = Utils.mkBtn({text="정렬", size=UDim2.new(0, isSmall and 46 or 56, 0, isSmall and 28 or 30), bgT=0.5, font=F.TITLE, ts=isSmall and 11 or 12, isNegative=true, r=4, fn=function() UIManager.sortInventory() end, parent=leftHeader})
+	InventoryUI.Refs.SortBtn = Utils.mkBtn({text=UILocalizer.Localize("정렬"), size=UDim2.new(0, isSmall and 46 or 56, 0, isSmall and 28 or 30), bgT=0.5, font=F.TITLE, ts=isSmall and 11 or 12, isNegative=true, r=4, fn=function() UIManager.sortInventory() end, parent=leftHeader})
 
 	local rightHeader = Utils.mkFrame({size=UDim2.new(0.3, 0, 1, 0), pos=UDim2.new(1, -140, 0, 0), anchor=Vector2.new(1, 0), bgT=1, parent=header})
 	local hList = Instance.new("UIListLayout"); hList.FillDirection=Enum.FillDirection.Horizontal; hList.HorizontalAlignment=Enum.HorizontalAlignment.Right; hList.VerticalAlignment=Enum.VerticalAlignment.Center; hList.Padding=UDim.new(0, 15); hList.Parent=rightHeader
@@ -1547,22 +1547,23 @@ local function createPalListItem(palData, index, isSelected)
 	end
 
 	-- 이름 + 레벨
-	local nameText = palData.nickname or (creatureData and creatureData.name) or palData.creatureId
+	local rawName = palData.nickname or (creatureData and creatureData.name) or palData.creatureId
+	local nameText = UILocalizer.LocalizeDataText("CreatureData", tostring(palData.creatureId), "name", rawName)
 	local nameColor = isFainted and Color3.fromRGB(120, 120, 120) or C.WHITE
 	Utils.mkLabel({name="Name", text=nameText, size=UDim2.new(1, -100, 0, 20), pos=UDim2.new(0, 52, 0, 6), ts=14, font=F.TITLE, color=nameColor, ax=Enum.TextXAlignment.Left, parent=frame})
 
 	local levelColor = isFainted and Color3.fromRGB(80, 80, 80) or C.GRAY
-	local levelText = "Lv. " .. tostring(palData.level or 1)
+	local levelText = UILocalizer.Localize("Lv.") .. " " .. tostring(palData.level or 1)
 	Utils.mkLabel({name="Level", text=levelText, size=UDim2.new(0, 50, 0, 16), pos=UDim2.new(0, 52, 0, 28), ts=12, color=levelColor, ax=Enum.TextXAlignment.Left, parent=frame})
 
 	-- 상태 표시 (소환됨 / 기절)
 	local stateText = ""
 	local stateColor = Color3.fromRGB(100, 200, 120)
 	if palData.state == "SUMMONED" then
-		stateText = "소환됨"
+		stateText = UILocalizer.Localize("소환됨")
 		stateColor = Color3.fromRGB(100, 200, 120)
 	elseif isFainted then
-		stateText = "기절"
+		stateText = UILocalizer.Localize("기절")
 		stateColor = Color3.fromRGB(200, 80, 80)
 	end
 	if stateText ~= "" then
@@ -1763,18 +1764,18 @@ function InventoryUI.ShowAnimalDetail(palData)
 			-- 현재 HP가 최대보다 낮으면 노란색 표시 (우선적용)
 			hpColor = Color3.fromHex("#FFCC00")
 		end
-		order = order + 1; createAnimalStatCell(sf, "생명", hpDisplay, order, hpColor)
+		order = order + 1; createAnimalStatCell(sf, UILocalizer.Localize("생명"), hpDisplay, order, hpColor)
 
 		-- 이동속도: palData.stats.speed (속성 반영)
 		local spdVal = stats.speed or creatureData.runSpeed or 0
-		order = order + 1; createAnimalStatCell(sf, "이동속도", tostring(spdVal), order, getStatColor("speed"))
+		order = order + 1; createAnimalStatCell(sf, UILocalizer.Localize("이동속도"), tostring(spdVal), order, getStatColor("speed"))
 
 		-- 공격: palData.stats.attack (속성 반영)
 		local atkVal = stats.attack or creatureData.petDamage or creatureData.damage or 0
-		order = order + 1; createAnimalStatCell(sf, "공격", tostring(atkVal), order, getStatColor("attack"))
+		order = order + 1; createAnimalStatCell(sf, UILocalizer.Localize("공격"), tostring(atkVal), order, getStatColor("attack"))
 
 		-- 레벨 (속성 무관)
-		order = order + 1; createAnimalStatCell(sf, "레벨", tostring(palData.level or 1), order)
+		order = order + 1; createAnimalStatCell(sf, UILocalizer.Localize("레벨"), tostring(palData.level or 1), order)
 
 		-- ★ 속성(특성) 표시 (그리드 셀 형식)
 		if #traits > 0 then
@@ -1790,9 +1791,10 @@ function InventoryUI.ShowAnimalDetail(palData)
 				local badgeColor = traitInfo.positive and Color3.fromHex("#4CAF50") or Color3.fromHex("#F44336")
 				local arrow = traitInfo.positive and "▲" or "▼"
 				-- 스탯 한글 매핑: attack=공격, defense=방어, speed=속도, hp=생명
-				local statNameMap = { attack = "공격", defense = "방어", speed = "속도", hp = "생명" }
+				local statNameMap = { attack = UILocalizer.Localize("공격"), defense = UILocalizer.Localize("방어"), speed = UILocalizer.Localize("속도"), hp = UILocalizer.Localize("생명") }
 				local statLabel = statNameMap[traitInfo.stat] or traitInfo.stat
-				local traitLabel = string.format("%s (%s)", traitInfo.name, statLabel)
+				local traitName = UILocalizer.LocalizeDataText("PalTraitData", traitInfo.id or traitInfo.name, "name", traitInfo.name)
+				local traitLabel = string.format("%s (%s)", traitName, statLabel)
 				local lvl = traitInfo.level or 1
 				local pct = math.floor((traitInfo.perLevel or 0.08) * lvl * 100)
 				local traitValue = string.format("%s%d%% (Lv.%d)", arrow, pct, lvl)
@@ -1806,11 +1808,11 @@ function InventoryUI.ShowAnimalDetail(palData)
 	-- 소환 버튼 텍스트 업데이트
 	if a.BtnSummon then
 		if palData.state == "SUMMONED" then
-			a.BtnSummon.Text = "회수하기"
+			a.BtnSummon.Text = UILocalizer.Localize("회수하기")
 		elseif palData.state == "FAINTED" then
-			a.BtnSummon.Text = "기절 (소환 불가)"
+			a.BtnSummon.Text = UILocalizer.Localize("기절 (소환 불가)")
 		else
-			a.BtnSummon.Text = "소환하기"
+			a.BtnSummon.Text = UILocalizer.Localize("소환하기")
 		end
 	end
 end

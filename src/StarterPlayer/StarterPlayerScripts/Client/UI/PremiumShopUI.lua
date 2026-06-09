@@ -202,7 +202,7 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 		buttonText = "보유중"
 	end
 	local buyBtn = Utils.mkBtn({
-		text = buttonText,
+		text = UILocalizer.Localize(buttonText),
 		size = UDim2.new(0, 110, 0, 42),
 		pos = UDim2.new(1, -18, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
@@ -214,14 +214,14 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 		fn = function()
 			if isInventoryExpand and getInventoryMaxSlots() >= 120 then
 				if UI_MANAGER and UI_MANAGER.notify then
-					UI_MANAGER.notify("인벤토리 칸이 이미 최대입니다.", C.RED)
+					UI_MANAGER.notify(UILocalizer.Localize("인벤토리 칸이 이미 최대입니다."), C.RED)
 				end
 				return
 			end
 			if isGamePass then
 				if ownsGamePass then
 					if UI_MANAGER and UI_MANAGER.notify then
-						UI_MANAGER.notify("이미 보유한 패스입니다.", C.GRAY)
+						UI_MANAGER.notify(UILocalizer.Localize("이미 보유한 패스입니다."), C.GRAY)
 					end
 					return
 				end
@@ -295,7 +295,7 @@ function PremiumShopUI.Init(parent, UIManager)
 	})
 
 	Utils.mkLabel({
-		text = "게임 패스",
+		text = UILocalizer.Localize("게임 패스"),
 		size = UDim2.new(1, 0, 1, 0),
 		ts = 26,
 		bold = true,
@@ -305,7 +305,7 @@ function PremiumShopUI.Init(parent, UIManager)
 	})
 
 	Utils.mkLabel({
-		text = "게임 플레이에 직접 도움이 되는 상품을 구매할 수 있습니다.",
+		text = UILocalizer.Localize("게임 플레이에 직접 도움이 되는 상품을 구매할 수 있습니다."),
 		size = UDim2.new(1, -24, 0, 18),
 		pos = UDim2.new(0.5, 0, 1, -8),
 		anchor = Vector2.new(0.5, 1),

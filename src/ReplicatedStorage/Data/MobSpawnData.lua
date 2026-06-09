@@ -1,17 +1,17 @@
 -- MobSpawnData.lua
 -- 월드 몬스터 구역별 스폰 좌표 및 에셋 템플릿 데이터 [Data-Driven Template]
-
 local MobSpawnData = {
 	["StartingZone_Slime"] = {
 		spawnAreaId = "StartingZone_Slime",
 		mobModelName = "Slime",
 		mobDisplayName = "슬라임",
-		maxHealth = 70,
+		maxHealth = 35,
 		baseDamage = 5,     -- 한 방 데미지
 		attackCooldown = 1.5, -- 공격 주기(초)
 		respawnDelay = 1.0,
 		modelScale = 0.8,
 		xpReward = 10, -- 슬라임 처치 시 기본 경험치 (하향)
+		level = 3, -- 몬스터 레벨 추가
 		
 		-- [활성화]: 4개의 좌표를 꼭짓점 삼아 그 '내부 영역 전체'에 무작위 랜덤 스폰합니다!
 		spawnAsPolygon = true, 
@@ -20,10 +20,10 @@ local MobSpawnData = {
 		-- [확정]: 사용자 스크린샷 기반 절대 좌표 반영
 		-- 순서는 외곽을 따라가도록 맞춰서 polygon 삼각분할이 안정적으로 동작하게 유지
 		spawnPositions = {
-			{x = -336.844, y = -3.487, z = 354.384},
-			{x = -381.799, y = 7.296, z = 440.902},
-			{x = -274.545, y = 4.601, z = 498.664},
-			{x = -245.027, y = 4.042, z = 409.002}
+			{x = -922.388, y = -30.945, z = 1269.169},
+			{x = -555.075, y = -33.995, z = 1397.042},
+			{x = -658.257, y = -22.857, z = 1540.193},
+			{x = -951.85, y = -42.676, z = 1404.165}
 		}
 	},
 	
@@ -38,7 +38,8 @@ local MobSpawnData = {
 		modelScale = 0.07,    -- 몬스터 크기 정밀 축소 보정 (조금 더 선명해진 크기)
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 세로 모델의 머리 방향(아래)을 전방으로 오도록 눕힘
 		walkSpeed = 6,        -- 씩씩한 전진 속도
-		xpReward = 90,        -- 풍부한 경험치 보상
+		xpReward = 40,        -- 풍부한 경험치 보상 (하향 조정)
+		level = 8, -- 몬스터 레벨 추가
 		
 		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 뿔 애벌레 10마리 랜덤 스폰!
 		spawnAsPolygon = true,
@@ -47,76 +48,80 @@ local MobSpawnData = {
 		-- 유저 스크린샷 Properties 속성에서 100% 정밀 추출한 4개 꼭짓점 좌표
 		-- 외곽을 따라가는 순서로 배치
 		spawnPositions = {
-			{x = 105.235, y = 5.555, z = 284.44},
-			{x = 183.792, y = 1.896, z = 429.931},
-			{x = -99.317, y = 11.57, z = 614.425},
-			{x = -208.31, y = 10.924, z = 537.316}
+			{x = -1006.012, y = -87.932, z = 1729.527},
+			{x = -824.111, y = -97.606, z = 1814.448},
+			{x = -710.737, y = -93.947, z = 1638.615},
+			{x = -963.822, y = -88.578, z = 1544.864}
 		}
 	},
 	
 	["StumpZone"] = {
 		spawnAreaId = "StumpZone",
+		spawnAsPolygon = true,
 		spawnCount = 5,
-		spawnAsPolygon = false,
 		respawnDelay = 15.0,
 		spawnRotationOffset = {x = 90, y = 0, z = 0},
 		customHipHeight = 1.2,
 		walkSpeed = 10,
-		-- 스텀프 4 + 스텀프 킹 1, 같은 구역에서 함께 스폰
+		level = 13, -- 몬스터 기본 레벨 추가
+		-- 스텀프 5마리 스폰 (스텀프 킹 제외)
 		spawnEntries = {
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 600,
-				baseDamage = 25,
+				maxHealth = 300,
+				baseDamage = 18,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 400,
+				xpReward = 250,
+				level = 13,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 600,
-				baseDamage = 25,
+				maxHealth = 300,
+				baseDamage = 18,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 400,
+				xpReward = 250,
+				level = 13,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 600,
-				baseDamage = 25,
+				maxHealth = 300,
+				baseDamage = 18,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 400,
+				xpReward = 250,
+				level = 13,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 600,
-				baseDamage = 25,
+				maxHealth = 300,
+				baseDamage = 18,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 400,
+				xpReward = 250,
+				level = 13,
 			},
 			{
-				mobModelName = "StumpKing",
-				mobDisplayName = "스텀프 킹",
-				maxHealth = 2000,
-				baseDamage = 50,
-				attackCooldown = 3.0,
-				modelScale = 0.075,
-				walkSpeed = 8,
-				xpReward = 1000,
+				mobModelName = "Stump",
+				mobDisplayName = "스텀프",
+				maxHealth = 300,
+				baseDamage = 18,
+				attackCooldown = 1.5,
+				modelScale = 0.2,
+				xpReward = 250,
+				level = 13,
 			},
 		},
 		spawnPositions = {
-			{x = 166.146, y = 71.463, z = 738.197},
-			{x = 145.363, y = 62.808, z = 569.69},
-			{x = 329.314, y = 71.807, z = 719.567},
-			{x = 322.403, y = 74.722, z = 541.738},
-			{x = 240.8065, y = 70.2, z = 642.298}
+			{x = -1611.779, y = -70.431, z = 1605.406},
+			{x = -1391.265, y = -70.087, z = 1542.456},
+			{x = -1421.699, y = -67.172, z = 1405.311},
+			{x = -1652.929, y = -79.086, z = 1439.088}
 		}
 	},
 	
@@ -133,6 +138,7 @@ local MobSpawnData = {
 		customHipHeight = 15.0, -- 공중 비행(Hovering) 높이 15.0 스터드로 강제 보정
 		walkSpeed = 10,   
 		xpReward = 120,
+		level = 23, -- 박쥐 레벨 23
 		
 		spawnAsPolygon = true,
 		spawnCount = 4, -- 4마리 배치
@@ -140,10 +146,10 @@ local MobSpawnData = {
 		skipTerrainScan = true,
 		
 		spawnPositions = {
-			{x = -493.393, y = 10.246, z = -34.78},
-			{x = -646.149, y = 15.539, z = -248.414},
-			{x = -581.241, y = 13.259, z = -309.221},
-			{x = -415.675, y = 12.391, z = -91.748}
+			{x = -585.736, y = -341.991, z = 2412.599},
+			{x = -785.001, y = -339.711, z = 2346.044},
+			{x = -918.129, y = -345.004, z = 2623.978},
+			{x = -687.244, y = -342.859, z = 2729.772}
 		}
 	},
 	
@@ -157,7 +163,8 @@ local MobSpawnData = {
 		respawnDelay = 5.0,
 		modelScale = 4.5,    -- [수정] 살짝 더 키워달라는 요청 반영 (4.0 -> 4.5배 확대)
 		walkSpeed = 5,       -- 느릿하고 묵직한 이동
-		xpReward = 150,      -- 높은 경험치 보상
+		xpReward = 200,      -- 높은 경험치 보상 (상향 조정)
+		level = 18, -- 작은 골렘 레벨 18
 		
 		spawnAsPolygon = true,
 		spawnCount = 6,
@@ -166,10 +173,10 @@ local MobSpawnData = {
 		skipTerrainScan = false, -- [수정] 천장 고려는 유지하되, 바닥 정확도 보정을 위해 레이캐스트를 다시 사용
 		
 		spawnPositions = {
-			{x = -183.281, y = -2.118, z = 265.511},
-			{x = -137.064, y = 8.837, z = 228.576},
-			{x = -375.838, y = 8.848, z = 78.995},
-			{x = -275.904, y = 8.848, z = -41.156}
+			{x = -622.158, y = -370.514, z = 1939.376},
+			{x = -375.183, y = -370.514, z = 2052.879},
+			{x = -466.153, y = -370.514, z = 2204.655},
+			{x = -670.563, y = -370.514, z = 2114.954}
 		}
 	},
 	
@@ -177,37 +184,39 @@ local MobSpawnData = {
 		spawnAreaId = "StumpKingZone",
 		mobModelName = "StumpKing",
 		mobDisplayName = "스텀프 킹",
-		maxHealth = 2000,
-		baseDamage = 50,
+		maxHealth = 1200,
+		baseDamage = 35,
 		attackCooldown = 3.0,
 		respawnDelay = 20.0,
 		modelScale = 0.075,    -- 검증 완료: 0.05 크기 대비 1.5배 적절하게 키운 최종 보스 황금 비율
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 원본 모델을 수직으로 세우는 회전 보정
 		walkSpeed = 8,
 		xpReward = 1000,
+		level = 28, -- 스텀프 킹 레벨 28
 		
 		spawnAsPolygon = true,
-		spawnCount = 0, -- 레거시 분리 스폰 비활성화 (StumpZone 통합 스폰 사용)
+		spawnCount = 1, -- 스텀프 킹 개별 스폰 활성화
 		
 		spawnPositions = {
-			{x = 102.705, y = -15.877, z = -369.877},
-			{x = 211.63, y = -10.09, z = -321.086},
-			{x = 128.91, y = -23.8, z = -90.572},
-			{x = -21.537, y = -11.4, z = -120.593}
+			{x = -2018.001, y = -42.021, z = 1607.719},
+			{x = -1860.809, y = -41.677, z = 1562.279},
+			{x = -1895.659, y = -38.762, z = 1425.677},
+			{x = -2037.874, y = -50.676, z = 1427.003}
 		}
 	},
 	
 	["SpiderZone"] = {
 		spawnAreaId = "SpiderZone",
+		level = 33, -- 거미 레벨 33
 		mobModelName = "Spider",
 		mobDisplayName = "거미",
-		maxHealth = 1200,    -- [상향] 최종 구역 몬스터에 맞게 체력 대폭 상향 (기존 150 -> 1200)
-		baseDamage = 45,     -- [상향] 공격력 대폭 상향 (기존 15 -> 45)
+		maxHealth = 700,    -- [상향] 최종 구역 몬스터에 맞게 체력 대폭 상향 (기존 150 -> 1200 -> 700 조정)
+		baseDamage = 30,     -- [상향] 공격력 대폭 상향 (기존 15 -> 45 -> 30 조정)
 		attackCooldown = 1.5, -- [상향] 공격 속도 상승 (기존 2.0 -> 1.5)
 		respawnDelay = 5.0,
 		modelScale = 0.003,
 		walkSpeed = 16,      -- [상향] 이동 속도 상승 (기존 12 -> 16)
-		xpReward = 500,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500)
+		xpReward = 450,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500 -> 450 조정)
 		
 		spawnAsPolygon = true,
 		spawnCount = 4,
@@ -215,15 +224,16 @@ local MobSpawnData = {
 		skipTerrainScan = true,
 		
 		spawnPositions = {
-			{x = 1004.143, y = -24.672, z = 1088.014},
-			{x = 1161.21, y = 8.572, z = 1057.817},
-			{x = 1157.395, y = -16.804, z = 847.913},
-			{x = 1005.677, y = -16.647, z = 878.84}
+			{x = -1278.704, y = 7.924, z = 2503.958},
+			{x = -1101.201, y = -30.295, z = 1997.338},
+			{x = -928.863, y = -30.452, z = 2107.137},
+			{x = -1047.553, y = -5.076, z = 2550.495}
 		}
 	},
 	
 	["SkyIsland_BlueFlameKnight"] = {
 		spawnAreaId = "SkyIsland_BlueFlameKnight",
+		level = 53, -- 푸른불꽃의 기사 레벨 53
 		mobModelName = "BlueFlameKnight",
 		mobDisplayName = "푸른 불꽃 기사",
 		maxHealth = 35000,     -- 하늘섬 최종 보스급 스펙
@@ -252,6 +262,7 @@ local MobSpawnData = {
 	
 	["GhostKnightZone"] = {
 		spawnAreaId = "GhostKnightZone",
+		level = 48, -- 유령기사(거인) 레벨 48
 		mobModelName = "GhostKnight",
 		dropTableId = "GIANTGHOSTKNIGHT",
 		mobDisplayName = "유령기사(거인)",
@@ -281,6 +292,7 @@ local MobSpawnData = {
 	
 	["NormalGhostKnightZone"] = {
 		spawnAreaId = "NormalGhostKnightZone",
+		level = 38, -- 유령기사 레벨 38
 		mobModelName = "GhostKnight",
 		mobDisplayName = "유령기사",
 		maxHealth = 2500,       -- 첫 통곡의 벽 수준의 맷집
@@ -307,6 +319,7 @@ local MobSpawnData = {
 	
 	["GhostWizardZone"] = {
 		spawnAreaId = "GhostWizardZone",
+		level = 43, -- 유령마법사 레벨 43
 		mobModelName = "GhostWizard",
 		mobDisplayName = "유령 마법사",
 		maxHealth = 1800,       -- 기사보다는 낮지만 높은 맷집

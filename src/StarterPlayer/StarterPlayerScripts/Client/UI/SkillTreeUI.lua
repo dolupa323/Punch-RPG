@@ -80,7 +80,7 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 	
 	-- Title Header
 	local header = Utils.mkFrame({name="Header", size=UDim2.new(1,0,0,50), bgT=1, parent=main})
-	Utils.mkLabel({text="룬 시스템 [Rune System]", pos=UDim2.new(0, 15, 0, 0), ts=24, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
+	Utils.mkLabel({text=UILocalizer.Localize("룬 시스템 [Rune System]"), pos=UDim2.new(0, 15, 0, 0), ts=24, font=F.TITLE, color=C.WHITE, ax=Enum.TextXAlignment.Left, parent=header})
 	Utils.mkBtn({text="X", size=UDim2.new(0, 36, 0, 36), pos=UDim2.new(1, -10, 0.5, 0), anchor=Vector2.new(1,0.5), bgT=0.5, ts=20, color=C.WHITE, isNegative=true, r=4, fn=function() UIManager.toggleSkillTree() end, parent=header})
 	
 	local content = Utils.mkFrame({name="Content", size=UDim2.new(1, -20, 1, -55), pos=UDim2.new(0, 10, 0, 45), bgT=1, parent=main})
@@ -162,64 +162,67 @@ function SkillTreeUI.Init(parent, UIManager, isMobile)
 						
 						-- 명시적 수치 스펙
 						if data.critChance and data.critChance > 0 then
-							table.insert(effects, string.format("치명타 확률 +%d%%", math.floor(data.critChance * 100)))
+							table.insert(effects, string.format(UILocalizer.Localize("치명타 확률 +%d%%"), math.floor(data.critChance * 100)))
 						end
 						if data.maxHealth and data.maxHealth > 0 then
-							table.insert(effects, string.format("최대 체력 +%d", data.maxHealth))
+							table.insert(effects, string.format(UILocalizer.Localize("최대 체력 +%d"), data.maxHealth))
 						end
 						if data.damage and data.damage > 0 then
-							table.insert(effects, string.format("공격력 +%d", data.damage))
+							table.insert(effects, string.format(UILocalizer.Localize("공격력 +%d"), data.damage))
 						end
 						
 						-- 룬 고유 버프 및 기능 스펙
 						if data.id == "GRIT_RUNE" then
-							table.insert(effects, "공격 속도 +5% / 스킬 재사용 대기시간 -5%")
+							table.insert(effects, UILocalizer.Localize("공격 속도 +5% / 스킬 재사용 대기시간 -5%"))
 						elseif data.id == "RUNE_LIFE_FORCE" then
-							table.insert(effects, "최대 체력 증가")
+							table.insert(effects, UILocalizer.Localize("최대 체력 증가"))
 						elseif data.id == "RUNE_POWER" then
-							table.insert(effects, "공격력 증가")
+							table.insert(effects, UILocalizer.Localize("공격력 증가"))
 						elseif data.id == "RUNE_FIREBALL" then
-							table.insert(effects, "액티브 스킬 '파이어볼' 개방")
+							table.insert(effects, UILocalizer.Localize("액티브 스킬 '파이어볼' 개방"))
 						elseif data.id == "EMBER" then
-							table.insert(effects, "화염 속성 액티브 스킬 가동")
+							table.insert(effects, UILocalizer.Localize("화염 속성 액티브 스킬 가동"))
 						elseif data.id == "DROPLET" then
-							table.insert(effects, "물 속성 액티브 스킬 가동")
+							table.insert(effects, UILocalizer.Localize("물 속성 액티브 스킬 가동"))
 						elseif data.id == "NIGHT" then
-							table.insert(effects, "어둠 속성 액티브 스킬 가동")
+							table.insert(effects, UILocalizer.Localize("어둠 속성 액티브 스킬 가동"))
 						elseif data.id == "RUNE_FLAME_ACTIVE" then
-							table.insert(effects, "플레이어 주변을 도는 화염 오라")
-							table.insert(effects, "범위 내 적에게 지속 피해")
+							table.insert(effects, UILocalizer.Localize("플레이어 주변을 도는 화염 오라"))
+							table.insert(effects, UILocalizer.Localize("범위 내 적에게 지속 피해"))
 						elseif data.id == "RUNE_WAVE_ACTIVE" then
-							table.insert(effects, "플레이어 주변을 도는 파도 오라")
-							table.insert(effects, "범위 내 적에게 지속 피해")
+							table.insert(effects, UILocalizer.Localize("플레이어 주변을 도는 파도 오라"))
+							table.insert(effects, UILocalizer.Localize("범위 내 적에게 지속 피해"))
 						elseif data.id == "RUNE_SHADOW_ACTIVE" then
-							table.insert(effects, "플레이어 주변을 도는 그림자 오라")
-							table.insert(effects, "범위 내 적에게 지속 피해")
+							table.insert(effects, UILocalizer.Localize("플레이어 주변을 도는 그림자 오라"))
+							table.insert(effects, UILocalizer.Localize("범위 내 적에게 지속 피해"))
 						end
 						
 						if #effects > 0 then
 							return table.concat(effects, "\n")
 						else
-							return "장착 시 숨겨진 효과 발동"
+							return UILocalizer.Localize("장착 시 숨겨진 효과 발동")
 						end
 					end
 					
 					-- 2. 툴팁 바디 텍스트 구조화 조립
-					local runeTypeText = (itemData.runeType == "ACTIVE" or itemData.id == "RUNE_FIREBALL" or itemData.id == "EMBER" or itemData.id == "DROPLET" or itemData.id == "NIGHT" or itemData.runeMode == "AURA") and "액티브 (Active)" or "패시브 (Passive)"
-					local elementText = itemData.element and string.format("\n[ 원소 속성 ] %s", itemData.element) or ""
+					local runeTypeText = (itemData.runeType == "ACTIVE" or itemData.id == "RUNE_FIREBALL" or itemData.id == "EMBER" or itemData.id == "DROPLET" or itemData.id == "NIGHT" or itemData.runeMode == "AURA") and UILocalizer.Localize("액티브 (Active)") or UILocalizer.Localize("패시브 (Passive)")
+					local elementText = itemData.element and string.format("\n%s %s", UILocalizer.Localize("[ 원소 속성 ]"), UILocalizer.Localize(itemData.element)) or ""
 					local effectText = getRuneEffectText(itemData)
 					local description = itemData.description or ""
 					
 					local bodyText = string.format(
-						"[ 룬 분류 ] %s%s\n[ 장착 효과 ] %s\n---------------------------------\n%s",
+						"%s %s%s\n%s %s\n---------------------------------\n%s",
+						UILocalizer.Localize("[ 룬 분류 ]"),
 						runeTypeText,
 						elementText,
+						UILocalizer.Localize("[ 장착 효과 ]"),
 						effectText,
-						description
+						UILocalizer.LocalizeDataText("ItemData", itemData.id, "description", description)
 					)
 					
 					local HUDUI = require(UI:WaitForChild("HUDUI"))
-					HUDUI.ShowTooltip(itemData.name .. " 룬", bodyText)
+					local runeName = UILocalizer.LocalizeDataText("ItemData", itemData.id, "name", itemData.name)
+					HUDUI.ShowTooltip(string.format(UILocalizer.Localize("%s 룬"), runeName), bodyText)
 				end
 			end
 		end)

@@ -556,7 +556,7 @@ function DismantleUI.selectWeaponSlot(slotIdx: number?)
 	
 	local selectedDesc = DismantleUI.Refs.SelectedDesc
 	if selectedDesc then
-		selectedDesc.Text = itemInfo and itemInfo.description or "아이템 설명 정보가 존재하지 않습니다."
+		selectedDesc.Text = UILocalizer.Localize(itemInfo and itemInfo.description or "아이템 설명 정보가 존재하지 않습니다.")
 	end
 	
 	-- 3. [반환 재료 예측 리스트 채우기]
@@ -603,8 +603,9 @@ function DismantleUI.selectWeaponSlot(slotIdx: number?)
 			matIcon.Parent = matIconSlot
 			
 			-- 재료 이름
+			local matName = matData and matData.name or mat.itemId
 			local matNameLbl = Utils.mkLabel({
-				text = matData and matData.name or mat.itemId,
+				text = UILocalizer.LocalizeDataText("ItemData", mat.itemId, "name", matName),
 				size = UDim2.new(0.6, 0, 1, 0),
 				pos = UDim2.new(0, 38, 0, 0),
 				font = F.NORMAL,
@@ -643,8 +644,9 @@ function DismantleUI.executeDismantle()
 	local weaponName = weaponInfo and weaponInfo.name or weaponData.itemId
 	
 	-- 이중 안전을 위한 전용 무기 분해 확인 모달 가동 (골드가 아닌 분해 위험 테마)
+	local localizedMsgFormat = UILocalizer.Localize("정말로 <font color='#FF4040'>%s</font> 무기를 분해하시겠습니까?<br/>분해한 장비는 복구할 수 없으며 원본 재료의 50%%를 돌려받습니다.")
 	UI_MANAGER.showDismantleConfirm({
-		message = string.format("정말로 <font color='#FF4040'>%s</font> 무기를 분해하시겠습니까?<br/>분해한 장비는 복구할 수 없으며 원본 재료의 50%%를 돌려받습니다.", weaponName),
+		message = string.format(localizedMsgFormat, weaponName),
 		onConfirm = function()
 			DismantleUI.State.isProcessing = true
 			DismantleUI.Refs.ActionBtn.Text = UILocalizer.Localize("분해 가동 중...")
@@ -691,7 +693,7 @@ function DismantleUI.executeDismantle()
 					-- 실패 팝업 처리
 					local errMsg = errorCode or "UNKNOWN_ERROR"
 					if errMsg == "INV_FULL" then
-						errMsg = "가방이 꽉 차서 재료를 반환받을 공간이 없습니다."
+						errMsg = UILocalizer.Localize("가방이 꽉 차서 재료를 반환받을 공간이 없습니다.")
 					end
 					UI_MANAGER.notify(errMsg, Color3.fromRGB(255, 80, 80))
 				end

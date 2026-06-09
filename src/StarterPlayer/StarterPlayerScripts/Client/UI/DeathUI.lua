@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Theme = require(script.Parent:WaitForChild("UITheme"))
 local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 local C = Theme.Colors
 local F = Theme.Fonts
@@ -33,7 +34,7 @@ function DeathUI.create(parent)
 		size = UDim2.new(1, 0, 0, 50),
 		pos = UDim2.new(0.5, 0, 0.4, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		text = "의식을 잃었습니다",
+		text = UILocalizer.Localize("의식을 잃었습니다"),
 		color = C.RED,
 		ts = 40,
 		bold = true,
@@ -46,7 +47,7 @@ function DeathUI.create(parent)
 		size = UDim2.new(1, 0, 0, 30),
 		pos = UDim2.new(0.5, 0, 0.5, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		text = "가방 안의 아이템 일부를 잃어버렸습니다.",
+		text = UILocalizer.Localize("가방 안의 아이템 일부를 잃어버렸습니다."),
 		color = C.GRAY,
 		ts = 18,
 		parent = container
@@ -58,7 +59,7 @@ function DeathUI.create(parent)
 		size = UDim2.new(1, 0, 0, 40),
 		pos = UDim2.new(0.5, 0, 0.65, 0),
 		anchor = Vector2.new(0.5, 0.5),
-		text = "부활 대기 중...",
+		text = UILocalizer.Localize("부활 대기 중..."),
 		color = C.WHITE,
 		ts = 22,
 		font = F.NUM,

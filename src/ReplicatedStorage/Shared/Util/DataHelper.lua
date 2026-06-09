@@ -127,6 +127,9 @@ local function localizeRecord(tableName: string, recordId: string, record: table
 	if localized.description ~= nil then
 		localized.description = localizer.LocalizeDataText(tableName, tostring(id), "description", localized.description)
 	end
+	if localized.npcName ~= nil then
+		localized.npcName = localizer.LocalizeDataText(tableName, tostring(id), "npcName", localized.npcName)
+	end
 
 	return localized
 end

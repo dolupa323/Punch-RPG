@@ -276,4 +276,9 @@ for command, handler in pairs(SkillService.GetHandlers()) do
 end
 ServiceRegistry.Register("SkillService", SkillService)
 
+local HazardService = require(Services.HazardService)
+HazardService.Init(NetController)
+ServiceRegistry.Register("HazardService", HazardService)
+
 print("[ServerInit] RPG Core initialized - Legacy systems removed")
+

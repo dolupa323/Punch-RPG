@@ -1,9 +1,8 @@
 -- NavigationController.lua
--- 튜토리얼 퀘스트 가이드용 날파리/위스프 공중 안내 시스템 (Client Only)
+-- 튜토리얼 퀘스트 가이드용 플레이어 전방 3D 화살표 안내 시스템 (Client Only)
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local PathfindingService = game:GetService("PathfindingService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,62 +15,31 @@ local NavigationController = {}
 local initialized = false
 local player = Players.LocalPlayer
 local activeTargetPos = nil
+local activeTargetZone = nil
 local activeStepIndex = nil
-local isDone = false
+local targetRadius = 15 -- 이 반경 이내로 들어오면 화살표를 숨김
 
--- 가이드 파트 참조
-local guideFolder = nil
-local wispPart = nil
-local wispLight = nil
-local wispTrail = nil
-
-local wispCurrentPos = nil
-local currentPath = nil
-local currentWaypoints = nil
-local currentWaypointIndex = 1
-local currentPathGoal = nil
-local pathRequestToken = 0
-local pathRequestPending = false
-local pathRequestStartedAt = 0
-local pathNextRetryAt = 0
-local pathRailFolder = nil
-local WISP_FOLLOW_SPEED = 32
-local WISP_HOVER_HEIGHT = 4.2
-local WISP_REACH_DISTANCE = 1.5
-local WISP_IDLE_BOB_AMPLITUDE = 0.25
-local WISP_IDLE_BOB_SPEED = 3.0
-local PATH_RAIL_THICKNESS = 0.28
-local PATH_NODE_SIZE = 0.5
-
--- 디자인 색상 상수
-local COLOR_NORMAL = Color3.fromRGB(0, 220, 255)  -- 정상 안내 시: 네온 싸이언
-local COLOR_WARNING = Color3.fromRGB(255, 120, 0) -- 경로 이탈 시: 네온 오렌지/앰버
+-- 가이드 모델 및 파트 참조
+local guideModel = nil
+local arrowShaft = nil
+local arrowTipLeft = nil
+local arrowTipRight = nil
 
 local function normalizeName(name: string): string
 	return string.lower((tostring(name or "")):gsub("[%s_%-%(%)]", ""))
 end
 
 local function getInstancePosition(inst: Instance?): Vector3?
-	if not inst then
-		return nil
-	end
-	if inst:IsA("BasePart") then
-		return inst.Position
-	end
+	if not inst then return nil end
+	if inst:IsA("BasePart") then return inst.Position end
 	if inst:IsA("Attachment") and inst.Parent and inst.Parent:IsA("BasePart") then
 		return inst.Parent.Position
 	end
 	if inst:IsA("Model") then
-		local ok, pivot = pcall(function()
-			return inst:GetPivot()
-		end)
-		if ok and pivot then
-			return pivot.Position
-		end
+		local ok, pivot = pcall(function() return inst:GetPivot() end)
+		if ok and pivot then return pivot.Position end
 		local root = inst.PrimaryPart or inst:FindFirstChild("HumanoidRootPart") or inst:FindFirstChildWhichIsA("BasePart", true)
-		if root and root:IsA("BasePart") then
-			return root.Position
-		end
+		if root and root:IsA("BasePart") then return root.Position end
 	end
 	return nil
 end
@@ -84,9 +52,7 @@ local function findWorkspaceTargetPosition(aliases: {string}): Vector3?
 			table.insert(normalizedAliases, normalized)
 		end
 	end
-	if #normalizedAliases == 0 then
-		return nil
-	end
+	if #normalizedAliases == 0 then return nil end
 
 	local bestMatch: Instance? = nil
 	local bestScore = math.huge
@@ -99,8 +65,7 @@ local function findWorkspaceTargetPosition(aliases: {string}): Vector3?
 					return getInstancePosition(inst)
 				end
 				local exactContains = string.find(normalized, alias, 1, true)
-				local aliasContains = string.find(alias, normalized, 1, true)
-				if exactContains or aliasContains then
+				if exactContains then
 					local score = math.abs(#normalized - #alias)
 					if score < bestScore then
 						bestMatch = inst
@@ -115,34 +80,23 @@ local function findWorkspaceTargetPosition(aliases: {string}): Vector3?
 end
 
 local function vector3FromTable(point)
-	if type(point) ~= "table" then
-		return nil
-	end
+	if type(point) ~= "table" then return nil end
 	local x = tonumber(point.x or point.X)
 	local y = tonumber(point.y or point.Y)
 	local z = tonumber(point.z or point.Z)
-	if not x or not y or not z then
-		return nil
-	end
+	if not x or not y or not z then return nil end
 	return Vector3.new(x, y, z)
 end
 
 local function getSpawnDataCentroid(spawnData)
-	if type(spawnData) ~= "table" then
-		return nil
-	end
-
+	if type(spawnData) ~= "table" then return nil end
 	if spawnData.exactSpawnPosition then
 		local exact = vector3FromTable(spawnData.exactSpawnPosition)
-		if exact then
-			return exact
-		end
+		if exact then return exact end
 	end
 
 	local positions = spawnData.spawnPositions
-	if type(positions) ~= "table" then
-		return nil
-	end
+	if type(positions) ~= "table" then return nil end
 
 	local total = Vector3.zero
 	local count = 0
@@ -154,27 +108,20 @@ local function getSpawnDataCentroid(spawnData)
 		end
 	end
 
-	if count > 0 then
-		return total / count
-	end
-
+	if count > 0 then return total / count end
 	return nil
 end
 
 local function getZoneCenterFromConfig(zoneName: string): Vector3?
 	local zoneInfo = SpawnConfig.GetZoneInfo(zoneName)
-	if not zoneInfo then
-		return nil
-	end
+	if not zoneInfo then return nil end
 	if zoneInfo.spawnPoint then
 		local spawnPoint = vector3FromTable({
 			x = zoneInfo.spawnPoint.X,
 			y = zoneInfo.spawnPoint.Y,
 			z = zoneInfo.spawnPoint.Z,
 		})
-		if spawnPoint then
-			return spawnPoint
-		end
+		if spawnPoint then return spawnPoint end
 	end
 	if zoneInfo.min and zoneInfo.max then
 		return Vector3.new(
@@ -189,32 +136,56 @@ end
 local function resolveMonsterGuidePosition(zoneName: string, spawnDataKey: string?, fallbackPos: Vector3?)
 	local spawnData = spawnDataKey and MobSpawnData[spawnDataKey] or nil
 	local target = getSpawnDataCentroid(spawnData)
-	if target then
-		return target
-	end
+	if target then return target end
 
 	local zoneTarget = getZoneCenterFromConfig(zoneName)
-	if zoneTarget then
-		return zoneTarget
-	end
+	if zoneTarget then return zoneTarget end
 
 	return fallbackPos
 end
 
--- 지면 높이를 구하는 함수
-local function getGroundY(position: Vector3, char: Model?): number
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-	local filterList = {Workspace:FindFirstChild("__NavigationGuide")}
-	if char then
-		table.insert(filterList, char)
+local function raycastWithFilter(origin: Vector3, direction: Vector3, rayParams: RaycastParams): RaycastResult?
+	local result = Workspace:Raycast(origin, direction, rayParams)
+	if result then
+		local hitPart = result.Instance
+		local hitModel = hitPart:FindFirstAncestorOfClass("Model")
+		if hitModel then
+			local nameLower = string.lower(hitModel.Name)
+			if hitModel:FindFirstChildOfClass("Humanoid") or 
+			   hitModel:FindFirstChild("NPC") or 
+			   string.find(nameLower, "npc") or 
+			   string.find(nameLower, "master") or 
+			   string.find(nameLower, "monster") or 
+			   string.find(nameLower, "dummy") or 
+			   hitModel:IsA("Accessory") then
+				
+				local currentFilter = rayParams.FilterDescendantsInstances
+				table.insert(currentFilter, hitModel)
+				rayParams.FilterDescendantsInstances = currentFilter
+				return raycastWithFilter(origin, direction, rayParams)
+			end
+		end
 	end
-	raycastParams.FilterDescendantsInstances = filterList
+	return result
+end
 
-	local origin = position + Vector3.new(0, 15, 0)
+local function getGroundY(position: Vector3, char: Model?): number
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	
+	local filterList = {Workspace:FindFirstChild("__NavigationGuide")}
+	if char then table.insert(filterList, char) end
+	
+	local startVillage = Workspace:FindFirstChild("StartVillage")
+	if startVillage then table.insert(filterList, startVillage) end
+	
+	rayParams.FilterDescendantsInstances = filterList
+
+	local origin = position + Vector3.new(0, 10, 0)
 	local direction = Vector3.new(0, -30, 0)
-	local result = Workspace:Raycast(origin, direction, raycastParams)
+	local result = raycastWithFilter(origin, direction, rayParams)
 
+	local playerY = char and char.PrimaryPart and char.PrimaryPart.Position.Y or position.Y
 	if result then
 		return result.Position.Y
 	end
@@ -223,198 +194,6 @@ end
 
 local function groundProject(position: Vector3, char: Model?): Vector3
 	return Vector3.new(position.X, getGroundY(position, char), position.Z)
-end
-
-local function clearPathState()
-	currentPath = nil
-	currentWaypoints = nil
-	currentWaypointIndex = 1
-	currentPathGoal = nil
-	pathRequestPending = false
-	pathRequestStartedAt = 0
-	pathNextRetryAt = 0
-	if pathRailFolder then
-		pathRailFolder:Destroy()
-		pathRailFolder = nil
-	end
-end
-
-local function buildPathRail(waypoints, char: Model?)
-	if not guideFolder then
-		return
-	end
-
-	if pathRailFolder then
-		pathRailFolder:Destroy()
-		pathRailFolder = nil
-	end
-
-	pathRailFolder = Instance.new("Folder")
-	pathRailFolder.Name = "GuideRail"
-	pathRailFolder.Parent = guideFolder
-
-	local sampledPoints = {}
-	for index = 1, #waypoints do
-		local waypoint = waypoints[index]
-		local waypointPos = waypoint and waypoint.Position
-		if waypointPos then
-			local projected = groundProject(waypointPos, char) + Vector3.new(0, 0.15, 0)
-			sampledPoints[#sampledPoints + 1] = projected
-		end
-	end
-
-	local expandedPoints = {}
-	for index = 1, #sampledPoints do
-		local currentPoint = sampledPoints[index]
-		expandedPoints[#expandedPoints + 1] = currentPoint
-
-		local nextPoint = sampledPoints[index + 1]
-		if nextPoint then
-			local delta = nextPoint - currentPoint
-			local distance = delta.Magnitude
-			local segmentCount = math.max(1, math.ceil(distance / 8))
-			for segmentIndex = 1, segmentCount - 1 do
-				local alpha = segmentIndex / segmentCount
-				local sample = currentPoint:Lerp(nextPoint, alpha)
-				sample = groundProject(sample, char) + Vector3.new(0, 0.15, 0)
-				expandedPoints[#expandedPoints + 1] = sample
-			end
-		end
-	end
-
-	for index = 1, #expandedPoints do
-		local point = expandedPoints[index]
-		local node = Instance.new("Part")
-		node.Name = ("Node_%02d"):format(index)
-		node.Shape = Enum.PartType.Ball
-		node.Size = Vector3.new(PATH_NODE_SIZE, PATH_NODE_SIZE, PATH_NODE_SIZE)
-		node.Material = Enum.Material.Neon
-		node.Color = COLOR_NORMAL
-		node.Transparency = 0.18
-		node.CanCollide = false
-		node.CanQuery = false
-		node.CanTouch = false
-		node.CastShadow = false
-		node.Anchored = true
-		node.Parent = pathRailFolder
-		node.CFrame = CFrame.new(point)
-
-		local nextPoint = expandedPoints[index + 1]
-		if nextPoint then
-			local startPos = point
-			local endPos = nextPoint
-			local delta = endPos - startPos
-			local length = delta.Magnitude
-			if length > 0.1 then
-				local rail = Instance.new("Part")
-				rail.Name = ("Rail_%02d"):format(index)
-				rail.Shape = Enum.PartType.Block
-				rail.Size = Vector3.new(PATH_RAIL_THICKNESS, PATH_RAIL_THICKNESS, length)
-				rail.Material = Enum.Material.Neon
-				rail.Color = COLOR_NORMAL
-				rail.Transparency = 0.35
-				rail.CanCollide = false
-				rail.CanQuery = false
-				rail.CanTouch = false
-				rail.CastShadow = false
-				rail.Anchored = true
-				rail.Parent = pathRailFolder
-				rail.CFrame = CFrame.lookAt(startPos:Lerp(endPos, 0.5), endPos)
-			end
-		end
-	end
-end
-
-local function buildFallbackWaypoints(startPos: Vector3, goalPos: Vector3, char: Model?)
-	local points = {}
-	local startFlat = Vector3.new(startPos.X, 0, startPos.Z)
-	local goalFlat = Vector3.new(goalPos.X, 0, goalPos.Z)
-	local flatDelta = goalFlat - startFlat
-	local totalDistance = flatDelta.Magnitude
-	local segments = math.clamp(math.floor(totalDistance / 18) + 2, 4, 12)
-	local topY = math.max(startPos.Y, goalPos.Y) + 50
-
-	for index = 0, segments do
-		local alpha = index / segments
-		local xz = startFlat:Lerp(goalFlat, alpha)
-		local sampleOrigin = Vector3.new(xz.X, topY, xz.Z)
-		local groundY = getGroundY(sampleOrigin, char)
-		points[#points + 1] = {
-			Position = Vector3.new(xz.X, groundY, xz.Z),
-		}
-	end
-
-	return points
-end
-
-local function requestPathRebuild(startPos: Vector3, goalPos: Vector3, char: Model?)
-	if pathRequestPending then
-		return
-	end
-	local now = os.clock()
-	if now < pathNextRetryAt then
-		return
-	end
-
-	pathRequestToken += 1
-	local token = pathRequestToken
-	local startFlat = groundProject(startPos, char)
-	local goalFlat = groundProject(goalPos, char)
-	pathRequestPending = true
-	pathRequestStartedAt = os.clock()
-
-	task.spawn(function()
-		local path = PathfindingService:CreatePath({
-			AgentRadius = 2,
-			AgentHeight = 5,
-			AgentCanJump = true,
-			AgentCanClimb = false,
-			WaypointSpacing = 4,
-		})
-
-		local ok = pcall(function()
-			path:ComputeAsync(startFlat, goalFlat)
-		end)
-		if not ok or path.Status ~= Enum.PathStatus.Success then
-			local fallbackWaypoints = buildFallbackWaypoints(startFlat, goalFlat, char)
-			currentPath = nil
-			currentWaypoints = fallbackWaypoints
-			currentWaypointIndex = 1
-			currentPathGoal = goalPos
-			buildPathRail(fallbackWaypoints, char)
-			pathRequestPending = false
-			pathRequestStartedAt = 0
-			pathNextRetryAt = os.clock() + 0.75
-			return
-		end
-		local waypoints = path:GetWaypoints()
-		if not waypoints or #waypoints == 0 then
-			local fallbackWaypoints = buildFallbackWaypoints(startFlat, goalFlat, char)
-			currentPath = nil
-			currentWaypoints = fallbackWaypoints
-			currentWaypointIndex = 1
-			currentPathGoal = goalPos
-			buildPathRail(fallbackWaypoints, char)
-			pathRequestPending = false
-			pathRequestStartedAt = 0
-			pathNextRetryAt = os.clock() + 0.75
-			return
-		end
-		if token ~= pathRequestToken or activeTargetPos ~= goalPos then
-			pathRequestPending = false
-			pathRequestStartedAt = 0
-			return
-		end
-
-		currentPath = path
-		currentWaypoints = waypoints
-		currentWaypointIndex = 1
-		currentPathGoal = goalPos
-		pathRequestPending = false
-		pathRequestStartedAt = 0
-		buildPathRail(waypoints, char)
-		pathNextRetryAt = 0
-	end)
 end
 
 local STEP_TARGETS = {
@@ -427,13 +206,13 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-309.554, 10, 425.738),
+		fallback = Vector3.new(-753.46, -32.0, 1404.68),
 	},
 	COLLECT_SLIME_MUCUS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-309.554, 10, 425.738),
+		fallback = Vector3.new(-753.46, -32.0, 1404.68),
 	},
 	CRAFT_SOFTCLUB = {
 		kind = "npc",
@@ -444,7 +223,7 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "HornedLarvaZone",
 		spawnDataKey = "HornedLarvaZone",
-		fallback = Vector3.new(-4.65, 8, 466.528),
+		fallback = Vector3.new(-858.37, -92.0, 1679.66),
 	},
 	CRAFT_GAKCHANG = {
 		kind = "npc",
@@ -465,7 +244,7 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "STUMP_ZONE",
 		spawnDataKey = "StumpZone",
-		fallback = Vector3.new(240.8065, 70.2, 642.298),
+		fallback = Vector3.new(-1519.42, -71.69, 1498.07),
 	},
 	CRAFT_MOGWOLDO = {
 		kind = "npc",
@@ -494,9 +273,7 @@ local function resolveTargetPosition(stepKey: string?, stepIndex: number?): Vect
 		target = STEP_TARGETS[fallbackKeyByIndex[stepIndex]]
 	end
 
-	if not target then
-		return nil
-	end
+	if not target then return nil end
 
 	if target.kind == "npc" then
 		local livePos = findWorkspaceTargetPosition(target.aliases or {})
@@ -514,220 +291,177 @@ local function resolveTargetPosition(stepKey: string?, stepIndex: number?): Vect
 	return target.fallback
 end
 
--- 비주얼 가이드 오브젝트 파괴
 local function cleanupVisuals()
-	if guideFolder then
-		guideFolder:Destroy()
-		guideFolder = nil
+	if guideModel then
+		guideModel:Destroy()
+		guideModel = nil
 	end
-	wispPart = nil
-	wispLight = nil
-	wispTrail = nil
-	wispCurrentPos = nil
-	clearPathState()
+	arrowShaft = nil
+	arrowTipLeft = nil
+	arrowTipRight = nil
 end
 
--- 비주얼 가이드 오브젝트 생성
 local function setupVisuals()
 	cleanupVisuals()
 
-	guideFolder = Instance.new("Folder")
-	guideFolder.Name = "__NavigationGuide"
-	guideFolder.Parent = Workspace
+	guideModel = Instance.new("Model")
+	guideModel.Name = "__NavigationGuide"
+	guideModel.Parent = Workspace
 
-	wispPart = Instance.new("Part")
-	wispPart.Name = "GuideWisp"
-	wispPart.Shape = Enum.PartType.Ball
-	wispPart.Size = Vector3.new(0.5, 0.5, 0.5)
-	wispPart.Material = Enum.Material.Neon
-	wispPart.Color = COLOR_NORMAL
-	wispPart.Transparency = 0.2
-	wispPart.CanCollide = false
-	wispPart.CanQuery = false
-	wispPart.CanTouch = false
-	wispPart.CastShadow = false
-	wispPart.Anchored = true
-	wispPart.Parent = guideFolder
+	-- Shaft (몸체)
+	arrowShaft = Instance.new("Part")
+	arrowShaft.Name = "Shaft"
+	arrowShaft.Size = Vector3.new(0.5, 0.1, 1.6)
+	arrowShaft.Material = Enum.Material.Neon
+	arrowShaft.Color = Color3.fromRGB(0, 220, 255)
+	arrowShaft.CanCollide = false
+	arrowShaft.CanTouch = false
+	arrowShaft.CanQuery = false
+	arrowShaft.Anchored = true
+	arrowShaft.CastShadow = false
+	arrowShaft.Parent = guideModel
 
-	wispLight = Instance.new("PointLight")
-	wispLight.Color = wispPart.Color
-	wispLight.Range = 8
-	wispLight.Brightness = 2.5
-	wispLight.Parent = wispPart
+	-- Left Wedge for arrowhead
+	arrowTipLeft = Instance.new("WedgePart")
+	arrowTipLeft.Name = "TipLeft"
+	arrowTipLeft.Size = Vector3.new(0.1, 0.5, 1.0)
+	arrowTipLeft.Material = Enum.Material.Neon
+	arrowTipLeft.Color = Color3.fromRGB(0, 220, 255)
+	arrowTipLeft.CanCollide = false
+	arrowTipLeft.CanTouch = false
+	arrowTipLeft.CanQuery = false
+	arrowTipLeft.Anchored = true
+	arrowTipLeft.CastShadow = false
+	arrowTipLeft.Parent = guideModel
 
-	local att0 = Instance.new("Attachment")
-	att0.Name = "Att0"
-	att0.Position = Vector3.new(0, -0.2, 0)
-	att0.Parent = wispPart
-
-	local att1 = Instance.new("Attachment")
-	att1.Name = "Att1"
-	att1.Position = Vector3.new(0, 0.2, 0)
-	att1.Parent = wispPart
-
-	wispTrail = Instance.new("Trail")
-	wispTrail.Attachment0 = att0
-	wispTrail.Attachment1 = att1
-	wispTrail.Color = ColorSequence.new(wispPart.Color)
-	wispTrail.Lifetime = 0.4
-	wispTrail.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.2),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	wispTrail.LightEmission = 1
-	wispTrail.FaceCamera = true
-	wispTrail.Parent = wispPart
+	-- Right Wedge for arrowhead
+	arrowTipRight = Instance.new("WedgePart")
+	arrowTipRight.Name = "TipRight"
+	arrowTipRight.Size = Vector3.new(0.1, 0.5, 1.0)
+	arrowTipRight.Material = Enum.Material.Neon
+	arrowTipRight.Color = Color3.fromRGB(0, 220, 255)
+	arrowTipRight.CanCollide = false
+	arrowTipRight.CanTouch = false
+	arrowTipRight.CanQuery = false
+	arrowTipRight.Anchored = true
+	arrowTipRight.CastShadow = false
+	arrowTipRight.Parent = guideModel
 end
 
--- 지면 높이를 구하는 함수
+local function updateArrow(dt: number)
+	if not activeTargetPos or not guideModel or not arrowShaft or not arrowTipLeft or not arrowTipRight then
+		return
+	end
+
+	local char = player.Character
+	if not char then
+		arrowShaft.Transparency = 1
+		arrowTipLeft.Transparency = 1
+		arrowTipRight.Transparency = 1
+		return
+	end
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		arrowShaft.Transparency = 1
+		arrowTipLeft.Transparency = 1
+		arrowTipRight.Transparency = 1
+		return
+	end
+
+	local playerPos = hrp.Position
+
+	-- 타겟 사냥 영역(Zone) 내에 들어왔다면 화살표 숨김
+	if activeTargetZone then
+		local currentZone = SpawnConfig.GetZoneAtPosition(playerPos)
+		if currentZone == activeTargetZone then
+			arrowShaft.Transparency = 1
+			arrowTipLeft.Transparency = 1
+			arrowTipRight.Transparency = 1
+			return
+		end
+	end
+
+	local distToGoal = (playerPos - activeTargetPos).Magnitude
+
+	-- 목적지에 다다르면 화살표를 숨김
+	if distToGoal < targetRadius then
+		arrowShaft.Transparency = 1
+		arrowTipLeft.Transparency = 1
+		arrowTipRight.Transparency = 1
+		return
+	else
+		arrowShaft.Transparency = 0.25
+		arrowTipLeft.Transparency = 0.25
+		arrowTipRight.Transparency = 0.25
+	end
+
+	-- 플레이어 머리 위 공중 위치 계산
+	local arrowCenter = playerPos + Vector3.new(0, 4.2, 0)
+
+	-- 화살표가 위아래로 부드럽게 흔들리는 공중 부유 연출
+	local bob = math.sin(os.clock() * 4) * 0.15
+	local finalPos = arrowCenter + Vector3.new(0, bob, 0)
+
+	-- 목적지 방향 CFrame 연산 (수평 방향만)
+	local lookCF = CFrame.lookAt(finalPos, Vector3.new(activeTargetPos.X, finalPos.Y, activeTargetPos.Z))
+
+	-- 파트 배치 (Shaft는 뒤쪽, Wedge 두 개는 대칭으로 앞쪽에 맞물려 결합하여 완벽한 화살촉 생성)
+	arrowShaft.CFrame = lookCF * CFrame.new(0, 0, 0.6)
+	arrowTipLeft.CFrame = lookCF * CFrame.new(-0.25, 0, -0.7) * CFrame.Angles(0, 0, math.rad(90))
+	arrowTipRight.CFrame = lookCF * CFrame.new(0.25, 0, -0.7) * CFrame.Angles(0, 0, math.rad(-90))
+end
+
 -- 튜토리얼 상태 갱신 함수
 function NavigationController.UpdateTutorialStatus(status)
-	if type(status) ~= "table" then
+	if not status or status.completed or not status.active then
 		activeTargetPos = nil
+		activeTargetZone = nil
 		cleanupVisuals()
 		return
 	end
 
-	isDone = status.progress and status.progress.done == true
-	if not status.active or status.completed or isDone then
-		activeTargetPos = nil
-		cleanupVisuals()
-		return
+	local key = tostring(status.stepKey or "")
+	local target = STEP_TARGETS[key]
+	if not target and status.stepIndex then
+		local fallbackKeyByIndex = {
+			[1] = "SELECT_ELEMENT",
+			[2] = "KILL_SLIME",
+			[3] = "COLLECT_SLIME_MUCUS",
+			[4] = "CRAFT_SOFTCLUB",
+			[5] = "KILL_HORNED_LARVA",
+			[6] = "CRAFT_GAKCHANG",
+			[7] = "ENHANCE_GAKCHANG",
+			[8] = "BUY_POTION",
+			[9] = "KILL_STUMP",
+			[10] = "CRAFT_MOGWOLDO",
+		}
+		target = STEP_TARGETS[fallbackKeyByIndex[status.stepIndex]]
 	end
 
-	local stepIndex = tonumber(status.stepIndex)
-	local stepKey = tostring(status.stepKey or "")
-	local targetPos = resolveTargetPosition(stepKey, stepIndex)
-	if not targetPos then
-		activeTargetPos = nil
-		cleanupVisuals()
-		return
-	end
-
-	if activeTargetPos ~= targetPos then
-		activeTargetPos = targetPos
-		activeStepIndex = stepIndex
-		wispCurrentPos = nil
-		clearPathState()
+	if target then
+		activeTargetZone = target.zoneName
+		activeTargetPos = resolveTargetPosition(status.stepKey, status.stepIndex)
+		activeStepIndex = status.stepIndex
 		setupVisuals()
+	else
+		activeTargetPos = nil
+		activeTargetZone = nil
+		cleanupVisuals()
 	end
 end
 
 function NavigationController.Init()
 	if initialized then return end
 	initialized = true
-
-	player.CharacterAdded:Connect(function()
-		if activeTargetPos then
-			wispCurrentPos = nil
-			clearPathState()
-			setupVisuals()
-		else
-			cleanupVisuals()
-		end
+	cleanupVisuals()
+	
+	RunService.Heartbeat:Connect(function(dt)
+		pcall(function()
+			updateArrow(dt)
+		end)
 	end)
-
-	-- 매 프레임 업데이트 루프
-	RunService.RenderStepped:Connect(function(dt)
-		if not activeTargetPos or not wispPart or not wispLight or not wispTrail then
-			return
-		end
-		if typeof(activeTargetPos) ~= "Vector3" then
-			return
-		end
-
-		local char = player.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if not char or not hrp or not hum or hum.Health <= 0 then
-			wispPart.Transparency = 1
-			wispLight.Brightness = 0
-			return
-		end
-
-		local playerPos = hrp.Position
-		local guideGoal = activeTargetPos
-		if not wispCurrentPos then
-			local startDirection = guideGoal - playerPos
-			if startDirection.Magnitude < 0.1 then
-				startDirection = hrp.CFrame.LookVector
-			end
-			startDirection = Vector3.new(startDirection.X, 0, startDirection.Z)
-			if startDirection.Magnitude < 0.1 then
-				startDirection = Vector3.new(0, 0, -1)
-			end
-			local playerGroundY = getGroundY(playerPos, char)
-			wispCurrentPos = Vector3.new(playerPos.X, playerGroundY + WISP_HOVER_HEIGHT, playerPos.Z) + startDirection.Unit * 5
-		end
-
-		if not currentWaypoints or currentPathGoal ~= guideGoal then
-			requestPathRebuild(playerPos, guideGoal, char)
-		end
-
-		if pathRequestPending and (not currentWaypoints) and pathRequestStartedAt > 0 and (os.clock() - pathRequestStartedAt) > 0.6 then
-			local fallbackWaypoints = buildFallbackWaypoints(playerPos, guideGoal, char)
-			currentPath = nil
-			currentWaypoints = fallbackWaypoints
-			currentWaypointIndex = 1
-			currentPathGoal = guideGoal
-			pathRequestPending = false
-			pathRequestStartedAt = 0
-			pathNextRetryAt = os.clock() + 0.75
-			buildPathRail(fallbackWaypoints, char)
-		end
-
-		local finalPos = wispCurrentPos
-		local facingDir = guideGoal - wispCurrentPos
-		local targetColor = COLOR_NORMAL
-		local currentTransparency = 0.05
-
-		if currentWaypoints then
-			local waypoint = currentWaypoints[currentWaypointIndex] or currentWaypoints[#currentWaypoints]
-			local pathTarget = waypoint and (groundProject(waypoint.Position, char) + Vector3.new(0, WISP_HOVER_HEIGHT, 0)) or guideGoal
-			local toTarget = pathTarget - wispCurrentPos
-			local targetDistance = toTarget.Magnitude
-			local moveStep = math.max(WISP_FOLLOW_SPEED * dt, 0)
-			local isLastWaypoint = currentWaypointIndex >= #currentWaypoints
-			facingDir = toTarget
-			if facingDir.Magnitude < 0.1 then
-				facingDir = (guideGoal - wispCurrentPos)
-			end
-
-			if targetDistance <= WISP_REACH_DISTANCE then
-				if not isLastWaypoint then
-					currentWaypointIndex += 1
-				else
-					local bob = math.sin(os.clock() * WISP_IDLE_BOB_SPEED) * WISP_IDLE_BOB_AMPLITUDE
-					wispCurrentPos = pathTarget + Vector3.new(0, bob, 0)
-					finalPos = wispCurrentPos
-				end
-			else
-				local step = math.min(moveStep, targetDistance)
-				wispCurrentPos = wispCurrentPos + toTarget.Unit * step
-				finalPos = wispCurrentPos
-			end
-		else
-			local idleY = getGroundY(wispCurrentPos, char) + WISP_HOVER_HEIGHT
-			local bob = math.sin(os.clock() * WISP_IDLE_BOB_SPEED) * WISP_IDLE_BOB_AMPLITUDE
-			finalPos = Vector3.new(wispCurrentPos.X, idleY + bob, wispCurrentPos.Z)
-			wispCurrentPos = finalPos
-			targetColor = COLOR_WARNING
-		end
-
-		wispPart.Size = Vector3.new(1.2, 1.2, 1.2)
-		wispPart.Transparency = currentTransparency
-		wispLight.Brightness = 5
-		wispTrail.Lifetime = 0.65
-
-		-- 색상 보간 적용
-		wispPart.Color = wispPart.Color:Lerp(targetColor, math.clamp(dt * 8, 0, 1))
-		wispLight.Color = wispPart.Color
-		wispTrail.Color = ColorSequence.new(wispPart.Color)
-
-		wispPart.CFrame = CFrame.lookAt(finalPos, finalPos + facingDir.Unit)
-	end)
-
-	print("[NavigationController] Pioneer Waypoint Wisp Guide Initialized")
+	print("[NavigationController] Arrow Guide system initialized.")
 end
 
 return NavigationController

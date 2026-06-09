@@ -11,6 +11,7 @@ local InputManager = require(Client:WaitForChild("InputManager"))
 local UITheme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
 local Utils = require(Client:WaitForChild("UI"):WaitForChild("UIUtils"))
 local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 local C_Base = UITheme.Colors
 local C = {}
@@ -83,14 +84,14 @@ function TentUI.Init(uiManager)
 	TentUI.Refs.Window = win
 
 	Utils.mkLabel({
-		text = "스폰지점 설정",
+		text = UILocalizer.Localize("스폰지점 설정"),
 		size = UDim2.new(1, 0, 0, 40), pos = UDim2.new(0, 0, 0, 10),
 		font = F.TITLE, ts = 20, color = C.GOLD,
 		parent = win
 	})
 
 	Utils.mkLabel({
-		text = "이 텐트를 부활 지점으로 설정하시겠습니까?",
+		text = UILocalizer.Localize("이 텐트를 부활 지점으로 설정하시겠습니까?"),
 		size = UDim2.new(1, -40, 0, 60), pos = UDim2.new(0, 20, 0, 50),
 		font = F.NORMAL, ts = 16, color = C.WHITE,
 		parent = win
@@ -102,14 +103,14 @@ function TentUI.Init(uiManager)
 	})
 
 	local btnNo = Utils.mkBtn({
-		name = "BtnNo", text = "아니오", size = UDim2.new(0.48, 0, 1, 0),
+		name = "BtnNo", text = UILocalizer.Localize("아니오"), size = UDim2.new(0.48, 0, 1, 0),
 		pos = UDim2.new(0, 0, 0, 0), bg = C.BTN_GRAY, font = F.TITLE, ts = 16,
 		parent = btnArea
 	})
 	TentUI.Refs.BtnNo = btnNo
 
 	local btnYes = Utils.mkBtn({
-		name = "BtnYes", text = "예", size = UDim2.new(0.48, 0, 1, 0),
+		name = "BtnYes", text = UILocalizer.Localize("예"), size = UDim2.new(0.48, 0, 1, 0),
 		pos = UDim2.new(0.52, 0, 0, 0), bg = C.BTN, font = F.TITLE, ts = 16, color = C.WHITE,
 		parent = btnArea
 	})
@@ -123,9 +124,9 @@ function TentUI.Init(uiManager)
 		-- 스폰지점 설정 요청
 		local ok, data = NetClient.Request("Tent.SetSpawn", {})
 		if ok then
-			if UIManager then UIManager.notify("스폰지점이 텐트로 설정되었습니다.", C.GREEN) end
+			if UIManager then UIManager.notify(UILocalizer.Localize("스폰지점이 텐트로 설정되었습니다."), C.GREEN) end
 		else
-			if UIManager then UIManager.notify("스폰지점 설정에 실패했습니다.", C.RED) end
+			if UIManager then UIManager.notify(UILocalizer.Localize("스폰지점 설정에 실패했습니다."), C.RED) end
 		end
 		TentUI.Close()
 	end)

@@ -226,7 +226,7 @@ Balance.DROP_BILLBOARD_MAX_DIST = 25       -- 드롭 라벨 최대 거리
 Balance.DROP_PROMPT_RANGE = 5              -- 드롭 루팅 거리
 Balance.DROP_MODEL_DEFAULT = "POUCH"       -- 드롭 아이템 기본 모델
 
-Balance.BASE_WALK_SPEED = 18               -- 플레이어 기본 이동 속도
+Balance.BASE_WALK_SPEED = 24               -- 플레이어 기본 이동 속도
 Balance.CREATURE_AI_TICK = 0.3             -- 크리처 AI 업데이트 간격
 Balance.CREATURE_DESPAWN_DIST = 300        -- 크리처 디스폰 거리
 

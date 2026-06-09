@@ -608,7 +608,26 @@ function AvatarService.Init()
 						tag.Parent = hum
 						game:GetService("Debris"):AddItem(tag, 4) -- 4초간 안전하게 유지
 						
-						hum:TakeDamage(curDmg)
+						-- Apply player vs monster level difference damage scaling
+						local finalCurDmg = curDmg
+						local mobLevel = targetModel:GetAttribute("Level") or 1
+						local playerLevel = 1
+						if PlayerStatService and PlayerStatService.getLevel then
+							playerLevel = PlayerStatService.getLevel(player.UserId) or 1
+						end
+
+						if playerLevel > mobLevel then
+							local diff = playerLevel - mobLevel
+							finalCurDmg = finalCurDmg * (1 + (diff * 0.05))
+						elseif playerLevel < mobLevel then
+							finalCurDmg = finalCurDmg * 0.5
+						end
+						finalCurDmg = math.max(1, math.floor(finalCurDmg + 0.5))
+
+						hum:TakeDamage(finalCurDmg)
+						
+						-- Sync visual damage for clients
+						curDmg = finalCurDmg
 						
 						-- [XP Granting] 처치 시 경험치 지급 로직 직접 구현 (래거시 의존성 제거)
 						if hum.Health <= 0 then

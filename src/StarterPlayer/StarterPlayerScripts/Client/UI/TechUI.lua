@@ -215,14 +215,13 @@ local function renderTree(techList, unlocked, playerLevel, getItemIcon, UIManage
 		nameL.Size = UDim2.new(1, 0, 0, 20)
 		nameL.Position = UDim2.new(0, 0, 1, 0)
 		nameL.BackgroundTransparency = 1
-		nameL.Text = node.name or node.id
+		nameL.Text = UILocalizer.Localize(node.name or node.id)
 		nameL.Font = F.TITLE; nameL.TextSize = 12
 		nameL.TextColor3 = isUnlocked and C.GOLD or (preMet and lvlMet and C.WHITE or Color3.fromRGB(110,105,95))
 		nameL.ZIndex = 201; nameL.Parent = cell
 		
 		-- (SP 뱃지 제거)
 		local tbc=Instance.new("UICorner"); tbc.CornerRadius=UDim.new(0,4)
-		-- (사용처가 없지만 레이아웃 버그 생길 수 있어 빈 Frame 삽입)
 		local tpBadge = Instance.new("Frame")
 		tpBadge.BackgroundTransparency = 1
 		tpBadge.Parent = cell
@@ -317,7 +316,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	for i, cat in ipairs(CATEGORY_TABS) do
 		local isDefault = (i == activeTab)
 		local tBtn = Utils.mkBtn({
-			text = "   " .. cat.name, size = UDim2.new(1,0,0,50),
+			text = "   " .. UILocalizer.Localize(cat.name), size = UDim2.new(1,0,0,50),
 			bg = isDefault and C.GOLD_SEL or C.BTN_GRAY, 
 			bgT = isDefault and 0.2 or 0.6, 
 			color = isDefault and C.WHITE or C.GRAY,
@@ -388,7 +387,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	TechUI.Refs.BgGrid.ZIndex = 0
 	TechUI.Refs.BgGrid.Parent = TechUI.Refs.Canvas
 	
-	-- 우측 상세 패널 (팝업 대신 사이드 바 고정)
+	-- 우측 상세 패널
 	local detailSize = 320
 	TechUI.Refs.DetailFrame = Utils.mkFrame({
 		name="Detail", size=UDim2.new(0, detailSize, 1, -16),
@@ -396,16 +395,15 @@ function TechUI.Init(parent, UIManager, isMobile)
 		bg=C.BG_PANEL, bgT=T.PANEL, r=6,
 		parent=canvasWrapper
 	})
-	-- 선택 전엔 숨김
 	TechUI.Refs.DetailFrame.Visible = false
 	
 	local dtHead = Utils.mkLabel({
-		text="해당 노드 정보", size=UDim2.new(1,0,0,40),
+		text=UILocalizer.Localize("해당 노드 정보"), size=UDim2.new(1,0,0,40),
 		bg=C.BG_DARK, bgT=0.3, color=C.GOLD, ts=16, font=F.TITLE,
 		parent=TechUI.Refs.DetailFrame
 	})
 	TechUI.Refs.D_Name = Utils.mkLabel({
-		text="이름", size=UDim2.new(1,-20,0,40), pos=UDim2.new(0,12,0,50),
+		text=UILocalizer.Localize("이름"), size=UDim2.new(1,-20,0,40), pos=UDim2.new(0,12,0,50),
 		color=C.WHITE, ts=20, font=F.TITLE, ax=Enum.TextXAlignment.Left, parent=TechUI.Refs.DetailFrame
 	})
 	TechUI.Refs.D_Icon = Instance.new("ImageLabel")
@@ -413,7 +411,7 @@ function TechUI.Init(parent, UIManager, isMobile)
 	TechUI.Refs.D_Icon.BackgroundTransparency = 1; TechUI.Refs.D_Icon.Parent = TechUI.Refs.DetailFrame
 	
 	TechUI.Refs.D_Desc = Utils.mkLabel({
-		text="설명", size=UDim2.new(1,-110,0,100), pos=UDim2.new(0,100,0,95),
+		text=UILocalizer.Localize("설명"), size=UDim2.new(1,-110,0,100), pos=UDim2.new(0,100,0,95),
 		color=C.GRAY, ts=16, wrap=true,
 		ax=Enum.TextXAlignment.Left, ay=Enum.TextYAlignment.Top, parent=TechUI.Refs.DetailFrame
 	})
@@ -500,7 +498,7 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 			end
 		end
 		
-		if lvl < reqLvl then table.insert(lines, "✗ " .. UILocalizer.Localize(string.format("레벨 부족: Lv.%d 필요", reqLvl))) 		end
+		if lvl < reqLvl then table.insert(lines, "✗ " .. string.format(UILocalizer.Localize("레벨 부족: Lv.%d 필요"), reqLvl)) end
 		
 		-- 비용 표시 문자열 생성
 		local costStr = ""
@@ -516,7 +514,7 @@ function TechUI.UpdateDetail(node, isUnlocked, canAfford, playerLevel, UIManager
 				if itemData and itemData.name then
 					name = itemData.name
 				end
-				name = UILocalizer.Localize(name)
+				name = UILocalizer.LocalizeDataText("ItemData", req.itemId, "name", name)
 				
 				local color = currentAmount >= req.amount and "#aaffaa" or "#ffaaaa"
 				table.insert(cLines, string.format(" • %s: <font color='%s'>%d</font> / %d", name, color, currentAmount, req.amount))

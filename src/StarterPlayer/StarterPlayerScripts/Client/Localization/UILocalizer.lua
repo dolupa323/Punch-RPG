@@ -235,6 +235,344 @@ local KO_TO_EN = {
 	["<font color=\"#E63232\">✗ 기술 트리에서 해금 필요</font>"] = "<font color=\"#E63232\">✗ Unlock required in Tech Tree</font>",
 	["<font color=\"#E63232\">기술 트리(K)에서 해금이 필요합니다.</font>"] = "<font color=\"#E63232\">Unlock required in Tech Tree (K).</font>",
 	["<font color='#ff6464'>[미해금] 기술 연구가 필요합니다.</font>"] = "<font color='#ff6464'>[LOCKED] Tech research required.</font>",
+
+	-- NPC Shops
+	["상인 톰"] = "Merchant Tom",
+	["대장장이 한스"] = "Blacksmith Hans",
+	["요리사 루시"] = "Chef Lucy",
+	["건축가 벤"] = "Architect Ben",
+	["잡화상"] = "General Merchant",
+	["기본 물품을 판매하는 상점입니다."] = "A shop that sells basic items.",
+	["각종 도구와 무기를 판매합니다."] = "A shop that sells various tools and weapons.",
+	["음식과 물약을 판매합니다."] = "A shop that sells food and potions.",
+	["건축 재료와 설계도를 판매합니다."] = "A shop that sells building materials and blueprints.",
+	["각종 전리품과 재료를 매입하며, 유용한 잡화를 판매합니다."] = "Buys loot and materials, and sells useful general goods.",
+	
+	-- Rune Stone Claims
+	["룬스톤의 힘은 이미 모두 소진되었습니다."] = "The runestone's power has been fully depleted.",
+	["먼저 속성을 선택한 뒤 다시 시도하세요."] = "Please select an element first and try again.",
+	["인벤토리가 가득 찼습니다."] = "Inventory is full.",
+
+	-- Item Names
+	["불씨"] = "Fire Ember",
+	["물방울"] = "Water Droplet",
+	["짙은 밤"] = "Dark Night",
+	["나뭇가지"] = "Branch",
+	["슬라임 점액"] = "Slime Mucus",
+	["뿔 애벌레의 뿔"] = "Horned Larva Horn",
+	["박쥐의 송곳니"] = "Bat Fang",
+	["골렘의 돌조각"] = "Golem Stone Fragment",
+	["나무 골렘의 영혼조각"] = "Wood Golem Soul Fragment",
+	["잔돌"] = "Small Stone",
+	["돌"] = "Stone",
+	["나무"] = "Wood",
+	["섬유"] = "Fiber",
+	["야생 베리"] = "Wild Berry",
+	["고기완자"] = "Meatball",
+	["코코넛 구이"] = "Roasted Coconut",
+	["대추야자 열매"] = "Date Fruit",
+	["대추야자 구이"] = "Roasted Date",
+	["기초 HP 포션"] = "Basic HP Potion",
+	["기초 MP 포션"] = "Basic MP Potion",
+	["통나무"] = "Log",
+	["부싯돌"] = "Flint",
+	["사막나무 통나무"] = "Desert Log",
+	["사막 갈대"] = "Desert Reed",
+	["청동 광석"] = "Bronze Ore",
+	["튼튼한 풀잎"] = "Tough Leaf",
+	["수지"] = "Resin",
+	["철광석"] = "Iron Ore",
+	["석탄"] = "Coal",
+	["청동 주괴"] = "Bronze Ingot",
+	["철 주괴"] = "Iron Ingot",
+	["금광석"] = "Gold Ore",
+	["조잡한 돌도끼"] = "Crude Stone Axe",
+	["조잡한 돌곡괭이"] = "Crude Stone Pickaxe",
+	["돌도끼"] = "Stone Axe",
+	["돌곡괭이"] = "Stone Pickaxe",
+	["뼈검"] = "Bone Sword",
+	["돌 낫"] = "Stone Sickle",
+	["횃불"] = "Torch",
+	["말랑봉"] = "Soft Club",
+	["각창"] = "Gakchang",
+	["송곳니의 창"] = "Fang Spear",
+	["아이언 스태프"] = "Iron Staff",
+	["포이즌 스피어"] = "Poison Spear",
+	["나이트 스피어"] = "Knight Spear",
+	["소울 스태프"] = "Soul Staff",
+	["저스티스 스피어"] = "Spear of Justice",
+	["블루파이어"] = "Bluefire",
+	["나무 몽둥이"] = "Wooden Club",
+	["나무 활"] = "Wooden Bow",
+	["돌 화살"] = "Stone Arrow",
+	["돌 괭이"] = "Stone Hoe",
+	["청동 곡괭이"] = "Bronze Pickaxe",
+	["청동 도끼"] = "Bronze Axe",
+	["청동 검"] = "Bronze Sword",
+	["청동 활"] = "Bronze Bow",
+	["철 곡괭이"] = "Iron Pickaxe",
+
+	-- Stats Panel
+	["귀걸이"] = "Earring",
+	["목걸이"] = "Necklace",
+	["반지 1"] = "Ring 1",
+	["반지 2"] = "Ring 2",
+	["스탯"] = "Stats",
+	["전투력"] = "Combat Power",
+	["치명타 확률"] = "Crit Chance",
+	["치명타 피해"] = "Crit Damage",
+	["이동 속도"] = "Move Speed",
+	["체력"] = "Health",
+
+	-- Enhancement UI
+	["[ 공격력 스펙 변화 ]"] = "[ Attack Stat Changes ]",
+	["강화 단계"] = "Enhancement Level",
+	["무기 공격력"] = "Weapon Attack",
+	["[ 강화 요건 및 확률 ]"] = "[ Upgrade Requirements & Chance ]",
+	["성공 확률"] = "Success Rate",
+	["실패 패널티"] = "Failure Penalty",
+	["필요 골드"] = "Required Gold",
+	["최대 강화 단계(+50)에 도달했습니다!"] = "Reached maximum enhancement level (+50)!",
+	["더 이상 강화를 진행할 수 없습니다."] = "Cannot upgrade any further.",
+	["강화 완료"] = "Upgrade Complete",
+	["골드 부족"] = "Insufficient Gold",
+	["무기 선택 필요"] = "Weapon Selection Required",
+	["강화할 무기를 선택하세요"] = "Select a weapon to upgrade",
+	["무기를 선택하면 공격력 및 강화 스펙 변화가 표시됩니다."] = "Select a weapon to display attack and enhancement changes.",
+	["소지한 골드와 강화 성공률을 여기에 표시합니다."] = "Gold and success rates will be shown here.",
+	["하락 방지권 선택"] = "Select Protection Scroll",
+	["없음"] = "None",
+	["선택"] = "Select",
+	["강화 시도"] = "Attempt Upgrade",
+	["하락방지권 없음"] = "No Protection Scroll",
+	["하락방지권이 없습니다.\n계속 강화하시겠습니까?"] = "You have no protection scroll.\nDo you want to continue?",
+	["강화 진행 중..."] = "Upgrading...",
+	["강화할 무기를 선택해야 합니다."] = "You must select a weapon to enhance.",
+	["골드가 부족합니다."] = "Not enough gold.",
+	["이미 최대 강화 단계입니다."] = "Already at max enhancement level.",
+	["서버 통신 오류가 발생했습니다."] = "Server communication error occurred.",
+
+	-- Dismantle UI
+	["무기 분해소 (Dismantle Recycler)"] = "Dismantle Recycler",
+	["분해할 무기를 목록에서 선택하세요."] = "Select a weapon from the list to dismantle.",
+	["🛠️ 분해 시 100% 반환 재료 (50% 비율)"] = "🛠️ Dismantle Materials (50% Refund Ratio)",
+	["무기 분해 실행"] = "Dismantle Weapon",
+	["분해 가동 중..."] = "Dismantling...",
+	["가방이 꽉 차서 재료를 반환받을 공간이 없습니다."] = "Inventory is full. No space to receive materials.",
+	["정말로 <font color='#FF4040'>%s</font> 무기를 분해하시겠습니까?<br/>분해한 장비는 복구할 수 없으며 원본 재료의 50%%를 돌려받습니다."] = "Are you sure you want to dismantle <font color='#FF4040'>%s</font>?<br/>Dismantled equipment cannot be recovered and returns 50%% of original materials.",
+
+	-- Shop & Premium Shop UI
+	["교역상 판매 물품"] = "Trader Goods",
+	["이 상점은 매입만 합니다."] = "This shop only buys.",
+	["교역상이 판매하는 물품입니다."] = "Items sold by the trader.",
+	["구매할 수 있는 물품이 없습니다."] = "No items available to purchase.",
+	["내 아이템 판매"] = "Sell My Items",
+	["거의 모든 전리품을 판매할 수 있습니다."] = "You can sell almost any loot.",
+	["상점이 매입하는 아이템 목록입니다."] = "Items this shop will buy.",
+	["판매 가능한 아이템이 없습니다."] = "No items available to sell.",
+	["수량 선택"] = "Select Quantity",
+	["구매하기"] = "Buy",
+	["보유중"] = "Owned",
+	["구매 불가"] = "Cannot Buy",
+	["인벤토리 칸이 이미 최대입니다."] = "Inventory slots are already maxed.",
+	["이미 보유한 패스입니다."] = "You already own this pass.",
+	["게임 플레이에 직접 도움이 되는 상품을 구매할 수 있습니다."] = "You can purchase items that directly help your gameplay.",
+	["설명이 없습니다."] = "No description available.",
+	["상품"] = "Product",
+	["수량 입력"] = "Enter Amount",
+
+	-- Product Config
+	["드랍률 2배 패스"] = "Double Drop Rate Pass",
+	["몬스터 처치 보상 드롭률이 영구적으로 2배 증가합니다."] = "Permanently doubles the drop rate from monster kills.",
+	["초보자 스타터 팩"] = "Starter Support Pack",
+	["일정 레벨 이하에서만 구매할 수 있는 초보자 지원 팩입니다."] = "A beginner support pack purchasable only below a certain level.",
+	["인벤토리 확장권"] = "Inventory Expansion Scroll",
+	["인벤토리 최대 칸 수가 30칸 증가합니다."] = "Increases maximum inventory slots by 30.",
+	["하락 방지권"] = "Enhancement Protection Scroll",
+	["강화 실패 시 등급 하락을 막아주는 주문서입니다."] = "A scroll that prevents enhancement level from dropping on failure.",
+	["하락 방지권 10개"] = "Enhancement Protection Scroll x10",
+	["강화 실패 시 등급 하락을 막아주는 주문서 10개가 지급됩니다."] = "Provides 10 scrolls that prevent enhancement level from dropping.",
+	["100Gold"] = "100 Gold",
+	["골드 100이 지급됩니다."] = "Grants 100 Gold.",
+	["1000Gold"] = "1000 Gold",
+	["골드 1000이 지급됩니다."] = "Grants 1000 Gold.",
+	["제작 즉시 완료"] = "Instant Crafting",
+	["진행 중인 제작 작업을 즉시 완료합니다."] = "Instantly completes the in-progress crafting work.",
+
+	-- Tamed creatures, traits, options
+	["생명"] = "HP",
+	["이동속도"] = "Move Speed",
+	["공격"] = "Attack",
+	["레벨"] = "Level",
+	["방어"] = "Defense",
+	["속도"] = "Speed",
+	["과감함"] = "Bold",
+	["소심함"] = "Timid",
+	["신중함"] = "Careful",
+	["경솔함"] = "Reckless",
+	["민첩함"] = "Agile",
+	["둔감함"] = "Sluggish",
+	["강인함"] = "Hardy",
+	["나약함"] = "Frail",
+	["간이제작"] = "Simple Crafting",
+	["동물 관리"] = "Manage Creatures",
+	["정렬"] = "Sort",
+	["소환가능"] = "Summonable",
+	["소환하기"] = "Summon",
+	["풀어주기"] = "Release",
+	["회수하기"] = "Recall",
+	["기절 (소환 불가)"] = "Fainted (Cannot Summon)",
+	["길들인 동물이 없습니다.\n크리처를 포획하고 상자를 사용하세요."] = "No tamed creatures.\nCapture creatures and use boxes.",
+	["점프"] = "Jump",
+	["대쉬"] = "Dash",
+	["품질"] = "Quality",
+	["버프"] = "Buff",
+	["데버프"] = "Debuff",
+
+	-- Interact/Build UI
+	["블럭 건축"] = "Block Build",
+	["LMB : 블럭 배치"] = "LMB: Place Block",
+	["무기/도구 공격 : 블럭 파괴"] = "Weapon/Tool Attack: Destroy Block",
+	["X : 배치 취소"] = "X: Cancel Placement",
+	["🛠️ 건축 컨트롤"] = "🛠️ Build Controls",
+	["LMB : 배치 확정"] = "LMB: Confirm Placement",
+	["R : 시설 회전"] = "R: Rotate Structure",
+	["X : 건축 취소"] = "X: Cancel Build",
+	["체력"] = "Health",
+
+	-- Mobs & Items
+	["슬라임"] = "Slime",
+	["뿔 애벌레"] = "Horned Larva",
+	["스텀프"] = "Stump",
+	["목월도"] = "Mogwoldo",
+
+	-- NPCs
+	["속성 스승"] = "Element Master",
+	["어둠 스승"] = "Dark Master",
+	["강화스승"] = "Enhance Master",
+	["무기제작"] = "Weapon Crafter",
+	["무기 장인"] = "Weapon Crafter",
+	["콘닥터"] = "Con Doctor",
+	["비상 무전기"] = "Emergency Radio",
+
+	-- Interact prompts
+	["[R] 채집"] = "[R] Gather",
+	["[R] 대화"] = "[R] Talk",
+	["[R] 사용"] = "[R] Use",
+	["[T] 해체"] = "[T] Dismantle",
+	["[R] 공룡 메뉴"] = "[R] Creature Menu",
+	["[R] 무전 수신"] = "[R] Radio Incoming",
+	["[R] 상호작용"] = "[R] Interact",
+
+	-- Totem UI & general base
+	["영토 확장"] = "Expand Territory",
+	["확장 방향 닫기"] = "Close Expansion Directions",
+	["보호 상태: 활성"] = "Protection State: Active",
+	["보호 상태: 비활성"] = "Protection State: Inactive",
+	["유지비 만료: 현재 약탈 가능 상태"] = "Upkeep Expired: Looting Allowed",
+	["영역 확인"] = "Check Territory",
+	["새로고침"] = "Refresh",
+	["확장 방향 선택"] = "Select Expansion Direction",
+	["북쪽 확장"] = "Expand North",
+	["서쪽 확장"] = "Expand West",
+	["동쪽 확장"] = "Expand East",
+	["남쪽 확장"] = "Expand South",
+
+	-- Storage UI
+	["보관함"] = "Storage",
+	["보관함 아이템"] = "Storage Items",
+	["내 소지품"] = "My Inventory",
+	["골드 인출"] = "Withdraw Gold",
+	["골드 보관"] = "Deposit Gold",
+	["아이템과 별도로 보관되는 골드입니다."] = "Gold stored separately from items.",
+	["아이템 정보"] = "Item Info",
+	["슬롯 위에 마우스를 올리면 정보를 볼 수 있습니다."] = "Hover over a slot to view details.",
+	["빈 슬롯"] = "Empty Slot",
+
+	-- Premium Shop
+	["게임 패스"] = "Game Pass",
+	["게임 플레이에 직접 도움이 되는 상품을 구매할 수 있습니다."] = "You can purchase items that directly help your gameplay.",
+
+	-- Skill Tree / Rune
+	["룬 시스템"] = "Rune System",
+	["룬 슬롯 1"] = "Rune Slot 1",
+	["룬 슬롯 2"] = "Rune Slot 2",
+	["룬 슬롯 3" ] = "Rune Slot 3",
+	["인벤토리에서 룬을 드래그해 장착하세요.\n더블클릭 또는 우클릭하여 해제할 수 있습니다."] = "Drag runes from inventory to equip them.\nDouble-click or right-click to unequip.",
+
+	-- Tent / Spawn
+	["스폰지점 설정"] = "Set Respawn Point",
+	["이 텐트를 부활 지점으로 설정하시겠습니까?"] = "Set this tent as your respawn point?",
+	["예"] = "Yes",
+	["아니오"] = "No",
+	["스폰지점이 텐트로 설정되었습니다."] = "Respawn point set to tent.",
+	["스폰지점 설정에 실패했습니다."] = "Failed to set respawn point.",
+
+	-- Tech UI
+	["기초 생존 및 건축"] = "Basic Survival & Build",
+	["부락의 발전"] = "Settlement Progression",
+	["기초 방어구"] = "Basic Armor",
+	["본격 수렵"] = "Active Hunting",
+	["나무 활"] = "Wooden Bow",
+	["나무 건축 숙련"] = "Wood Build Mastery",
+	["흑요석 가공"] = "Obsidian Crafting",
+	["돌 용광로"] = "Stone Furnace",
+	["청동 제련"] = "Bronze Smelting",
+	["청동기 작업대"] = "Bronze Workbench",
+	["청동 도구"] = "Bronze Tools",
+	["청동 무기 및 갑옷"] = "Bronze Weapons & Armor",
+	["대형 보관함"] = "Large Storage Box",
+	["철 용광로"] = "Iron Furnace",
+	["석조 건축"] = "Stone Build",
+	["철기 작업대"] = "Iron Workbench",
+	["철제 도구 및 무기"] = "Iron Tools & Weapons",
+	["SP: "] = "SP: ",
+	["선행 필요: "] = "Prerequisite: ",
+	["아바타 아앙의 전설: 검술 RPG"] = "Legend of Avatar Aang: Sword RPG",
+	["숙명의 원소 속성을 선택하여 검의 지배자가 되십시오"] = "Choose your destined element and become the master of the sword",
+	["물의 스승"] = "Master of Water",
+	["“세상은 언제나 변한다.\n강한 자가 살아남는 것이 아니라, 흐름을 아는 자가 살아남는다.\n자, 선택하라. 너는 물처럼 변하고, 다시 일어설 수 있느냐?”"] = "“The world always changes.\nIt is not the strongest that survives, but the one who understands the flow.\nChoose. Can you become like water and rise again?”",
+	["불의 스승"] = "Master of Fire",
+	["“내 힘을 받는 순간, 너는 더 이상 뒤로 물러설 수 없다.\n적을 베고, 어둠을 태우고, 네 길을 스스로 밝혀라.\n자, 선택하라. 너의 심장은 불타고 있느냐?”"] = "“The moment you receive my power, you can no longer turn back.\nStrike down your enemies, burn the darkness, and light your own path.\nChoose. Is your heart burning?”",
+	["어둠의 스승"] = "Master of Darkness",
+	["“빛은 필연적으로 그림자를 드리운다.\n모두가 빛을 우러러볼 때, 어둠은 묵묵히 모든 것을 삼킨다.\n자, 선택하라. 너는 기꺼이 심연 속으로 걸어갈 수 있느냐?”"] = "“Light inevitably casts a shadow.\nWhile everyone looks up to the light, darkness silently consumes all.\nChoose. Are you willing to walk into the abyss?”",
+	["예 (Choose)"] = "Yes (Choose)",
+	["아니오 (Cancel)"] = "No (Cancel)",
+	["근접전/생존"] = "Melee / Survival",
+	["도구/무기"] = "Tools / Weapons",
+	["건축/설비"] = "Build / Facilities",
+	["포획/이동"] = "Catch / Move",
+	["이 레시피와 시설을 활성화합니다."] = "Activates this recipe and structure.",
+	["레벨 부족: Lv.%d 필요"] = "Required: Lv.%d",
+	["필요 자원:"] = "Required Resources:",
+	["자원 부족"] = "Insufficient Resources",
+	["[ 룬 분류 ]"] = "[ Rune Type ]",
+	["[ 장착 효과 ]"] = "[ Equip Effect ]",
+	["액티브 (Active)"] = "Active",
+	["패시브 (Passive)"] = "Passive",
+	["[ 원소 속성 ]"] = "[ Element ]",
+	["치명타 확률 +%d%%"] = "Crit Chance +%d%%",
+	["최대 체력 +%d"] = "Max HP +%d",
+	["공격력 +%d"] = "Attack +%d",
+	["공격 속도 +5% / 스킬 재사용 대기시간 -5%"] = "Attack Speed +5% / Skill Cooldown -5%",
+	["최대 체력 증가"] = "Increase Max HP",
+	["공격력 증가"] = "Increase Attack",
+	["액티브 스킬 '파이어볼' 개방"] = "Unlocks Active Skill 'Fireball'",
+	["화염 속성 액티브 스킬 가동"] = "Activates Fire Active Skill",
+	["물 속성 액티브 스킬 가동"] = "Activates Water Active Skill",
+	["어둠 속성 액티브 스킬 가동"] = "Activates Dark Active Skill",
+	["플레이어 주변을 도는 화염 오라"] = "Flame Aura rotating around player",
+	["플레이어 주변을 도는 파도 오라"] = "Wave Aura rotating around player",
+	["플레이어 주변을 도는 그림자 오라"] = "Shadow Aura rotating around player",
+	["범위 내 적에게 지속 피해"] = "Continuous damage to enemies in range",
+	["장착 시 숨겨진 효과 발동"] = "Triggers hidden effects when equipped",
+	["%s 룬"] = "%s Rune",
+	["속성: "] = "Attributes: ",
+	["품질: %d / 100"] = "Quality: %d / 100",
+	["보유 골드: %d\n상점, 토템 유지비, 거래에 사용하는 화폐입니다."] = "Held Gold: %d\nCurrency used for shops, totem upkeep, and trading.",
+	["보관 골드: %d"] = "Stored Gold: %d",
+	["소지 골드: %d"] = "Held Gold: %d",
+	["골드: 0"] = "Gold: 0",
 }
 
 local EN_TO_KO = {}
@@ -337,6 +675,24 @@ local function localizePatternsToEnglish(text: string): string
 	text = string.gsub(text, "^진행도:%s*(%d+)%s*/%s*(%d+)$", "Progress: %1 / %2")
 	text = string.gsub(text, "^단계:%s*(%d+)%s*/%s*(%d+)$", "Step: %1 / %2")
 	text = string.gsub(text, "^목표:%s*(.+)$", "Objective: %1")
+
+	-- Totem UI patterns
+	text = string.gsub(text, "^보호 상태:%s*(.+)$", "Protection: %1")
+	text = string.gsub(text, "^효과 유지 기간:%s*(.+)$", "Upkeep: %1")
+	text = string.gsub(text, "^보호 범위:%s*(.+)$", "Range: %1")
+	text = string.gsub(text, "^보유 골드:%s*(%d+)$", "Gold: %1")
+	text = string.gsub(text, "^보관 골드:%s*(%d+)$", "Stored Gold: %1")
+	text = string.gsub(text, "^소지 골드:%s*(%d+)$", "Held Gold: %1")
+	text = string.gsub(text, "^확장 상태: 북 (.-) / 남 (.-) / 동 (.-) / 서 (.-)\n다음 확장: (.+)$", "Expansion: N %1 / S %2 / E %3 / W %4\nNext: %5")
+	text = string.gsub(text, "^([%d]+)일%s*([%d]+)시간$", "%1d %2h")
+	text = string.gsub(text, "^([%d]+)시간%s*([%d]+)분$", "%1h %2m")
+	text = string.gsub(text, "^([%d]+)분$", "%1m")
+	text = string.gsub(text, "^재배치 포인트 사용 %((%d+)%s*남음%)$", "Use relocation points (%1 left)")
+	text = string.gsub(text, "^(%d+)일 유지 ~ (%d+)%s*Gold$", "Upkeep %1 Day(s) ~ %2 Gold")
+	
+	-- Rune Stone Claims
+	text = string.gsub(text, "^액티브 룬 %[(.+)%]을 획득했습니다%! %((%d+)%/(%d+)%)$", "Acquired Active Rune [%1]! (%2/%3)")
+	text = string.gsub(text, "^액티브 룬 %[(.+)%]을 획득했습니다%! %(누적 (%d+)회 획득%)$", "Acquired Active Rune [%1]! (Accumulated %2 claims)")
 	return text
 end
 
@@ -397,6 +753,24 @@ local function localizePatternsToKorean(text: string): string
 	text = string.gsub(text, "^A useful item for survival and crafting%.?$", "생존과 제작에 유용한 아이템입니다.")
 	text = string.gsub(text, "^A structure used for survival and base progression%.?$", "생존과 거점 발전에 사용되는 시설입니다.")
 	text = string.gsub(text, "^A creature found on the island%.?$", "섬에서 발견되는 생물입니다.")
+
+	-- Totem UI patterns
+	text = string.gsub(text, "^Protection:%s*(.+)$", "보호 상태: %1")
+	text = string.gsub(text, "^Upkeep:%s*(.+)$", "효과 유지 기간: %1")
+	text = string.gsub(text, "^Range:%s*(.+)$", "보호 범위: %1")
+	text = string.gsub(text, "^Gold:%s*(%d+)$", "보유 골드: %1")
+	text = string.gsub(text, "^Stored Gold:%s*(%d+)$", "보관 골드: %1")
+	text = string.gsub(text, "^Held Gold:%s*(%d+)$", "소지 골드: %1")
+	text = string.gsub(text, "^Expansion: N (.-) / S (.-) / E (.-) / W (.-)\nNext: (.+)$", "확장 상태: 북 %1 / 남 %2 / 동 %3 / 서 %4\n다음 확장: %5")
+	text = string.gsub(text, "^([%d]+)d%s*([%d]+)h$", "%1일 %2시간")
+	text = string.gsub(text, "^([%d]+)h%s*([%d]+)m$", "%1시간 %2분")
+	text = string.gsub(text, "^([%d]+)m$", "%1분")
+	text = string.gsub(text, "^Use relocation points %((%d+) left%)$", "재배치 포인트 사용 (%1 남음)")
+	text = string.gsub(text, "^Upkeep (%d+) Day%(s%) ~ (%d+) Gold$", "%1일 유지 ~ %2 Gold")
+	
+	-- Rune Stone Claims
+	text = string.gsub(text, "^Acquired Active Rune %[(.+)%]%! %((%d+)%/(%d+)%)$", "액티브 룬 [%1]을 획득했습니다! (%2/%3)")
+	text = string.gsub(text, "^Acquired Active Rune %[(.+)%]%! %(Accumulated (%d+) claims%)$", "액티브 룬 [%1]을 획득했습니다! (누적 %2회 획득)")
 	return text
 end
 
@@ -427,12 +801,21 @@ function UILocalizer.LocalizeDataText(tableName: string, dataId: string, fieldNa
 		return src
 	end
 
-	if fieldName == "name" then
-		-- 데이터 레벨 번역이 없는 경우에도 최소한 영문 표기를 보장
-		return titleFromId(dataId)
+	if fieldName == "name" or fieldName == "npcName" then
+		-- 사전 정의 번역이 있으면 적용, 없으면 기본 영어 가공(titleFromId)
+		local localized = KO_TO_EN[src]
+		if localized then
+			return localized
+		end
+		return titleFromId(fieldName == "npcName" and (dataId .. "_NPC") or dataId)
 	end
 
 	if fieldName == "description" then
+		local localized = KO_TO_EN[src]
+		if localized then
+			return localized
+		end
+		-- Fallbacks
 		if tableName == "ItemData" then
 			return "A useful item for survival and crafting."
 		elseif tableName == "FacilityData" then

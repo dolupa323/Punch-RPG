@@ -629,7 +629,26 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							tag.Parent = targetHum
 							game:GetService("Debris"):AddItem(tag, 2)
 
-							targetHum:TakeDamage(finalTickDamage)
+							-- Apply player vs monster level difference damage scaling
+							local finalDamageCalculated = finalTickDamage
+							local mobLevel = model:GetAttribute("Level") or 1
+							local playerLevel = 1
+							if playerStatServiceModule and playerStatServiceModule.getLevel then
+								playerLevel = playerStatServiceModule.getLevel(userId) or 1
+							end
+
+							if playerLevel > mobLevel then
+								local diff = playerLevel - mobLevel
+								finalDamageCalculated = finalDamageCalculated * (1 + (diff * 0.05))
+							elseif playerLevel < mobLevel then
+								finalDamageCalculated = finalDamageCalculated * 0.5
+							end
+							finalDamageCalculated = math.max(1, math.floor(finalDamageCalculated + 0.5))
+
+							targetHum:TakeDamage(finalDamageCalculated)
+							
+							-- Sync damage for logging and client effects
+							finalTickDamage = finalDamageCalculated
 							print(string.format("[SkillService][Aura] %s hit %s for %d", tostring(itemId), model.Name, finalTickDamage))
 
 							if wasAlive and targetHum.Health <= 0 then
@@ -809,7 +828,26 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							tag.Parent = hum
 							game:GetService("Debris"):AddItem(tag, 2)
 							
-							hum:TakeDamage(finalHitDmg)
+							-- Apply player vs monster level difference damage scaling
+							local finalDamageCalculated = finalHitDmg
+							local mobLevel = model:GetAttribute("Level") or 1
+							local playerLevel = 1
+							if PlayerStatService and PlayerStatService.getLevel then
+								playerLevel = PlayerStatService.getLevel(player.UserId) or 1
+							end
+
+							if playerLevel > mobLevel then
+								local diff = playerLevel - mobLevel
+								finalDamageCalculated = finalDamageCalculated * (1 + (diff * 0.05))
+							elseif playerLevel < mobLevel then
+								finalDamageCalculated = finalDamageCalculated * 0.5
+							end
+							finalDamageCalculated = math.max(1, math.floor(finalDamageCalculated + 0.5))
+
+							hum:TakeDamage(finalDamageCalculated)
+							
+							-- Sync damage for logging and client effects
+							finalHitDmg = finalDamageCalculated
 							print(string.format("[SkillService] %s hit %d/4: %s | Dmg: %d | Crit: %s", vfxName, hitIndex, model.Name, finalHitDmg, tostring(hitCrit)))
 							
 							-- 방금 일격으로 죽었을 때만 경험치 1회 지급 (시체 타격 중복 지급 방지)

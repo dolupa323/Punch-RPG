@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Theme = require(script.Parent:WaitForChild("UITheme"))
 local Utils = require(script.Parent:WaitForChild("UIUtils"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))
 
@@ -51,7 +52,8 @@ end
 
 local function resolveItemName(itemId: string): string
 	local itemData = DataHelper.GetData("ItemData", itemId)
-	return (itemData and itemData.name) or tostring(itemId)
+	local rawName = (itemData and itemData.name) or tostring(itemId)
+	return UILocalizer.LocalizeDataText("ItemData", itemId, "name", rawName)
 end
 
 local function formatAttributes(attributes: any): string
@@ -85,12 +87,12 @@ local function showQuantityModal(titleText: string, itemName: string, maxQty: nu
 	local qtyLbl = modal:FindFirstChild("QtyText", true)
 	local priceLbl = modal:FindFirstChild("PriceText", true)
 	
-	if title then title.Text = titleText end
+	if title then title.Text = UILocalizer.Localize(titleText) end
 	if itemLbl then itemLbl.Text = itemName end
 	
 	local function updateUI()
 		if qtyLbl then qtyLbl.Text = tostring(currentQty) end
-		if priceLbl then priceLbl.Text = string.format("총 %d G", unitPrice * currentQty) end
+		if priceLbl then priceLbl.Text = UILocalizer.Localize(string.format("총 %d G", unitPrice * currentQty)) end
 	end
 	
 	updateUI()
@@ -380,15 +382,15 @@ local function populateTraderPane(scroll: Instance, shopInfo: any, iconResolver:
 
 	local buyItems = (shopInfo and shopInfo.buyList) or {}
 	local sellOnly = shopInfo and shopInfo.sellOnly == true
-	makeSectionHeader(scroll, "교역상 판매 물품", sellOnly and "이 상점은 매입만 합니다." or "교역상이 판매하는 물품입니다.")
+	makeSectionHeader(scroll, UILocalizer.Localize("교역상 판매 물품"), sellOnly and UILocalizer.Localize("이 상점은 매입만 합니다.") or UILocalizer.Localize("교역상이 판매하는 물품입니다."))
 
 	if #buyItems == 0 then
-		makeEmptyState(scroll, "구매할 수 있는 물품이 없습니다.")
+		makeEmptyState(scroll, UILocalizer.Localize("구매할 수 있는 물품이 없습니다."))
 		return
 	end
 
 	for i, item in ipairs(buyItems) do
-		local stockText = (item.stock and item.stock >= 0) and string.format("재고 %d개", item.stock) or "재고 무제한"
+		local stockText = UILocalizer.Localize((item.stock and item.stock >= 0) and string.format("재고 %d개", item.stock) or "재고 무제한")
 		local itemName = resolveItemName(item.itemId)
 		local unitPrice = tonumber(item.price) or 0
 		
@@ -400,7 +402,7 @@ local function populateTraderPane(scroll: Instance, shopInfo: any, iconResolver:
 			string.format("%d G", unitPrice),
 			nil,
 			iconResolver,
-			"구매",
+			UILocalizer.Localize("구매"),
 			function()
 				-- 수량이 1개보다 많게 구매 가능한 경우 (재고 무제한이거나 재고 > 1)
 				local maxBuy = item.stock and item.stock >= 0 and item.stock or 99
@@ -423,10 +425,10 @@ local function populatePlayerPane(scroll: Instance, shopInfo: any, playerItems: 
 	local sellQuotes = (shopInfo and shopInfo.sellQuotes) or {}
 	local acceptAllItems = shopInfo and shopInfo.acceptAllItems == true
 	local subtitle = acceptAllItems and "거의 모든 전리품을 판매할 수 있습니다." or "상점이 매입하는 아이템 목록입니다."
-	makeSectionHeader(scroll, "내 아이템 판매", subtitle)
+	makeSectionHeader(scroll, UILocalizer.Localize("내 아이템 판매"), UILocalizer.Localize(subtitle))
 
 	if #sellQuotes == 0 then
-		makeEmptyState(scroll, "판매 가능한 아이템이 없습니다.")
+		makeEmptyState(scroll, UILocalizer.Localize("판매 가능한 아이템이 없습니다."))
 		return
 	end
 
@@ -440,8 +442,8 @@ local function populatePlayerPane(scroll: Instance, shopInfo: any, playerItems: 
 		local unitPrice = quote.unitPrice or quote.totalPrice or 0
 		
 		local detailParts = {
-			string.format("보유 %d개", count),
-			string.format("슬롯 %d", quote.slot or 0),
+			UILocalizer.Localize(string.format("보유 %d개", count)),
+			UILocalizer.Localize(string.format("슬롯 %d", quote.slot or 0)),
 		}
 
 		if attrText ~= "" then
@@ -450,7 +452,7 @@ local function populatePlayerPane(scroll: Instance, shopInfo: any, playerItems: 
 
 		local accentText = nil
 		if count > 1 and unitPrice > 0 then
-			accentText = string.format("개당 %d G", unitPrice)
+			accentText = UILocalizer.Localize(string.format("개당 %d G", unitPrice))
 		end
 
 		local row = makeItemRow(
@@ -461,7 +463,7 @@ local function populatePlayerPane(scroll: Instance, shopInfo: any, playerItems: 
 			string.format("%d G", unitPrice),
 			accentText,
 			iconResolver,
-			"판매",
+			UILocalizer.Localize("판매"),
 			function()
 				if count > 1 then
 					showQuantityModal("아이템 판매", itemName, count, unitPrice, function(amount)
@@ -481,14 +483,14 @@ end
 -- ==========================================
 function ShopUI.Refresh(shopInfo, playerItems, getItemIcon, _themeColors, uiManager)
 	if ShopUI.Refs.Title then
-		ShopUI.Refs.Title.Text = (shopInfo and shopInfo.name) or "상점"
+		ShopUI.Refs.Title.Text = UILocalizer.Localize((shopInfo and shopInfo.name) or "상점")
 	end
 
 	if ShopUI.Refs.Subtitle then
 		local zoneName = shopInfo and shopInfo.zoneName
-		local subtitle = (shopInfo and shopInfo.description) or "상점 정보를 확인하세요."
+		local subtitle = UILocalizer.Localize((shopInfo and shopInfo.description) or "상점 정보를 확인하세요.")
 		if zoneName and zoneName ~= "" then
-			subtitle = string.format("%s  |  지역: %s", subtitle, zoneName)
+			subtitle = UILocalizer.Localize(string.format("%s  |  지역: %s", subtitle, zoneName))
 		end
 		ShopUI.Refs.Subtitle.Text = subtitle
 	end
@@ -703,7 +705,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	})
 
 	ShopUI.Refs.Title = Utils.mkLabel({
-		text = "상점",
+		text = UILocalizer.Localize("상점"),
 		size = UDim2.new(1, -220, 0, 28),
 		pos = UDim2.new(0, 0, 0, 0),
 		ts = 22,
@@ -714,7 +716,7 @@ function ShopUI.Init(parent, UIManager, isMobile)
 	})
 
 	ShopUI.Refs.Subtitle = Utils.mkLabel({
-		text = "상점 정보를 확인하세요.",
+		text = UILocalizer.Localize("상점 정보를 확인하세요."),
 		size = UDim2.new(1, -220, 0, 36),
 		pos = UDim2.new(0, 0, 0, 32),
 		ts = ShopUI.IsMobile and 11 or 12,

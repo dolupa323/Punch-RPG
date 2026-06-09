@@ -306,7 +306,11 @@ local function refreshCurrentZone()
 			-- 래거시(이전 프로젝트) 구역은 화면에 UI 팝업이 뜨지 않도록 원천 배제 처리
 			if info and info.displayName and not info.isLegacy then
 				print(string.format("[ZoneDiscovery] Welcome to %s (%s)", info.displayName, zoneName))
-				playDiscoveryEffect(info.displayName, info.subName)
+				local subText = info.subName or ""
+				if info.minLevel and info.maxLevel then
+					subText = subText .. " | 적정레벨 " .. tostring(info.minLevel) .. "~" .. tostring(info.maxLevel)
+				end
+				playDiscoveryEffect(info.displayName, subText)
 			end
 		end
 	end
