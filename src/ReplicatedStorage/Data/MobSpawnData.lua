@@ -195,7 +195,7 @@ local MobSpawnData = {
 		level = 28, -- 스텀프 킹 레벨 28
 		
 		spawnAsPolygon = true,
-		spawnCount = 1, -- 스텀프 킹 개별 스폰 활성화
+		spawnCount = 2, -- 스텀프 킹 2마리씩 스폰되게 조정
 		
 		spawnPositions = {
 			{x = -2018.001, y = -42.021, z = 1607.719},
@@ -341,6 +341,93 @@ local MobSpawnData = {
 			{x = 1169.343, y = 488.387, z = 84.686},
 			{x = 1220.164, y = 501.171, z = 76.849},
 			{x = 1212.41, y = 464.596, z = 14.831}
+		}
+	},
+	
+	["SamuraiZone"] = {
+		spawnAreaId = "SamuraiZone",
+		level = 40, -- 사무라이 기본 레벨 40 설정
+		mobModelName = "Samurai",
+		mobDisplayName = "사무라이",
+		maxHealth = 3000, -- 기사급의 체력
+		baseDamage = 50, -- 날카로운 참격 데미지
+		attackCooldown = 2.0,
+		respawnDelay = 15.0,
+		modelScale = 1.6,
+		customHipHeight = 1.0, -- 지면 밀착을 위해 1.0으로 복구
+		walkSpeed = 11, -- 약간 기민한 이동 속도
+		xpReward = 600,
+		
+		spawnAsPolygon = true,
+		spawnCount = 6, -- 스폰 마리수 6마리로 증가
+		isIndoor = true, -- 상공의 하늘섬 지형 간섭 방지 (Y축 레이캐스트 보정)
+		raycastStartOffsetY = 150, -- 하늘섬(Y=500)을 피해 Y=130대에서 높이 시작하여 땅속에 묻히지 않게 보장
+		raycastDepth = -300,
+		
+		-- 유저 제공 Properties 4개 꼭짓점 좌표 반영
+		spawnPositions = {
+			{x = -1937.312, y = 25.096, z = 2133.741},
+			{x = -1754.342, y = 37.01, z = 2110.797},
+			{x = -1708.144, y = 34.095, z = 2349.627},
+			{x = -1865.336, y = 33.751, z = 2395.068}
+		}
+	},
+	
+	["IceKnightZone"] = {
+		spawnAreaId = "IceKnightZone",
+		level = 45, -- 얼음 기사 레벨 45 설정
+		mobModelName = "IceKnight",
+		mobDisplayName = "얼음 기사",
+		maxHealth = 6000, -- 튼튼한 체력
+		baseDamage = 60, -- 묵직한 냉기 데미지
+		attackCooldown = 2.2,
+		respawnDelay = 15.0,
+		modelScale = 1.5,
+		customHipHeight = 1.0, -- 지면 밀착 안착 높이
+		walkSpeed = 8, -- 약간 묵직한 이동 속도
+		xpReward = 1200,
+		
+		spawnAsPolygon = true,
+		spawnCount = 4, -- 스폰 마리수 4마리
+		isIndoor = true, -- 지형 고도 레이캐스트 스캔 적용
+		raycastStartOffsetY = 100, -- 눈산 고도보다 충분히 높은 곳에서 지면 레이캐스트 시작
+		raycastDepth = -200,
+		
+		-- 유저 제공 Properties MeshPart "Realistic Stone" 4개 꼭짓점 좌표 반영
+		spawnPositions = {
+			{x = -41.777, y = -52.658, z = 3218.926},
+			{x = -241.641, y = -78.034, z = 2938.122},
+			{x = -488.123, y = -77.877, z = 3056.269},
+			{x = -248.026, y = -39.658, z = 3329.409}
+		}
+	},
+	
+	["IceKnightZone2"] = {
+		spawnAreaId = "IceKnightZone2",
+		level = 45, -- 얼음 기사 레벨 45 설정
+		mobModelName = "IceKnight",
+		mobDisplayName = "얼음 기사",
+		maxHealth = 6000,
+		baseDamage = 60,
+		attackCooldown = 2.2,
+		respawnDelay = 15.0,
+		modelScale = 1.5,
+		customHipHeight = 1.0,
+		walkSpeed = 8,
+		xpReward = 1200,
+		
+		spawnAsPolygon = true,
+		spawnCount = 4, -- 추가 구역 스폰 마리수 4마리
+		isIndoor = true,
+		raycastStartOffsetY = 100,
+		raycastDepth = -200,
+		
+		-- 두 번째 스폰지역 좌표 반영
+		spawnPositions = {
+			{x = -450.573, y = -34.651, z = 2979.76},
+			{x = -343.85, y = -47.651, z = 2937.212},
+			{x = -529.822, y = -73.027, z = 2611.048},
+			{x = -621.871, y = -72.87, z = 2684.114}
 		}
 	}
 }
