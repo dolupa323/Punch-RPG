@@ -495,6 +495,7 @@ local KO_TO_EN = {
 
 	-- Skill Tree / Rune
 	["룬 시스템"] = "Rune System",
+	["스킬"] = "Skill",
 	["룬 슬롯 1"] = "Rune Slot 1",
 	["룬 슬롯 2"] = "Rune Slot 2",
 	["룬 슬롯 3" ] = "Rune Slot 3",

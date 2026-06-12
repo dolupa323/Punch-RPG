@@ -80,6 +80,39 @@ local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
 
+local WEAPON_CRAFTER_RECIPE_ORDER = {
+	"CraftSoftClub",          -- 슬라임검
+	"CraftGakchang",          -- 단단한 검
+	"CraftMogwoldo",          -- 사막의 검
+	"CraftPoisonHornSpear",   -- 사막의 밤
+	"CraftIronStaff",         -- 철검
+	"CraftKatana",            -- 카타나
+	"CraftFangSpear",         -- 뱀파이어 소드
+	"CraftIceSword",          -- 아이스 소드
+	-- 하늘섬 티어
+	"CraftKnightSpear",
+	"CraftSoulStaff",
+	"CraftSpearOfJustice",
+	"CraftBlueFlameSpear",
+}
+
+local function collectWeaponCrafterRecipes(recipeData)
+	local recipeById = {}
+	local ordered = {}
+	for _, recipe in ipairs(recipeData or {}) do
+		if recipe and recipe.id then
+			recipeById[recipe.id] = recipe
+		end
+	end
+	for _, recipeId in ipairs(WEAPON_CRAFTER_RECIPE_ORDER) do
+		local recipe = recipeById[recipeId]
+		if recipe then
+			table.insert(ordered, recipe)
+		end
+	end
+	return ordered
+end
+
 --========================================
 -- UI Handlers
 --========================================
@@ -314,9 +347,106 @@ function UIManager.updateLevel(lvl)
 end
 function UIManager.updateStatPoints(pts) HUDUI.UpdateStatPoints(pts) end
 function UIManager.setTutorialVisible(visible) HUDUI.SetTutorialVisible(visible) end
+
+local blinkingActive = false
+local blinkThread = nil
+
+function UIManager.updateTutorialBlinking(status)
+	local stepKey = status and status.stepKey
+	local isDistributeStat = (stepKey == "DISTRIBUTE_STAT")
+	
+	if not isDistributeStat then
+		blinkingActive = false
+		local eqTab = HUDUI.Refs.EquipTabButton
+		if eqTab then
+			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			eqTab.BackgroundTransparency = 1
+		end
+		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
+		if atkBtn then
+			atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+		end
+		local applyBtn = EquipmentUI.Refs.ApplyBtn
+		if applyBtn then
+			applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+		end
+		blinkThread = nil
+		return
+	end
+	
+	if blinkingActive then
+		return
+	end
+	blinkingActive = true
+	
+	blinkThread = task.spawn(function()
+		local isHighlight = false
+		while blinkingActive do
+			local eqTab = HUDUI.Refs.EquipTabButton
+			local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
+			local applyBtn = EquipmentUI.Refs.ApplyBtn
+			local isEquipOpen = WindowManager.isOpen("EQUIP")
+			
+			if isEquipOpen then
+				if eqTab then
+					eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+					eqTab.BackgroundTransparency = 1
+				end
+				
+				local hasPendingAtk = (UIManager.getPendingStatCount(Enums.StatId.ATTACK) > 0)
+				if hasPendingAtk then
+					if atkBtn then
+						atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+					end
+					if applyBtn then
+						applyBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+					end
+				else
+					if applyBtn then
+						applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+					end
+					if atkBtn then
+						atkBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(40, 80, 160)
+					end
+				end
+			else
+				if atkBtn then
+					atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+				end
+				if applyBtn then
+					applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+				end
+				if eqTab then
+					eqTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+					eqTab.BackgroundTransparency = isHighlight and 0.25 or 1
+				end
+			end
+			
+			isHighlight = not isHighlight
+			task.wait(0.4)
+		end
+		
+		-- Reset on stop
+		local eqTab = HUDUI.Refs.EquipTabButton
+		if eqTab then
+			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			eqTab.BackgroundTransparency = 1
+		end
+		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
+		if atkBtn then
+			atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+		end
+		local applyBtn = EquipmentUI.Refs.ApplyBtn
+		if applyBtn then
+			applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+		end
+	end)
+end
+
 function UIManager.updateTutorialStatus(status)
 	HUDUI.UpdateTutorialStatus(status)
 	NavigationController.UpdateTutorialStatus(status)
+	UIManager.updateTutorialBlinking(status)
 end
 
 function UIManager.getPendingStatCount(statId)
@@ -429,6 +559,10 @@ function UIManager._onOpenEquipment()
 		local equipmentData = InventoryController.getEquipment and InventoryController.getEquipment() or {}
 		UIManager.refreshStats() 
 	end)
+
+	if HUDUI and HUDUI.LastStatus then
+		UIManager.updateTutorialBlinking(HUDUI.LastStatus)
+	end
 end
 
 function UIManager.closeEquipment()
@@ -437,6 +571,9 @@ end
 
 function UIManager._onCloseEquipment()
 	EquipmentUI.SetVisible(false)
+	if HUDUI and HUDUI.LastStatus then
+		UIManager.updateTutorialBlinking(HUDUI.LastStatus)
+	end
 end
 
 function UIManager.toggleEquipment()
@@ -561,17 +698,21 @@ local function getItemIcon(itemId: string): string
 		end
 		
 		if iconObj then
+			local result = nil
 			if iconObj:IsA("Decal") or iconObj:IsA("Texture") then
-				return iconObj.Texture
+				result = iconObj.Texture
 			elseif iconObj:IsA("ImageLabel") or iconObj:IsA("ImageButton") then
-				return iconObj.Image
+				result = iconObj.Image
 			elseif iconObj:IsA("StringValue") then
-				return iconObj.Value
+				result = iconObj.Value
+			end
+			if result and result ~= "" and result ~= "rbxassetid://0" and result ~= "0" then
+				return result
 			end
 		end
 	end
 
-	if itemDataRef and itemDataRef.icon then
+	if itemDataRef and itemDataRef.icon and itemDataRef.icon ~= "" and itemDataRef.icon ~= "rbxassetid://0" and itemDataRef.icon ~= "0" then
 		return itemDataRef.icon
 	end
 
@@ -682,6 +823,10 @@ function UIManager.refreshStats()
 	if WindowManager.isOpen("EQUIP") then
 		local equipmentData = InventoryController.getEquipment and InventoryController.getEquipment() or {}
 		EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIcon, Enums)
+	end
+
+	if HUDUI and HUDUI.LastStatus then
+		UIManager.updateTutorialBlinking(HUDUI.LastStatus)
 	end
 end
 
@@ -1211,14 +1356,9 @@ end
 function UIManager.RefreshWeaponCrafting()
 	if not WindowManager.isOpen("CRAFTING") then return end
 	
-	-- 무기 장인 오픈 시의 레시피 목록(말랑봉 등) 구하기
+	-- 무기 장인 오픈 시의 레시피 목록 구하기
 	local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
-	local weaponRecipes = {}
-	for _, r in ipairs(RecipeData) do
-		if r.id == "CraftSoftClub" or r.id == "CraftGakchang" or r.id == "CraftMogwoldo" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
-			table.insert(weaponRecipes, r)
-		end
-	end
+	local weaponRecipes = collectWeaponCrafterRecipes(RecipeData)
 	
 	local playerItemCounts = {}
 	local invCache = InventoryController.getInventoryCache()
@@ -2439,13 +2579,7 @@ local function setupEventListeners()
 		-- [NEW] 무기 장인 UI 오픈 이벤트
 		NetClient.On("WeaponCrafter.OpenUI", function(data)
 			local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
-			local weaponRecipes = {}
-			for _, r in ipairs(RecipeData) do
-				-- [수정] 래거시 제거: 오직 "말랑봉" 및 "목월도" 포함
-				if r.id == "CraftSoftClub" or r.id == "CraftGakchang" or r.id == "CraftMogwoldo" or r.id == "CraftFangSpear" or r.id == "CraftIronStaff" or r.id == "CraftPoisonHornSpear" or r.id == "CraftKnightSpear" or r.id == "CraftSoulStaff" or r.id == "CraftSpearOfJustice" or r.id == "CraftBlueFlameSpear" then
-					table.insert(weaponRecipes, r)
-				end
-			end
+			local weaponRecipes = collectWeaponCrafterRecipes(RecipeData)
 			
 			-- 제작창 열기
 			UIManager.openWeaponCrafting(weaponRecipes)

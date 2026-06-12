@@ -11,7 +11,6 @@ local DataService = require(Services:WaitForChild("DataService"))
 local InventoryService = nil -- Dynamically populated during runtime Init() to unlock module load!
 
 local AvatarService = {}
-local playerElements = {} -- playerUserId -> "Fire" / "Water" / "Dark"
 
 local function ensureRemoteEvent(name)
 	local parts = string.split(name, ".")
@@ -26,6 +25,23 @@ local function ensureRemoteEvent(name)
 		parent = found
 	end
 	return parent
+end
+
+local function removeLegacyElementMasters()
+	local targetNames = {
+		WaterMaster = true,
+		FireMaster = true,
+		DarkMaster = true,
+		["물 스승"] = true,
+		["불 스승"] = true,
+		["어둠 스승"] = true,
+	}
+
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if (inst:IsA("Model") or inst:IsA("BasePart")) and targetNames[inst.Name] then
+			inst:Destroy()
+		end
+	end
 end
 
 -- 캐릭터에 무기 액세서리 (Accessory) 정밀 실시간 장착 함수
@@ -228,229 +244,17 @@ end
 AvatarService.equipWeaponAccessory = equipWeaponAccessory
 
 function AvatarService.Init()
-	print("[AvatarService] Initializing Avatar Element Core Service...")
+	print("[AvatarService] Initializing Avatar Combat Service...")
 	
 	-- [MODIFIED] Perform lazy-require here to shatter dependency cycles once all modules are loaded!
 	if not InventoryService then
 		InventoryService = require(Services:WaitForChild("InventoryService"))
 	end
 
-	local selectRemote = ensureRemoteEvent("Avatar.SelectElement.Request")
+	removeLegacyElementMasters()
+
 	local attackRemote = ensureRemoteEvent("Avatar.Attack.Request")
 	local vfxRemote = ensureRemoteEvent("Avatar.VFX.Hit")
-	local openRemote = ensureRemoteEvent("Avatar.OpenSelectionUI")
-
-	-- [속성 선택 스승 NPC 및 원소제단 바인딩 공정]
-	task.spawn(function()
-		local masters = {
-			{ name = "WaterMaster", koreanName = "물 스승", element = "Water", action = "대화하기", object = "수선(Water)의 길" },
-			{ name = "FireMaster", koreanName = "불 스승", element = "Fire", action = "대화하기", object = "화선(Fire)의 길" },
-			{ name = "DarkMaster", koreanName = "어둠 스승", element = "Dark", action = "대화하기", object = "흑선(Dark)의 길" }
-		}
-
-		local function cleanString(str)
-			if not str then return "" end
-			return string.lower(string.gsub(str, "%s+", ""))
-		end
-
-		local function findNPC(name, koreanName)
-			local cleanName = cleanString(name)
-			local cleanKorean = cleanString(koreanName)
-			
-			-- 1차 루트 검색 (공백 제거 비교)
-			for _, child in ipairs(workspace:GetChildren()) do
-				if child:IsA("Model") then
-					local cleanChildName = cleanString(child.Name)
-					if cleanChildName == cleanName or cleanChildName == cleanKorean then
-						return child
-					end
-				end
-			end
-			
-			-- 2차 재귀 검색 (공백 제거 비교)
-			for _, child in ipairs(workspace:GetDescendants()) do
-				if child:IsA("Model") then
-					local cleanChildName = cleanString(child.Name)
-					if cleanChildName == cleanName or cleanChildName == cleanKorean then
-						return child
-					end
-				end
-			end
-			
-			-- 3차 부분 일치 검색 (Failsafe)
-			for _, child in ipairs(workspace:GetDescendants()) do
-				if child:IsA("Model") then
-					local cleanChildName = cleanString(child.Name)
-					if string.find(cleanChildName, "master") or string.find(cleanChildName, "스승") or string.find(cleanChildName, "npc") then
-						if string.find(cleanChildName, string.lower(name)) 
-							or (string.find(cleanChildName, "fire") and name == "FireMaster")
-							or (string.find(cleanChildName, "dark") and name == "DarkMaster")
-							or (string.find(cleanChildName, "water") and name == "WaterMaster")
-							or (string.find(cleanChildName, "불") and name == "FireMaster")
-							or (string.find(cleanChildName, "어둠") and name == "DarkMaster")
-							or (string.find(cleanChildName, "물") and name == "WaterMaster") then
-							return child
-						end
-					end
-				end
-			end
-			
-			return nil
-		end
-
-		-- 디버깅용: 워크스페이스 내 모든 모델 이름 출력해서 스승 후보 탐색
-		task.spawn(function()
-			task.wait(2)
-			local foundModels = {}
-			for _, child in ipairs(workspace:GetDescendants()) do
-				if child:IsA("Model") then
-					local lowerName = string.lower(child.Name)
-					if string.find(lowerName, "master") or string.find(lowerName, "스승") or string.find(lowerName, "npc") then
-						table.insert(foundModels, string.format("'%s'", child.Name))
-					end
-				end
-			end
-			-- print("[AvatarService] Found potential NPC models in Workspace: " .. table.concat(foundModels, ", "))
-		end)
-
-		-- print(string.format("[AvatarService] [DIAGNOSTIC] Initiating binding sequence for %d Master NPCs...", #masters))
-
-		for _, m in ipairs(masters) do
-			task.spawn(function()
-				-- print(string.format("[AvatarService] [DIAGNOSTIC] Binding thread started for NPC: %s (%s)", m.name, m.element))
-				
-				-- 영어 이름 또는 한국어 이름으로 스튜디오 워크스페이스 배치 찾기 (비동기 안전 확보)
-				local npc = findNPC(m.name, m.koreanName)
-				if not npc then
-					local start = os.clock()
-					while os.clock() - start < 10 do
-						task.wait(0.5)
-						npc = findNPC(m.name, m.koreanName)
-						if npc then break end
-					end
-				end
-
-				if npc then
-					-- print(string.format("[AvatarService] [DIAGNOSTIC] Successfully found NPC model in Workspace: '%s'", npc.Name))
-					
-					-- 모델 내부의 실제 물리 파트(BasePart) 검색 (ProximityPrompt 부모용) - 눈높이인 Head를 최우선으로 지정
-					local targetPart = npc:FindFirstChild("Head")
-						or npc.PrimaryPart 
-						or npc:FindFirstChild("HumanoidRootPart") 
-						or npc:FindFirstChild("Torso") 
-						or npc:FindFirstChildOfClass("BasePart")
-						
-					if not targetPart then
-						for _, desc in ipairs(npc:GetDescendants()) do
-							if desc:IsA("BasePart") then
-								targetPart = desc
-								break
-							end
-						end
-					end
-
-					-- 기존 레거시 프롬프트 충돌 방지를 위해 완벽 소거
-					local oldPrompt = npc:FindFirstChild("DialoguePrompt", true) or npc:FindFirstChildOfClass("ProximityPrompt")
-					if oldPrompt then 
-						oldPrompt:Destroy() 
-						-- print(string.format("[AvatarService] [DIAGNOSTIC] Cleared old ProximityPrompt from NPC '%s'", npc.Name))
-					end
-
-					local prompt = Instance.new("ProximityPrompt")
-					prompt.Name = "DialoguePrompt"
-					prompt.ActionText = m.koreanName .. "과 " .. m.action
-					prompt.ObjectText = m.object
-					prompt.HoldDuration = 0.5
-					prompt.MaxActivationDistance = 12
-					prompt.RequiresLineOfSight = false
-					prompt.Enabled = true
-					
-					if targetPart then
-						prompt.Parent = targetPart
-						-- print(string.format("[AvatarService] [DIAGNOSTIC] Successfully bound ProximityPrompt to part '%s' inside NPC '%s'! Position: %s", targetPart.Name, npc.Name, tostring(targetPart.Position)))
-					else
-						prompt.Parent = npc
-						-- warn(string.format("[AvatarService] [DIAGNOSTIC] WARNING: No BasePart found in NPC '%s'. Parented to Model.", npc.Name))
-					end
-
-					prompt.Triggered:Connect(function(user)
-						if user:GetAttribute("Element") then
-							return -- 이미 원소를 선택한 플레이어는 다시 선택할 수 없음
-						end
-						openRemote:FireClient(user, m.element)
-						print(string.format("[AvatarService] NPC %s triggered by player: %s. Sent OpenSelectionUI with element: %s", m.koreanName, user.Name, m.element))
-					end)
-				else
-					warn(string.format("[AvatarService] [DIAGNOSTIC] FAILED: Master NPC '%s' ('%s') was NOT found in Workspace after 10s wait!", m.koreanName, m.name))
-				end
-			end)
-		end
-
-		-- 레거시 원소제단 폴백 지원
-		local altar = workspace:FindFirstChild("AltarOfElements") 
-			or workspace:FindFirstChild("ElementAltar") 
-			or workspace:FindFirstChild("Altar", true)
-
-		if altar then
-			print(string.format("[AvatarService] Found fallback altar in Workspace: %s", altar:GetFullName()))
-			local prompt = altar:FindFirstChildOfClass("ProximityPrompt") or altar:FindFirstChild("ElementSelectPrompt", true)
-			if not prompt then
-				prompt = Instance.new("ProximityPrompt")
-				prompt.Name = "ElementSelectPrompt"
-				prompt.ActionText = "속성 선택 (Choose Element)"
-				prompt.ObjectText = "원소 제단 (Altar of Elements)"
-				prompt.HoldDuration = 0.5
-				prompt.MaxActivationDistance = 12
-				prompt.Parent = altar:IsA("Model") and (altar.PrimaryPart or altar:FindFirstChildOfClass("BasePart")) or altar
-			end
-
-			prompt.Triggered:Connect(function(user)
-				if user:GetAttribute("Element") then
-					return -- 이미 원소를 선택한 플레이어는 다시 선택할 수 없음
-				end
-				openRemote:FireClient(user) -- element 없이 발송 시 기존 전체선택 카드 UI 노출
-				print(string.format("[AvatarService] Fallback Altar triggered by player: %s. Sent OpenSelectionUI.", user.Name))
-			end)
-		end
-	end)
-
-	-- 1. 원소 속성 선택 리모트 수신 ➡️ 실물 Knuckle Accessory 장착 연동
-	selectRemote.OnServerEvent:Connect(function(player, data)
-		if not data or not data.element then return end
-		local element = data.element
-		
-		-- [Data-Driven 직업 검증] ClassData에 속성이 등록되어 있는지 동적으로 확인!
-		local classData = DataService.getById("ClassData", element)
-		if not classData then return end
-
-		local userId = player.UserId
-		
-		-- 이미 속성이 부여된 유저는 중복 선택 불가
-		if playerElements[userId] or player:GetAttribute("Element") then
-			warn(string.format("[AvatarService] Player %s already has an element, ignoring selection request.", player.Name))
-			return
-		end
-
-		playerElements[userId] = element
-		player:SetAttribute("Element", element)
-		
-		-- [Persistence] 영구 데이터 저장 (SaveService 연동)
-		local ok, SaveService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.SaveService) end)
-		if ok and SaveService and SaveService.updatePlayerState then
-			SaveService.updatePlayerState(userId, function(state)
-				state.element = element
-				return state
-			end)
-			SaveService.savePlayer(userId) -- 선택 즉시 저장하여 데이터 유실 방지
-		end
-
-		-- [MODIFIED] Removed redundant force-equipping of WoodenStaff. 
-		-- The weapon is now loaded organically via the Inventory integration on Spawn!
-		local currentWep = player:GetAttribute("EquippedWeapon") or "WOODEN_STAFF"
-
-		print(string.format("[AvatarService] Player %s chosen Element: %s", player.Name, element))
-		selectRemote:FireClient(player, {success = true, element = element, weapon = currentWep})
-	end)
 
 	-- 2. 플레이어 캐릭터 리스폰(Respawn) 시 무기 액세서리 자동 재장착 핸들링
 	Players.PlayerAdded:Connect(function(player)
@@ -494,7 +298,6 @@ function AvatarService.Init()
 	-- 3. 기본 공격 (LMB) 타격 사거리 및 판정 수신
 	attackRemote.OnServerEvent:Connect(function(player, data)
 		local userId = player.UserId
-		local element = playerElements[userId] or player:GetAttribute("Element")
 
 		local targetModel = data and data.targetModel
 		if not targetModel or not targetModel:FindFirstChild("Humanoid") then return end
@@ -553,27 +356,6 @@ function AvatarService.Init()
 					end
 				end
 				
-				-- [Data-Driven 클래스/속성 효과 가변 계산]
-				local classData = DataService.getById("ClassData", element or "")
-				if classData and classData.onHit then
-					if classData.onHit.damageModifier then
-						finalDamage = finalDamage * classData.onHit.damageModifier
-					end
-					if classData.onHit.effects then
-						for _, eff in ipairs(classData.onHit.effects) do
-							local targetObj = eff.target == "Target" and targetModel or player
-							if eff.name == "BurnTicks" then
-								targetObj:SetAttribute("BurnTicks", eff.value)
-							else
-								local currentVal = targetObj:GetAttribute(eff.name) or 0
-								local newVal = currentVal + eff.value
-								if eff.maxClamp then newVal = math.clamp(newVal, 0, eff.maxClamp) end
-								targetObj:SetAttribute(eff.name, newVal)
-							end
-						end
-					end
-				end
-
 				local dmgTotal = math.max(1, math.floor(finalDamage))
 				print(string.format("[AvatarService] Combat Hit Request (Multi-Hit Activated): Player %s -> %s | TotalDmg=%d | Crit=%s", player.Name, targetModel.Name, dmgTotal, tostring(isCritical)))
 
@@ -649,7 +431,7 @@ function AvatarService.Init()
 							local hitPos = targetHrp.Position + Vector3.new((math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5)
 							vfxRemote:FireAllClients({
 								target = targetModel,
-								element = element or "None",
+								element = "None",
 								position = hitPos,
 								damage = curDmg,
 								isCritical = isCurCrit
@@ -664,31 +446,6 @@ function AvatarService.Init()
 			end
 		end
 	end)
-end
-
-function AvatarService.debugSetElement(userId: number, element: string)
-	playerElements[userId] = element
-	local player = game.Players:GetPlayerByUserId(userId)
-	if player then
-		player:SetAttribute("Element", element)
-		
-		-- 속성이 바뀔 때 맞지 않는 룬 자동 장착 해제
-		local ok, InventoryService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.InventoryService) end)
-		if ok and InventoryService then
-			local okData, DataService = pcall(function() return require(game:GetService("ServerScriptService").Server.Services.DataService) end)
-			if okData and DataService then
-				local equipment = InventoryService.getEquipment(userId)
-				for slotName, equipData in pairs(equipment) do
-					if slotName:sub(1, 4) == "RUNE" then
-						local itemData = DataService.getItem(equipData.itemId)
-						if itemData and itemData.element and itemData.element ~= element then
-							InventoryService.unequipItem(player, slotName)
-						end
-					end
-				end
-			end
-		end
-	end
 end
 
 return AvatarService

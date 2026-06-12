@@ -152,45 +152,45 @@ local recipeLookup = {}
 local creatureLookup = {}
 
 local TUTORIAL_STEP_EN = {
-	SELECT_ELEMENT = {
-		currentStepText = "1. Choose an element from the Element Master",
-		stepCommand = "Talk to the Element Master and choose Fire, Water, or Dark.",
-	},
 	KILL_SLIME = {
-		currentStepText = "2. Hunt a Slime",
+		currentStepText = "1. Hunt a Slime",
 		stepCommand = "Defeat 1 Slime.",
 	},
 	COLLECT_SLIME_MUCUS = {
-		currentStepText = "3. Gather Slime Mucus",
+		currentStepText = "2. Gather Slime Mucus",
 		stepCommand = "Gather 10 Slime Mucus.",
 	},
 	CRAFT_SOFTCLUB = {
-		currentStepText = "4. Craft a Soft Club",
-		stepCommand = "Craft a Soft Club.",
+		currentStepText = "3. Craft a Slime Sword",
+		stepCommand = "Craft a Slime Sword.",
+	},
+	DISTRIBUTE_STAT = {
+		currentStepText = "4. Upgrade Stats",
+		stepCommand = "Open Equipment (Stats) window and upgrade Attack stat by 1.",
 	},
 	KILL_HORNED_LARVA = {
 		currentStepText = "5. Hunt Horned Larva",
 		stepCommand = "Defeat 15 Horned Larvas.",
 	},
 	CRAFT_GAKCHANG = {
-		currentStepText = "6. Craft a Gakchang",
-		stepCommand = "Craft a Gakchang.",
+		currentStepText = "6. Craft a Hard Sword",
+		stepCommand = "Craft a Hard Sword.",
 	},
 	ENHANCE_GAKCHANG = {
-		currentStepText = "7. Try enhancing Gakchang",
-		stepCommand = "Enhance a Gakchang to +1 or higher.",
+		currentStepText = "7. Try enhancing the Hard Sword",
+		stepCommand = "Enhance the Hard Sword to +1 or higher.",
 	},
-	BUY_POTION = {
-		currentStepText = "8. Buy a potion from the shop",
-		stepCommand = "Buy 1 Basic HP Potion or Basic MP Potion from the General Merchant.",
+	REGISTER_POTION = {
+		currentStepText = "8. Equip potion to quickslot",
+		stepCommand = "Buy an HP or MP potion, then open Inventory (I) and equip it to a consumable quickslot.",
 	},
-	KILL_STUMP = {
-		currentStepText = "9. Hunt a Stump",
-		stepCommand = "Defeat 1 Stump.",
+	COLLECT_STUMP_BARK = {
+		currentStepText = "9. Gather Stump Bark",
+		stepCommand = "Gather 30 Stump Barks.",
 	},
 	CRAFT_MOGWOLDO = {
-		currentStepText = "10. Craft a Mogwoldo",
-		stepCommand = "Craft a Mogwoldo.",
+		currentStepText = "10. Craft a Desert Sword",
+		stepCommand = "Craft a Desert Sword.",
 	},
 	COMPLETED = {
 		currentStepText = "You have completed all tutorial quests.",
@@ -408,8 +408,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 
 	local isSmall = isMobile 
-	local actionButtonSize = isMobile and 56 or 48
-	local actionButtonGap = isMobile and 6 or 8
+	local actionButtonSize = isMobile and 84 or 64
+	local actionButtonGap = isMobile and 8 or 10
 	
 	-- [FIX] Moved OUT of the MainHUDContainer to solve the total container height stacking bug!
 	local debuffRow = Utils.mkFrame({
@@ -540,7 +540,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function() UIManager.toggleInventory() end)
 	HUDUI.Refs.EquipTabButton = mkMenuCell("BtnStats", UIManager.getItemIcon("Icon_Equipment"), "스탯", 2, function() UIManager.toggleEquipment() end)
-	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "룬", 3, function() UIManager.toggleSkillTree() end)
+	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "스킬", 3, function() UIManager.toggleSkillTree() end)
 	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "게임 패스", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
 	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
 	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function() end)
@@ -1433,11 +1433,23 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		-- [추가] 슬롯 직접 클릭 시 애니메이션 및 스킬 발동
 		bindRuneSlotAction(slot, i, function()
 			local SkillCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
-			if SkillCtrl and SkillCtrl.useSkill then
-				SkillCtrl.useSkill("RUNE" .. tostring(i))
+			if SkillCtrl and SkillCtrl.useSkillIndex then
+				SkillCtrl.useSkillIndex(i)
 			end
 		end)
 	end
+
+	-- 스킬 단축키 지정 변경 시 핫바의 스킬 아이콘 자동 동기화
+	task.spawn(function()
+		local SkillCtrl = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
+		if SkillCtrl and SkillCtrl.onSkillDataUpdated then
+			SkillCtrl.onSkillDataUpdated(function()
+				if HUDUI.UpdateRuneHotbar then
+					HUDUI.UpdateRuneHotbar()
+				end
+			end)
+		end
+	end)
 
 	local dayNightRing = Utils.mkFrame({
 		name = "DayNightRing",
@@ -2000,14 +2012,18 @@ end
 function HUDUI.UpdateRuneHotbar(equipment)
 	if not HUDUI.Refs.runeSlots then return end
 	
-	local runeKeys = {"RUNE1", "RUNE2", "RUNE3"}
-	for i, key in ipairs(runeKeys) do
+	local SkillController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
+	local activeSlots = SkillController and SkillController.getActiveSkillSlots and SkillController.getActiveSkillSlots() or { nil, nil, nil }
+	local SkillTreeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("SkillTreeData"))
+
+	for i = 1, 3 do
 		local slot = HUDUI.Refs.runeSlots[i]
 		if not slot then continue end
 		
-		local eqItem = equipment[key]
-		if eqItem and eqItem.itemId then
-			slot.icon.Image = _UIManager and _UIManager.getItemIcon(eqItem.itemId) or ""
+		local skillId = activeSlots[i]
+		if skillId then
+			local skillData = SkillTreeData.GetSkill(skillId)
+			slot.icon.Image = _UIManager and _UIManager.getItemIcon(skillData and skillData.icon or skillId) or ""
 			slot.icon.Visible = true
 		else
 			slot.icon.Image = ""
@@ -2384,4 +2400,9 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+function HUDUI.IsTutorialMinimized()
+	return isTutorialMinimized
+end
+
 return HUDUI
+

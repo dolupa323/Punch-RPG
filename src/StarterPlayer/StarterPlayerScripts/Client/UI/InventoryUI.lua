@@ -914,8 +914,21 @@ function InventoryUI.RefreshSlots(items, getItemIcon, __C, DataHelper, maxSlots)
 			
 			local itemData = DataHelper.GetData("ItemData", item.itemId)
 			if st then
-				st.Color = C.BORDER_DIM
-				st.Thickness = 1
+				if itemData and (itemData.type == "RUNE" or itemData.type == "SKILL_BOOK") then
+					if itemData.runeType == "ACTIVE" then
+						st.Color = Color3.fromRGB(80, 170, 255)
+						st.Thickness = 1.8
+					elseif itemData.runeType == "PASSIVE" then
+						st.Color = Color3.fromRGB(230, 180, 60)
+						st.Thickness = 1.8
+					else
+						st.Color = C.BORDER_DIM
+						st.Thickness = 1
+					end
+				else
+					st.Color = C.BORDER_DIM
+					st.Thickness = 1
+				end
 			end
 			
 			-- [MODIFIED] DEACTIVATED: Durability concept disabled per design requirements
@@ -1339,7 +1352,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("사용")
 				d.BtnMain.BackgroundColor3 = C.GOLD_SEL
-				if d.QuickRow then d.QuickRow.Visible = (itemData and itemData.type == Enums.ItemType.CONSUMABLE) end -- 소비 단축 슬롯 활성화
+				if d.QuickRow then d.QuickRow.Visible = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD)) end -- 소비 단축 슬롯 활성화
 			elseif isCaptureBox then
 				d.BtnMain.Visible = true
 				d.BtnMain.Text = UILocalizer.Localize("길들이기")

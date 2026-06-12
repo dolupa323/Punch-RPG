@@ -81,7 +81,10 @@ local function findLootModel(itemId: string): (Instance?, boolean)
 			end
 		end
 		
-		if found then return found end
+		local function isValidTemplate(inst)
+			return inst and (inst:IsA("BasePart") or inst:IsA("Model") or inst:IsA("Tool") or inst:IsA("Accessory"))
+		end
+		if found and isValidTemplate(found) then return found end
 		
 		-- 하위 폴더 검색 (LootModels, ItemModels, Models 순으로 우선순위)
 		local priority = {"LootModels", "ItemModels", "Models"}
@@ -139,6 +142,7 @@ local function createDropModel(dropData)
 	local template, isDna = nil, false
 	local isChest = false
 	local isRune = false
+	local isSkillBook = false
 	local itemData = DataHelper.GetData("ItemData", (dropData.itemId or ""):upper())
 	
 	if dropData.dropType ~= "gold" then
@@ -146,9 +150,26 @@ local function createDropModel(dropData)
 		if dropData.dropSource == "DISCARD" then
 			print(string.format("[WorldDropController] Item dropped via DISCARD. Finding 'Pouch' template..."))
 			template = findLootModel("Pouch")
+		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "SKILL_BOOK" then
+			print("[WorldDropController] Skill book dropped via LOOT. Finding 'SkillModel' template...")
+			isSkillBook = true
+			template = findLootModel("SkillModel")
+			if not template then
+				print("[WorldDropController] 'SkillModel' not found for skill book. Falling back to item template...")
+				template, isDna = findLootModel(dropData.itemId)
+			end
 		elseif dropData.dropSource == "LOOT" and itemData and itemData.type == "RUNE" then
-			print("[WorldDropController] Rune dropped via LOOT. Finding 'RuneModel' template...")
-			template = findLootModel(itemData.modelName or "RuneModel")
+			if itemData.runeType == "ACTIVE" then
+				print("[WorldDropController] Active rune dropped via LOOT. Finding 'SkillModel' template...")
+				template = findLootModel("SkillModel")
+				if not template then
+					print("[WorldDropController] 'SkillModel' not found. Falling back to rune template...")
+					template = findLootModel(itemData.modelName or "RuneModel")
+				end
+			else
+				print("[WorldDropController] Rune dropped via LOOT. Finding 'RuneModel' template...")
+				template = findLootModel(itemData.modelName or "RuneModel")
+			end
 			isRune = true
 		-- [기획 보강]: 몬스터 사냥 전리품(LOOT) 중, 희귀도가 높거나(EPIC, LEGENDARY, RARE) 무기를 제외한 방어구 및 악세사리는 보물상자(Chest) 모델로 처리
 		elseif dropData.dropSource == "LOOT" and itemData and (itemData.type == "ARMOR" or itemData.rarity == "EPIC" or itemData.rarity == "UNIQUE" or itemData.rarity == "LEGENDARY" or itemData.rarity == "RARE") then
@@ -222,11 +243,13 @@ local function createDropModel(dropData)
 		
 		-- [크기 정화 및 롤백]: 에셋 제작자가 만든 오리지널 예쁜 크기를 100% 최우선 존중! (DNA 등 지나치게 큰 모델만 1.5스터드로 제한 축소)
 		-- [수정] 희귀 아이템용 보물상자(Chest) 및 룬(RUNE)은 일반 아이템보다 훨씬 크게(3.5스터드) 표시하여 만족도를 높임
-		local DROP_TARGET = isDna and 1.0 or ((isChest or isRune) and 3.5 or (Balance.DROP_TARGET_SIZE or 1.5))
+		local DROP_TARGET = isDna and 1.0 or (isSkillBook and 9.0 or (isRune and 6.5 or (isChest and 3.5 or (Balance.DROP_TARGET_SIZE or 1.5))))
 		if mainObject:IsA("Model") then
 			local _, mSize = mainObject:GetBoundingBox()
 			local maxDim = math.max(mSize.X, mSize.Y, mSize.Z)
-			if maxDim > 0 and maxDim > DROP_TARGET then
+			if maxDim > 0 and (isSkillBook or isRune) then
+				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
+			elseif maxDim > 0 and maxDim > DROP_TARGET then
 				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
 			end
 			
@@ -245,7 +268,10 @@ local function createDropModel(dropData)
 			
 			if targetPart and targetPart:IsA("BasePart") then
 				local maxDim = math.max(targetPart.Size.X, targetPart.Size.Y, targetPart.Size.Z)
-				if maxDim > 0 and maxDim > DROP_TARGET then
+				if maxDim > 0 and (isSkillBook or isRune) then
+					local s = DROP_TARGET / maxDim
+					targetPart.Size = targetPart.Size * s
+				elseif maxDim > 0 and maxDim > DROP_TARGET then
 					local s = DROP_TARGET / maxDim
 					targetPart.Size = targetPart.Size * s
 				end

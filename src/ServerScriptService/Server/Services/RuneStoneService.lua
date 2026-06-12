@@ -16,23 +16,14 @@ local RuneStoneService = {}
 local NetController = nil
 local initialized = false
 local RUNE_STONE_NAME = "RuneStone"
-local RUNE_CLAIM_LIMIT = 3
+local RUNE_CLAIM_LIMIT = 1
 local playerClaimCache = {} -- [userId] = count
 local boundPrompts = {}
 
-local runeByElement = {
-	Fire = {
-		itemId = "RUNE_FLAME_ACTIVE",
-		displayName = "화염",
-	},
-	Water = {
-		itemId = "RUNE_WAVE_ACTIVE",
-		displayName = "파도",
-	},
-	Dark = {
-		itemId = "RUNE_SHADOW_ACTIVE",
-		displayName = "그림자",
-	},
+local runeRewardSequence = {
+	{ itemId = "BOOK_FLAME", displayName = "화염" },
+	{ itemId = "BOOK_WAVE", displayName = "파도" },
+	{ itemId = "BOOK_SHADOW", displayName = "그림자" },
 }
 
 local function getPlayerClaimCount(userId: number): number
@@ -69,12 +60,12 @@ local function setPlayerClaimCount(userId: number, count: number)
 end
 
 local function getRuneReward(player: Player)
-	local element = player:GetAttribute("Element")
-	if type(element) ~= "string" or element == "" or element == "None" then
-		return nil, "NO_ELEMENT"
+	local claimCount = getPlayerClaimCount(player.UserId)
+	if claimCount >= RUNE_CLAIM_LIMIT then
+		return nil, "CLAIM_LIMIT_REACHED"
 	end
-
-	return runeByElement[element], nil
+	local rewardIndex = math.random(1, #runeRewardSequence)
+	return runeRewardSequence[rewardIndex], nil
 end
 
 local function notify(player: Player, text: string)
@@ -85,16 +76,13 @@ end
 
 local function awardRune(player: Player)
 	local userId = player.UserId
-	local claimCount = getPlayerClaimCount(userId)
-	if claimCount >= RUNE_CLAIM_LIMIT then
-		notify(player, "룬스톤의 힘은 이미 모두 소진되었습니다.")
-		return false, "LIMIT_REACHED"
-	end
 
 	local reward, errCode = getRuneReward(player)
 	if not reward then
-		notify(player, "먼저 속성을 선택한 뒤 다시 시도하세요.")
-		return false, errCode or "NO_ELEMENT"
+		if errCode == "CLAIM_LIMIT_REACHED" then
+			notify(player, "이미 룬스톤 보상을 획득했습니다.")
+		end
+		return false, errCode or "NO_REWARD"
 	end
 
 	local added, remaining = InventoryService.addItem(userId, reward.itemId, 1)
@@ -103,8 +91,9 @@ local function awardRune(player: Player)
 		return false, "INV_FULL"
 	end
 
+	local claimCount = getPlayerClaimCount(userId)
 	setPlayerClaimCount(userId, claimCount + 1)
-	notify(player, string.format("액티브 룬 [%s]을 획득했습니다! (%d/%d)", reward.displayName, claimCount + 1, RUNE_CLAIM_LIMIT))
+	notify(player, string.format("스킬북 [%s]을 획득했습니다!", reward.displayName))
 
 	if SaveService and SaveService.savePlayer then
 		task.spawn(function()
@@ -137,36 +126,15 @@ local function getPromptPart(model: Instance): BasePart?
 end
 
 local function bindRuneStoneModel(model: Instance)
-	if not model or not (model:IsA("Model") or model:IsA("BasePart")) then
-		return
-	end
-
+	-- 룬스톤 상호작용 폐지로 인해 프롬프트를 바인딩하지 않음
+	if not model then return end
 	local promptPart = getPromptPart(model)
-	if not promptPart then
-		warn(string.format("[RuneStoneService] RuneStone model '%s' has no BasePart to attach prompt.", model:GetFullName()))
-		return
+	if promptPart then
+		local existingPrompt = promptPart:FindFirstChild("RuneStonePrompt")
+		if existingPrompt then
+			existingPrompt:Destroy()
+		end
 	end
-
-	local existingPrompt = promptPart:FindFirstChild("RuneStonePrompt")
-	if existingPrompt and existingPrompt:IsA("ProximityPrompt") then
-		existingPrompt:Destroy()
-	end
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "RuneStonePrompt"
-	prompt.ActionText = "룬 획득"
-	prompt.ObjectText = "룬스톤"
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.HoldDuration = 0.35
-	prompt.MaxActivationDistance = 10
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = promptPart
-
-	prompt.Triggered:Connect(function(player)
-		awardRune(player)
-	end)
-
-	boundPrompts[prompt] = true
 end
 
 local function scanForRuneStone()

@@ -385,17 +385,19 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 	CraftingUI.Refs.Slots = {}
 
 	-- 2) 티어(techLevel) / 제작 시간순 / 이름순 정렬
-	table.sort(items, function(a, b)
-		local aTech = a.techLevel or a.rarity or 0
-		local bTech = b.techLevel or b.rarity or 0
-		if aTech ~= bTech then return aTech < bTech end
-		
-		local aTime = a.craftTime or 0
-		local bTime = b.craftTime or 0
-		if aTime ~= bTime then return aTime < bTime end
-		
-		return (a.name or "") < (b.name or "")
-	end)
+	if mode ~= "CRAFTING" then
+		table.sort(items, function(a, b)
+			local aTech = a.techLevel or a.rarity or 0
+			local bTech = b.techLevel or b.rarity or 0
+			if aTech ~= bTech then return aTech < bTech end
+			
+			local aTime = a.craftTime or 0
+			local bTime = b.craftTime or 0
+			if aTime ~= bTime then return aTime < bTime end
+			
+			return (a.name or "") < (b.name or "")
+		end)
+	end
 
 	for i, item in ipairs(items) do
 		local canMake, _ = UIManager.checkMaterials(item, playerItemCounts)
@@ -604,6 +606,7 @@ function CraftingUI.ShowProgressModal(recipe, progressRatio, craftState, UIManag
 			targetId = recipe.outputs[1].itemId or recipe.outputs[1].id
 		end
 		pm.Icon.Image = UIManager.getItemIcon(targetId)
+		pm.NameLabel.Text = UILocalizer.Localize(recipe.name or targetId)
 	-- 2. 진행바 비주얼 업데이트
 	local ratio = math.clamp(progressRatio or 0, 0, 1)
 	pm.BarFill.Size = UDim2.new(ratio, 0, 1, 0)

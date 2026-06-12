@@ -28,7 +28,32 @@ local activeRuneAuras = {} -- [userId][itemId] = token
 -- Internal Helpers
 --========================================
 
-local _initPlayerSkills, _autoUnlockFreeSkills, _getAvailableSP, _findSkill, _getTreeIdForSkill, _isCombatTreeId, _arePrereqsMet, _syncToSave
+local _initPlayerSkills, _autoUnlockFreeSkills, _getAvailableSP, _findSkill, _getTreeIdForSkill, _isCombatTreeId, _arePrereqsMet, _syncToSave, _getClientSkillData
+
+local function _getClientSkillData(userId: number)
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local state = SaveService.getPlayerState(userId)
+	
+	local equipped = {}
+	if state and state.equippedPassives then
+		for k, v in pairs(state.equippedPassives) do
+			equipped[tostring(k)] = v
+		end
+		state.equippedPassives = equipped
+	end
+
+	return {
+		unlockedSkills = cache.unlockedSkills,
+		combatTreeId = cache.combatTreeId,
+		spAvailable = _getAvailableSP(userId),
+		spSpent = cache.skillPointsSpent,
+		activeSkillSlots = cache.activeSkillSlots,
+		level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
+		skillBooks = state and state.skillBooks or {},
+		equippedPassives = equipped,
+	}
+end
 
 --- 플레이어 스킬 캐시 초기화 (SaveService 데이터 로드)
 function _initPlayerSkills(userId: number)
@@ -43,6 +68,49 @@ function _initPlayerSkills(userId: number)
 			activeSkillSlots = { nil, nil, nil, nil },
 		}
 		return
+	end
+
+	-- [스킬 ID 마이그레이션] 임시 옛날 ID를 기획서상 새 ID로 자동 마이그레이션 처리
+	local migrated = false
+	if state.unlockedSkills and type(state.unlockedSkills) == "table" then
+		if state.unlockedSkills["SKILL_RUNE_POWER"] then
+			state.unlockedSkills["SKILL_RUNE_GRIT"] = true
+			state.unlockedSkills["SKILL_RUNE_POWER"] = nil
+			migrated = true
+		end
+		if state.unlockedSkills["SKILL_RUNE_LIFE_FORCE"] then
+			state.unlockedSkills["SKILL_RUNE_STEADFAST"] = true
+			state.unlockedSkills["SKILL_RUNE_LIFE_FORCE"] = nil
+			migrated = true
+		end
+	end
+
+	if state.equippedPassives and type(state.equippedPassives) == "table" then
+		for slot, skillId in pairs(state.equippedPassives) do
+			if skillId == "SKILL_RUNE_POWER" then
+				state.equippedPassives[slot] = "SKILL_RUNE_GRIT"
+				migrated = true
+			elseif skillId == "SKILL_RUNE_LIFE_FORCE" then
+				state.equippedPassives[slot] = "SKILL_RUNE_STEADFAST"
+				migrated = true
+			end
+		end
+	end
+
+	if state.skillBooks and type(state.skillBooks) == "table" then
+		for i, bookId in ipairs(state.skillBooks) do
+			if bookId == "BOOK_POWER" then
+				state.skillBooks[i] = "BOOK_GRIT"
+				migrated = true
+			elseif bookId == "BOOK_LIFE_FORCE" then
+				state.skillBooks[i] = "BOOK_STEADFAST"
+				migrated = true
+			end
+		end
+	end
+
+	if migrated and SaveService and SaveService.markPlayerDirty then
+		SaveService.markPlayerDirty(userId)
 	end
 
 	playerSkillCache[userId] = {
@@ -147,6 +215,9 @@ function SkillService.grantRuneSkill(userId: number, runeItemId: string, equipme
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]
 	local skillId = "SKILL_" .. runeItemId
+	if runeItemId == "NIGHT" then
+		skillId = "SKILL_ROCK"
+	end
 	
 	-- 스킬 데이터가 있는지 검증
 	local skillData = _findSkill(skillId)
@@ -169,15 +240,7 @@ function SkillService.grantRuneSkill(userId: number, runeItemId: string, equipme
 		-- 클라이언트에 즉각 업데이트 알림
 		local player = game:GetService("Players"):GetPlayerByUserId(userId)
 		if player and NetController then
-			-- handleGetData 로직을 통해 최신 데이터 전달
-			local data = {
-				unlockedSkills = cache.unlockedSkills,
-				combatTreeId = cache.combatTreeId,
-				spAvailable = _getAvailableSP(userId),
-				spSpent = cache.skillPointsSpent,
-				activeSkillSlots = cache.activeSkillSlots,
-				level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
-			}
+			local data = _getClientSkillData(userId)
 			NetController.FireClient(player, "Skill.Data.Updated", data)
 		end
 	end
@@ -188,6 +251,9 @@ function SkillService.revokeRuneSkill(userId: number, runeItemId: string)
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]
 	local skillId = "SKILL_" .. runeItemId
+	if runeItemId == "NIGHT" then
+		skillId = "SKILL_ROCK"
+	end
 	
 	if cache.unlockedSkills[skillId] then
 		cache.unlockedSkills[skillId] = nil
@@ -203,14 +269,7 @@ function SkillService.revokeRuneSkill(userId: number, runeItemId: string)
 		
 		local player = game:GetService("Players"):GetPlayerByUserId(userId)
 		if player and NetController then
-			local data = {
-				unlockedSkills = cache.unlockedSkills,
-				combatTreeId = cache.combatTreeId,
-				spAvailable = _getAvailableSP(userId),
-				spSpent = cache.skillPointsSpent,
-				activeSkillSlots = cache.activeSkillSlots,
-				level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
-			}
+			local data = _getClientSkillData(userId)
 			NetController.FireClient(player, "Skill.Data.Updated", data)
 		end
 	end
@@ -374,17 +433,11 @@ local function handleGetData(player: Player, _payload: any)
 	_autoUnlockFreeSkills(userId)
 	
 	local cache = playerSkillCache[userId]
+	local state = SaveService.getPlayerState(userId)
 
 	return {
 		success = true,
-		data = {
-			unlockedSkills = cache.unlockedSkills,
-			combatTreeId = cache.combatTreeId,
-			spAvailable = _getAvailableSP(userId),
-			spSpent = cache.skillPointsSpent,
-			activeSkillSlots = cache.activeSkillSlots,
-			level = PlayerStatService.getLevel(userId) or 1,
-		},
+		data = _getClientSkillData(userId),
 	}
 end
 
@@ -501,7 +554,12 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 	local char = player.Character
 	if not char then return end
 	
-	local itemData = DataService.getItem(itemId)
+	local baseItemId = string.gsub(itemId, "^SKILL_", "")
+	if baseItemId == "ROCK" then
+		baseItemId = "NIGHT"
+	end
+	
+	local itemData = DataService.getItem(baseItemId)
 	if itemData and itemData.runeMode == "AURA" then
 		local userId = player.UserId
 		local auraDuration = tonumber(itemData.auraDuration) or 8
@@ -521,7 +579,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		end
 		local auraToken = {}
 		activeRuneAuras[userId] = activeRuneAuras[userId] or {}
-		activeRuneAuras[userId][itemId] = auraToken
+		activeRuneAuras[userId][baseItemId] = auraToken
 
 		local ReplicatedStorage = game:GetService("ReplicatedStorage")
 		local avatarFolder = ReplicatedStorage:FindFirstChild("Avatar")
@@ -690,11 +748,11 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			end
 
 			if activeRuneAuras[userId] then
-				activeRuneAuras[userId][itemId] = nil
+				activeRuneAuras[userId][baseItemId] = nil
 			end
 			if NetController then
 				NetController.FireClient(player, "Rune.Aura.Stop", {
-					itemId = itemId,
+					itemId = baseItemId,
 				})
 			end
 		end)
@@ -702,7 +760,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if itemId == "EMBER" or itemId == "DROPLET" or itemId == "NIGHT" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -715,7 +773,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local dmgAmount = 25
 		local skillColor = Color3.fromRGB(255, 100, 50)
 		
-		if itemId == "DROPLET" then
+		if baseItemId == "DROPLET" then
 			vfxName = "WaterWave"
 			dmgAmount = 20
 			skillColor = Color3.fromRGB(50, 150, 255)
@@ -724,7 +782,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			if hum then
 				hum.Health = math.min(hum.MaxHealth, hum.Health + hum.MaxHealth * 0.1)
 			end
-		elseif itemId == "NIGHT" then
+		elseif baseItemId == "NIGHT" then
 			vfxName = "NightSpike"
 			dmgAmount = 35
 			skillColor = Color3.fromRGB(138, 43, 226)
@@ -915,16 +973,35 @@ local function handleUseSkill(player: Player, payload: any)
 	
 	if not slot or not itemId then return { success = false, errorCode = "BAD_REQUEST" } end
 	
-	-- 1. 장착 확인
-	local equip = InventoryService.getEquipment(userId)
-	local equippedItem = equip[slot]
+	local slotIndex = nil
+	if slot == "RUNE1" then slotIndex = 1
+	elseif slot == "RUNE2" then slotIndex = 2
+	elseif slot == "RUNE3" then slotIndex = 3
+	end
+	if not slotIndex then return { success = false, errorCode = "BAD_REQUEST" } end
 	
-	if not equippedItem or equippedItem.itemId ~= itemId then
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local skillId = cache.activeSkillSlots[slotIndex]
+	
+	-- skillId와 클라이언트의 itemId가 매칭되는지 확인 (접두사 "SKILL_" 고려)
+	if not skillId or (skillId ~= itemId and skillId ~= "SKILL_" .. itemId) then
 		return { success = false, errorCode = "NOT_EQUIPPED" }
 	end
 	
+	-- 해금 여부 검증
+	if not cache.unlockedSkills[skillId] then
+		return { success = false, errorCode = "NOT_UNLOCKED" }
+	end
+	
 	-- 2. 아이템 데이터 확인 (ACTIVE 룬인지)
-	local itemData = DataService.getItem(itemId)
+	-- skillId를 baseItemId로 변환
+	local baseItemId = string.gsub(skillId, "^SKILL_", "")
+	if baseItemId == "ROCK" then
+		baseItemId = "NIGHT"
+	end
+	
+	local itemData = DataService.getItem(baseItemId)
 	if not itemData or itemData.runeType ~= "ACTIVE" then
 		return { success = false, errorCode = "INVALID_SKILL" }
 	end
@@ -932,7 +1009,7 @@ local function handleUseSkill(player: Player, payload: any)
 	-- 3. 쿨다운 확인
 	local now = tick()
 	if not skillCooldowns[userId] then skillCooldowns[userId] = {} end
-	if skillCooldowns[userId][itemId] and now < skillCooldowns[userId][itemId] then
+	if skillCooldowns[userId][baseItemId] and now < skillCooldowns[userId][baseItemId] then
 		return { success = false, errorCode = "COOLDOWN" }
 	end
 	
@@ -943,18 +1020,187 @@ local function handleUseSkill(player: Player, payload: any)
 	end
 	StaminaService.consumeStamina(userId, cost)
 	
-	-- 5. 쿨다운 설정 (임시 5초)
+	-- 5. 쿨다운 설정
 	local cooldown = itemData.cooldown or 5
-	skillCooldowns[userId][itemId] = now + cooldown
+	skillCooldowns[userId][baseItemId] = now + cooldown
 	
 	-- 6. 스킬 실행
-	task.spawn(executeSkillEffect, player, itemId, payload)
+	task.spawn(executeSkillEffect, player, skillId, payload)
 	
 	return {
 		success = true,
 		data = {
 			cooldown = cooldown
 		}
+	}
+end
+
+--- 패시브 스킬 장착 처리
+local function handleEquipPassive(player: Player, payload: any)
+	local userId = player.UserId
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local state = SaveService.getPlayerState(userId)
+	if not state then return { success = false, errorCode = "NO_STATE" } end
+
+	local skillId = payload and payload.skillId
+	local slot = payload and payload.slot
+	if type(skillId) ~= "string" or not slot then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+	local slotStr = tostring(slot)
+
+	if not cache.unlockedSkills[skillId] then
+		return { success = false, errorCode = "SKILL_NOT_UNLOCKED" }
+	end
+
+	local skill = _findSkill(skillId)
+	if not skill or skill.type ~= "PASSIVE" then
+		return { success = false, errorCode = "NOT_PASSIVE_SKILL" }
+	end
+
+	-- Normalize keys to string and unequip existing duplicate skill
+	local equipped = {}
+	if state.equippedPassives then
+		for k, v in pairs(state.equippedPassives) do
+			equipped[tostring(k)] = v
+		end
+	end
+	state.equippedPassives = equipped
+
+	for s, sid in pairs(state.equippedPassives) do
+		if sid == skillId then
+			state.equippedPassives[s] = nil
+		end
+	end
+
+	state.equippedPassives[slotStr] = skillId
+	_syncToSave(userId)
+
+	if PlayerStatService and PlayerStatService.applyStats then
+		PlayerStatService.applyStats(userId)
+	end
+
+	local data = _getClientSkillData(userId)
+	NetController.FireClient(player, "Skill.Data.Updated", data)
+
+	return {
+		success = true,
+		data = {
+			equippedPassives = state.equippedPassives,
+		},
+	}
+end
+
+--- 패시브 스킬 해제 처리
+local function handleUnequipPassive(player: Player, payload: any)
+	local userId = player.UserId
+	local state = SaveService.getPlayerState(userId)
+	if not state then return { success = false, errorCode = "NO_STATE" } end
+
+	local slot = payload and payload.slot
+	if not slot then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+	local slotStr = tostring(slot)
+
+	-- Normalize keys to string and clear slot
+	local equipped = {}
+	if state.equippedPassives then
+		for k, v in pairs(state.equippedPassives) do
+			equipped[tostring(k)] = v
+		end
+	end
+	state.equippedPassives = equipped
+	state.equippedPassives[slotStr] = nil
+	_syncToSave(userId)
+
+	if PlayerStatService and PlayerStatService.applyStats then
+		PlayerStatService.applyStats(userId)
+	end
+
+	local data = _getClientSkillData(userId)
+	NetController.FireClient(player, "Skill.Data.Updated", data)
+
+	return {
+		success = true,
+		data = {
+			equippedPassives = state.equippedPassives,
+		},
+	}
+end
+
+--- 스킬북 사용(학습) 요청 처리
+local function handleLearnBook(player: Player, payload: any)
+	local userId = player.UserId
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	local state = SaveService.getPlayerState(userId)
+	if not state then return { success = false, errorCode = "NO_STATE" } end
+
+	local bookItemId = payload and payload.bookItemId
+	if type(bookItemId) ~= "string" or bookItemId == "" then
+		return { success = false, errorCode = "BAD_REQUEST" }
+	end
+
+	-- 1. 플레이어가 해당 스킬북을 소유하고 있는지 확인
+	local bookIndex = nil
+	state.skillBooks = state.skillBooks or {}
+	for i, bid in ipairs(state.skillBooks) do
+		if bid == bookItemId then
+			bookIndex = i
+			break
+		end
+	end
+
+	if not bookIndex then
+		return { success = false, errorCode = "NO_BOOK" }
+	end
+
+	-- 2. 해당 스킬북에 대응하는 스킬 ID 매핑
+	local skillId = nil
+	if bookItemId == "BOOK_GRIT" then
+		skillId = "SKILL_RUNE_GRIT"
+	elseif bookItemId == "BOOK_STEADFAST" then
+		skillId = "SKILL_RUNE_STEADFAST"
+	elseif bookItemId == "BOOK_DROPLET" then
+		skillId = "SKILL_DROPLET"
+	elseif bookItemId == "BOOK_EMBER" then
+		skillId = "SKILL_EMBER"
+	elseif bookItemId == "BOOK_ROCK" then
+		skillId = "SKILL_ROCK"
+	elseif bookItemId == "BOOK_FLAME" then
+		skillId = "SKILL_RUNE_FLAME_ACTIVE"
+	elseif bookItemId == "BOOK_WAVE" then
+		skillId = "SKILL_RUNE_WAVE_ACTIVE"
+	elseif bookItemId == "BOOK_SHADOW" then
+		skillId = "SKILL_RUNE_SHADOW_ACTIVE"
+	end
+
+	if not skillId then
+		return { success = false, errorCode = "INVALID_BOOK" }
+	end
+
+	-- 3. 이미 스킬을 배웠는지 확인
+	if cache.unlockedSkills[skillId] then
+		return { success = false, errorCode = "ALREADY_LEARNED" }
+	end
+
+	-- 4. 스킬북 제거 및 스킬 해금
+	table.remove(state.skillBooks, bookIndex)
+	cache.unlockedSkills[skillId] = true
+	_syncToSave(userId)
+
+	-- 5. 클라이언트 업데이트 알림 (데이터 동기화)
+	local data = _getClientSkillData(userId)
+	NetController.FireClient(player, "Skill.Data.Updated", data)
+
+	print(string.format("[SkillService] Player %s learned skill %s from book %s", player.Name, skillId, bookItemId))
+
+	return {
+		success = true,
+		unlockedSkills = cache.unlockedSkills,
+		skillBooks = state.skillBooks,
 	}
 end
 
@@ -969,6 +1215,9 @@ function SkillService.GetHandlers()
 		["Skill.SetSlot.Request"] = handleSetSlot,
 		["Skill.Reset.Request"] = handleResetSkills,
 		["Skill.Use.Request"] = handleUseSkill,
+		["Skill.LearnBook.Request"] = handleLearnBook,
+		["Skill.EquipPassive.Request"] = handleEquipPassive,
+		["Skill.UnequipPassive.Request"] = handleUnequipPassive,
 	}
 end
 

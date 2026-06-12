@@ -146,46 +146,43 @@ local function setupDummy(meshPart)
 					task.spawn(function()
 						local InventoryService = require(game:GetService("ServerScriptService").Server.Services.InventoryService)
 						
-						-- 중복 획득 검사 함수 (인벤토리 및 장치창 전체 스캔)
-						local function playerHasGritRune(uId)
-							local inv = InventoryService.getInventory(uId)
-							if not inv then return false end
-							
-							if inv.equipment then
-								for _, equip in pairs(inv.equipment) do
-									if equip and equip.itemId == "GRIT_RUNE" then
+						-- 중복 획득 검사 함수 (소장 스킬북 및 스킬 해금 상태 스캔)
+						local function playerHasGritBookOrSkill(uId)
+							local SaveService = require(game:GetService("ServerScriptService").Server.Services.SaveService)
+							local state = SaveService and SaveService.getPlayerState(uId)
+							if not state then return false end
+
+							if state.skillBooks then
+								for _, bid in ipairs(state.skillBooks) do
+									if bid == "BOOK_GRIT" then
 										return true
 									end
 								end
 							end
 							
-							if inv.slots then
-								for _, slotData in pairs(inv.slots) do
-									if slotData and slotData.itemId == "GRIT_RUNE" then
-										return true
-									end
-								end
+							if state.unlockedSkills and state.unlockedSkills["SKILL_RUNE_GRIT"] then
+								return true
 							end
 							
 							return false
 						end
 						
-						if not playerHasGritRune(userId) then
-							local added, remaining = InventoryService.addItem(userId, "GRIT_RUNE", 1)
+						if not playerHasGritBookOrSkill(userId) then
+							local added, remaining = InventoryService.addItem(userId, "BOOK_GRIT", 1)
 							local NetController = require(game:GetService("ServerScriptService").Server.Controllers.NetController)
 							
 							if added > 0 then
 								if NetController then
 									NetController.FireClient(attacker, "Notify.Message", {
-										text = "축하합니다! 허수아비 100회 연속 타격으로 [근성]을 획득했습니다!",
+										text = "축하합니다! 허수아비 100회 연속 타격으로 [근성 스킬북]을 획득했습니다!",
 										color = "GOLD"
 									})
 								end
-								print(string.format("[TrainingDummyService] Granted GRIT_RUNE to player %s (%d)", attacker.Name, userId))
+								print(string.format("[TrainingDummyService] Granted BOOK_GRIT to player %s (%d)", attacker.Name, userId))
 							else
 								if NetController then
 									NetController.FireClient(attacker, "Notify.Message", {
-										text = "인벤토리가 가득 차서 [근성]을 획득하지 못했습니다. 인벤토리를 비우고 다시 시도해 주세요.",
+										text = "인벤토리가 가득 차서 [근성 스킬북]을 획득하지 못했습니다. 인벤토리를 비우고 다시 시도해 주세요.",
 										color = "RED"
 									})
 								end
@@ -194,7 +191,7 @@ local function setupDummy(meshPart)
 							end
 						else
 							-- 이미 보유한 경우 조용히 처리 (중복 획득 메시지 미출력)
-							print(string.format("[TrainingDummyService] Player %s (%d) already has GRIT_RUNE. Silently skipping.", attacker.Name, userId))
+							print(string.format("[TrainingDummyService] Player %s (%d) already has BOOK_GRIT or SKILL_RUNE_GRIT. Silently skipping.", attacker.Name, userId))
 						end
 					end)
 				end

@@ -33,6 +33,8 @@ EquipmentUI.Refs = {
 	StatPoints = nil,
 	StatLines = {},
 	ActionFrame = nil,
+	ApplyBtn = nil,
+	CancelBtn = nil,
 }
 
 local tooltipMoveConn = nil
@@ -240,8 +242,8 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 	EquipmentUI.Refs.ActionFrame = actionFrame
 	local aList = Instance.new("UIListLayout"); aList.FillDirection=Enum.FillDirection.Horizontal; aList.Padding=UDim.new(0.05,0); aList.HorizontalAlignment=Enum.HorizontalAlignment.Center; aList.VerticalAlignment=Enum.VerticalAlignment.Center; aList.Parent=actionFrame
 
-	Utils.mkBtn({text=UILocalizer.Localize("적용"), size=UDim2.new(0.45,0,0.8,0), bg=C.GREEN, font=F.TITLE, color=C.BG_PANEL, fn=function() UIManager.confirmPendingStats() end, parent=actionFrame})
-	Utils.mkBtn({text=UILocalizer.Localize("초기화"), size=UDim2.new(0.45,0,0.8,0), bg=C.BTN, font=F.TITLE, fn=function() UIManager.cancelPendingStats() end, parent=actionFrame})
+	EquipmentUI.Refs.ApplyBtn = Utils.mkBtn({text=UILocalizer.Localize("적용"), size=UDim2.new(0.45,0,0.8,0), bg=C.GREEN, font=F.TITLE, color=C.BG_PANEL, fn=function() UIManager.confirmPendingStats() end, parent=actionFrame})
+	EquipmentUI.Refs.CancelBtn = Utils.mkBtn({text=UILocalizer.Localize("초기화"), size=UDim2.new(0.45,0,0.8,0), bg=C.BTN, font=F.TITLE, fn=function() UIManager.cancelPendingStats() end, parent=actionFrame})
 	
 	-- [New] Current Stats Section
 	local cStatsHeader = Utils.mkLabel({text=UILocalizer.Localize("스탯"), size=UDim2.new(1, -20, 0, 24), pos=UDim2.new(0,10,0,195), ts=isSmall and 20 or 22, font=F.TITLE, color=C.GOLD, ax=Enum.TextXAlignment.Left, parent=statArea})

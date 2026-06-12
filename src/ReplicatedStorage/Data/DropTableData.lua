@@ -107,6 +107,15 @@ local DropTableData = {
 		{ itemId = "SPIDER_LEG", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "SPIDER_NECKLACE", chance = 0.01, min = 1, max = 1 },
 	},
+	["SAMURAI"] = {
+		{ itemId = "BROKEN_SWORD_FRAGMENT", chance = 1.0, min = 1, max = 2 },
+	},
+	["ICEDRAGON"] = {
+		{ itemId = "DRAGON_CLAW", chance = 1.0, min = 1, max = 2 },
+	},
+	["ICEKNIGHT"] = {
+		{ itemId = "CHILLING_ICE", chance = 1.0, min = 2, max = 3 },
+	},
 	["GHOSTKNIGHT"] = {
 		{ itemId = "GHOST_KNIGHT_SOUL", chance = 1.0, min = 1, max = 2 },
 	},
@@ -124,3 +133,5 @@ local DropTableData = {
 }
 
 return DropTableData
+
+

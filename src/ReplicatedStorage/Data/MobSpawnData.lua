@@ -5,17 +5,17 @@ local MobSpawnData = {
 		spawnAreaId = "StartingZone_Slime",
 		mobModelName = "Slime",
 		mobDisplayName = "슬라임",
-		maxHealth = 35,
-		baseDamage = 5,     -- 한 방 데미지
+		maxHealth = 40,
+		baseDamage = 6,     -- 한 방 데미지
 		attackCooldown = 1.5, -- 공격 주기(초)
 		respawnDelay = 1.0,
 		modelScale = 0.8,
-		xpReward = 10, -- 슬라임 처치 시 기본 경험치 (하향)
+		xpReward = 12, -- 슬라임 처치 시 기본 경험치
 		level = 3, -- 몬스터 레벨 추가
 		
 		-- [활성화]: 4개의 좌표를 꼭짓점 삼아 그 '내부 영역 전체'에 무작위 랜덤 스폰합니다!
 		spawnAsPolygon = true, 
-		spawnCount = 6, -- 총 6마리 슬라임이 구역 안에서 제멋대로 젠 됩니다.
+		spawnCount = 15, -- 총 15마리 슬라임이 구역 안에서 제멋대로 젠 됩니다.
 		
 		-- [확정]: 사용자 스크린샷 기반 절대 좌표 반영
 		-- 순서는 외곽을 따라가도록 맞춰서 polygon 삼각분할이 안정적으로 동작하게 유지
@@ -31,15 +31,15 @@ local MobSpawnData = {
 		spawnAreaId = "HornedLarvaZone",
 		mobModelName = "HornedLarva",
 		mobDisplayName = "뿔 애벌레",
-		maxHealth = 120,      -- 뿔 애벌레 강력함 반영
-		baseDamage = 12,      -- 슬라임보다 강력한 공격력
+		maxHealth = 110,
+		baseDamage = 10,
 		attackCooldown = 2.0, -- 공격 속도 2.0초
 		respawnDelay = 2.0,   -- 부활 딜레이 2초
 		modelScale = 0.07,    -- 몬스터 크기 정밀 축소 보정 (조금 더 선명해진 크기)
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 세로 모델의 머리 방향(아래)을 전방으로 오도록 눕힘
 		walkSpeed = 6,        -- 씩씩한 전진 속도
-		xpReward = 40,        -- 풍부한 경험치 보상 (하향 조정)
-		level = 8, -- 몬스터 레벨 추가
+		xpReward = 30,
+		level = 7,
 		
 		-- [활성화]: 4개의 꼭짓점 사각형 영역 내부에 뿔 애벌레 10마리 랜덤 스폰!
 		spawnAsPolygon = true,
@@ -63,58 +63,58 @@ local MobSpawnData = {
 		spawnRotationOffset = {x = 90, y = 0, z = 0},
 		customHipHeight = 1.2,
 		walkSpeed = 10,
-		level = 13, -- 몬스터 기본 레벨 추가
+		level = 12,
 		-- 스텀프 5마리 스폰 (스텀프 킹 제외)
 		spawnEntries = {
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 300,
-				baseDamage = 18,
+				maxHealth = 240,
+				baseDamage = 15,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 250,
-				level = 13,
+				xpReward = 85,
+				level = 12,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 300,
-				baseDamage = 18,
+				maxHealth = 240,
+				baseDamage = 15,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 250,
-				level = 13,
+				xpReward = 85,
+				level = 12,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 300,
-				baseDamage = 18,
+				maxHealth = 240,
+				baseDamage = 15,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 250,
-				level = 13,
+				xpReward = 85,
+				level = 12,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 300,
-				baseDamage = 18,
+				maxHealth = 240,
+				baseDamage = 15,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 250,
-				level = 13,
+				xpReward = 85,
+				level = 12,
 			},
 			{
 				mobModelName = "Stump",
 				mobDisplayName = "스텀프",
-				maxHealth = 300,
-				baseDamage = 18,
+				maxHealth = 240,
+				baseDamage = 15,
 				attackCooldown = 1.5,
 				modelScale = 0.2,
-				xpReward = 250,
-				level = 13,
+				xpReward = 85,
+				level = 12,
 			},
 		},
 		spawnPositions = {
@@ -129,16 +129,16 @@ local MobSpawnData = {
 		spawnAreaId = "CyclopsBatZone",
 		mobModelName = "CyclopsBat",
 		mobDisplayName = "사이클롭스 박쥐",
-		maxHealth = 350,  -- 사이클롭스 박쥐 강력함 반영
-		baseDamage = 35,  
+		maxHealth = 1100,
+		baseDamage = 32,
 		attackCooldown = 0.8, 
 		respawnDelay = 3.0,
 		modelScale = 0.09, -- 박쥐 고유 에셋 규격 조율 (0.09로 적당하게 축소)
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 비행 방향을 정면 수직으로 보정
 		customHipHeight = 15.0, -- 공중 비행(Hovering) 높이 15.0 스터드로 강제 보정
 		walkSpeed = 10,   
-		xpReward = 120,
-		level = 23, -- 박쥐 레벨 23
+		xpReward = 260,
+		level = 28,
 		
 		spawnAsPolygon = true,
 		spawnCount = 4, -- 4마리 배치
@@ -157,14 +157,14 @@ local MobSpawnData = {
 		spawnAreaId = "SmallGolemZone",
 		mobModelName = "SmallGolem",
 		mobDisplayName = "작은 골렘",
-		maxHealth = 500,     -- 골렘 특성상 맷집이 강함
-		baseDamage = 30,     -- 묵직한 데미지
+		maxHealth = 850,
+		baseDamage = 22,
 		attackCooldown = 2.5, -- 공격 속도는 다소 느림
 		respawnDelay = 5.0,
-		modelScale = 4.5,    -- [수정] 살짝 더 키워달라는 요청 반영 (4.0 -> 4.5배 확대)
+		modelScale = 9.0,    -- 스텀프 킹 다음 티어가 확실히 느껴지도록 추가 확대
 		walkSpeed = 5,       -- 느릿하고 묵직한 이동
-		xpReward = 200,      -- 높은 경험치 보상 (상향 조정)
-		level = 18, -- 작은 골렘 레벨 18
+		xpReward = 180,
+		level = 18,
 		
 		spawnAsPolygon = true,
 		spawnCount = 6,
@@ -184,15 +184,15 @@ local MobSpawnData = {
 		spawnAreaId = "StumpKingZone",
 		mobModelName = "StumpKing",
 		mobDisplayName = "스텀프 킹",
-		maxHealth = 1200,
-		baseDamage = 35,
+		maxHealth = 1600,
+		baseDamage = 24,
 		attackCooldown = 3.0,
 		respawnDelay = 20.0,
 		modelScale = 0.075,    -- 검증 완료: 0.05 크기 대비 1.5배 적절하게 키운 최종 보스 황금 비율
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 원본 모델을 수직으로 세우는 회전 보정
 		walkSpeed = 8,
-		xpReward = 1000,
-		level = 28, -- 스텀프 킹 레벨 28
+		xpReward = 320,
+		level = 18,
 		
 		spawnAsPolygon = true,
 		spawnCount = 2, -- 스텀프 킹 2마리씩 스폰되게 조정
@@ -214,12 +214,12 @@ local MobSpawnData = {
 		baseDamage = 30,     -- [상향] 공격력 대폭 상향 (기존 15 -> 45 -> 30 조정)
 		attackCooldown = 1.5, -- [상향] 공격 속도 상승 (기존 2.0 -> 1.5)
 		respawnDelay = 5.0,
-		modelScale = 0.003,
+		modelScale = 0.005,  -- 거미 실루엣이 더 확실히 보이도록 크기 상향
 		walkSpeed = 16,      -- [상향] 이동 속도 상승 (기존 12 -> 16)
 		xpReward = 450,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500 -> 450 조정)
 		
 		spawnAsPolygon = true,
-		spawnCount = 4,
+		spawnCount = 7, -- 거미 구역 압박감을 높이기 위해 스폰 수 증가
 		isIndoor = true,
 		skipTerrainScan = true,
 		
@@ -233,17 +233,17 @@ local MobSpawnData = {
 	
 	["SkyIsland_BlueFlameKnight"] = {
 		spawnAreaId = "SkyIsland_BlueFlameKnight",
-		level = 53, -- 푸른불꽃의 기사 레벨 53
+		level = 63,
 		mobModelName = "BlueFlameKnight",
 		mobDisplayName = "푸른 불꽃 기사",
-		maxHealth = 35000,     -- 하늘섬 최종 보스급 스펙
-		baseDamage = 110,      -- 방어 못하면 즉사급 위력
+		maxHealth = 30000,
+		baseDamage = 120,
 		attackCooldown = 2.0,  -- 공격 휘두르는 속도
 		respawnDelay = 60.0,   -- 처치 후 1분 뒤 리스폰
 		modelScale = 1.5,      -- 기본 R6 모델보다 큼 (위압감)
 		customHipHeight = 1.8, -- [옵션] 3.0 이상 띄울 때 발이 공중에 뜨면 1.8로 보정 (다리 길이에 따라 조정)
 		walkSpeed = 12,        -- 평상시 추격 이속
-		xpReward = 10000,      -- 처치 시 보상 경험치 대폭 상승
+		xpReward = 12000,
 		
 		spawnAsPolygon = false,  -- [버그수정] 보스는 무작위 스폰이 아닌 보스방 정중앙 고정 스폰!
 		spawnCount = 1,         -- 보스 1마리 웅장하게 대기
@@ -262,18 +262,18 @@ local MobSpawnData = {
 	
 	["GhostKnightZone"] = {
 		spawnAreaId = "GhostKnightZone",
-		level = 48, -- 유령기사(거인) 레벨 48
+		level = 58,
 		mobModelName = "GhostKnight",
 		dropTableId = "GIANTGHOSTKNIGHT",
 		mobDisplayName = "유령기사(거인)",
-		maxHealth = 12000,      -- 중간 보스급 체력
-		baseDamage = 70,        -- 맞으면 치명상
+		maxHealth = 14000,
+		baseDamage = 90,
 		attackCooldown = 2.2,   -- 공격 속도
 		respawnDelay = 30.0,    -- 처치 후 30초 뒤 리스폰
 		modelScale = 2.5,       -- 기존 모델보다 거대하게 2.5배 확대
 		customHipHeight = 1.5,  -- [크기 스케일링 대비]: 중앙이 뜬다는 제보가 있으니 1.5로 낮춤 (다리 길이에 비례)
 		walkSpeed = 9,          -- 기본 이동 속도
-		xpReward = 3000,        -- 엘리트 처치 경험치
+		xpReward = 4500,
 		
 		spawnAsPolygon = false, -- [공중 부상 버그 영구 해결]: 불규칙 지형에서 스폰되다 뜨는 현상을 원천 방지
 		spawnCount = 1,         -- 중간보스 1마리 웅장하게 대기
@@ -292,17 +292,17 @@ local MobSpawnData = {
 	
 	["NormalGhostKnightZone"] = {
 		spawnAreaId = "NormalGhostKnightZone",
-		level = 38, -- 유령기사 레벨 38
+		level = 48,
 		mobModelName = "GhostKnight",
 		mobDisplayName = "유령기사",
-		maxHealth = 2500,       -- 첫 통곡의 벽 수준의 맷집
-		baseDamage = 40,        -- 공격력 위협적으로 증가
+		maxHealth = 4200,
+		baseDamage = 68,
 		attackCooldown = 2.5,   -- 공격속도
 		respawnDelay = 15.0,    -- 처치 후 15초 뒤 리스폰
 		modelScale = 1.0,       -- 일반 사이즈
 		customHipHeight = 1.0,  -- 기본 모델에 맞는 높이
 		walkSpeed = 10,         -- 일반 이동 속도
-		xpReward = 400,         -- 일반 몹 경험치 상향
+		xpReward = 1600,
 		
 		spawnAsPolygon = true,  -- 폴리곤 내 무작위 스폰
 		spawnCount = 4,         -- 4마리 스폰
@@ -319,17 +319,17 @@ local MobSpawnData = {
 	
 	["GhostWizardZone"] = {
 		spawnAreaId = "GhostWizardZone",
-		level = 43, -- 유령마법사 레벨 43
+		level = 53,
 		mobModelName = "GhostWizard",
 		mobDisplayName = "유령 마법사",
-		maxHealth = 1800,       -- 기사보다는 낮지만 높은 맷집
-		baseDamage = 55,        -- 마법 데미지 강력하게 설정
+		maxHealth = 5200,
+		baseDamage = 80,
 		attackCooldown = 3.0,   -- 원거리 캐스팅 속도
 		respawnDelay = 15.0,    -- 처치 후 15초 뒤 리스폰
 		modelScale = 1.0,       -- 일반 사이즈
 		customHipHeight = 1.0,  -- 기본 모델에 맞는 높이
 		walkSpeed = 8,          -- 일반 기사보다 느린 이동 속도
-		xpReward = 500,         -- 경험치 상향
+		xpReward = 2200,
 		
 		spawnAsPolygon = true,  -- 폴리곤 내 무작위 스폰
 		spawnCount = 4,         -- 4마리 스폰
@@ -346,17 +346,17 @@ local MobSpawnData = {
 	
 	["SamuraiZone"] = {
 		spawnAreaId = "SamuraiZone",
-		level = 40, -- 사무라이 기본 레벨 40 설정
+		level = 23,
 		mobModelName = "Samurai",
 		mobDisplayName = "사무라이",
-		maxHealth = 3000, -- 기사급의 체력
-		baseDamage = 50, -- 날카로운 참격 데미지
+		maxHealth = 1400,
+		baseDamage = 28,
 		attackCooldown = 2.0,
 		respawnDelay = 15.0,
 		modelScale = 1.6,
 		customHipHeight = 1.0, -- 지면 밀착을 위해 1.0으로 복구
 		walkSpeed = 11, -- 약간 기민한 이동 속도
-		xpReward = 600,
+		xpReward = 380,
 		
 		spawnAsPolygon = true,
 		spawnCount = 6, -- 스폰 마리수 6마리로 증가
@@ -375,17 +375,17 @@ local MobSpawnData = {
 	
 	["IceKnightZone"] = {
 		spawnAreaId = "IceKnightZone",
-		level = 45, -- 얼음 기사 레벨 45 설정
+		level = 38,
 		mobModelName = "IceKnight",
 		mobDisplayName = "얼음 기사",
-		maxHealth = 6000, -- 튼튼한 체력
-		baseDamage = 60, -- 묵직한 냉기 데미지
+		maxHealth = 2400,
+		baseDamage = 46,
 		attackCooldown = 2.2,
 		respawnDelay = 15.0,
-		modelScale = 1.5,
+		modelScale = 2.5,    -- [수정] 얼음 기사 크기 상향 (1.5 -> 2.5)
 		customHipHeight = 1.0, -- 지면 밀착 안착 높이
 		walkSpeed = 8, -- 약간 묵직한 이동 속도
-		xpReward = 1200,
+		xpReward = 750,
 		
 		spawnAsPolygon = true,
 		spawnCount = 4, -- 스폰 마리수 4마리
@@ -404,17 +404,17 @@ local MobSpawnData = {
 	
 	["IceKnightZone2"] = {
 		spawnAreaId = "IceKnightZone2",
-		level = 45, -- 얼음 기사 레벨 45 설정
+		level = 38,
 		mobModelName = "IceKnight",
 		mobDisplayName = "얼음 기사",
-		maxHealth = 6000,
-		baseDamage = 60,
+		maxHealth = 2400,
+		baseDamage = 46,
 		attackCooldown = 2.2,
 		respawnDelay = 15.0,
-		modelScale = 1.5,
+		modelScale = 2.5,    -- [수정] 얼음 기사 2구역 크기 상향 (1.5 -> 2.5)
 		customHipHeight = 1.0,
 		walkSpeed = 8,
-		xpReward = 1200,
+		xpReward = 750,
 		
 		spawnAsPolygon = true,
 		spawnCount = 4, -- 추가 구역 스폰 마리수 4마리
@@ -423,6 +423,66 @@ local MobSpawnData = {
 		raycastDepth = -200,
 		
 		-- 두 번째 스폰지역 좌표 반영
+		spawnPositions = {
+			{x = -450.573, y = -34.651, z = 2979.76},
+			{x = -343.85, y = -47.651, z = 2937.212},
+			{x = -529.822, y = -73.027, z = 2611.048},
+			{x = -621.871, y = -72.87, z = 2684.114}
+		}
+	},
+	
+	["IceDragonZone"] = {
+		spawnAreaId = "IceDragonZone",
+		level = 33,
+		mobModelName = "IceDragon",
+		mobDisplayName = "아이스 드래곤",
+		maxHealth = 1800,
+		baseDamage = 38,
+		attackCooldown = 2.2,
+		respawnDelay = 15.0,
+		modelScale = 0.08, -- [수정] 크기 추가 축소 (0.15 -> 0.08)
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- [추가] 정자세 스폰용 회전 보정
+		customHipHeight = 5.0, -- 공중 비행(Hovering) 높이 5.0 스터드로 보정
+		walkSpeed = 8,
+		xpReward = 520,
+		
+		spawnAsPolygon = true,
+		spawnCount = 4,
+		isIndoor = true,
+		raycastStartOffsetY = 100,
+		raycastDepth = -200,
+		
+		-- 얼음 기사 1구역과 동일한 좌표 반영
+		spawnPositions = {
+			{x = -41.777, y = -52.658, z = 3218.926},
+			{x = -241.641, y = -78.034, z = 2938.122},
+			{x = -488.123, y = -77.877, z = 3056.269},
+			{x = -248.026, y = -39.658, z = 3329.409}
+		}
+	},
+	
+	["IceDragonZone2"] = {
+		spawnAreaId = "IceDragonZone2",
+		level = 33,
+		mobModelName = "IceDragon",
+		mobDisplayName = "아이스 드래곤",
+		maxHealth = 1800,
+		baseDamage = 38,
+		attackCooldown = 2.2,
+		respawnDelay = 15.0,
+		modelScale = 0.08, -- [수정] 크기 추가 축소 (0.15 -> 0.08)
+		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- [추가] 정자세 스폰용 회전 보정
+		customHipHeight = 5.0, -- 공중 비행(Hovering) 높이 5.0 스터드로 보정
+		walkSpeed = 8,
+		xpReward = 520,
+		
+		spawnAsPolygon = true,
+		spawnCount = 4,
+		isIndoor = true,
+		raycastStartOffsetY = 100,
+		raycastDepth = -200,
+		
+		-- 얼음 기사 2구역과 동일한 좌표 반영
 		spawnPositions = {
 			{x = -450.573, y = -34.651, z = 2979.76},
 			{x = -343.85, y = -47.651, z = 2937.212},

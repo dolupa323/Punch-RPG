@@ -24,6 +24,8 @@ local spAvailable = 0
 local spSpent = 0
 local activeSkillSlots = { nil, nil, nil, nil }
 local playerLevel = 1
+local skillBooks = {}
+local equippedPassives = {}
 
 -- 액티브 스킬 쿨다운 (클라이언트 예측)
 local DEV_NO_COOLDOWN = false -- ★ 개발용 노쿨 해제 (원래대로 복구)
@@ -80,6 +82,14 @@ function SkillController.getPlayerLevel()
 	return playerLevel
 end
 
+function SkillController.getSkillBooks()
+	return skillBooks
+end
+
+function SkillController.getEquippedPassives()
+	return equippedPassives
+end
+
 function SkillController.isSkillUnlocked(skillId: string): boolean
 	return unlockedSkills[skillId] == true
 end
@@ -133,6 +143,8 @@ function SkillController.requestData(callback: ((boolean) -> ())?)
 			spSpent = data.spSpent or 0
 			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
 			playerLevel = data.level or 1
+			equippedPassives = data.equippedPassives or {}
+			skillBooks = data.skillBooks or {}
 			_fireListeners()
 		end
 		if callback then callback(ok) end
@@ -182,18 +194,28 @@ end
 
 --- 룬 슬롯 이름(RUNE1, RUNE2, RUNE3)으로 스킬 사용
 function SkillController.useSkill(slotName: string)
-	-- 1. 장착된 룬 확인
-	local equip = InventoryController.getEquipment()
-	local item = equip[slotName]
-	if not item or not item.itemId then return end
+	-- 1. 슬롯 인덱스 매핑
+	local slotIndex = nil
+	if slotName == "RUNE1" then slotIndex = 1
+	elseif slotName == "RUNE2" then slotIndex = 2
+	elseif slotName == "RUNE3" then slotIndex = 3
+	end
+	if not slotIndex then return end
 	
-	local itemId = item.itemId
+	-- 2. 장착된 스킬 ID 확인 (Skill Tree 또는 자동 장착된 룬 스킬)
+	local skillId = activeSkillSlots[slotIndex]
+	if not skillId then return end
 	
-	-- 1.2. 패시브 룬은 액티브 스킬로 사용할 수 없으므로 사전에 시전 차단
+	-- 3. 패시브 룬 시전 차단
 	local ItemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
 	local itemProfile = nil
+	local baseItemId = string.gsub(skillId, "^SKILL_", "")
+	if baseItemId == "ROCK" then
+		baseItemId = "NIGHT"
+	end
+	
 	for _, it in ipairs(ItemData) do
-		if it.id == itemId then
+		if it.id == baseItemId or it.id == skillId then
 			itemProfile = it
 			break
 		end
@@ -202,13 +224,11 @@ function SkillController.useSkill(slotName: string)
 		return
 	end
 	
-	-- 1.5. 발도 상태 로직 삭제됨
-	
 	-- 2. 로컬 쿨다운 프리체크
 	local now = tick()
 	if not DEV_NO_COOLDOWN then
 		if skillGCD > now then return end
-		if skillCooldowns[itemId] and skillCooldowns[itemId] > now then return end
+		if skillCooldowns[skillId] and skillCooldowns[skillId] > now then return end
 	end
 	
 	-- 3. 캐릭터 조준 방향 계산 (LookVector)
@@ -227,7 +247,7 @@ function SkillController.useSkill(slotName: string)
 		local targetCFrame = CFrame.new(hrp.Position, hrp.Position + lookVec)
 		local AvatarController = require(script.Parent:WaitForChild("AvatarController"))
 		if AvatarController and AvatarController.playSkillCast then
-			AvatarController.playSkillCast(itemId, hrp, targetCFrame)
+			AvatarController.playSkillCast(skillId, hrp, targetCFrame)
 		end
 	end
 
@@ -235,7 +255,7 @@ function SkillController.useSkill(slotName: string)
 	task.spawn(function()
 		local payload = { 
 			slot = slotName, 
-			itemId = itemId,
+			itemId = skillId,
 			aimDirection = aimDirection
 		}
 		
@@ -244,12 +264,12 @@ function SkillController.useSkill(slotName: string)
 		if ok and data then
 			-- 서버에서 받은 쿨다운으로 보정
 			if data.cooldown then
-				skillCooldowns[itemId] = tick() + data.cooldown
+				skillCooldowns[skillId] = tick() + data.cooldown
 				skillGCD = tick() + 0.5 -- Global Cooldown
 			end
 		else
 			-- 실패 시 로컬 쿨다운 롤백
-			skillCooldowns[itemId] = nil
+			skillCooldowns[skillId] = nil
 			skillGCD = 0
 			
 			-- 에러 피드백
@@ -266,6 +286,12 @@ function SkillController.useSkill(slotName: string)
 		end
 		_fireCooldownListeners()
 	end)
+end
+
+--- 슬롯 인덱스(1, 2, 3)로 스킬 사용 (UI 및 모바일 대응)
+function SkillController.useSkillIndex(slotIndex: number)
+	local slotName = "RUNE" .. slotIndex
+	SkillController.useSkill(slotName)
 end
 
 --- 특정 스킬 잔여 쿨다운 조회 (초)
@@ -357,6 +383,56 @@ function SkillController.requestReset(callback: ((boolean) -> ())?)
 	end)
 end
 
+--- 스킬북 학습 요청
+function SkillController.requestLearnBook(bookItemId: string, callback: ((boolean, string?) -> ())?)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Skill.LearnBook.Request", { bookItemId = bookItemId })
+		if ok then
+			unlockedSkills = data.unlockedSkills or unlockedSkills
+			skillBooks = data.skillBooks or skillBooks
+			_fireListeners()
+			if callback then callback(true, nil) end
+		else
+			if callback then callback(false, tostring(data or "UNKNOWN")) end
+		end
+	end)
+end
+
+--- 패시브 스킬 장착 요청
+function SkillController.requestEquipPassive(skillId: string, slot: number, callback: ((boolean, string?) -> ())?)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Skill.EquipPassive.Request", { skillId = skillId, slot = slot })
+		if ok and data then
+			-- ok가 true이면 서버에서 성공 처리됨 (data는 result.data 즉 { equippedPassives = ... })
+			if data.equippedPassives then
+				equippedPassives = data.equippedPassives
+				_fireListeners()
+			end
+			if callback then callback(true, nil) end
+		else
+			if callback then callback(false, tostring(data or "UNKNOWN")) end
+		end
+	end)
+end
+
+--- 패시브 스킬 해제 요청
+function SkillController.requestUnequipPassive(slot: number, callback: ((boolean, string?) -> ())?)
+	task.spawn(function()
+		local ok, data = NetClient.Request("Skill.UnequipPassive.Request", { slot = slot })
+		if ok and data then
+			if data.equippedPassives then
+				equippedPassives = data.equippedPassives
+				_fireListeners()
+			end
+			if callback then callback(true, nil) end
+		else
+			if callback then callback(false, tostring(data or "UNKNOWN")) end
+		end
+	end)
+end
+
+
+
 --========================================
 -- Init
 --========================================
@@ -379,6 +455,8 @@ function SkillController.Init()
 				spSpent = data.spSpent or 0
 				activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
 				playerLevel = data.level or 1
+				skillBooks = data.skillBooks or {}
+				equippedPassives = data.equippedPassives or {}
 				_fireListeners()
 				local player = game:GetService("Players").LocalPlayer
 				if player then player:SetAttribute("SkillLoaded", true) end
@@ -409,6 +487,8 @@ function SkillController.Init()
 			spSpent = data.spSpent or 0
 			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
 			playerLevel = data.level or 1
+			skillBooks = data.skillBooks or {}
+			equippedPassives = data.equippedPassives or {}
 			_fireListeners()
 			print("[SkillController] Received Skill.Data.Updated and refreshed local cache!")
 		end

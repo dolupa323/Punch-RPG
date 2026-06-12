@@ -34,7 +34,8 @@ local screenGui = create("ScreenGui", {
 	Parent = playerGui,
 	IgnoreGuiInset = true,
 	DisplayOrder = 9999, -- 가장 위에 렌더링
-	ResetOnSpawn = false
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 })
 
 -- loadingFrame 및 기존 로딩 UI 제거 (titleFrame으로 통합)
@@ -159,10 +160,10 @@ local invisibleStartButton = create("TextButton", {
 	Name = "InvisibleStartButton",
 	Parent = titleFrame,
 	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundTransparency = 1,
+	BackgroundTransparency = 0.99, -- 0.99로 클릭 히트영역 확보
 	Active = true, -- 입력 가로채기 보장
 	Text = "",
-	ZIndex = 10 
+	ZIndex = 15 -- ZIndex 순서 상위에 배치하여 클릭 차단 차단
 })
 
 -- Credits 버튼 추가
@@ -318,56 +319,102 @@ task.spawn(function()
 	end
 end)
 
--- 가짜 로딩 프로그래스 애니메이션 (게임이 빠르게 로드될 수도 있으므로 최소 보여주기 용)
+-- 실제 로딩 프로그래스 제어
 local progress = 0
-local isLoading = true
 
-task.spawn(function()
-	while isLoading do
-		if progress < 90 then
-			progress = progress + math.random(2, 6)
-			if progress > 90 then progress = 90 end
-		end
-		
-		TweenService:Create(progressBarFill, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {
-			Size = UDim2.new(progress/100, 0, 1, 0)
-		}):Play()
-		percentText.Text = progress .. "%"
-		
-		task.wait(0.1 + (math.random() * 0.2))
-	end
-end)
+local function updateProgress(targetProgress, speed)
+	progress = targetProgress
+	TweenService:Create(progressBarFill, TweenInfo.new(speed or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = UDim2.new(progress/100, 0, 1, 0)
+	}):Play()
+	percentText.Text = math.floor(progress) .. "%"
+end
 
--- 배경 불투명 유지 (게임 월드 숨김 — 타이틀 화면이 닫힐 때까지)
+-- 1단계: 게임 인스턴스 로딩 대기
+statusText.Text = "게임 리소스를 구성하고 있습니다..."
+updateProgress(5, 0.5)
 
--- 실제 로딩 대기
 if not game:IsLoaded() then
 	game.Loaded:Wait()
 end
+updateProgress(10, 0.3)
+task.wait(0.2)
 
-statusText.Text = "에셋을 로딩 중입니다..."
+-- 2단계: 핵심 에셋 폴더 대기 및 로드 리스트 생성
+statusText.Text = "에셋 데이터를 탐색하고 있습니다..."
 local assetsFolder = game.ReplicatedStorage:WaitForChild("Assets", 30)
-if assetsFolder then
-	assetsFolder:WaitForChild("ItemIcons", 15)
-end
 
-statusText.Text = "게임 정보를 동기화 중입니다..."
-while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) do
-	task.wait(0.2)
-	-- 프로그레스 강제 업데이트 (95%까지)
-	if progress < 95 then
-		progress = progress + 1
+local preloadList = {}
+if assetsFolder then
+	-- 에셋 폴더 하위 탐색 (클론되는 투사체, VFX, 사운드, 아이콘 등 렉의 핵심 원인)
+	for _, desc in ipairs(assetsFolder:GetDescendants()) do
+		if desc:IsA("MeshPart") or desc:IsA("SpecialMesh") or desc:IsA("Decal") or desc:IsA("Texture") 
+			or desc:IsA("Sound") or desc:IsA("Animation") or desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam") then
+			table.insert(preloadList, desc)
+		end
 	end
 end
 
--- 로딩 완료
-isLoading = false
-progress = 100
+-- 3단계: 실제 에셋 사전 로드 진행 (PreloadAsync)
+local totalAssets = #preloadList
+if totalAssets > 0 then
+	local batchSize = 25
+	local loadedCount = 0
+	local loadingFinished = false
+	
+	-- 백그라운드 스레드에서 프리로드 수행 (메인 스레드 대기 방지)
+	task.spawn(function()
+		for i = 1, totalAssets, batchSize do
+			if loadingFinished then break end
+			
+			local batch = {}
+			for j = i, math.min(i + batchSize - 1, totalAssets) do
+				table.insert(batch, preloadList[j])
+			end
+			
+			-- 비동기 로딩을 pcall로 보호하여 오류 방지
+			pcall(function()
+				ContentProvider:PreloadAsync(batch)
+			end)
+			
+			loadedCount = loadedCount + #batch
+			local ratio = loadedCount / totalAssets
+			local nextProgress = 10 + math.floor(ratio * 75) -- 10% ~ 85% 구간 할당
+			statusText.Text = string.format("에셋을 다운로드 중입니다... (%d/%d)", loadedCount, totalAssets)
+			updateProgress(nextProgress, 0.05)
+			task.wait()
+		end
+		loadingFinished = true
+	end)
+	
+	-- 최대 8초간 프리로드 완료 대기 (무한 대기 방지 타임아웃)
+	local preloadStartTime = os.clock()
+	while not loadingFinished and (os.clock() - preloadStartTime) < 8 do
+		task.wait(0.1)
+	end
+	
+	if not loadingFinished then
+		warn("[LoadingScreen] Asset preload timed out. Proceeding to prevent hanging.")
+		loadingFinished = true
+	end
+	updateProgress(85, 0.2)
+else
+	updateProgress(85, 0.5)
+end
+
+-- 4단계: 플레이어 데이터 및 서비스 연동 대기
+statusText.Text = "게임 정보를 동기화 중입니다..."
+local waitStartTime = os.clock()
+while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) do
+	task.wait(0.2)
+	-- 데이터 로드 진행상황에 따라 85% ~ 95% 구간으로 완만히 증가
+	local elapsed = os.clock() - waitStartTime
+	local fakeProgress = 85 + math.min(math.floor(elapsed * 1.5), 10)
+	updateProgress(fakeProgress, 0.2)
+end
+
+updateProgress(100, 0.4)
 statusText.Text = "접속 완료!"
-TweenService:Create(progressBarFill, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {
-	Size = UDim2.new(1, 0, 1, 0)
-}):Play()
-percentText.Text = "100%"
 task.wait(0.6)
 
 -- 로딩바 페이드 아웃
@@ -426,7 +473,8 @@ closeCredits.MouseButton1Click:Connect(function()
 end)
 
 -- 아무데나 클릭 시 시작
-invisibleStartButton.MouseButton1Click:Connect(function()
+invisibleStartButton.Activated:Connect(function()
+	print(string.format("[LoadingScreen] Touch/Click registered on InvisibleStartButton. Progress: %s", tostring(progress)))
 	-- 로딩이 완료되지 않았으면 클릭 무시
 	if progress < 100 then return end
 	

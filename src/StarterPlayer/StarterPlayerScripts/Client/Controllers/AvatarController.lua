@@ -24,6 +24,7 @@ local elementSelected = false
 local comboIndex = 1              -- 현재 공격 콤보 단계 (1 ➡️ 2 ➡️ 3)
 local lastAttackTime = 0          -- 마지막 평타 시전 타임스탬프
 local attackCooldown = false      -- 연타 쿨다운 가드
+local activeAttackTrack = nil     -- 현재 재생 중인 평타 애니메이션 트랙 캐싱
 local COMBO_WINDOW = 0.8          -- 콤보 연타 유효 판정 시간 (0.8초 이내 클릭 시 다음 콤보 발동)
 
 --========================================
@@ -662,17 +663,31 @@ local function handleLMBAttack()
 	attackCooldown = true
 	local comboCooldown = weaponData.cooldown or 0.28
 	
-	-- [패시브 룬 버프]: 룬 슬롯(RUNE1, RUNE2, RUNE3)에 '근성 룬(GRIT_RUNE)' 장착 시 공격 쿨다운 5% 감소 (공속 5% 증가) 적용
+	-- [패시브 룬/스킬 버프]: 룬 슬롯에 '근성 룬(GRIT_RUNE)' 장착 또는 패시브 스킬 슬롯에 '근성' 장착 시 공격 쿨다운 5% 감소 (공속 5% 증가) 적용
+	local hasGrit = false
 	local InventoryController = require(script.Parent:WaitForChild("InventoryController"))
 	local equip = InventoryController.getEquipment()
 	if equip then
 		for _, runeSlot in ipairs({"RUNE1", "RUNE2", "RUNE3"}) do
 			local eqItem = equip[runeSlot]
 			if eqItem and eqItem.itemId == "GRIT_RUNE" then
-				comboCooldown = comboCooldown * 0.95
+				hasGrit = true
 				break
 			end
 		end
+	end
+	if not hasGrit then
+		local SkillController = require(script.Parent:WaitForChild("SkillController"))
+		local equippedPassives = SkillController.getEquippedPassives()
+		for _, skillId in pairs(equippedPassives) do
+			if skillId == "SKILL_RUNE_GRIT" then
+				hasGrit = true
+				break
+			end
+		end
+	end
+	if hasGrit then
+		comboCooldown = comboCooldown * 0.95
 	end
 
 	local comboWindow = weaponData.comboWindow or 0.8
@@ -697,8 +712,17 @@ local function handleLMBAttack()
 	local staffAnimFolder = weaponsAnimFolder and weaponsAnimFolder:FindFirstChild("Staff")
 	
 	-- 콤보 인덱스에 매핑되는 애니메이션 불러오기
-	local animName = weaponData.animations[comboIndex] or ("Staff_None_AttackSwing" .. comboIndex)
+	local defaultSwordAnim = "AttackSword_Swing_" .. comboIndex
+	local animName = weaponData.animations[comboIndex] or defaultSwordAnim
 	local targetAnim = staffAnimFolder and staffAnimFolder:FindFirstChild(animName)
+
+	-- 이전 평타 애니메이션이 아직 진행 중이면 겹치지 않게 중단 처리
+	if activeAttackTrack then
+		pcall(function()
+			activeAttackTrack:Stop(0.1)
+		end)
+		activeAttackTrack = nil
+	end
 
 	local playedAnim = false
 	local currentAttackTrack = nil
@@ -711,6 +735,7 @@ local function handleLMBAttack()
 			playedAnim = true
 			currentAttackTrack = track
 			animLength = (track.Length > 0) and track.Length or 0.4
+			activeAttackTrack = track
 		end
 	end
 
@@ -757,27 +782,28 @@ local function handleLMBAttack()
 			local currentElement = player and player:GetAttribute("Element")
 			local hasElement = currentElement and currentElement ~= "" and currentElement ~= "None"
 			
+			local elementTemplate = nil
 			if hasElement then
 				local vfxName = string.format("%s_Attack_Cast_%d", currentElement, comboIndex)
-				local elementTemplate = castVFXFolder:FindFirstChild(vfxName)
-				if elementTemplate then
-					-- 캐릭터 이동에 끌려가서 원형이 찌그러지지 않도록 hrp 대신 nil을 넘겨 공중에 고정(Anchored)시킵니다.
-					spawnedVFX = spawnCombatVFX(elementTemplate, targetCFrame, 10.0, nil, 1.0, 0)
-				end
-			else
-				local baseTemplate = castVFXFolder:FindFirstChild(string.format("Default_Attack_Cast_%d", comboIndex)) or castVFXFolder:FindFirstChild(string.format("Base_Attack_Cast_%d", comboIndex))
-				if baseTemplate then
-					spawnedVFX = spawnCombatVFX(baseTemplate, targetCFrame, 10.0, nil, 1.0, 0)
-				end
+				elementTemplate = castVFXFolder:FindFirstChild(vfxName)
+			end
+			
+			local targetTemplate = elementTemplate or castVFXFolder:FindFirstChild(string.format("Default_Attack_Cast_%d", comboIndex)) or castVFXFolder:FindFirstChild(string.format("Base_Attack_Cast_%d", comboIndex))
+			if targetTemplate then
+				-- 캐릭터 이동에 끌려가서 원형이 찌그러지지 않도록 hrp 대신 nil을 넘겨 공중에 고정(Anchored)시킵니다.
+				spawnedVFX = spawnCombatVFX(targetTemplate, targetCFrame, 10.0, nil, 1.0, 0)
 			end
 		end
 	end
 
 	-- [정확한 순서 동기화] 임의의 딜레이나 추정값을 사용하지 않고, 이벤트 기반으로 정확히 제어합니다.
 	if currentAttackTrack then
-		-- 1. 애니메이션 즉시 재생
+		-- 1. 애니메이션 즉시 재생 및 속도 조절 (기획된 무기 쿨다운 내에 애니메이션이 완료되도록 재생 속도 조정)
 		currentAttackTrack:Play()
-		print(string.format("[AvatarController] Playing Combo %d Animation: %s", comboIndex, animName))
+		if animLength > 0 and comboCooldown > 0 then
+			currentAttackTrack:AdjustSpeed(animLength / comboCooldown)
+		end
+		print(string.format("[AvatarController] Playing Combo %d Animation: %s (Speed: %.2f)", comboIndex, animName, animLength / comboCooldown))
 		
 		-- 2. 애니메이션 트랙이 끝날 때(종료) 즉시 파티클 방출을 중단(종료)하여 자연스럽게 잔상이 남고 사라지게 함
 		currentAttackTrack.Stopped:Once(function()
@@ -973,6 +999,12 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	local itemData = DataHelper.GetData("ItemData", itemId)
 	local isAuraRune = itemData and itemData.runeMode == "AURA"
 	
+	-- itemId 매핑 (예: SKILL_EMBER -> EMBER, SKILL_DROPLET -> DROPLET, SKILL_ROCK -> NIGHT)
+	local assetKey = string.gsub(itemId, "^SKILL_", "")
+	if assetKey == "ROCK" then
+		assetKey = "NIGHT"
+	end
+	
 	-- 1. 로컬 애니메이션 재생 (Assets/Animations/Weapons/Skill/<itemId>_Cast)
 	if hum and not isAuraRune then
 		local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
@@ -980,13 +1012,13 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		local weaponsAnimFolder = animationsFolder and animationsFolder:FindFirstChild("Weapons")
 		local skillAnimFolder = weaponsAnimFolder and weaponsAnimFolder:FindFirstChild("Skill")
 		
-		local targetAnim = skillAnimFolder and skillAnimFolder:FindFirstChild(itemId .. "_Cast")
+		local targetAnim = skillAnimFolder and skillAnimFolder:FindFirstChild(assetKey .. "_Cast")
 		if targetAnim then
 			local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
 			local track = animator:LoadAnimation(targetAnim)
 			track:Play()
 		else
-			warn(string.format("[ANIM INFO] '%s_Cast' not found in Assets.Animations.Weapons.Skill", itemId))
+			warn(string.format("[ANIM INFO] '%s_Cast' not found in Assets.Animations.Weapons.Skill", assetKey))
 		end
 	end
 
@@ -994,11 +1026,11 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	if not isAuraRune then
 		local castSoundFolder = getCombatSoundFolder("Cast")
 		if castSoundFolder then
-			local soundTemplate = castSoundFolder:FindFirstChild(itemId .. "_Cast")
+			local soundTemplate = castSoundFolder:FindFirstChild(assetKey .. "_Cast")
 			if soundTemplate then
 				playCombatSound(soundTemplate, hrp)
 			else
-				warn(string.format("[SOUND INFO] '%s_Cast' not found in Assets.Sounds.Cast", itemId))
+				warn(string.format("[SOUND INFO] '%s_Cast' not found in Assets.Sounds.Cast", assetKey))
 			end
 		end
 	end
@@ -1007,12 +1039,12 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	if not isAuraRune then
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then
-			local vfxTemplate = castVFXFolder:FindFirstChild(itemId .. "_Cast")
+			local vfxTemplate = castVFXFolder:FindFirstChild(assetKey .. "_Cast")
 			if vfxTemplate then
 				-- 스킬의 경우 투사체가 날아갈 수 있도록 moveForwardDist 부여 (예: 20 스터드)
 				spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, 1.0, 20.0)
 			else
-				warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", itemId))
+				warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", assetKey))
 			end
 		end
 	end
@@ -1023,6 +1055,12 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 	local isAuraRune = itemData and itemData.runeMode == "AURA"
 	local auraHitVfxName = itemData and itemData.auraHitVfxName
 
+	-- itemId 매핑 (예: SKILL_EMBER -> EMBER, SKILL_DROPLET -> DROPLET, SKILL_ROCK -> NIGHT)
+	local assetKey = string.gsub(itemId, "^SKILL_", "")
+	if assetKey == "ROCK" then
+		assetKey = "NIGHT"
+	end
+
 	-- 1. 공용 Hit Sound 재생 (룬이든 평타든 모두 동일하게)
 	local hitSoundFolder = getCombatSoundFolder("Hit")
 	if hitSoundFolder then
@@ -1030,7 +1068,7 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 		if isAuraRune then
 			soundTemplate = hitSoundFolder:FindFirstChild("Default_Attack_Hit")
 		else
-			soundTemplate = hitSoundFolder:FindFirstChild(itemId .. "_Hit")
+			soundTemplate = hitSoundFolder:FindFirstChild(assetKey .. "_Hit")
 				or hitSoundFolder:FindFirstChild("Default_Attack_Hit")
 				or hitSoundFolder:FindFirstChild("Base_Attack_Hit")
 		end
@@ -1052,7 +1090,7 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
 				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
 		else
-			vfxTemplate = hitVFXFolder:FindFirstChild(itemId .. "_Hit")
+			vfxTemplate = hitVFXFolder:FindFirstChild(assetKey .. "_Hit")
 				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
 				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
 		end
@@ -1062,7 +1100,7 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 			local hitLifetime = isAuraRune and 4.0 or 2.0
 			spawnCombatVFX(vfxTemplate, CFrame.new(adjustedPos), hitLifetime)
 		else
-			warn(string.format("[VFX INFO] '%s_Hit' not found in Assets.VFX.Hit", itemId))
+			warn(string.format("[VFX INFO] '%s_Hit' not found in Assets.VFX.Hit", assetKey))
 		end
 	end
 end

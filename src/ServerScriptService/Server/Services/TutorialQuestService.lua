@@ -24,9 +24,9 @@ local playerConnections = {} -- [userId] = { RBXScriptConnection, ... }
 local QUEST_ID = "RPG_TUTORIAL"
 local QUEST_TITLE = "튜토리얼 퀘스트"
 local TOTAL_STEPS = 10
-local QUEST_VERSION = 4
+local QUEST_VERSION = 6
 local QUEST_SCHEMA_VERSION = 1
-local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260603_V2"
+local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260612_V3"
 local QUEST_SAVE_KEY = "rpgTutorialQuest"
 local LEGACY_SAVE_KEY = "tutorialQuest"
 
@@ -37,42 +37,45 @@ local _hasEnhancedItem
 
 local STEP_DEFS = {
 	[1] = {
-		id = "SELECT_ELEMENT",
-		currentStepText = "1. 속성 스승에게 가서 속성 하나 고르기",
-		stepCommand = "속성 스승과 대화해서 불 / 물 / 어둠 중 하나를 선택하세요.",
-		stepKind = "ITEM_ANY",
-		stepCount = 1,
-		rewardGold = 100,
-		sync = function(userId, state, progress)
-			local player = Players:GetPlayerByUserId(userId)
-			local element = player and player:GetAttribute("Element")
-			local done = type(element) == "string" and element ~= "" and element ~= "None"
-			progress.count = math.max(progress.count or 0, done and 1 or 0)
-		end,
-	},
-	[2] = {
 		id = "KILL_SLIME",
-		currentStepText = "2. 슬라임 잡기",
+		currentStepText = "1. 슬라임 잡기",
 		stepCommand = "슬라임 1마리를 처치하세요.",
 		stepKind = "KILL",
 		stepCount = 1,
 		rewardGold = 100,
 	},
-	[3] = {
+	[2] = {
 		id = "COLLECT_SLIME_MUCUS",
-		currentStepText = "3. 슬라임 점액 모으기",
+		currentStepText = "2. 슬라임 점액 모으기",
 		stepCommand = "슬라임 점액 10개를 모으세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 10,
 		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "SLIME_MUCUS"))
+		end,
 	},
-	[4] = {
+	[3] = {
 		id = "CRAFT_SOFTCLUB",
-		currentStepText = "4. 말랑봉 만들기",
-		stepCommand = "말랑봉을 제작하세요.",
+		currentStepText = "3. 슬라임검 만들기",
+		stepCommand = "슬라임검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
+	},
+	[4] = {
+		id = "DISTRIBUTE_STAT",
+		currentStepText = "4. 스탯 올리기",
+		stepCommand = "장비창(스탯)을 열고 공격력 스탯을 1 올리세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 100,
+		sync = function(userId, state, progress)
+			local pStats = PlayerStatService and PlayerStatService.getStats(userId)
+			local invested = pStats and pStats.statInvested
+			local attackInvested = invested and invested[Enums.StatId.ATTACK] or 0
+			progress.count = math.max(progress.count or 0, attackInvested)
+		end,
 	},
 	[5] = {
 		id = "KILL_HORNED_LARVA",
@@ -84,40 +87,57 @@ local STEP_DEFS = {
 	},
 	[6] = {
 		id = "CRAFT_GAKCHANG",
-		currentStepText = "6. 각창 만들기",
-		stepCommand = "각창을 제작하세요.",
+		currentStepText = "6. 단단한 검 만들기",
+		stepCommand = "단단한 검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
 	},
 	[7] = {
 		id = "ENHANCE_GAKCHANG",
-		currentStepText = "7. 각창 1강 강화해보기",
-		stepCommand = "각창을 +1 이상으로 강화하세요.",
+		currentStepText = "7. 단단한 검 1강 강화해보기",
+		stepCommand = "단단한 검을 +1 이상으로 강화하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
 	},
 	[8] = {
-		id = "BUY_POTION",
-		currentStepText = "8. 잡화점에서 포션 사보기",
-		stepCommand = "잡화상에서 기초 HP 포션 또는 기초 MP 포션을 1개 구매하세요.",
+		id = "REGISTER_POTION",
+		currentStepText = "8. 포션 단축키 등록하기",
+		stepCommand = "HP/MP 포션을 구매하고, 가방(I)에서 소비 단축슬롯에 등록하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 100,
+		sync = function(userId, state, progress)
+			local saveState = SaveService and SaveService.getPlayerState(userId)
+			local quickslots = saveState and saveState.quickslots or {}
+			local hasPotionInQuickslot = false
+			for _, itemId in ipairs(quickslots) do
+				if itemId == "BASIC_HP_POTION" or itemId == "BASIC_MP_POTION" then
+					hasPotionInQuickslot = true
+					break
+				end
+			end
+			if hasPotionInQuickslot then
+				progress.count = 1
+			end
+		end,
 	},
 	[9] = {
-		id = "KILL_STUMP",
-		currentStepText = "9. 스텀프 잡기",
-		stepCommand = "스텀프 1마리를 처치하세요.",
-		stepKind = "KILL",
-		stepCount = 1,
+		id = "COLLECT_STUMP_BARK",
+		currentStepText = "9. 사막의 검 재료 모으기",
+		stepCommand = "스텀프 나무껍질 30개를 모으세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 30,
 		rewardGold = 100,
+		sync = function(userId, state, progress)
+			progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "STUMP_BARK"))
+		end,
 	},
 	[10] = {
 		id = "CRAFT_MOGWOLDO",
-		currentStepText = "10. 목월도 만들기",
-		stepCommand = "목월도를 제작하세요.",
+		currentStepText = "10. 사막의 검 만들기",
+		stepCommand = "사막의 검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 200,
@@ -417,6 +437,16 @@ local function _grantCurrentStepReward(userId: number, stepIndex: number)
 	if rewardGold > 0 then
 		_addGold(userId, rewardGold)
 	end
+
+	-- 말랑봉 만들기 완료 시 플레이어가 레벨 2가 되어 스탯 포인트(3포인트)를 갖도록 처리
+	if stepDef.id == "CRAFT_SOFTCLUB" then
+		if PlayerStatService and PlayerStatService.getLevel then
+			local currentLevel = PlayerStatService.getLevel(userId)
+			if currentLevel < 2 then
+				PlayerStatService.addXP(userId, 100, "TUTORIAL")
+			end
+		end
+	end
 end
 
 local function _updateProgressAndSync(userId: number)
@@ -555,15 +585,11 @@ function TutorialQuestService.OnMobKilled(userId: number, mobDisplayName: string
 	local stepIndex = state.stepIndex or 1
 	local progress = _getStepProgress(state, stepIndex)
 
-	if stepIndex == 2 and mobDisplayName == "슬라임" then
+	if stepIndex == 1 and mobDisplayName == "슬라임" then
 		progress.count = (progress.count or 0) + 1
 		state.progressByStep[stepIndex] = progress
 		_updateProgressAndSync(userId)
 	elseif stepIndex == 5 and mobDisplayName == "뿔 애벌레" then
-		progress.count = (progress.count or 0) + 1
-		state.progressByStep[stepIndex] = progress
-		_updateProgressAndSync(userId)
-	elseif stepIndex == 9 and mobDisplayName == "스텀프" then
 		progress.count = (progress.count or 0) + 1
 		state.progressByStep[stepIndex] = progress
 		_updateProgressAndSync(userId)
@@ -576,15 +602,19 @@ function TutorialQuestService.OnItemAdded(userId: number, itemId: string, added:
 		return
 	end
 
-	if state.stepIndex ~= 3 or itemId ~= "SLIME_MUCUS" then
-		return
+	if state.stepIndex == 2 and itemId == "SLIME_MUCUS" then
+		local progress = _getStepProgress(state, 2)
+		progress.count = (progress.count or 0) + added
+		state.progressByStep[2] = progress
+		_persistState(userId)
+		_updateProgressAndSync(userId)
+	elseif state.stepIndex == 9 and itemId == "STUMP_BARK" then
+		local progress = _getStepProgress(state, 9)
+		progress.count = (progress.count or 0) + added
+		state.progressByStep[9] = progress
+		_persistState(userId)
+		_updateProgressAndSync(userId)
 	end
-
-	local progress = _getStepProgress(state, 3)
-	progress.count = (progress.count or 0) + added
-	state.progressByStep[3] = progress
-	_persistState(userId)
-	_updateProgressAndSync(userId)
 end
 
 function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
@@ -596,7 +626,7 @@ function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
 	local stepIndex = state.stepIndex or 1
 	local progress = _getStepProgress(state, stepIndex)
 
-	if stepIndex == 4 and recipeId == "CraftSoftClub" then
+	if stepIndex == 3 and recipeId == "CraftSoftClub" then
 		progress.count = 1
 		state.progressByStep[stepIndex] = progress
 		_updateProgressAndSync(userId)
@@ -612,6 +642,10 @@ function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
 end
 
 function TutorialQuestService.OnShopPurchased(userId: number, shopId: string, itemId: string, count: number)
+	-- 포션 구매 자체로는 완료 처리하지 않고 단축키 등록 시점에 완료되도록 변경됨
+end
+
+function TutorialQuestService.OnQuickslotSaved(userId: number, quickslots: {string})
 	local state = _ensureState(userId)
 	if not state or state.completed then
 		return
@@ -621,14 +655,20 @@ function TutorialQuestService.OnShopPurchased(userId: number, shopId: string, it
 		return
 	end
 
-	if itemId ~= "BASIC_HP_POTION" and itemId ~= "BASIC_MP_POTION" then
-		return
+	local hasPotionInQuickslot = false
+	for _, itemId in ipairs(quickslots) do
+		if itemId == "BASIC_HP_POTION" or itemId == "BASIC_MP_POTION" then
+			hasPotionInQuickslot = true
+			break
+		end
 	end
 
-	local progress = _getStepProgress(state, 8)
-	progress.count = (progress.count or 0) + math.max(1, math.floor(tonumber(count) or 1))
-	state.progressByStep[8] = progress
-	_updateProgressAndSync(userId)
+	if hasPotionInQuickslot then
+		local progress = _getStepProgress(state, 8)
+		progress.count = 1
+		state.progressByStep[8] = progress
+		_updateProgressAndSync(userId)
+	end
 end
 
 function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string, newLevel: number)
@@ -648,6 +688,22 @@ function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string,
 	local progress = _getStepProgress(state, 7)
 	progress.count = 1
 	state.progressByStep[7] = progress
+	_updateProgressAndSync(userId)
+end
+
+function TutorialQuestService.OnStatUpgraded(userId: number, statId: string)
+	local state = _ensureState(userId)
+	if not state or state.completed then
+		return
+	end
+
+	if state.stepIndex ~= 4 or statId ~= Enums.StatId.ATTACK then
+		return
+	end
+
+	local progress = _getStepProgress(state, 4)
+	progress.count = 1
+	state.progressByStep[4] = progress
 	_updateProgressAndSync(userId)
 end
 

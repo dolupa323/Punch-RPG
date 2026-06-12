@@ -198,6 +198,9 @@ Protocol.Commands = {
 	["Skill.SetSlot.Request"] = true,
 	["Skill.Use.Request"] = true,
 	["Skill.Reset.Request"] = true,          -- [DEV] SP 초기화
+	["Skill.LearnBook.Request"] = true,
+	["Skill.EquipPassive.Request"] = true,
+	["Skill.UnequipPassive.Request"] = true,
 
 	-- Portal 명령어 (고대 포탈 시스템)
 	["Portal.GetStatus.Request"] = true,
@@ -212,6 +215,7 @@ Protocol.Commands = {
 	["Admin.GiveEnhanceSet.Request"] = true,
 	["Admin.GiveItem.Request"] = true,
 	["Admin.SetElement.Request"] = true,
+	["Admin.SkillReset.Request"] = true,
 
 	-- Enhancement 명령어 (연금 강화)
 	["Enhance.Request"] = true,

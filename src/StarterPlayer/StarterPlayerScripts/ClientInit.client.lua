@@ -174,9 +174,13 @@ local function createAdminPanel()
 		UIManager.notify("어둠(Dark) 속성으로 변경 요청", Color3.new(0.6, 0.2, 0.8))
 	end)
 
-	mkBtn("완전 초기화 (!)", Color3.fromRGB(180, 60, 60), function()
-		-- 마케팅/테스트용 초기화 로직 (필요 시 구현)
-		UIManager.notify("초기화 요청됨", Color3.new(1, 1, 1))
+	mkBtn("스킬 초기화", Color3.fromRGB(180, 60, 60), function()
+		local ok, data = NetClient.Request("Admin.SkillReset.Request", {})
+		if ok then
+			UIManager.notify("보유 스킬을 모두 초기화했습니다.", Color3.fromRGB(150, 190, 255))
+		else
+			UIManager.notify("스킬 초기화에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
 	end)
 end
 
@@ -186,6 +190,7 @@ end
 local function init()
 	-- Network 초기화 (RemoteFunction/Event 바인딩)
 	NetClient.Init()
+	InputManager.Init()
 
 	-- [All Controllers Auto-Initialization]
 	-- Controllers 디렉토리 내의 모든 모듈 중 Init() 함수가 구현된 대상을 자동 감지하여 일제히 안전(pcall) 기동

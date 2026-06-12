@@ -13,50 +13,47 @@ local touchDebounces = {} -- userId -> lastTouchTime
 local function grantSteadfastReward(player)
 	local userId = player.UserId
 	
-	-- 중복 지급 방지 체크 (인벤토리 및 장치창 스캔)
+	-- 중복 지급 방지 체크 (소장 스킬북 및 스킬 해금 상태 스캔)
+	local SaveService = require(game:GetService("ServerScriptService").Server.Services.SaveService)
 	local InventoryService = require(game:GetService("ServerScriptService").Server.Services.InventoryService)
-	local inv = InventoryService.getInventory(userId)
-	if not inv then return end
-	
-	local hasSteadfast = false
-	if inv.equipment then
-		for _, equip in pairs(inv.equipment) do
-			if equip and equip.itemId == "STEADFAST_RUNE" then
-				hasSteadfast = true
-				break
-			end
-		end
-	end
-	if not hasSteadfast and inv.slots then
-		for _, slotData in pairs(inv.slots) do
-			if slotData and slotData.itemId == "STEADFAST_RUNE" then
-				hasSteadfast = true
+	local state = SaveService and SaveService.getPlayerState(userId)
+	if not state then return end
+
+	local hasSteadfastBookOrSkill = false
+	if state.skillBooks then
+		for _, bid in ipairs(state.skillBooks) do
+			if bid == "BOOK_STEADFAST" then
+				hasSteadfastBookOrSkill = true
 				break
 			end
 		end
 	end
 	
-	-- 이미 보유한 경우 조용히 처리 (스킵)
-	if hasSteadfast then
+	if not hasSteadfastBookOrSkill and state.unlockedSkills and state.unlockedSkills["SKILL_RUNE_STEADFAST"] then
+		hasSteadfastBookOrSkill = true
+	end
+	
+	-- 이미 보유하거나 배운 경우 조용히 처리 (스킵)
+	if hasSteadfastBookOrSkill then
 		return
 	end
 	
-	-- 부동심 룬 지급
-	local added, remaining = InventoryService.addItem(userId, "STEADFAST_RUNE", 1)
+	-- 부동심 스킬북 지급
+	local added, remaining = InventoryService.addItem(userId, "BOOK_STEADFAST", 1)
 	local NetController = require(game:GetService("ServerScriptService").Server.Controllers.NetController)
 	
 	if added > 0 then
 		if NetController then
 			NetController.FireClient(player, "Notify.Message", {
-				text = "가장 높은 곳에 침착하게 도달한 자",
+				text = "가장 높은 곳에 침착하게 도달하여 [부동심 스킬북]을 획득했습니다!",
 				color = "GOLD"
 			})
 		end
-		print(string.format("[LevelTriggerService] Granted STEADFAST_RUNE to player %s (%d)", player.Name, userId))
+		print(string.format("[LevelTriggerService] Granted BOOK_STEADFAST to player %s (%d)", player.Name, userId))
 	else
 		if NetController then
 			NetController.FireClient(player, "Notify.Message", {
-				text = "인벤토리가 가득 차서 [부동심]을 획득하지 못했습니다. 인벤토리를 비우고 다시 시도해 주세요.",
+				text = "인벤토리가 가득 차서 [부동심 스킬북]을 획득하지 못했습니다. 인벤토리를 비우고 다시 시도해 주세요.",
 				color = "RED"
 			})
 		end

@@ -1409,6 +1409,81 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 	end
 	
 	local player = Players:GetPlayerByUserId(userId)
+
+	-- 스킬북 예외 처리: 아이템 ID가 "BOOK_"로 시작하는 경우 인벤토리에 넣지 않고 즉시 소장 스킬북(state.skillBooks)에 추가
+	if type(itemId) == "string" and itemId:sub(1, 5) == "BOOK_" then
+		if SaveService then
+			local state = SaveService.getPlayerState(userId)
+			if state then
+				state.skillBooks = state.skillBooks or {}
+				
+				local skillId = nil
+				if itemId == "BOOK_GRIT" then
+					skillId = "SKILL_RUNE_GRIT"
+				elseif itemId == "BOOK_STEADFAST" then
+					skillId = "SKILL_RUNE_STEADFAST"
+				elseif itemId == "BOOK_DROPLET" then
+					skillId = "SKILL_DROPLET"
+				elseif itemId == "BOOK_EMBER" then
+					skillId = "SKILL_EMBER"
+				elseif itemId == "BOOK_ROCK" then
+					skillId = "SKILL_ROCK"
+				elseif itemId == "BOOK_FLAME" then
+					skillId = "SKILL_RUNE_FLAME_ACTIVE"
+				elseif itemId == "BOOK_WAVE" then
+					skillId = "SKILL_RUNE_WAVE_ACTIVE"
+				elseif itemId == "BOOK_SHADOW" then
+					skillId = "SKILL_RUNE_SHADOW_ACTIVE"
+				end
+
+				local isAlreadyOwned = false
+				for _, bid in ipairs(state.skillBooks) do
+					if bid == itemId then
+						isAlreadyOwned = true
+						break
+					end
+				end
+
+				local isAlreadyLearned = false
+				if skillId and state.unlockedSkills and state.unlockedSkills[skillId] then
+					isAlreadyLearned = true
+				end
+
+				if not isAlreadyOwned and not isAlreadyLearned then
+					table.insert(state.skillBooks, itemId)
+					SaveService.markPlayerDirty(userId)
+					
+					-- 클라이언트에 즉각 업데이트 알림 (SkillService에 의존)
+					local okSkill, SkillService = pcall(function()
+						return require(game:GetService("ServerScriptService").Server.Services.SkillService)
+					end)
+					if okSkill and SkillService then
+						if player and NetController then
+							local data = {
+								unlockedSkills = state.unlockedSkills or {},
+								combatTreeId = state.combatTreeId,
+								spAvailable = SkillService.getAvailableSP(userId),
+								spSpent = state.skillPointsSpent or 0,
+								activeSkillSlots = state.activeSkillSlots or { nil, nil, nil, nil },
+								level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
+								skillBooks = state.skillBooks,
+								equippedPassives = state.equippedPassives or {},
+							}
+							NetController.FireClient(player, "Skill.Data.Updated", data)
+						end
+					end
+				end
+			end
+		end
+
+		if questItemCallback then
+			task.spawn(function()
+				questItemCallback(userId, itemId, count)
+			end)
+		end
+
+		return count, 0
+	end
 	
 	local remaining = count
 	local added = 0

@@ -62,6 +62,7 @@ local ProductConfig = {
 			description = "진행 중인 제작 작업을 즉시 완료합니다.",
 			rewardType = "CRAFT_SPEEDUP",
 			iconName = "Icon_Speedup",
+			showInPremiumShop = false,
 		},
 	}
 }

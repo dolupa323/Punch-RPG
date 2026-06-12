@@ -818,23 +818,10 @@ function InteractController.rebindDefaultKeys()
 
 	-- ESC = 모든 UI 닫기 통합
 	InputManager.bindKey(Enum.KeyCode.Escape, "CloseUI", function()
-		-- UIManager가 로드되지 않았을 수 있으므로 안전하게 처리
-		local UIManagerMod = require(Client:WaitForChild("UIManager"))
-		if UIManagerMod then
-			UIManagerMod.closeInventory()
-			UIManagerMod.closeCrafting()
-			UIManagerMod.closeEquipment()
-			UIManagerMod.closeBuild()
-			UIManagerMod.closeShop()
-			if UIManagerMod.closeTotem then UIManagerMod.closeTotem() end
-		end
 		
 		-- Radial UIs
 		local FRUI = require(Client:WaitForChild("UI"):WaitForChild("FacilityRadialUI"))
 		if FRUI.IsOpen() then FRUI.Close() end
-		
-		local PRUI = require(Client:WaitForChild("UI"):WaitForChild("PalRadialUI"))
-		if PRUI.IsOpen() then PRUI.Close() end
 		
 		local PortalRUI = require(Client:WaitForChild("UI"):WaitForChild("PortalRadialUI"))
 		if PortalRUI.IsOpen() then PortalRUI.Close() end

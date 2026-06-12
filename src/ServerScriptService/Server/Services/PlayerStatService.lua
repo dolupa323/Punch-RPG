@@ -355,6 +355,14 @@ function PlayerStatService.upgradeStat(userId: number, statId: string): (boolean
 		fullStats.upgradedStat = statId
 		NetController.FireClient(player, "Player.Stats.Changed", fullStats)
 	end
+
+	-- 튜토리얼 퀘스트 연동
+	local tutorialService = ServiceRegistry.Get("TutorialQuestService")
+	if tutorialService and tutorialService.OnStatUpgraded then
+		task.spawn(function()
+			tutorialService.OnStatUpgraded(userId, statId)
+		end)
+	end
 	
 	return true
 end
@@ -410,6 +418,42 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 		if setBonuses.attackMult then finalAtk = finalAtk + setBonuses.attackMult end
 	end
 	
+	local passiveCritChance = 0
+	local passiveCritDamageMult = 0
+	local passiveDefense = 0
+	local passiveSpeedMult = 0
+
+	-- [Untitled RPG Skill System] 장착한 패시브 스킬 효과 적용
+	local skillSuccess, SkillService = pcall(function()
+		return require(game:GetService("ServerScriptService").Server.Services.SkillService)
+	end)
+	local SkillTreeData = require(game:GetService("ReplicatedStorage").Data.SkillTreeData)
+	if skillSuccess and SkillService then
+		local state = SaveService.getPlayerState(userId)
+		if state and state.equippedPassives then
+			for slot, skillId in pairs(state.equippedPassives) do
+				local skill = SkillTreeData.GetSkill(skillId)
+				if skill and skill.type == "PASSIVE" and skill.effects then
+					for _, eff in ipairs(skill.effects) do
+						if eff.stat == "DAMAGE_MULT" then
+							finalAtk = finalAtk + eff.value
+						elseif eff.stat == "MAX_HEALTH_MULT" then
+							finalHp = finalHp * (1 + eff.value)
+						elseif eff.stat == "CRIT_CHANCE" then
+							passiveCritChance = passiveCritChance + eff.value
+						elseif eff.stat == "CRIT_DAMAGE_MULT" then
+							passiveCritDamageMult = passiveCritDamageMult + eff.value
+						elseif eff.stat == "DEFENSE" then
+							passiveDefense = passiveDefense + eff.value
+						elseif eff.stat == "SPEED_MULT" then
+							passiveSpeedMult = passiveSpeedMult + eff.value
+						end
+					end
+				end
+			end
+		end
+	end
+	
 
 	-- 이동 속도 보너스 (방어구 세트 등)
 	local speedMult = 0
@@ -425,11 +469,11 @@ function PlayerStatService.GetCalculatedStats(userId: number)
 			Balance.BASE_INV_SLOTS + ((stats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT) + purchaseBonusSlots
 		),
 		attackMult = math.max(0.1, finalAtk),
-		defense = defense,
-		speedMult = speedMult,
+		defense = defense + passiveDefense,
+		speedMult = speedMult + passiveSpeedMult,
 		-- 치명타 스탯 추가 (CombatService에서 참조)
-		critChance = (attrBonuses.critChance or 0) + (baseEquipStats.critChance or 0),
-		critDamageMult = (attrBonuses.critDamageMult or 0) + (baseEquipStats.critDamageMult or 0),
+		critChance = (attrBonuses.critChance or 0) + (baseEquipStats.critChance or 0) + passiveCritChance,
+		critDamageMult = (attrBonuses.critDamageMult or 0) + (baseEquipStats.critDamageMult or 0) + passiveCritDamageMult,
 	}
 end
 

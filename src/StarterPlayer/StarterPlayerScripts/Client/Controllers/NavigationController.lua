@@ -9,8 +9,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 local MobSpawnData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MobSpawnData"))
+local HUDUI = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("HUDUI"))
 
 local NavigationController = {}
+
 
 local initialized = false
 local player = Players.LocalPlayer
@@ -198,9 +200,10 @@ end
 
 local STEP_TARGETS = {
 	SELECT_ELEMENT = {
-		kind = "npc",
-		aliases = { "DarkMaster", "어둠 스승", "Dark Master" },
-		fallback = Vector3.new(-588.057, 37.151, 961.323),
+		kind = "monster",
+		zoneName = "SLIME_HABITAT",
+		spawnDataKey = "StartingZone_Slime",
+		fallback = Vector3.new(-753.46, -32.0, 1404.68),
 	},
 	KILL_SLIME = {
 		kind = "monster",
@@ -353,7 +356,16 @@ local function updateArrow(dt: number)
 		return
 	end
 
+	-- 튜토리얼 UI가 최소화된 경우 화살표 가이드 숨김
+	if HUDUI.IsTutorialMinimized and HUDUI.IsTutorialMinimized() then
+		arrowShaft.Transparency = 1
+		arrowTipLeft.Transparency = 1
+		arrowTipRight.Transparency = 1
+		return
+	end
+
 	local char = player.Character
+
 	if not char then
 		arrowShaft.Transparency = 1
 		arrowTipLeft.Transparency = 1

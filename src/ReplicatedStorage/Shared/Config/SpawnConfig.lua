@@ -36,8 +36,8 @@ local ZONES = {
 		displayName = "애벌레의 숲",
 		subName = "HORNED LARVA FOREST",
 		priority = 10,
-		minLevel = 5,
-		maxLevel = 10,
+		minLevel = 6,
+		maxLevel = 9,
 	},
 	CYCLOPS_BAT_ZONE = {
 		min = Vector2.new(-918.129, 2346.044),
@@ -46,8 +46,28 @@ local ZONES = {
 		displayName = "박쥐의 언덕",
 		subName = "BAT'S RIDGE",
 		priority = 20,
-		minLevel = 20,
+		minLevel = 26,
+		maxLevel = 30,
+	},
+	SAMURAI_ZONE = {
+		min = Vector2.new(-1937.312, 2110.797),
+		max = Vector2.new(-1708.144, 2395.068),
+		spawnPoint = Vector3.new(-1816.28, 33.0, 2252.93),
+		displayName = "멸망한 동쪽의 나라",
+		subName = "FALLEN EASTERN KINGDOM",
+		priority = 20,
+		minLevel = 21,
 		maxLevel = 25,
+	},
+	DEATH_SNOW_MOUNTAIN = {
+		min = Vector2.new(-621.871, 2611.048),
+		max = Vector2.new(-41.777, 3329.409),
+		spawnPoint = Vector3.new(-331.82, -58.0, 2970.23),
+		displayName = "죽음의 설산",
+		subName = "MOUNTAIN OF DEATH",
+		priority = 20,
+		minLevel = 31,
+		maxLevel = 40,
 	},
 	EERIE_CAVE = {
 		min = Vector2.new(-280, -310),
@@ -65,7 +85,7 @@ local ZONES = {
 		subName = "STUMP LANDS",
 		priority = 20,
 		minLevel = 10,
-		maxLevel = 15,
+		maxLevel = 14,
 	},
 	STUMP_KING_ZONE = {
 		min = Vector2.new(-2037.874, 1425.677),
@@ -74,8 +94,8 @@ local ZONES = {
 		displayName = "스텀프 킹의 안식처",
 		subName = "STUMP KING'S SANCTUARY",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
-		minLevel = 25,
-		maxLevel = 30,
+		minLevel = 17,
+		maxLevel = 20,
 	},
 	SMALL_GOLEM_ZONE = {
 		min = Vector2.new(-670.563, 1939.376),
@@ -84,17 +104,17 @@ local ZONES = {
 		displayName = "스산한 동굴",
 		subName = "EERIE CAVE",
 		priority = 10,
-		minLevel = 15,
+		minLevel = 17,
 		maxLevel = 20,
 	},
 	SPIDER_ZONE = {
 		min = Vector2.new(-1278.704, 1997.338),
 		max = Vector2.new(-928.863, 2550.495),
 		spawnPoint = Vector3.new(-1089.08, -14.47, 2289.73),
-		displayName = "망가진 마을",
-		subName = "BROKEN VILLAGE",
+		displayName = "거미구역",
+		subName = "SPIDER ZONE",
 		priority = 20,
-		minLevel = 30,
+		minLevel = 31,
 		maxLevel = 35,
 	},
 	POISON_NEST = {
@@ -203,6 +223,14 @@ local ZONE_CONFIGS = {
 		Creatures = {
 			{ id = "CYCLOPSBAT", weight = 100 },
 		},
+		Harvests = {},
+	},
+	SAMURAI_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	DEATH_SNOW_MOUNTAIN = {
+		Creatures = {},
 		Harvests = {},
 	},
 	EERIE_CAVE = {

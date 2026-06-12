@@ -119,7 +119,9 @@ local function _getDefaultPlayerSave()
 		skillPointsSpent = 0,
 		unlockedSkills = {},
 		combatTreeId = nil,
-		activeSkillSlots = { nil, nil, nil },
+		activeSkillSlots = { nil, nil, nil, nil },
+		equippedPassives = {},
+		skillBooks = {},
 		quickslots = { "", "", "" },
 		-- 장착 중인 아이템 (Head, Body, Feet, Hand)
 		equipment = _getDefaultEquipment(),
@@ -352,7 +354,9 @@ local function _normalizePlayerState(state: any): any
 	state.skillPointsSpent = type(state.skillPointsSpent) == "number" and state.skillPointsSpent or 0
 	state.unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {}
 	state.combatTreeId = (type(state.combatTreeId) == "string") and state.combatTreeId or nil
-	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil }
+	state.activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil, nil }
+	state.equippedPassives = type(state.equippedPassives) == "table" and state.equippedPassives or {}
+	state.skillBooks = type(state.skillBooks) == "table" and state.skillBooks or {}
 	state.quickslots = _normalizeQuickslots(state.quickslots)
 	
 	-- 원소 속성 필드 정규화

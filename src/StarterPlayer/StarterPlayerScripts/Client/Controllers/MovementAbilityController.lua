@@ -264,24 +264,8 @@ function MovementAbilityController.requestDoubleJump()
 end
 
 function MovementAbilityController.requestSuperJump()
-	if not humanoid or not root or isStunned() then
-		return
-	end
-
-	if not superJumpReady then
-		return
-	end
-
-	if not (isGrounded() or isCoyoteJumpAllowed()) then
-		return
-	end
-
-	superJumpReady = false
-	setMovementFlags(nil, nil, false, nil)
-	applyVerticalJump(Balance.MOVEMENT_SUPER_JUMP_HEIGHT)
-	playAnimation("LongJump")
-	playSound("LongJump")
-	emitEffect("JumpParticles", 12)
+	-- 슈퍼점프 삭제 처리 (아무 동작 없음)
+	return
 end
 
 function MovementAbilityController.requestDash()
@@ -362,10 +346,6 @@ local function bindInputs()
 	InputManager.bindAction("MovementDashAction", function()
 		MovementAbilityController.requestDash()
 	end, false, nil, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.ButtonL1)
-
-	InputManager.bindAction("MovementSuperJumpAction", function()
-		MovementAbilityController.requestSuperJump()
-	end, false, nil, Enum.KeyCode.F, Enum.KeyCode.ButtonY)
 end
 
 local function onCharacterAdded(character: Model)
