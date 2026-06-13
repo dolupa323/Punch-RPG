@@ -323,6 +323,7 @@ end)
 local progress = 0
 
 local function updateProgress(targetProgress, speed)
+	if targetProgress < progress then return end
 	progress = targetProgress
 	TweenService:Create(progressBarFill, TweenInfo.new(speed or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.new(progress/100, 0, 1, 0)
@@ -376,6 +377,8 @@ if totalAssets > 0 then
 			pcall(function()
 				ContentProvider:PreloadAsync(batch)
 			end)
+			
+			if loadingFinished then break end
 			
 			loadedCount = loadedCount + #batch
 			local ratio = loadedCount / totalAssets

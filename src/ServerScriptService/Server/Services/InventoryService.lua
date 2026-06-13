@@ -678,6 +678,13 @@ function InventoryService.equipItem(player: Player, inventorySlot: number, equip
 	if PlayerStatService then
 		PlayerStatService.applyStats(userId)
 	end
+
+	pcall(function()
+		local tqs = require(game:GetService("ServerScriptService").Server.Services.TutorialQuestService)
+		if tqs and tqs.OnEquipmentChanged then
+			tqs.OnEquipmentChanged(userId)
+		end
+	end)
 	
 	return true
 end
@@ -727,6 +734,14 @@ function InventoryService.unequipItem(player: Player, equipmentSlotName: string)
 	if PlayerStatService then
 		PlayerStatService.applyStats(userId)
 	end
+
+	pcall(function()
+		local tqs = require(game:GetService("ServerScriptService").Server.Services.TutorialQuestService)
+		if tqs and tqs.OnEquipmentChanged then
+			tqs.OnEquipmentChanged(userId)
+		end
+	end)
+
 	return true
 end
 

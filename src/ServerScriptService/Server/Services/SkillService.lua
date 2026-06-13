@@ -215,7 +215,11 @@ function SkillService.grantRuneSkill(userId: number, runeItemId: string, equipme
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]
 	local skillId = "SKILL_" .. runeItemId
-	if runeItemId == "NIGHT" then
+	if runeItemId == "RUNE_FIRE_ACTIVE" or runeItemId == "EMBER" then
+		skillId = "SKILL_EMBER"
+	elseif runeItemId == "RUNE_WATER_ACTIVE" or runeItemId == "DROPLET" then
+		skillId = "SKILL_DROPLET"
+	elseif runeItemId == "RUNE_DARK_ACTIVE" or runeItemId == "NIGHT" or runeItemId == "ROCK" then
 		skillId = "SKILL_ROCK"
 	end
 	
@@ -251,7 +255,11 @@ function SkillService.revokeRuneSkill(userId: number, runeItemId: string)
 	_initPlayerSkills(userId)
 	local cache = playerSkillCache[userId]
 	local skillId = "SKILL_" .. runeItemId
-	if runeItemId == "NIGHT" then
+	if runeItemId == "RUNE_FIRE_ACTIVE" or runeItemId == "EMBER" then
+		skillId = "SKILL_EMBER"
+	elseif runeItemId == "RUNE_WATER_ACTIVE" or runeItemId == "DROPLET" then
+		skillId = "SKILL_DROPLET"
+	elseif runeItemId == "RUNE_DARK_ACTIVE" or runeItemId == "NIGHT" or runeItemId == "ROCK" then
 		skillId = "SKILL_ROCK"
 	end
 	

@@ -315,7 +315,8 @@ function AvatarService.Init()
 				local equipment = InventoryService and InventoryService.getEquipment(userId)
 				local equippedWeapon = equipment and equipment.HAND
 				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
-				local baseDamage = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 1
+				local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 0
+				local baseDamage = 210 + weaponDmg
 				
 				if equippedWeapon then
 					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
@@ -357,21 +358,14 @@ function AvatarService.Init()
 				end
 				
 				local dmgTotal = math.max(1, math.floor(finalDamage))
-				print(string.format("[AvatarService] Combat Hit Request (Multi-Hit Activated): Player %s -> %s | TotalDmg=%d | Crit=%s", player.Name, targetModel.Name, dmgTotal, tostring(isCritical)))
+				print(string.format("[AvatarService] Combat Hit Request: Player %s -> %s | TotalDmg=%d | Crit=%s", player.Name, targetModel.Name, dmgTotal, tostring(isCritical)))
 
-				-- [디렉티브 반영] 기본 공격 다단히트 배분 조율 (1타: 2대, 2타: 1대, 3타: 1대)
+				-- [디렉티브 반영] 기본 공격 다단히트 배분 조율: 정직하게 1타격당 1회 데미지 적용
 				local comboIndex = data and data.combo or 1
 				local numHits = 1
-				if comboIndex == 1 then
-					numHits = 2
-				elseif comboIndex == 2 or comboIndex == 3 then
-					numHits = 1
-				else
-					numHits = 1 -- Fallback
-				end
 				
-				local baseDmg = math.max(1, math.floor(dmgTotal / numHits))
-				local lastDmg = math.max(1, dmgTotal - (baseDmg * (numHits - 1)))
+				local baseDmg = dmgTotal
+				local lastDmg = dmgTotal
 
 				task.spawn(function()
 					local hum = targetModel:FindFirstChild("Humanoid")

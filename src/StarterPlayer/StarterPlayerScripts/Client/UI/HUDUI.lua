@@ -164,32 +164,36 @@ local TUTORIAL_STEP_EN = {
 		currentStepText = "3. Craft a Slime Sword",
 		stepCommand = "Craft a Slime Sword.",
 	},
+	EQUIP_SOFTCLUB = {
+		currentStepText = "4. Equip the Slime Sword",
+		stepCommand = "Open Inventory (I) or Character window and equip the crafted Slime Sword.",
+	},
 	DISTRIBUTE_STAT = {
-		currentStepText = "4. Upgrade Stats",
+		currentStepText = "5. Upgrade Stats",
 		stepCommand = "Open Equipment (Stats) window and upgrade Attack stat by 1.",
 	},
 	KILL_HORNED_LARVA = {
-		currentStepText = "5. Hunt Horned Larva",
+		currentStepText = "6. Hunt Horned Larva",
 		stepCommand = "Defeat 15 Horned Larvas.",
 	},
 	CRAFT_GAKCHANG = {
-		currentStepText = "6. Craft a Hard Sword",
+		currentStepText = "7. Craft a Hard Sword",
 		stepCommand = "Craft a Hard Sword.",
 	},
 	ENHANCE_GAKCHANG = {
-		currentStepText = "7. Try enhancing the Hard Sword",
+		currentStepText = "8. Try enhancing the Hard Sword",
 		stepCommand = "Enhance the Hard Sword to +1 or higher.",
 	},
 	REGISTER_POTION = {
-		currentStepText = "8. Equip potion to quickslot",
+		currentStepText = "9. Equip potion to quickslot",
 		stepCommand = "Buy an HP or MP potion, then open Inventory (I) and equip it to a consumable quickslot.",
 	},
 	COLLECT_STUMP_BARK = {
-		currentStepText = "9. Gather Stump Bark",
+		currentStepText = "10. Gather Stump Bark",
 		stepCommand = "Gather 30 Stump Barks.",
 	},
 	CRAFT_MOGWOLDO = {
-		currentStepText = "10. Craft a Desert Sword",
+		currentStepText = "11. Craft a Desert Sword",
 		stepCommand = "Craft a Desert Sword.",
 	},
 	COMPLETED = {

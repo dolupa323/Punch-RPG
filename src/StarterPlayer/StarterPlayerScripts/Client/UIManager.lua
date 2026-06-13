@@ -354,13 +354,19 @@ local blinkThread = nil
 function UIManager.updateTutorialBlinking(status)
 	local stepKey = status and status.stepKey
 	local isDistributeStat = (stepKey == "DISTRIBUTE_STAT")
+	local isEquipSoftClub = (stepKey == "EQUIP_SOFTCLUB")
 	
-	if not isDistributeStat then
+	if not isDistributeStat and not isEquipSoftClub then
 		blinkingActive = false
 		local eqTab = HUDUI.Refs.EquipTabButton
 		if eqTab then
 			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 			eqTab.BackgroundTransparency = 1
+		end
+		local invTab = HUDUI.Refs.InventoryTabButton
+		if invTab then
+			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			invTab.BackgroundTransparency = 1
 		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then
@@ -369,6 +375,13 @@ function UIManager.updateTutorialBlinking(status)
 		local applyBtn = EquipmentUI.Refs.ApplyBtn
 		if applyBtn then
 			applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+		end
+		if InventoryUI.Refs.Slots then
+			for _, slot in pairs(InventoryUI.Refs.Slots) do
+				if slot and slot.frame then
+					slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+				end
+			end
 		end
 		blinkThread = nil
 		return
@@ -383,42 +396,100 @@ function UIManager.updateTutorialBlinking(status)
 		local isHighlight = false
 		while blinkingActive do
 			local eqTab = HUDUI.Refs.EquipTabButton
-			local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
-			local applyBtn = EquipmentUI.Refs.ApplyBtn
-			local isEquipOpen = WindowManager.isOpen("EQUIP")
+			local invTab = HUDUI.Refs.InventoryTabButton
 			
-			if isEquipOpen then
+			if isDistributeStat then
+				local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
+				local applyBtn = EquipmentUI.Refs.ApplyBtn
+				local isEquipOpen = WindowManager.isOpen("EQUIP")
+				
+				if invTab then
+					invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+					invTab.BackgroundTransparency = 1
+				end
+				
+				if isEquipOpen then
+					if eqTab then
+						eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+						eqTab.BackgroundTransparency = 1
+					end
+					
+					local hasPendingAtk = (UIManager.getPendingStatCount(Enums.StatId.ATTACK) > 0)
+					if hasPendingAtk then
+						if atkBtn then
+							atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+						end
+						if applyBtn then
+							applyBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+						end
+					else
+						if applyBtn then
+							applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+						end
+						if atkBtn then
+							atkBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(40, 80, 160)
+						end
+					end
+				else
+					if atkBtn then
+						atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+					end
+					if applyBtn then
+						applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+					end
+					if eqTab then
+						eqTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+						eqTab.BackgroundTransparency = isHighlight and 0.25 or 1
+					end
+				end
+				
+			elseif isEquipSoftClub then
+				local isInvOpen = WindowManager.isOpen("INV")
+				
 				if eqTab then
 					eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 					eqTab.BackgroundTransparency = 1
 				end
 				
-				local hasPendingAtk = (UIManager.getPendingStatCount(Enums.StatId.ATTACK) > 0)
-				if hasPendingAtk then
-					if atkBtn then
-						atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+				if isInvOpen then
+					if invTab then
+						invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+						invTab.BackgroundTransparency = 1
 					end
-					if applyBtn then
-						applyBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+					
+					local targetSlotIndex = nil
+					local cache = InventoryController.getInventoryCache()
+					for slotIndex, itemData in pairs(cache) do
+						if itemData and itemData.itemId == "SoftClub" then
+							targetSlotIndex = slotIndex
+							break
+						end
+					end
+					
+					if InventoryUI.Refs.Slots then
+						for i, slot in pairs(InventoryUI.Refs.Slots) do
+							if slot and slot.frame then
+								if i == targetSlotIndex then
+									slot.frame.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(15, 20, 35)
+								else
+									slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+								end
+							end
+						end
 					end
 				else
-					if applyBtn then
-						applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+					if InventoryUI.Refs.Slots then
+						for _, slot in pairs(InventoryUI.Refs.Slots) do
+							if slot and slot.frame then
+								slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+							end
+						end
 					end
-					if atkBtn then
-						atkBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(40, 80, 160)
+					
+					if invTab then
+						invTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+						invTab.BackgroundTransparency = isHighlight and 0.25 or 1
 					end
-				end
-			else
-				if atkBtn then
-					atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
-				end
-				if applyBtn then
-					applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
-				end
-				if eqTab then
-					eqTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
-					eqTab.BackgroundTransparency = isHighlight and 0.25 or 1
 				end
 			end
 			
@@ -432,6 +503,11 @@ function UIManager.updateTutorialBlinking(status)
 			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 			eqTab.BackgroundTransparency = 1
 		end
+		local invTab = HUDUI.Refs.InventoryTabButton
+		if invTab then
+			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			invTab.BackgroundTransparency = 1
+		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then
 			atkBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
@@ -439,6 +515,13 @@ function UIManager.updateTutorialBlinking(status)
 		local applyBtn = EquipmentUI.Refs.ApplyBtn
 		if applyBtn then
 			applyBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90)
+		end
+		if InventoryUI.Refs.Slots then
+			for _, slot in pairs(InventoryUI.Refs.Slots) do
+				if slot and slot.frame then
+					slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+				end
+			end
 		end
 	end)
 end
