@@ -268,12 +268,26 @@ function MovementAbilityController.requestSuperJump()
 	return
 end
 
+local MovementController = require(script.Parent:WaitForChild("MovementController"))
+
 function MovementAbilityController.requestDash()
 	if not humanoid or not root or isStunned() then
 		return
 	end
 
 	if not dashReady then
+		return
+	end
+
+	-- Check stamina availability on client first
+	local currentStamina, maxStamina = MovementController.getStamina()
+	if currentStamina < Balance.MOVEMENT_DASH_STAMINA_COST then
+		return
+	end
+
+	-- Request stamina consumption from the server
+	local success, result = NetClient.Request("Movement.ConsumeStamina", { amount = Balance.MOVEMENT_DASH_STAMINA_COST })
+	if not success or (result and not result.success) then
 		return
 	end
 

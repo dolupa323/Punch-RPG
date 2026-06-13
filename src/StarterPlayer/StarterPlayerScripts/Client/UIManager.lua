@@ -90,10 +90,10 @@ local WEAPON_CRAFTER_RECIPE_ORDER = {
 	"CraftFangSpear",         -- 뱀파이어 소드
 	"CraftIceSword",          -- 아이스 소드
 	-- 하늘섬 티어
-	"CraftKnightSpear",
-	"CraftSoulStaff",
-	"CraftSpearOfJustice",
-	"CraftBlueFlameSpear",
+	"CraftKnightSword",
+	"CraftSoulSword",
+	"CraftSwordOfJustice",
+	"CraftBlueFlameSword",
 }
 
 local function collectWeaponCrafterRecipes(recipeData)

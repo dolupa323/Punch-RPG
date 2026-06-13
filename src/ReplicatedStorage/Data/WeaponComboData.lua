@@ -155,8 +155,8 @@ local WeaponComboData = {
 			[3] = { angle = 40, duration = 0.08 }
 		}
 	},
-	["KNIGHT_SPEAR"] = {
-		id = "KNIGHT_SPEAR",
+	["KNIGHT_SWORD"] = {
+		id = "KNIGHT_SWORD",
 		baseDamage = 280,
 		maxCombo = 3,
 		comboWindow = 0.8,
@@ -172,8 +172,8 @@ local WeaponComboData = {
 			[3] = { angle = 40, duration = 0.08 }
 		}
 	},
-	["SOUL_STAFF"] = {
-		id = "SOUL_STAFF",
+	["SOUL_SWORD"] = {
+		id = "SOUL_SWORD",
 		baseDamage = 350,
 		maxCombo = 3,
 		comboWindow = 0.8,
@@ -189,8 +189,8 @@ local WeaponComboData = {
 			[3] = { angle = 40, duration = 0.08 }
 		}
 	},
-	["SPEAR_OF_JUSTICE"] = {
-		id = "SPEAR_OF_JUSTICE",
+	["SWORD_OF_JUSTICE"] = {
+		id = "SWORD_OF_JUSTICE",
 		baseDamage = 450,
 		maxCombo = 3,
 		comboWindow = 0.8,
@@ -206,8 +206,8 @@ local WeaponComboData = {
 			[3] = { angle = 40, duration = 0.08 }
 		}
 	},
-	["BLUE_FLAME_SPEAR"] = {
-		id = "BLUE_FLAME_SPEAR",
+	["BLUE_FLAME_SWORD"] = {
+		id = "BLUE_FLAME_SWORD",
 		baseDamage = 600,
 		maxCombo = 3,
 		comboWindow = 0.8,

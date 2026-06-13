@@ -23,6 +23,8 @@ local COLORS = {
 	HEAL = Color3.fromRGB(100, 255, 100),   -- 초록색: 회복
 	PAL_DAMAGE = Color3.fromRGB(255, 170, 50), -- 주황색: 팰(동료) 데미지
 	PAL_STROKE = Color3.fromRGB(160, 80, 0), -- 진한 갈색: 팰 데미지 외곽선
+	STAMINA = Color3.fromRGB(0, 180, 255),   -- 하늘색/파란색: 스태미나 소모
+	STAMINA_STROKE = Color3.fromRGB(0, 50, 150), -- 진한 파란색: 외곽선
 }
 
 -- 데미지 사운드
@@ -342,21 +344,43 @@ function DamageUIController.Init()
 		spawnDamageText(spawnPos, dmgText, COLORS.NORMAL, dmgValue)
 	end)
 	
-	-- 3. 플레이어 피격 데미지 표시 (빨간색)
+	-- 3. 플레이어 피격 데미지 표시 (이벤트 수신 시 팝업 생성 기능 제거 -> HealthChanged에서 통합 처리함)
 	local localPlayer = Players.LocalPlayer
 	NetClient.On("Combat.Player.Hit", function(data)
-		if not data.damage or data.damage < 0 then return end
-		
-		local dmgValue = data.damage
-		local isMiss = dmgValue <= 1
-		local dmgText = isMiss and "MISS" or string.format("-%.0f", dmgValue)
-		local dmgColor = isMiss and Color3.fromRGB(200, 200, 200) or Color3.fromRGB(255, 50, 50)
-
-		local char = localPlayer.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not hrp then return end
-		spawnDamageText(hrp.Position + Vector3.new(0, 2, 0), dmgText, dmgColor, dmgValue)
+		-- 물리 피드백(흔들림, 레드 플래시 등)은 HitFeedbackController에서 감지하여 처리하므로 여기선 아무것도 하지 않습니다.
 	end)
+	
+	-- 실시간 체력 소모/피격 데미지 표시 (용암, 몬스터 공격, 낙하 데미지 등 전체 적용)
+	local function setupHealthChanged(character)
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		if not humanoid then return end
+		
+		local lastHealth = humanoid.Health
+		local conn
+		conn = humanoid.HealthChanged:Connect(function(newHealth)
+			if character.Parent == nil or humanoid.Parent == nil then
+				conn:Disconnect()
+				return
+			end
+			local diff = lastHealth - newHealth
+			if diff > 0.05 then -- 체력이 감소한 경우
+				local hrp = character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local dmgText = string.format("-%.0f", diff)
+					local dmgColor = Color3.fromRGB(255, 50, 50)
+					spawnDamageText(hrp.Position + Vector3.new(0, 2, 0), dmgText, dmgColor, diff, false)
+				end
+			end
+			lastHealth = newHealth
+		end)
+	end
+	
+	localPlayer.CharacterAdded:Connect(setupHealthChanged)
+	if localPlayer.Character then
+		setupHealthChanged(localPlayer.Character)
+	end
+
+
 	
 	-- 4. 팰(동료 동물) 공격 데미지 표시 (주황색)
 	NetClient.On("Combat.Pal.Hit.Result", function(data)

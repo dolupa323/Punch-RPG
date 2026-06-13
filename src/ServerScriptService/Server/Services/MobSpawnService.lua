@@ -5155,6 +5155,148 @@ local function createMobModel(areaId, index, config)
 							end
 							task.wait(0.25)
 						end
+					elseif config.mobModelName == "SmallGolem" then
+						--========================================================================
+						-- [SmallGolem 전용 FSM 분기]: 느릿하지만 묵직한 바위 강타 광역 공격
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						local now = os.clock()
+						
+						local G_ATTACK_RANGE = 18
+						local attackCooldown = config.attackCooldown or 2.5
+						local telegraphDuration = 1.2
+						
+						if distToPlayer <= G_ATTACK_RANGE then
+							-- 사거리 내라면 정지하고 즉시 공격 준비
+							humanoid:MoveTo(hrp.Position) -- 멈춤
+							
+							if now - lastAttackTick >= attackCooldown then
+								lastAttackTick = now
+								
+								-- 플레이어 정면 주시
+								local lookDir = (phrp.Position - hrp.Position)
+								lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
+								if lookDir.Magnitude > 0.1 then
+									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
+								end
+								
+								-- 몬스터 공격 애니메이션 재생 시도
+								task.spawn(function()
+									local animator = humanoid:FindFirstChildOfClass("Animator")
+									if animator then
+										local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+										local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
+										local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
+										local attackAnim = monsterAnims and (monsterAnims:FindFirstChild("SmallGolem_Attack") or monsterAnims:FindFirstChild("Golem_Attack") or monsterAnims:FindFirstChild("Slime_Attack"))
+										
+										if attackAnim then
+											local success, attackTrack = pcall(function() return animator:LoadAnimation(attackAnim) end)
+											if success and attackTrack then
+												attackTrack.Priority = Enum.AnimationPriority.Action
+												attackTrack:Play()
+											end
+										end
+									end
+								end)
+								
+								-- 전방 찌르기/강타 전조 장판 생성 (네온 레드 원반)
+								task.spawn(function()
+									local warnCircle = Instance.new("Part")
+									warnCircle.Name = "GolemAtkTelegraph"
+									warnCircle.Shape = Enum.PartType.Cylinder
+									warnCircle.Size = Vector3.new(0.4, G_ATTACK_RANGE * 2, G_ATTACK_RANGE * 2)
+									
+									-- 레이캐스트로 몬스터 바로 아래 실제 바닥 고도 측정
+									local rayParams = RaycastParams.new()
+									rayParams.FilterType = Enum.RaycastFilterType.Exclude
+									rayParams.FilterDescendantsInstances = {model}
+									local rayResult = workspace:Raycast(currentPos, Vector3.new(0, -50, 0), rayParams)
+									
+									local floorPos
+									if rayResult then
+										floorPos = rayResult.Position + Vector3.new(0, 0.1, 0)
+									else
+										local groundOffset = humanoid.HipHeight + (hrp.Size.Y / 2)
+										floorPos = currentPos - Vector3.new(0, groundOffset - 0.2, 0)
+									end
+									
+									warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) -- 눕히기
+									warnCircle.Anchored = true
+									warnCircle.CanCollide = false
+									warnCircle.CanTouch = false
+									warnCircle.CanQuery = false
+									warnCircle.CastShadow = false
+									warnCircle.Material = Enum.Material.Neon
+									warnCircle.Color = Color3.fromRGB(255, 0, 0)
+									warnCircle.Transparency = 0.85
+									warnCircle.Parent = workspace
+									
+									local ts = game:GetService("TweenService")
+									local flashTween = ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+										Transparency = 0.5
+									})
+									flashTween:Play()
+									
+									task.wait(telegraphDuration)
+									warnCircle:Destroy()
+									
+									-- 최종 판정 및 데미지/이펙트 적용
+									if isAlive and targetPlayer and targetPlayer.Parent and targetPlayer:FindFirstChild("HumanoidRootPart") then
+										local currentPhrp = targetPlayer.HumanoidRootPart
+										local currentDist = (hrp.Position - currentPhrp.Position).Magnitude
+										
+										-- 강타 이펙트는 무조건 시전됨 (바닥 파편 등 연출)
+										local smashPos = currentPos + hrp.CFrame.LookVector * (G_ATTACK_RANGE / 2)
+										local smashRayResult = workspace:Raycast(smashPos + Vector3.new(0, 15, 0), Vector3.new(0, -30, 0), rayParams)
+										local finalSmashPos = smashRayResult and smashRayResult.Position or Vector3.new(smashPos.X, floorPos.Y, smashPos.Z)
+										playRockSmashEffect(finalSmashPos, G_ATTACK_RANGE * 0.8)
+										
+										if currentDist <= G_ATTACK_RANGE + 2 then
+											local dmg = config.baseDamage or 22
+											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+											if currentPhum and currentPhum.Health > 0 then
+												dealDamageToHumanoid(currentPhum, dmg)
+												
+												-- 넉백 기절 적용
+												local bounceDir = (currentPhrp.Position - hrp.Position)
+												bounceDir = Vector3.new(bounceDir.X, 0.3, bounceDir.Z).Unit
+												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+												if hitPlayer then
+													local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+													local NetController = require(Controllers:WaitForChild("NetController"))
+													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir * 1.2)
+												end
+												
+												-- 데미지 피격 플래시
+												task.spawn(function()
+													local highlight = Instance.new("Highlight")
+													highlight.Name = "DamageFlash"
+													highlight.FillColor = Color3.fromRGB(255, 0, 0)
+													highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+													highlight.FillTransparency = 0.4
+													highlight.OutlineTransparency = 0
+													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+													highlight.Adornee = targetPlayer
+													highlight.Parent = targetPlayer
+													
+													task.wait(0.12)
+													if highlight and highlight.Parent then
+														highlight:Destroy()
+													end
+												end)
+											end
+										end
+									end
+								end)
+								
+								task.wait(1.5) -- 공격 후 딜레이
+							end
+						else
+							humanoid:MoveTo(targetPlayerPos)
+							task.wait(0.2)
+						end
 					else
 						--========================================================================
 						-- [일반 몬스터 (Slime, HornedLarva 등) Melee 전투 FSM 분기]
