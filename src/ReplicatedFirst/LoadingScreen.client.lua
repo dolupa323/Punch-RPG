@@ -397,7 +397,7 @@ if totalAssets > 0 then
 	end
 	
 	if not loadingFinished then
-		warn("[LoadingScreen] Asset preload timed out. Proceeding to prevent hanging.")
+		print("[LoadingScreen] Asset preload timed out. Proceeding to prevent hanging.")
 		loadingFinished = true
 	end
 	updateProgress(85, 0.2)

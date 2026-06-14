@@ -255,6 +255,8 @@ function AvatarService.Init()
 
 	local attackRemote = ensureRemoteEvent("Avatar.Attack.Request")
 	local vfxRemote = ensureRemoteEvent("Avatar.VFX.Hit")
+	ensureRemoteEvent("Avatar.OpenSelectionUI")
+	ensureRemoteEvent("Avatar.SelectElement.Request")
 
 	-- 2. 플레이어 캐릭터 리스폰(Respawn) 시 무기 액세서리 자동 재장착 핸들링
 	Players.PlayerAdded:Connect(function(player)
