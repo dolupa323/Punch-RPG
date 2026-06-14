@@ -65,7 +65,7 @@ function _initPlayerSkills(userId: number)
 			unlockedSkills = {},
 			combatTreeId = nil,
 			skillPointsSpent = 0,
-			activeSkillSlots = { nil, nil, nil, nil },
+			activeSkillSlots = { "", "", "", "" },
 		}
 		return
 	end
@@ -113,11 +113,26 @@ function _initPlayerSkills(userId: number)
 		SaveService.markPlayerDirty(userId)
 	end
 
+	local function normalizeSlots(slots)
+		if type(slots) ~= "table" then
+			return { "", "", "", "" }
+		end
+		local res = { "", "", "", "" }
+		for i = 1, 4 do
+			local val = slots[i]
+			if val == nil then
+				val = slots[tostring(i)]
+			end
+			res[i] = (type(val) == "string" and val ~= "") and val or ""
+		end
+		return res
+	end
+
 	playerSkillCache[userId] = {
 		unlockedSkills = type(state.unlockedSkills) == "table" and state.unlockedSkills or {},
 		combatTreeId = state.combatTreeId,
 		skillPointsSpent = state.skillPointsSpent or 0,
-		activeSkillSlots = type(state.activeSkillSlots) == "table" and state.activeSkillSlots or { nil, nil, nil, nil },
+		activeSkillSlots = normalizeSlots(state.activeSkillSlots),
 	}
 
 	-- 건축 등 자동 해금 스킬 처리
@@ -463,7 +478,8 @@ local function handleSetSlot(player: Player, payload: any)
 	end
 	slotIndex = math.floor(slotIndex)
 
-	if skillId ~= nil then
+	local valToAssign = ""
+	if skillId ~= nil and skillId ~= "" then
 		if type(skillId) ~= "string" then
 			return { success = false, errorCode = "BAD_REQUEST" }
 		end
@@ -479,12 +495,13 @@ local function handleSetSlot(player: Player, payload: any)
 		-- 이미 다른 슬롯에 장착된 경우 제거
 		for i = 1, 4 do
 			if cache.activeSkillSlots[i] == skillId then
-				cache.activeSkillSlots[i] = nil
+				cache.activeSkillSlots[i] = ""
 			end
 		end
+		valToAssign = skillId
 	end
 
-	cache.activeSkillSlots[slotIndex] = skillId
+	cache.activeSkillSlots[slotIndex] = valToAssign
 	_syncToSave(userId)
 
 	return {
@@ -539,7 +556,7 @@ local function handleResetSkills(player: Player, _payload: any)
 	cache.unlockedSkills = {}
 	cache.combatTreeId = nil
 	cache.skillPointsSpent = 0
-	cache.activeSkillSlots = { nil, nil, nil, nil }
+	cache.activeSkillSlots = { "", "", "", "" }
 	_syncToSave(userId)
 
 	print(string.format("[SkillService] %s RESET all skills (SP refunded, charged ticket %s)", player.Name, resetTicketId))

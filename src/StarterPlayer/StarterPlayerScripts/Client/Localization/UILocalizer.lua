@@ -252,6 +252,10 @@ local KO_TO_EN = {
 	["룬스톤의 힘은 이미 모두 소진되었습니다."] = "The runestone's power has been fully depleted.",
 	["먼저 속성을 선택한 뒤 다시 시도하세요."] = "Please select an element first and try again.",
 	["인벤토리가 가득 찼습니다."] = "Inventory is full.",
+	["일일보상"] = "Daily Reward",
+	["이미 오늘의 일일보상을 수령했습니다."] = "You have already claimed today's daily reward.",
+	["일일보상으로 강화 하락방지권과 100골드를 획득했습니다!"] = "Obtained 1 Enhancement Protection Scroll and 100 Gold as daily reward!",
+
 
 	-- Item Names
 	["불씨"] = "Fire Ember",
@@ -346,7 +350,16 @@ local KO_TO_EN = {
 	["강화 시도"] = "Attempt Upgrade",
 	["하락방지권 없음"] = "No Protection Scroll",
 	["하락방지권이 없습니다.\n계속 강화하시겠습니까?"] = "You have no protection scroll.\nDo you want to continue?",
+	["현재 무기 공격력"] = "Current Weapon Attack",
+	["강화 비용"] = "Enhancement Cost",
+	["무기를 선택하면 공격력이 표시됩니다."] = "Select a weapon to display its attack power.",
+	["성공 확률과 강화 비용을 여기에 표시합니다."] = "Success rate and enhancement cost will be shown here.",
+	["실패 시 무기의 강화가 내려갑니다."] = "Enhancement level drops on failure.",
+	["보유"] = "Owned",
+	["적용 중"] = "Applied",
 	["강화 진행 중..."] = "Upgrading...",
+
+
 	["강화할 무기를 선택해야 합니다."] = "You must select a weapon to enhance.",
 	["골드가 부족합니다."] = "Not enough gold.",
 	["이미 최대 강화 단계입니다."] = "Already at max enhancement level.",
@@ -355,7 +368,7 @@ local KO_TO_EN = {
 	-- Dismantle UI
 	["무기 분해소 (Dismantle Recycler)"] = "Dismantle Recycler",
 	["분해할 무기를 목록에서 선택하세요."] = "Select a weapon from the list to dismantle.",
-	["🛠️ 분해 시 100% 반환 재료 (50% 비율)"] = "🛠️ Dismantle Materials (50% Refund Ratio)",
+	["분해 시 100% 반환 재료 (50% 비율)"] = "Dismantle Materials (50% Refund Ratio)",
 	["무기 분해 실행"] = "Dismantle Weapon",
 	["분해 가동 중..."] = "Dismantling...",
 	["가방이 꽉 차서 재료를 반환받을 공간이 없습니다."] = "Inventory is full. No space to receive materials.",

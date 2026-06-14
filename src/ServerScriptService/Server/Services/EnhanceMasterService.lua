@@ -10,6 +10,27 @@ local Workspace = game:GetService("Workspace")
 local NetController = nil
 local initialized = false
 
+local function _attachNpcLabel(root: BasePart, name: string, role: string)
+	if not root or root:FindFirstChild("NpcLabel") then return end
+	local label = Instance.new("BillboardGui")
+	label.Name = "NpcLabel"
+	label.Size = UDim2.new(0, 200, 0, 50)
+	label.StudsOffset = Vector3.new(0, 4.5, 0)
+	label.AlwaysOnTop = true
+	label.MaxDistance = 80
+	label.Parent = root
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.new(1, 0, 1, 0)
+	text.BackgroundTransparency = 1
+	text.TextScaled = true
+	text.Font = Enum.Font.SourceSansBold
+	text.TextColor3 = Color3.fromRGB(255, 233, 184)
+	text.TextStrokeTransparency = 0.35
+	text.Text = string.format("%s\n%s", name, role)
+	text.Parent = label
+end
+
 local function setupNPC(npc)
 	-- 기존 Prompt가 있으면 무시
 	if npc:FindFirstChild("EnhanceMasterPrompt", true) then return end
@@ -32,6 +53,8 @@ local function setupNPC(npc)
 	prompt.Parent = targetPart
 	print("[EnhanceMasterService] NPC 발견 및 프롬프트 생성 완료: " .. npc.Name .. " (Parent: " .. targetPart.Name .. ")")
 	
+	_attachNpcLabel(targetPart, "EnhanceMaster", "강화소")
+
 	prompt.Triggered:Connect(function(player)
 		-- 상호작용 시 클라이언트에게 UI 오픈 요청
 		if NetController then

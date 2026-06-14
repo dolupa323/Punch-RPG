@@ -22,7 +22,7 @@ local unlockedSkills = {}    -- { [skillId] = true }
 local combatTreeId = nil     -- "SWORD" | "BOW" | "AXE" | nil
 local spAvailable = 0
 local spSpent = 0
-local activeSkillSlots = { nil, nil, nil, nil }
+local activeSkillSlots = { "", "", "", "" }
 local playerLevel = 1
 local skillBooks = {}
 local equippedPassives = {}
@@ -141,7 +141,7 @@ function SkillController.requestData(callback: ((boolean) -> ())?)
 			combatTreeId = data.combatTreeId
 			spAvailable = data.spAvailable or 0
 			spSpent = data.spSpent or 0
-			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
+			activeSkillSlots = data.activeSkillSlots or { "", "", "", "" }
 			playerLevel = data.level or 1
 			equippedPassives = data.equippedPassives or {}
 			skillBooks = data.skillBooks or {}
@@ -204,7 +204,7 @@ function SkillController.useSkill(slotName: string)
 	
 	-- 2. 장착된 스킬 ID 확인 (Skill Tree 또는 자동 장착된 룬 스킬)
 	local skillId = activeSkillSlots[slotIndex]
-	if not skillId then return end
+	if not skillId or skillId == "" then return end
 	
 	-- 3. 패시브 룬 시전 차단
 	local ItemData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ItemData"))
@@ -305,12 +305,22 @@ end
 --- 슬롯별 쿨다운 조회
 function SkillController.getSlotCooldownRemaining(slotIndex: number): number
 	local skillId = activeSkillSlots[slotIndex]
-	if not skillId then return 0 end
+	if not skillId or skillId == "" then return 0 end
 	return SkillController.getSkillCooldownRemaining(skillId)
 end
 
---- 룬 슬롯 쿨다운 조회
+--- 룬 슬롯 쿨다운 조회 (액티브 스킬 및 룬 장비 호환)
 function SkillController.getRuneCooldownRemaining(slotIndex: number): number
+	-- 1. 신규 액티브 스킬 슬롯(스킬북/트리 배운 스킬 장착용) 우선 확인
+	if activeSkillSlots and activeSkillSlots[slotIndex] and activeSkillSlots[slotIndex] ~= "" then
+		local skillId = activeSkillSlots[slotIndex]
+		local cd = SkillController.getSkillCooldownRemaining(skillId)
+		if cd > 0 then
+			return cd
+		end
+	end
+
+	-- 2. 레거시 룬 장착 아이템 쿨다운 폴백
 	local InventoryController = require(script.Parent:WaitForChild("InventoryController"))
 	local equipment = InventoryController.getEquipment()
 	local slotKey = "RUNE" .. slotIndex
@@ -350,7 +360,7 @@ function SkillController.requestReset(callback: ((boolean) -> ())?)
 			combatTreeId = data.combatTreeId
 			spAvailable = data.spAvailable or 0
 			spSpent = data.spSpent or 0
-			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
+			activeSkillSlots = data.activeSkillSlots or { "", "", "", "" }
 			playerLevel = data.level or 1
 			_fireListeners()
 			
@@ -453,7 +463,7 @@ function SkillController.Init()
 				combatTreeId = data.combatTreeId
 				spAvailable = data.spAvailable or 0
 				spSpent = data.spSpent or 0
-				activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
+				activeSkillSlots = data.activeSkillSlots or { "", "", "", "" }
 				playerLevel = data.level or 1
 				skillBooks = data.skillBooks or {}
 				equippedPassives = data.equippedPassives or {}
@@ -485,7 +495,7 @@ function SkillController.Init()
 			combatTreeId = data.combatTreeId
 			spAvailable = data.spAvailable or 0
 			spSpent = data.spSpent or 0
-			activeSkillSlots = data.activeSkillSlots or { nil, nil, nil, nil }
+			activeSkillSlots = data.activeSkillSlots or { "", "", "", "" }
 			playerLevel = data.level or 1
 			skillBooks = data.skillBooks or {}
 			equippedPassives = data.equippedPassives or {}

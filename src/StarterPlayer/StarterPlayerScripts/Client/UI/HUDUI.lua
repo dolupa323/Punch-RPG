@@ -33,6 +33,31 @@ HUDUI.LastStatus = nil
 local questTokenNameCache = {}
 local TOOLTIP_WIDTH = 280
 local TOOLTIP_MARGIN = 14
+local localPotionCooldownEnd = 0
+
+local function formatVal(num)
+	local n = tonumber(num) or 0
+	if n >= 1000000000000 then
+		return string.format("%.2fT", n / 1000000000000)
+	elseif n >= 1000000000 then
+		return string.format("%.2fB", n / 1000000000)
+	elseif n >= 1000000 then
+		return string.format("%.2fM", n / 1000000)
+	elseif n >= 1000 then
+		-- 만약 소수점이 00이면 정수로 보이도록 처리
+		local val = n / 1000
+		if val % 1 == 0 then
+			return string.format("%dK", val)
+		else
+			-- 소수점 첫째 또는 둘째짜리까지 유연하게 표시
+			local formatted = string.format("%.2f", val)
+			formatted = string.gsub(formatted, "%.?0+$", "")
+			return formatted .. "K"
+		end
+	else
+		return tostring(math.floor(n))
+	end
+end
 
 -- [UX] 버튼 클릭/터치/키보드 시각 피드백 (스케일 애니메이션)
 local function triggerScale(btn)
@@ -433,7 +458,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- for adjacent floating components like the Hotbar to attach without colliding with UIListLayout.
 	local mainAnchor = Utils.mkFrame({
 		name = "MainHUDAnchor",
-		size = UDim2.new(0.42, 0, 0.08, 0), 
+		size = UDim2.new(0.34, 0, 0.08, 0), -- Restored to 0.34 for original button sizes
 		pos = UDim2.new(0.5, 0, 0.98, 0), 
 		anchor = Vector2.new(0.5, 1),
 		bgT = 1, -- Invisible root
@@ -442,13 +467,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.mainAnchor = mainAnchor
 
 	local mainAR = Instance.new("UIAspectRatioConstraint")
-	mainAR.AspectRatio = 4.8
+	mainAR.AspectRatio = 3.8
 	mainAR.AspectType = Enum.AspectType.ScaleWithParentSize
 	mainAR.DominantAxis = Enum.DominantAxis.Width
 	mainAR.Parent = mainAnchor
 	
 	local szConstraint = Instance.new("UISizeConstraint")
-	szConstraint.MinSize = Vector2.new(340, 70); szConstraint.MaxSize = Vector2.new(780, 160); szConstraint.Parent = mainAnchor
+	szConstraint.MinSize = Vector2.new(340, 90); szConstraint.MaxSize = Vector2.new(620, 163); szConstraint.Parent = mainAnchor
 	
 	-- Actual visual container, child of the anchor
 	local mainContainer = Utils.mkFrame({
@@ -462,32 +487,31 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	})
 	HUDUI.Refs.statusPanel = mainContainer
 
-	-- Vertical stacking logic: SUM of all sub-element heights MUST EQUAL exactly 1.00
+	-- Vertical stacking logic: SUM of all sub-element heights MUST EQUAL exactly 1.00 (including padding gaps)
 	local mainStack = Instance.new("UIListLayout")
-	mainStack.FillDirection = Enum.FillDirection.Vertical; mainStack.Padding = UDim.new(0, 0); mainStack.SortOrder = Enum.SortOrder.LayoutOrder; mainStack.Parent = mainContainer
+	mainStack.FillDirection = Enum.FillDirection.Vertical; mainStack.Padding = UDim.new(0.03, 0); mainStack.SortOrder = Enum.SortOrder.LayoutOrder
+	mainStack.HorizontalAlignment = Enum.HorizontalAlignment.Center; mainStack.Parent = mainContainer
 
-	-- 1. Stat Row (Top 31%)
-	local statRow = Utils.mkFrame({name = "StatRow", size = UDim2.new(1, 0, 0.31, 0), bgT = 1, r = 0, parent = mainContainer})
+	-- 1. Stat Row (Top 19%) - Shrink width to 0.82 for narrower bar display
+	local statRow = Utils.mkFrame({name = "StatRow", size = UDim2.new(0.82, 0, 0.19, 0), bgT = 1, r = 0, parent = mainContainer})
 	statRow.LayoutOrder = 1
 	local statHList = Instance.new("UIListLayout")
-	statHList.FillDirection = Enum.FillDirection.Horizontal; statHList.HorizontalAlignment = Enum.HorizontalAlignment.Center; statHList.Padding = UDim.new(0, 0); statHList.Parent = statRow
+	statHList.FillDirection = Enum.FillDirection.Horizontal; statHList.HorizontalAlignment = Enum.HorizontalAlignment.Center; statHList.Padding = UDim.new(0.04, 0); statHList.Parent = statRow
 
-	-- Health Bar (Left 43%)
-	local hpSeg = Utils.mkFrame({name="HPSegment", size = UDim2.new(0.43, 0, 1, 0), bgT=1, r=0, parent=statRow})
+	-- Health Bar (Left 40%)
+	local hpSeg = Utils.mkFrame({name="HPSegment", size = UDim2.new(0.40, 0, 1, 0), bg = Color3.fromRGB(45, 15, 15), bgT=0, r=6, stroke=1, strokeC=Color3.new(1,1,1), strokeT=0, parent=statRow})
 	hpSeg.LayoutOrder = 1
-	local hpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(200, 25, 25), r=0, parent=hpSeg})
-	local hpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5,0,0.4,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=hpSeg})
+	local hpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(200, 25, 25), bgT=0, r=6, parent=hpSeg})
+	local hpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.62, 0), pos = UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=hpSeg})
 	hpLabel.TextScaled = true
-	local hpSub = Utils.mkLabel({text="HP", size = UDim2.new(0.9, 0, 0.25, 0), pos = UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5), font=F.TITLE, color=Color3.new(0.9,0.9,0.9), st=0.5, parent=hpSeg})
-	hpSub.TextScaled = true
 	HUDUI.Refs.healthBar = {container = hpSeg, fill = hpFill, label = hpLabel}
 
-	-- Level Segment (Center 14%) 
-	local lvSeg = Utils.mkFrame({name="LvSeg", size = UDim2.new(0.14, 0, 1, 0), bg = Color3.new(0,0,0), bgT=0.7, r=0, parent=statRow})
+	-- Level Segment (Center 12%) 
+	local lvSeg = Utils.mkFrame({name="LvSeg", size = UDim2.new(0.12, 0, 1, 0), bg = Color3.new(0,0,0), bgT=1, r=0, parent=statRow})
 	lvSeg.LayoutOrder = 2
 	local lvLabel = Utils.mkLabel({
-		text = "1", size = UDim2.new(0.85, 0, 0.85, 0), pos = UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5),
-		font = Enum.Font.GothamBlack, bold = true, color = Color3.new(1, 1, 1), st = 0, parent = lvSeg
+		text = "<font size=\"16\">Lv.</font>1", size = UDim2.new(0.95, 0, 0.85, 0), pos = UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5),
+		font = Enum.Font.GothamBlack, bold = true, color = Color3.new(1, 1, 1), st = 0, rich = true, parent = lvSeg
 	})
 	lvLabel.TextScaled = true
 	-- Heavy contrast text outline for professional polished typography
@@ -495,29 +519,29 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	lvTextStr.Thickness = 2.5; lvTextStr.Color = Color3.new(0,0,0); lvTextStr.Parent = lvLabel
 	HUDUI.Refs.levelLabel = lvLabel
 
-	-- Mana Bar (Right 43%)
-	local mpSeg = Utils.mkFrame({name="MPSegment", size = UDim2.new(0.43, 0, 1, 0), bgT=1, r=0, parent=statRow})
+	-- Mana Bar (Right 40%)
+	local mpSeg = Utils.mkFrame({name="MPSegment", size = UDim2.new(0.40, 0, 1, 0), bg = Color3.fromRGB(10, 25, 45), bgT=0, r=6, stroke=1, strokeC=Color3.new(1,1,1), strokeT=0, parent=statRow})
 	mpSeg.LayoutOrder = 3
-	local mpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(0, 102, 204), r=0, parent=mpSeg})
-	local mpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5,0,0.4,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=mpSeg})
+	local mpFill = Utils.mkFrame({name="Fill", size = UDim2.new(1, 0, 1, 0), bg = Color3.fromRGB(0, 102, 204), bgT=0, r=6, parent=mpSeg})
+	local mpLabel = Utils.mkLabel({text="100/100", size = UDim2.new(0.9, 0, 0.62, 0), pos = UDim2.new(0.5,0,0.5,0), anchor=Vector2.new(0.5,0.5), font = F.NUM, color=C.WHITE, st=1, parent=mpSeg})
 	mpLabel.TextScaled = true
-	local mpSub = Utils.mkLabel({text="Mana", size = UDim2.new(0.9, 0, 0.25, 0), pos = UDim2.new(0.5,0,0.85,0), anchor=Vector2.new(0.5,0.5), font=F.TITLE, color=Color3.new(0.9,0.9,0.9), st=0.5, parent=mpSeg})
-	mpSub.TextScaled = true
 	HUDUI.Refs.staminaBar = {container = mpSeg, fill = mpFill, label = mpLabel}
 
-	-- 2. EXP Row (Middle 19% height)
-	local expRow = Utils.mkFrame({name = "EXPRow", size = UDim2.new(1, 0, 0.19, 0), bg = Color3.new(0,0,0), bgT=0.8, r=0, parent = mainContainer})
+	-- Spacer Row (Middle-Top 8% height to increase vertical gap between HP/Mana and EXP) - Set width to 0.82 to align
+	local spacerRow = Utils.mkFrame({name = "SpacerRow", size = UDim2.new(0.82, 0, 0.08, 0), bgT = 1, r = 0, parent = mainContainer})
+	spacerRow.LayoutOrder = 2
+
+	-- 2. EXP Row (Middle 10% height) - Shrink width to 0.82 to match statRow perfectly
+	local expRow = Utils.mkFrame({name = "EXPRow", size = UDim2.new(0.82, 0, 0.10, 0), bg = Color3.fromRGB(20, 30, 20), bgT=0.3, r=6, stroke=1, strokeC=Color3.new(1,1,1), strokeT=0, parent = mainContainer})
 	expRow.LayoutOrder = 3
-	local expFill = Utils.mkFrame({name="Fill", size = UDim2.new(0, 0, 1, 0), bg = Color3.fromRGB(255, 180, 0), r=0, parent=expRow})
+	local expFill = Utils.mkFrame({name="Fill", size = UDim2.new(0, 0, 1, 0), bg = Color3.fromRGB(130, 225, 100), bgT=0.3, r=6, parent=expRow})
 	HUDUI.Refs.xpBar = expFill
-	local expLabel = Utils.mkLabel({text="0/0", size = UDim2.new(0.9, 0, 0.6, 0), pos = UDim2.new(0.5, 0, 0.35, 0), anchor = Vector2.new(0.5, 0.5), font = F.NUM, color = C.WHITE, st = 1, parent = expRow})
+	local expLabel = Utils.mkLabel({text="0/0", size = UDim2.new(0.9, 0, 0.8, 0), pos = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), font = F.NUM, color = C.WHITE, st = 1, parent = expRow})
 	expLabel.TextScaled = true
 	HUDUI.Refs.xpValueLabel = expLabel
-	local expSub = Utils.mkLabel({text="EXP", size = UDim2.new(0.9, 0, 0.3, 0), pos = UDim2.new(0.5, 0, 0.85, 0), anchor = Vector2.new(0.5, 0.5), font = F.TITLE, color = Color3.new(0.8,0.8,0.8), st = 0.5, parent = expRow})
-	expSub.TextScaled = true
 
-	-- 3. Menu Row (Bottom 50% height maximizing icon clarity)
-	local menuRow = Utils.mkFrame({name = "MenuRow", size = UDim2.new(1, 0, 0.50, 0), bgT=1, r=0, parent = mainContainer})
+	-- 3. Menu Row (Bottom 54% height maximizing icon clarity)
+	local menuRow = Utils.mkFrame({name = "MenuRow", size = UDim2.new(1, 0, 0.54, 0), bgT=1, r=0, parent = mainContainer})
 	menuRow.LayoutOrder = 5
 	local menuGrid = Instance.new("UIGridLayout")
 	menuGrid.CellSize = UDim2.new(0.16, 0, 0.95, 0) -- Perfect maximizing fit
@@ -1095,6 +1119,31 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			HUDUI.UseConsumableQuickslot(i)
 		end)
 		
+		-- [추가] 포션용 쿨타임 오버레이
+		local cdOverlay = Instance.new("Frame")
+		cdOverlay.Name = "CooldownOverlay"
+		cdOverlay.Size = UDim2.new(1, 0, 1, 0)
+		cdOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+		cdOverlay.BackgroundTransparency = 0.5
+		cdOverlay.Visible = false
+		cdOverlay.ZIndex = slot.frame.ZIndex + 2
+		
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = cdOverlay
+		cdOverlay.Parent = slot.frame
+		
+		local cdLabel = Utils.mkLabel({
+			name = "CooldownText",
+			text = "0.0", size = UDim2.new(1, 0, 1, 0),
+			font = F.TITLE, color = C.WHITE, st = 1, parent = cdOverlay
+		})
+		cdLabel.TextScaled = true
+		cdLabel.ZIndex = cdOverlay.ZIndex + 1
+		
+		slot.cdOverlay = cdOverlay
+		slot.cdLabel = cdLabel
+		
 		HUDUI.Refs.consumableSlots[i] = slot
 	end
 
@@ -1296,6 +1345,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 	-- 서버로부터 저장된 단축슬롯 정보 로드
 	task.spawn(function()
+		local Players = game:GetService("Players")
+		local localPlayer = Players.LocalPlayer
+		while not (localPlayer and localPlayer:GetAttribute("DataLoaded")) do
+			task.wait(0.2)
+		end
+
 		local success, result = safeRequest("Inventory.GetQuickslots.Request")
 		if success and result and result.quickslots then
 			for i = 1, 3 do
@@ -1312,6 +1367,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			_UIManager.notify("단축슬롯에 등록된 소비 아이템이 없습니다.", C.RED)
 			return
 		end
+
+		local isPotion = string.find(string.upper(itemId), "POTION") ~= nil
+		if isPotion and tick() < localPotionCooldownEnd then
+			_UIManager.notify("포션 재사용 대기 중입니다.", C.RED)
+			return
+		end
 		
 		local items = InventoryController.getItems()
 		local foundSlot = nil
@@ -1325,6 +1386,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		if foundSlot then
 			local slot = HUDUI.Refs.consumableSlots[slotIdx]
 			if slot then triggerScale(slot.frame) end
+			if isPotion then
+				localPotionCooldownEnd = tick() + 3.0 -- Start local 3s cooldown
+			end
 			InventoryController.requestUse(foundSlot)
 		else
 			local ItemData = require(game:GetService("ReplicatedStorage"):WaitForChild("Data"):WaitForChild("ItemData"))
@@ -2017,7 +2081,7 @@ function HUDUI.UpdateRuneHotbar(equipment)
 	if not HUDUI.Refs.runeSlots then return end
 	
 	local SkillController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("SkillController"))
-	local activeSlots = SkillController and SkillController.getActiveSkillSlots and SkillController.getActiveSkillSlots() or { nil, nil, nil }
+	local activeSlots = SkillController and SkillController.getActiveSkillSlots and SkillController.getActiveSkillSlots() or { "", "", "" }
 	local SkillTreeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("SkillTreeData"))
 
 	for i = 1, 3 do
@@ -2025,7 +2089,7 @@ function HUDUI.UpdateRuneHotbar(equipment)
 		if not slot then continue end
 		
 		local skillId = activeSlots[i]
-		if skillId then
+		if skillId and skillId ~= "" then
 			local skillData = SkillTreeData.GetSkill(skillId)
 			slot.icon.Image = _UIManager and _UIManager.getItemIcon(skillData and skillData.icon or skillId) or ""
 			slot.icon.Visible = true
@@ -2042,7 +2106,7 @@ function HUDUI.UpdateHealth(cur, max)
 	local r = math.clamp(cur/max, 0, 1)
 	TweenService:Create(bar.fill, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Size = UDim2.new(r, 0, 1, 0)}):Play()
 	if HUDUI.Refs.hpDecay then TweenService:Create(HUDUI.Refs.hpDecay, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {Size = UDim2.new(r, 0, 1, 0)}):Play() end
-	bar.label.Text = string.format("%d / %d", math.floor(cur), math.floor(max))
+	bar.label.Text = string.format("%s / %s", formatVal(cur), formatVal(max))
 	bar.fill.BackgroundColor3 = r < 0.25 and C.RED or C.HP
 end
 
@@ -2052,7 +2116,7 @@ function HUDUI.UpdateStamina(cur, max)
 	local r = math.clamp(cur/max, 0, 1)
 	TweenService:Create(bar.fill, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.new(r, 0, 1, 0)}):Play()
 	if HUDUI.Refs.staDecay then TweenService:Create(HUDUI.Refs.staDecay, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Size = UDim2.new(r, 0, 1, 0)}):Play() end
-	bar.label.Text = string.format("%d / %d", math.floor(cur), math.floor(max))
+	bar.label.Text = string.format("%s / %s", formatVal(cur), formatVal(max))
 end
 
 function HUDUI.UpdateHunger(cur, max)
@@ -2082,20 +2146,20 @@ function HUDUI.UpdateXP(cur, max)
 		HUDUI.Refs.xpPctLabel.Text = string.format("%d%%", math.floor(r * 100))
 	end
 	if HUDUI.Refs.xpValueLabel then
-		HUDUI.Refs.xpValueLabel.Text = string.format("%d/%d", math.floor(cur), math.floor(max))
+		HUDUI.Refs.xpValueLabel.Text = string.format("%s / %s", formatVal(cur), formatVal(max))
 	end
 end
 
 function HUDUI.UpdateLevel(lv)
 	HUDUI.Refs.currentLevel = lv
 	if HUDUI.Refs.levelLabel then
-		HUDUI.Refs.levelLabel.Text = string.format("Lv.%s", tostring(lv))
+		HUDUI.Refs.levelLabel.Text = string.format("<font size=\"16\">Lv.</font>%d", tonumber(lv) or 0)
 	end
 end
 
 function HUDUI.SetStatPointAlert(available)
 	if HUDUI.Refs.statPointAlert then
-		HUDUI.Refs.statPointAlert.Visible = (available > 0)
+		HUDUI.Refs.statPointAlert.Visible = false
 	end
 end
 
@@ -2373,7 +2437,7 @@ function HUDUI.UpdateGold(val)
 	HUDUI.Refs.goldLabel.Text = txt
 end
 
--- [추가] 룬 쿨타임 주기적 업데이트
+-- [추가] 룬 및 포션 쿨타임 주기적 업데이트
 local _cachedSkillController = nil
 RunService.RenderStepped:Connect(function()
 	if HUDUI.Refs.runeSlots then
@@ -2398,6 +2462,25 @@ RunService.RenderStepped:Connect(function()
 					else
 						slot.cdOverlay.Visible = false
 					end
+				end
+			end
+		end
+	end
+
+	if HUDUI.Refs.consumableSlots then
+		local remaining = localPotionCooldownEnd - tick()
+		for i = 1, 3 do
+			local slot = HUDUI.Refs.consumableSlots[i]
+			if slot and slot.cdOverlay and slot.cdLabel then
+				if remaining > 0 then
+					slot.cdOverlay.Visible = true
+					if remaining >= 1.0 then
+						slot.cdLabel.Text = string.format("%d", math.ceil(remaining))
+					else
+						slot.cdLabel.Text = string.format("%.1f", remaining)
+					end
+				else
+					slot.cdOverlay.Visible = false
 				end
 			end
 		end

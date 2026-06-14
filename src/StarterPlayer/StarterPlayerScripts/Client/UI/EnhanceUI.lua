@@ -70,73 +70,106 @@ local function getItemDataById(itemId)
 	return DataHelper.GetData("ItemData", itemId)
 end
 
+local function findInventoryDownProtect()
+	local totalCount = 0
+	local foundSlotIdx = nil
+	if not UI_MANAGER then return nil, 0 end
+	
+	local cache = InventoryController.getInventoryCache()
+	if cache then
+		for slotIdx, slotData in pairs(cache) do
+			if slotData and slotData.itemId then
+				local itemData = getItemDataById(slotData.itemId)
+				if itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDownProtect then
+					local count = math.max(0, math.floor(tonumber(slotData.count) or 0))
+					if count > 0 then
+						totalCount = totalCount + count
+						if not foundSlotIdx then
+							foundSlotIdx = slotIdx
+						end
+					end
+				end
+			end
+		end
+	end
+	return foundSlotIdx, totalCount
+end
+
 local function syncDownProtectSelection(allowPrompt)
 	if not UI_MANAGER then
 		return false
 	end
 
+	local foundSlotIdx, totalCount = findInventoryDownProtect()
 	local slotIndex = EnhanceUI.State.selectedDownProtectSlot
+	local stroke = EnhanceUI.Refs.ProtectPanel and EnhanceUI.Refs.ProtectPanel:FindFirstChildOfClass("UIStroke")
+
 	if type(slotIndex) ~= "number" then
 		EnhanceUI.State.lastDownProtectCount = 0
 		if EnhanceUI.Refs.ProtectValue then
-			EnhanceUI.Refs.ProtectValue.Text = UILocalizer.Localize("없음")
+			EnhanceUI.Refs.ProtectValue.Text = string.format("%s: %d", UILocalizer.Localize("보유"), totalCount)
 		end
-		if EnhanceUI.State.pendingDownProtectWarning and allowPrompt and EnhanceUI.Refs.Frame and EnhanceUI.Refs.Frame.Visible and not EnhanceUI.State.isProcessing then
-			UI_MANAGER.showEnhanceConfirm({
-				title = UILocalizer.Localize("하락방지권 없음"),
-				message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
-				onConfirm = function()
-					EnhanceUI.State.pendingDownProtectWarning = false
-				end,
-				onCancel = function()
-					EnhanceUI.State.pendingDownProtectWarning = false
-				end,
-			})
+		if EnhanceUI.Refs.ProtectButton then
+			EnhanceUI.Refs.ProtectButton.Text = UILocalizer.Localize("켜기")
+		end
+		if stroke then
+			stroke.Transparency = 1 -- Hide border
 		end
 		return false
 	end
 
-	local slotData = UI_MANAGER.getInventorySlot and UI_MANAGER.getInventorySlot(slotIndex) or nil
-	local itemData = slotData and getItemDataById(slotData.itemId) or nil
-	local count = math.max(0, math.floor(tonumber(slotData and slotData.count) or 0))
-	local valid = slotData and itemData and itemData.type == "ENHANCE_SCROLL" and itemData.isDownProtect and count > 0
-
-	if valid then
+	-- ON state
+	local count = totalCount
+	if count > 0 then
 		EnhanceUI.State.lastDownProtectCount = count
 		EnhanceUI.State.pendingDownProtectWarning = false
 		if EnhanceUI.Refs.ProtectValue then
-			local itemName = UI_MANAGER.getItemName and UI_MANAGER.getItemName(slotData.itemId) or (itemData.name or tostring(slotData.itemId))
-			EnhanceUI.Refs.ProtectValue.Text = string.format("%s x%d", itemName, count)
+			EnhanceUI.Refs.ProtectValue.Text = string.format("<font color='#FFD700'><b>%s</b></font> (%s: %d)", UILocalizer.Localize("적용 중"), UILocalizer.Localize("보유"), count)
+		end
+		if EnhanceUI.Refs.ProtectButton then
+			EnhanceUI.Refs.ProtectButton.Text = UILocalizer.Localize("끄기")
+		end
+		if stroke then
+			stroke.Transparency = 0 -- Show Navy border
 		end
 		return true
-	end
-
-	local hadSelection = EnhanceUI.State.selectedDownProtectSlot ~= nil
-	EnhanceUI.State.selectedDownProtectSlot = nil
-	EnhanceUI.State.lastDownProtectCount = 0
-	if EnhanceUI.Refs.ProtectValue then
-		EnhanceUI.Refs.ProtectValue.Text = UILocalizer.Localize("없음")
-	end
-
-	if hadSelection and allowPrompt and EnhanceUI.Refs.Frame and EnhanceUI.Refs.Frame.Visible then
-		if EnhanceUI.State.isProcessing then
-			EnhanceUI.State.pendingDownProtectWarning = true
-		elseif not EnhanceUI.State.pendingDownProtectWarning then
-			EnhanceUI.State.pendingDownProtectWarning = true
-			UI_MANAGER.showEnhanceConfirm({
-				title = UILocalizer.Localize("하락방지권 없음"),
-				message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
-				onConfirm = function()
-					EnhanceUI.State.pendingDownProtectWarning = false
-				end,
-				onCancel = function()
-					EnhanceUI.State.pendingDownProtectWarning = false
-				end,
-			})
+	else
+		-- Count became 0, turn off automatically
+		EnhanceUI.State.selectedDownProtectSlot = nil
+		EnhanceUI.State.lastDownProtectCount = 0
+		if EnhanceUI.Refs.ProtectValue then
+			EnhanceUI.Refs.ProtectValue.Text = string.format("%s: 0", UILocalizer.Localize("보유"))
 		end
+		if EnhanceUI.Refs.ProtectButton then
+			EnhanceUI.Refs.ProtectButton.Text = UILocalizer.Localize("켜기")
+		end
+		if stroke then
+			stroke.Transparency = 1 -- Hide border
+		end
+		return false
 	end
+end
 
-	return false
+local function formatVal(num)
+	local n = tonumber(num) or 0
+	if n >= 1000000000000 then
+		return string.format("%.2fT", n / 1000000000000)
+	elseif n >= 1000000000 then
+		return string.format("%.2fB", n / 1000000000)
+	elseif n >= 1000000 then
+		return string.format("%.2fM", n / 1000000)
+	elseif n >= 1000 then
+		local val = n / 1000
+		if val % 1 == 0 then
+			return string.format("%dK", val)
+		else
+			local formatted = string.format("%.2f", val)
+			formatted = string.gsub(formatted, "%.?0+$", "")
+			return formatted .. "K"
+		end
+	else
+		return tostring(math.floor(n))
+	end
 end
 
 -- 강화 비용 공식 (서버와 동기화)
@@ -350,8 +383,13 @@ function EnhanceUI.Init(parent, manager)
 		bg = C.BG_DARK,
 		bgT = 0.4,
 		r = 8,
+		stroke = true,
+		strokeC = Color3.fromRGB(40, 80, 160),
+		strokeT = 1, -- Invisible initially
 		parent = body
 	})
+	EnhanceUI.Refs.ProtectPanel = protectPanel
+
 	local protectLabel = Utils.mkLabel({
 		text = UILocalizer.Localize("하락 방지권 선택"),
 		size = UDim2.new(1, -92, 0, 22),
@@ -363,17 +401,18 @@ function EnhanceUI.Init(parent, manager)
 		parent = protectPanel
 	})
 	local protectValue = Utils.mkLabel({
-		text = UILocalizer.Localize("없음"),
+		text = UILocalizer.Localize("보유: 0"),
 		size = UDim2.new(1, -92, 0, 18),
 		pos = UDim2.new(0, 12, 0, 32),
 		ts = 12,
 		color = C.INK,
 		ax = Enum.TextXAlignment.Left,
+		rich = true, -- Enable rich text for 적용 중 color tag
 		parent = protectPanel
 	})
 	EnhanceUI.Refs.ProtectValue = protectValue
 	local protectBtn = Utils.mkBtn({
-		text = UILocalizer.Localize("선택"),
+		text = UILocalizer.Localize("켜기"),
 		size = UDim2.new(0, 68, 0, 38),
 		pos = UDim2.new(1, -10, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
@@ -382,12 +421,20 @@ function EnhanceUI.Init(parent, manager)
 		ts = 15,
 		r = 8,
 		fn = function()
-			UI_MANAGER.openItemSelector("DOWN_PROTECT", function(slotIndex, itemData)
-				EnhanceUI.State.selectedDownProtectSlot = slotIndex
-				EnhanceUI.State.pendingDownProtectWarning = false
-				syncDownProtectSelection(false)
-				EnhanceUI.UpdateChances(false)
-			end)
+			if EnhanceUI.State.isProcessing then return end
+			local slotIdx, totalCount = findInventoryDownProtect()
+			if totalCount <= 0 then
+				UI_MANAGER.notify(UILocalizer.Localize("하락방지권이 부족합니다."), Color3.fromRGB(255, 100, 100))
+				return
+			end
+
+			if EnhanceUI.State.selectedDownProtectSlot then
+				EnhanceUI.State.selectedDownProtectSlot = nil
+			else
+				EnhanceUI.State.selectedDownProtectSlot = slotIdx
+			end
+			syncDownProtectSelection(false)
+			EnhanceUI.UpdateChances(false)
 		end,
 		parent = protectPanel
 	})
@@ -501,16 +548,11 @@ function EnhanceUI.UpdateChances(allowPrompt)
 		end
 		
 		-- Spec Comparison
-		local curBonusPct = level * 15
-		local nextBonusPct = (level + 1) * 15
 		local curDmg = math.floor(baseDmg * (1 + level * 0.15) + 0.5)
-		local nextDmg = math.floor(baseDmg * (1 + (level + 1) * 0.15) + 0.5)
 		
 		local specText = string.format(
-			"<b>%s</b>\n- %s: Lv.%d → <font color='#%s'>Lv.%d</font>\n- %s: %d <font color='#%s'>(+%d%%)</font> → <b>%d <font color='#%s'>(+%d%%)</font></b>",
-			UILocalizer.Localize("[ 공격력 스펙 변화 ]"),
-			UILocalizer.Localize("강화 단계"), level, C.GOLD:ToHex(), level + 1,
-			UILocalizer.Localize("무기 공격력"), curDmg, C.INK:ToHex(), curBonusPct, nextDmg, C.GOLD:ToHex(), nextBonusPct
+			"<b>%s</b>: <font color='#FFFFFF'>%d</font>\n<font color='#FF4D4D'><b>실패 시 무기의 강화가 내려갑니다.</b></font>",
+			UILocalizer.Localize("현재 무기 공격력"), curDmg
 		)
 		EnhanceUI.Refs.SpecLabel.Text = specText
 		
@@ -523,13 +565,11 @@ function EnhanceUI.UpdateChances(allowPrompt)
 		local successRate = getSuccessRate(level)
 		local myGold = ShopController.getGold()
 		
-		local goldColor = (myGold >= cost) and C.GOLD:ToHex() or C.RED:ToHex()
+		local costStr = formatVal(cost)
 		local rateText = string.format(
-			"<b>%s</b>\n- %s: <font color='#%s'><b>%d%%</b></font> | %s: <font color='#%s'><b>%d%%</b> (-1 Lv)</font>\n- %s: <font color='#%s'>%d</font> / %d Gold",
-			UILocalizer.Localize("[ 강화 요건 및 확률 ]"),
-			UILocalizer.Localize("성공 확률"), C.GOLD:ToHex(), math.floor(successRate * 100),
-			UILocalizer.Localize("실패 패널티"), C.RED:ToHex(), math.floor((1 - successRate) * 100),
-			UILocalizer.Localize("필요 골드"), goldColor, cost, myGold
+			"<b>%s</b>: <font color='#FFFFFF'><b>%d%%</b></font>\n<b>%s</b>: <font color='#FFD700'><b>%s</b></font> Gold",
+			UILocalizer.Localize("성공 확률"), math.floor(successRate * 100),
+			UILocalizer.Localize("강화 비용"), costStr
 		)
 		EnhanceUI.Refs.CostLabel.Text = rateText
 		
@@ -543,8 +583,8 @@ function EnhanceUI.UpdateChances(allowPrompt)
 			EnhanceUI.Refs.StartBtn.TextColor3 = C.GRAY
 		end
 	else
-		EnhanceUI.Refs.SpecLabel.Text = UILocalizer.Localize("무기를 선택하면 공격력 및 강화 스펙 변화가 표시됩니다.")
-		EnhanceUI.Refs.CostLabel.Text = UILocalizer.Localize("소지한 골드와 강화 성공률을 여기에 표시합니다.")
+		EnhanceUI.Refs.SpecLabel.Text = UILocalizer.Localize("무기를 선택하면 공격력이 표시됩니다.")
+		EnhanceUI.Refs.CostLabel.Text = UILocalizer.Localize("성공 확률과 강화 비용을 여기에 표시합니다.")
 		EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("무기 선택 필요")
 		Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
 		EnhanceUI.Refs.StartBtn.TextColor3 = C.GRAY
@@ -557,68 +597,11 @@ function EnhanceUI.StartEnhance()
 	if not wSlot then return end
 
 	local hasProtect = syncDownProtectSelection(false)
-	if not hasProtect then
-		UI_MANAGER.showEnhanceConfirm({
-			title = UILocalizer.Localize("하락방지권 없음"),
-			message = UILocalizer.Localize("하락방지권이 없습니다.\n계속 강화하시겠습니까?"),
-			onConfirm = function()
-				EnhanceUI.State.pendingDownProtectWarning = false
-				EnhanceUI.State.isProcessing = true
-				EnhanceUI.Refs.StartBtn.Text = UILocalizer.Localize("강화 진행 중...")
-				Utils.setBtnState(EnhanceUI.Refs.StartBtn, C.BG_SLOT, 0.5)
-
-				local ok, result = NetClient.Request("Enhance.Request", {
-					slot = wSlot,
-				})
-
-				EnhanceUI.State.isProcessing = false
-				EnhanceUI.State.pendingDownProtectWarning = false
-
-				if ok and result and result.success then
-					if result.result == "SUCCESS" then
-						UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 성공! +%d 단계가 되었습니다."), result.newLevel), Color3.fromRGB(100, 255, 100))
-					elseif result.result == "PROTECTED" then
-						UI_MANAGER.notify(UILocalizer.Localize("강화 실패! 하락 방지권이 사용되어 등급이 유지되었습니다."), Color3.fromRGB(255, 220, 120))
-					else
-						UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 실패... +%d 단계로 하락했습니다."), result.newLevel), Color3.fromRGB(255, 100, 100))
-					end
-					local updatedWeapon = nil
-					if wSlot == "HAND" then
-						local equipment = UI_MANAGER.getEquipment and UI_MANAGER.getEquipment() or {}
-						updatedWeapon = equipment.HAND
-					else
-						updatedWeapon = UI_MANAGER.getInventorySlot(wSlot)
-					end
-					if updatedWeapon then
-						if not updatedWeapon.attributes then
-							updatedWeapon.attributes = {}
-						end
-						updatedWeapon.attributes.enhanceLevel = result.newLevel
-					end
-					EnhanceUI.UpdateWeapon(updatedWeapon)
-					EnhanceUI.UpdateChances(true)
-				else
-					local errMsg = "NETWORK_ERROR"
-					if type(result) == "table" and result.error then
-						errMsg = result.error
-					elseif type(result) == "string" then
-						errMsg = result
-					end
-					local text = UILocalizer.Localize("서버 통신 오류가 발생했습니다.")
-					if errMsg == "NOT_ENOUGH_GOLD" then
-						text = UILocalizer.Localize("골드가 부족합니다.")
-					elseif errMsg == "MAX_LEVEL_REACHED" then
-						text = UILocalizer.Localize("이미 최대 강화 단계입니다.")
-					end
-					UI_MANAGER.notify(text, Color3.fromRGB(255, 50, 50))
-					EnhanceUI.UpdateChances(true)
-				end
-			end,
-			onCancel = function()
-				EnhanceUI.State.pendingDownProtectWarning = false
-			end,
-		})
-		return
+	local scrollsPayload = nil
+	if hasProtect and EnhanceUI.State.selectedDownProtectSlot then
+		scrollsPayload = {
+			downProtectSlot = EnhanceUI.State.selectedDownProtectSlot
+		}
 	end
 
 	EnhanceUI.State.isProcessing = true
@@ -627,9 +610,7 @@ function EnhanceUI.StartEnhance()
 
 	local ok, result = NetClient.Request("Enhance.Request", {
 		slot = wSlot,
-		scrolls = {
-			downProtectSlot = EnhanceUI.State.selectedDownProtectSlot,
-		}
+		scrolls = scrollsPayload
 	})
 
 	EnhanceUI.State.isProcessing = false
@@ -693,7 +674,7 @@ function EnhanceUI.Reset()
 	EnhanceUI.State.isProcessing = false
 	EnhanceUI.UpdateWeapon(nil)
 	if EnhanceUI.Refs.ProtectValue then
-		EnhanceUI.Refs.ProtectValue.Text = UILocalizer.Localize("없음")
+		EnhanceUI.Refs.ProtectValue.Text = string.format("%s: 0", UILocalizer.Localize("보유"))
 	end
 	EnhanceUI.UpdateChances()
 end

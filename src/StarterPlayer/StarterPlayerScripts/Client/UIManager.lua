@@ -2866,6 +2866,10 @@ function UIManager.Init()
 		-- 오버레이 내부의 메인 윈도우 패널 검색 헬퍼
 		local function findMainPanel(overlay)
 			if not overlay then return nil end
+			local main = overlay:FindFirstChild("Main")
+			if main and (main:IsA("Frame") or main:IsA("CanvasGroup")) then
+				return main
+			end
 			for _, child in ipairs(overlay:GetChildren()) do
 				if child:IsA("Frame") or child:IsA("CanvasGroup") then
 					return child

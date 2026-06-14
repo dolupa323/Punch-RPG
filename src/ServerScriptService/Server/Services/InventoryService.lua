@@ -71,6 +71,9 @@ local function _normalizeQuickslots(quickslots: any): {string}
 
 	for i = 1, 3 do
 		local value = quickslots[i]
+		if value == nil or value == "" then
+			value = quickslots[tostring(i)]
+		end
 		if type(value) == "string" and value ~= "" then
 			normalized[i] = value
 		end
@@ -2669,6 +2672,9 @@ function InventoryService.GetHandlers()
 				local state = SaveService.getPlayerState(userId)
 				if state then
 					state.quickslots = _normalizeQuickslots(quickslots)
+					if SaveService.markPlayerDirty then
+						SaveService.markPlayerDirty(userId)
+					end
 					return { success = true }
 				end
 			end

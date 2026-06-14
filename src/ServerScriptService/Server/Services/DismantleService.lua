@@ -67,6 +67,27 @@ local function calculateDismantleMaterials(itemId: string)
 	return returnedMaterials
 end
 
+local function _attachNpcLabel(root: BasePart, name: string, role: string)
+	if not root or root:FindFirstChild("NpcLabel") then return end
+	local label = Instance.new("BillboardGui")
+	label.Name = "NpcLabel"
+	label.Size = UDim2.new(0, 200, 0, 50)
+	label.StudsOffset = Vector3.new(0, 4.5, 0)
+	label.AlwaysOnTop = true
+	label.MaxDistance = 80
+	label.Parent = root
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.new(1, 0, 1, 0)
+	text.BackgroundTransparency = 1
+	text.TextScaled = true
+	text.Font = Enum.Font.SourceSansBold
+	text.TextColor3 = Color3.fromRGB(255, 233, 184)
+	text.TextStrokeTransparency = 0.35
+	text.Text = string.format("%s\n%s", name, role)
+	text.Parent = label
+end
+
 -- NPC ProximityPrompt 자동 생성 함수
 local function setupNPC(npc)
 	if npc:FindFirstChild("DismantleMasterPrompt", true) then return end
@@ -90,6 +111,8 @@ local function setupNPC(npc)
 	prompt.Parent = targetPart
 	print("[DismantleService] 무기 분해 NPC 프롬프트 생성 완료: " .. npc.Name .. " (Parent: " .. targetPart.Name .. ")")
 	
+	_attachNpcLabel(targetPart, "DismantleMaster", "분해소")
+
 	prompt.Triggered:Connect(function(player)
 		if NetController then
 			NetController.FireClient(player, "Dismantle.OpenUI")
@@ -189,7 +212,7 @@ local function handleDismantleRequest(player: Player, payload: any)
 			table.insert(formattedList, string.format("[%s x%d]", m.name, m.count))
 		end
 		NetController.FireClient(player, "Notify.Message", {
-			text = string.format("🔨 무기를 분해하여 %s 재료를 획득했습니다!", table.concat(formattedList, ", ")),
+			text = string.format("무기를 분해하여 %s 재료를 획득했습니다!", table.concat(formattedList, ", ")),
 			color = "GOLD"
 		})
 	end

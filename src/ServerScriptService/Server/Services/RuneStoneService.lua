@@ -19,6 +19,7 @@ local RUNE_STONE_NAME = "RuneStone"
 local RUNE_CLAIM_LIMIT = 1
 local playerClaimCache = {} -- [userId] = count
 local boundPrompts = {}
+local claimDebounce = {}
 
 local runeRewardSequence = {
 	{ itemId = "BOOK_FLAME", displayName = "화염" },
@@ -59,42 +60,68 @@ local function setPlayerClaimCount(userId: number, count: number)
 	end
 end
 
-local function getRuneReward(player: Player)
-	local claimCount = getPlayerClaimCount(player.UserId)
-	if claimCount >= RUNE_CLAIM_LIMIT then
-		return nil, "CLAIM_LIMIT_REACHED"
-	end
-	local rewardIndex = math.random(1, #runeRewardSequence)
-	return runeRewardSequence[rewardIndex], nil
-end
-
 local function notify(player: Player, text: string)
 	if NetController then
 		NetController.FireClient(player, "Notify.Message", { text = text })
 	end
 end
 
-local function awardRune(player: Player)
-	local userId = player.UserId
+local function getKSTDate(timestamp: number)
+	return os.date("!*t", timestamp + 9 * 3600)
+end
 
-	local reward, errCode = getRuneReward(player)
-	if not reward then
-		if errCode == "CLAIM_LIMIT_REACHED" then
-			notify(player, "이미 룬스톤 보상을 획득했습니다.")
-		end
-		return false, errCode or "NO_REWARD"
+local function isSameKSTDay(time1: number, time2: number): boolean
+	if not time1 or not time2 or time1 <= 0 or time2 <= 0 then
+		return false
+	end
+	local d1 = getKSTDate(time1)
+	local d2 = getKSTDate(time2)
+	return d1.year == d2.year and d1.month == d2.month and d1.day == d2.day
+end
+
+local function claimDailyReward(player: Player): (boolean, string?)
+	local userId = player.UserId
+	if claimDebounce[userId] then
+		return false, "ALREADY_CLAIMED"
+	end
+	claimDebounce[userId] = true
+
+	local now = os.time()
+
+	local state = SaveService and SaveService.getPlayerState and SaveService.getPlayerState(userId)
+	local lastClaimTime = 0
+	if state then
+		lastClaimTime = tonumber(state.lastRuneStoneClaimTimestamp) or 0
 	end
 
-	local added, remaining = InventoryService.addItem(userId, reward.itemId, 1)
+	-- Check if already claimed today
+	if lastClaimTime > 0 and isSameKSTDay(lastClaimTime, now) then
+		claimDebounce[userId] = nil
+		return false, "ALREADY_CLAIMED"
+	end
+
+	-- Check inventory space for "강화 하락방지권" (Item ID: 3602118498)
+	local added, remaining = InventoryService.addItem(userId, "3602118498", 1)
 	if added <= 0 or remaining > 0 then
-		notify(player, "인벤토리가 가득 찼습니다.")
+		claimDebounce[userId] = nil
 		return false, "INV_FULL"
 	end
 
-	local claimCount = getPlayerClaimCount(userId)
-	setPlayerClaimCount(userId, claimCount + 1)
-	notify(player, string.format("스킬북 [%s]을 획득했습니다!", reward.displayName))
+	-- Add 100 Gold
+	local NPCShopService = require(game:GetService("ServerScriptService").Server.Services.NPCShopService)
+	NPCShopService.addGold(userId, 100)
 
+	-- Update state
+	if SaveService and SaveService.updatePlayerState then
+		SaveService.updatePlayerState(userId, function(st)
+			st.lastRuneStoneClaimTimestamp = now
+			return st
+		end)
+	end
+	
+	claimDebounce[userId] = nil
+
+	-- Save player
 	if SaveService and SaveService.savePlayer then
 		task.spawn(function()
 			pcall(function()
@@ -103,7 +130,7 @@ local function awardRune(player: Player)
 		end)
 	end
 
-	return true, reward.itemId
+	return true
 end
 
 local function getPromptPart(model: Instance): BasePart?
@@ -125,8 +152,28 @@ local function getPromptPart(model: Instance): BasePart?
 	return nil
 end
 
+local function _attachNpcLabel(root: BasePart, name: string, role: string)
+	if not root or root:FindFirstChild("NpcLabel") then return end
+	local label = Instance.new("BillboardGui")
+	label.Name = "NpcLabel"
+	label.Size = UDim2.new(0, 200, 0, 50)
+	label.StudsOffset = Vector3.new(0, 4.5, 0)
+	label.AlwaysOnTop = true
+	label.MaxDistance = 80
+	label.Parent = root
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.new(1, 0, 1, 0)
+	text.BackgroundTransparency = 1
+	text.TextScaled = true
+	text.Font = Enum.Font.SourceSansBold
+	text.TextColor3 = Color3.fromRGB(255, 233, 184)
+	text.TextStrokeTransparency = 0.35
+	text.Text = string.format("%s\n%s", name, role)
+	text.Parent = label
+end
+
 local function bindRuneStoneModel(model: Instance)
-	-- 룬스톤 상호작용 폐지로 인해 프롬프트를 바인딩하지 않음
 	if not model then return end
 	local promptPart = getPromptPart(model)
 	if promptPart then
@@ -134,6 +181,32 @@ local function bindRuneStoneModel(model: Instance)
 		if existingPrompt then
 			existingPrompt:Destroy()
 		end
+		
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "RuneStonePrompt"
+		prompt.ActionText = "일일보상"
+		prompt.ObjectText = "룬스톤"
+		prompt.HoldDuration = 0.5
+		prompt.RequiresLineOfSight = false
+		prompt.MaxActivationDistance = 10
+		prompt.Parent = promptPart
+
+		_attachNpcLabel(promptPart, "RuneStone", "일일보상")
+
+		prompt.Triggered:Connect(function(player)
+			local success, err = claimDailyReward(player)
+			if success then
+				notify(player, "일일보상으로 강화 하락방지권과 100골드를 획득했습니다!")
+			else
+				if err == "ALREADY_CLAIMED" then
+					notify(player, "이미 오늘의 일일보상을 수령했습니다.")
+				elseif err == "INV_FULL" then
+					notify(player, "인벤토리가 가득 찼습니다.")
+				else
+					notify(player, "일일보상 수령에 실패했습니다.")
+				end
+			end
+		end)
 	end
 end
 

@@ -134,6 +134,8 @@ local function _getDefaultPlayerSave()
 		element = nil,
 		-- 룬스톤 획득 누적 횟수
 		runeStoneClaims = 0,
+		-- 일일보상 마지막 수령 타임스탬프
+		lastRuneStoneClaimTimestamp = 0,
 		-- 세션 제어 (Session Locking)
 		_session = {
 			jobId = nil,
@@ -169,6 +171,9 @@ local function _normalizeQuickslots(quickslots: any): {string}
 
 	for i = 1, 3 do
 		local value = quickslots[i]
+		if value == nil or value == "" then
+			value = quickslots[tostring(i)]
+		end
 		if type(value) == "string" and value ~= "" then
 			normalized[i] = value
 		end
@@ -364,6 +369,8 @@ local function _normalizePlayerState(state: any): any
 	-- 원소 속성 필드 정규화
 	state.element = (type(state.element) == "string") and state.element or nil
 	state.runeStoneClaims = math.max(0, math.floor(tonumber(state.runeStoneClaims) or 0))
+	state.lastRuneStoneClaimTimestamp = math.max(0, math.floor(tonumber(state.lastRuneStoneClaimTimestamp) or 0))
+
 	do
 		local tutorialQuest = state.rpgTutorialQuest
 		if type(tutorialQuest) ~= "table"

@@ -308,7 +308,7 @@ function DismantleUI.Init(parent, manager)
 	
 	-- 반환 재료 미리보기 타이틀
 	local matTitle = Utils.mkLabel({
-		text = UILocalizer.Localize("🛠️ 분해 시 100% 반환 재료 (50% 비율)"),
+		text = UILocalizer.Localize("분해 시 100% 반환 재료 (50% 비율)"),
 		size = UDim2.new(1, 0, 0, 25),
 		pos = UDim2.new(0, 0, 0, 90),
 		font = F.TITLE,
@@ -343,19 +343,19 @@ function DismantleUI.Init(parent, manager)
 	matListPad.PaddingRight = UDim.new(0, 10)
 	matListPad.Parent = matList
 	
-	-- 분해 실행 액션 버튼 (Danger Rosewood 테마 적용)
+	-- 분해 실행 액션 버튼 (공통 블루 테마 적용)
 	local actionBtn = Utils.mkBtn({
 		text = UILocalizer.Localize("무기 분해 실행"),
 		size = UDim2.new(1, 0, 0, 44),
 		pos = UDim2.new(0.5, 0, 1, 0),
 		anchor = Vector2.new(0.5, 1),
-		bg = C.BTN_DANGER,
+		bg = C.GOLD_SEL,
 		color = C.WHITE,
 		ts = 16,
 		font = F.TITLE,
 		r = 8,
 		stroke = 1.5,
-		strokeC = Color3.fromRGB(240, 100, 100),
+		strokeC = C.BORDER,
 		fn = function()
 			DismantleUI.executeDismantle()
 		end,

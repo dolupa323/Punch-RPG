@@ -11,6 +11,28 @@ local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):Wa
 local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 local MaterialAttributeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("MaterialAttributeData"))
 
+local function formatVal(num)
+	local n = tonumber(num) or 0
+	if n >= 1000000000000 then
+		return string.format("%.2fT", n / 1000000000000)
+	elseif n >= 1000000000 then
+		return string.format("%.2fB", n / 1000000000)
+	elseif n >= 1000000 then
+		return string.format("%.2fM", n / 1000000)
+	elseif n >= 1000 then
+		local val = n / 1000
+		if val % 1 == 0 then
+			return string.format("%dK", val)
+		else
+			local formatted = string.format("%.2f", val)
+			formatted = string.gsub(formatted, "%.?0+$", "")
+			return formatted .. "K"
+		end
+	else
+		return tostring(math.floor(n))
+	end
+end
+
 -- Apply EnhanceUI/CraftingUI Navy/Black Convention
 local C_Base = Theme.Colors
 local C = {}
@@ -92,7 +114,7 @@ local function showQuantityModal(titleText: string, itemName: string, maxQty: nu
 	
 	local function updateUI()
 		if qtyLbl then qtyLbl.Text = tostring(currentQty) end
-		if priceLbl then priceLbl.Text = UILocalizer.Localize(string.format("총 %d G", unitPrice * currentQty)) end
+		if priceLbl then priceLbl.Text = UILocalizer.Localize(string.format("총 %s G", formatVal(unitPrice * currentQty))) end
 	end
 	
 	updateUI()
@@ -103,50 +125,85 @@ local function showQuantityModal(titleText: string, itemName: string, maxQty: nu
 	local btnConfirm = modal:FindFirstChild("BtnConfirm", true)
 	local btnCancel = modal:FindFirstChild("BtnCancel", true)
 	
-	-- Disconnect previous connections if any (using a simple bind approach)
-	if modal:FindFirstChild("Connections") then
-		modal.Connections:Destroy()
+	-- Disconnect previous connections to prevent memory leaks and stacked handlers
+	if ShopUI._qtyConnections then
+		for _, conn in ipairs(ShopUI._qtyConnections) do
+			conn:Disconnect()
+		end
 	end
-	local connFolder = Instance.new("Folder")
-	connFolder.Name = "Connections"
-	connFolder.Parent = modal
+	ShopUI._qtyConnections = {}
+	local function track(conn)
+		table.insert(ShopUI._qtyConnections, conn)
+	end
 	
 	if btnMinus then
-		btnMinus.MouseButton1Click:Connect(function()
+		track(btnMinus.MouseButton1Click:Connect(function()
 			if currentQty > 1 then
 				currentQty -= 1
 				updateUI()
 			end
-		end)
+		end))
 	end
 	
 	if btnPlus then
-		btnPlus.MouseButton1Click:Connect(function()
+		track(btnPlus.MouseButton1Click:Connect(function()
 			if currentQty < maxQty then
 				currentQty += 1
 				updateUI()
 			end
-		end)
+		end))
 	end
 	
 	if btnMax then
-		btnMax.MouseButton1Click:Connect(function()
+		track(btnMax.MouseButton1Click:Connect(function()
 			currentQty = maxQty
 			updateUI()
-		end)
+		end))
 	end
 	
 	if btnCancel then
-		btnCancel.MouseButton1Click:Connect(function()
+		track(btnCancel.MouseButton1Click:Connect(function()
 			modal.Visible = false
-		end)
+		end))
 	end
 	
 	if btnConfirm then
-		btnConfirm.MouseButton1Click:Connect(function()
+		track(btnConfirm.MouseButton1Click:Connect(function()
 			modal.Visible = false
 			onConfirm(currentQty)
-		end)
+		end))
+	end
+	
+	if qtyLbl and qtyLbl:IsA("TextBox") then
+		track(qtyLbl.FocusLost:Connect(function()
+			local val = tonumber(qtyLbl.Text)
+			if not val or val < 1 then
+				val = 1
+			elseif val > maxQty then
+				val = maxQty
+			end
+			currentQty = val
+			updateUI()
+		end))
+		
+		track(qtyLbl:GetPropertyChangedSignal("Text"):Connect(function()
+			local cleanText = qtyLbl.Text:gsub("%D", "")
+			if qtyLbl.Text ~= cleanText then
+				qtyLbl.Text = cleanText
+			end
+			local val = tonumber(cleanText)
+			if val then
+				if val > maxQty then
+					val = maxQty
+					qtyLbl.Text = tostring(val)
+				end
+				if val > 0 then
+					if priceLbl then
+						priceLbl.Text = UILocalizer.Localize(string.format("총 %s G", formatVal(unitPrice * val)))
+					end
+				end
+			end
+		end))
 	end
 end
 
@@ -510,7 +567,7 @@ end
 
 function ShopUI.UpdateGold(gold)
 	if ShopUI.Refs.GoldLabel then
-		ShopUI.Refs.GoldLabel.Text = string.format("%d G", gold or 0)
+		ShopUI.Refs.GoldLabel.Text = string.format("%s G", formatVal(gold or 0))
 	end
 end
 
@@ -524,6 +581,7 @@ local function createQuantityModal(parent: Instance)
 		bg = Color3.new(0, 0, 0),
 		bgT = 0.5,
 		vis = false,
+		z = 10,
 		parent = parent,
 	})
 	
@@ -585,16 +643,18 @@ local function createQuantityModal(parent: Instance)
 		parent = qtyArea
 	})
 	
-	Utils.mkLabel({
-		name = "QtyText",
-		text = "1",
-		size = UDim2.new(1, -160, 1, 0),
-		pos = UDim2.new(0, 44, 0, 0),
-		ts = 20,
-		bold = true,
-		color = C.WHITE,
-		parent = qtyArea
-	})
+	local qtyText = Instance.new("TextBox")
+	qtyText.Name = "QtyText"
+	qtyText.Text = "1"
+	qtyText.Size = UDim2.new(1, -160, 1, 0)
+	qtyText.Position = UDim2.new(0, 44, 0, 0)
+	qtyText.BackgroundTransparency = 1
+	qtyText.TextSize = 20
+	qtyText.TextColor3 = C.WHITE
+	qtyText.TextXAlignment = Enum.TextXAlignment.Center
+	qtyText.TextYAlignment = Enum.TextYAlignment.Center
+	qtyText.ClearTextOnFocus = false
+	qtyText.Parent = qtyArea
 	
 	Utils.mkBtn({
 		name = "BtnMax",
