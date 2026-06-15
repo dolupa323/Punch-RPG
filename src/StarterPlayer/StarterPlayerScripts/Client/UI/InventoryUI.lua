@@ -26,6 +26,7 @@ local Data = game:GetService("ReplicatedStorage"):WaitForChild("Data")
 local MaterialAttributeData = require(Data:WaitForChild("MaterialAttributeData"))
 
 local InventoryUI = {}
+local originalDetailParent = nil
 
 InventoryUI.Refs = {
 	Frame = nil,
@@ -351,6 +352,7 @@ function InventoryUI.Init(parent, UIManager, isMobile)
 		parent = content
 	})
 	InventoryUI.Refs.Detail.Frame = detail
+	originalDetailParent = content
 	
 	--[Subtle Background Pattern/Gradient]
 	local bgGradient = Instance.new("UIGradient")
@@ -1290,11 +1292,21 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			end
 		end
 		
-		if itemData and itemData.description then
-			d.Desc.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)
-		else
-			d.Desc.Text = UILocalizer.Localize((itemData and (itemData.name .. " 입니다.")) or "")
+		local tradeLabel = ""
+		if DataHelper and DataHelper.IsTradeable then
+			if DataHelper.IsTradeable(displayItemId) then
+				tradeLabel = "<font color='#8CDC64'>[" .. UILocalizer.Localize("교환 가능") .. "]</font>\n"
+			else
+				tradeLabel = "<font color='#E63232'>[" .. UILocalizer.Localize("교환 불가") .. "]</font>\n"
+			end
 		end
+
+		if itemData and itemData.description then
+			d.Desc.Text = tradeLabel .. UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)
+		else
+			d.Desc.Text = tradeLabel .. UILocalizer.Localize((itemData and (itemData.name .. " 입니다.")) or "")
+		end
+		d.Desc.RichText = true
 		
 		-- [제작 탭 대응] 재료 정보 표시
 		local recipe = data
@@ -1832,7 +1844,21 @@ end
 
 --- 현재 선택된 팰 UID 반환
 function InventoryUI.GetSelectedPalUID()
-	return InventoryUI.Refs.Animal.SelectedPalUID
+	function InventoryUI.RestoreDetailParent()
+	local d = InventoryUI.Refs.Detail
+	if d and d.Frame and originalDetailParent then
+		d.Frame.Parent = originalDetailParent
+		d.Frame.Position = UDim2.new(1, -5, 0.5, 0)
+		d.Frame.AnchorPoint = Vector2.new(1, 0.5)
+		d.Frame.Size = UDim2.new(0.3, 0, 1, -10)
+		
+		-- 버튼 가시성 기본 복귀
+		if d.BtnMain then d.BtnMain.Visible = true end
+		if d.BtnDrop then d.BtnDrop.Visible = true end
+	end
+end
+
+return InventoryUI.Refs.Animal.SelectedPalUID
 end
 
 return InventoryUI

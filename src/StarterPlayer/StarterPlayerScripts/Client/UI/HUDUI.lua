@@ -178,47 +178,47 @@ local creatureLookup = {}
 
 local TUTORIAL_STEP_EN = {
 	KILL_SLIME = {
-		currentStepText = "1. Hunt a Slime",
+		currentStepText = "Hunt a Slime",
 		stepCommand = "Defeat 1 Slime.",
 	},
 	COLLECT_SLIME_MUCUS = {
-		currentStepText = "2. Gather Slime Mucus",
+		currentStepText = "Gather Slime Mucus",
 		stepCommand = "Gather 10 Slime Mucus.",
 	},
 	CRAFT_SOFTCLUB = {
-		currentStepText = "3. Craft a Slime Sword",
+		currentStepText = "Craft a Slime Sword",
 		stepCommand = "Craft a Slime Sword.",
 	},
 	EQUIP_SOFTCLUB = {
-		currentStepText = "4. Equip the Slime Sword",
+		currentStepText = "Equip the Slime Sword",
 		stepCommand = "Open Inventory (I) or Character window and equip the crafted Slime Sword.",
 	},
 	DISTRIBUTE_STAT = {
-		currentStepText = "5. Upgrade Stats",
+		currentStepText = "Upgrade Stats",
 		stepCommand = "Open Equipment (Stats) window and upgrade Attack stat by 1.",
 	},
 	KILL_HORNED_LARVA = {
-		currentStepText = "6. Hunt Horned Larva",
+		currentStepText = "Hunt Horned Larva",
 		stepCommand = "Defeat 15 Horned Larvas.",
 	},
 	CRAFT_GAKCHANG = {
-		currentStepText = "7. Craft a Hard Sword",
+		currentStepText = "Craft a Hard Sword",
 		stepCommand = "Craft a Hard Sword.",
 	},
 	ENHANCE_GAKCHANG = {
-		currentStepText = "8. Try enhancing the Hard Sword",
+		currentStepText = "Try enhancing the Hard Sword",
 		stepCommand = "Enhance the Hard Sword to +1 or higher.",
 	},
 	REGISTER_POTION = {
-		currentStepText = "9. Equip potion to quickslot",
+		currentStepText = "Equip potion to quickslot",
 		stepCommand = "Buy an HP or MP potion, then open Inventory (I) and equip it to a consumable quickslot.",
 	},
 	COLLECT_STUMP_BARK = {
-		currentStepText = "10. Gather Stump Bark",
+		currentStepText = "Gather Stump Bark",
 		stepCommand = "Gather 30 Stump Barks.",
 	},
 	CRAFT_MOGWOLDO = {
-		currentStepText = "11. Craft a Desert Sword",
+		currentStepText = "Craft a Desert Sword",
 		stepCommand = "Craft a Desert Sword.",
 	},
 	COMPLETED = {
@@ -637,9 +637,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function() UIManager.toggleInventory() end)
 	HUDUI.Refs.EquipTabButton = mkMenuCell("BtnStats", UIManager.getItemIcon("Icon_Equipment"), "스탯", 2, function() UIManager.toggleEquipment() end)
 	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "스킬", 3, function() UIManager.toggleSkillTree() end)
-	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "게임 패스", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
+	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "상점", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
 	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
-	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function() end)
+	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "경매장", 6, function() if UIManager.toggleAuctionHouse then UIManager.toggleAuctionHouse() end end)
 
 	-- Sidebar collapse/expand functionality (Premium Glassmorphic Design) - Mobile Responsive
 	local menuOpen = true
@@ -794,7 +794,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			local titleFontSize = HUDUI.Refs.tutorialTitle.TextSize
 			local font = HUDUI.Refs.tutorialTitle.Font
 			local bounds = TextService:GetTextSize(titleText, titleFontSize, font, Vector2.new(1000, 1000))
-			panelWidth = math.max(80, bounds.X + 44)
+			panelWidth = math.max(80, bounds.X + 54)
 			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 40)
 		else
 			panelWidth = math.floor(vp.X * (isSmall and 0.35 or 0.22))
@@ -832,7 +832,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		ax = Enum.TextXAlignment.Left,
 		font = F.TITLE,
 		ts = 16,
-		color = Color3.fromRGB(255, 220, 120), -- Gold color matching dialog speaker
+		color = C.WHITE,
 		parent = tutorialFrame,
 	})
 	
@@ -840,14 +840,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local minimizeBtn = Utils.mkBtn({
 		name = "MinimizeBtn",
 		text = "-",
-		size = UDim2.new(0, 24, 0, 24),
-		pos = UDim2.new(1, -4, 0, 4),
+		size = UDim2.new(0, 32, 0, 32),
+		pos = UDim2.new(1, -8, 0, 4),
 		anchor = Vector2.new(1, 0),
-		bgT = 1,
+		bg = C.BG_SLOT,
+		bgT = 0.5,
+		hbg = C.BTN_GRAY_H,
+		isNegative = true,
 		stroke = false,
-		ts = 18, -- Reduced from 20+
+		ts = 22,
 		font = F.TITLE,
-		color = Color3.fromRGB(110, 140, 200),
+		color = C.WHITE,
 		z = 100, -- Ensure it's above TutorialClickArea
 		fn = function()
 			isTutorialMinimized = not isTutorialMinimized
@@ -1014,7 +1017,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			local titleText = HUDUI.Refs.tutorialTitle.Text or ""
 			local font = HUDUI.Refs.tutorialTitle.Font
 			local bounds = TextService:GetTextSize(titleText, titleSize, font, Vector2.new(1000, 1000))
-			panelWidth = math.max(120, bounds.X + 44)
+			panelWidth = math.max(120, bounds.X + 54)
 			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 40)
 		else
 			panelWidth = math.floor(vp.X * (isSmall and 0.35 or 0.22))

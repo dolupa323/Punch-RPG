@@ -22,6 +22,7 @@ C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
 C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
 C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
 C.BTN = Color3.fromRGB(40, 80, 160)      -- Action Buttons -> Navy
+C.BTN_H = Color3.fromRGB(60, 100, 180)
 
 local F = Theme.Fonts
 
@@ -245,7 +246,9 @@ function EnhanceUI.Init(parent, manager)
 		pos = UDim2.new(1, -12, 0, 12),
 		anchor = Vector2.new(1, 0),
 		bg = C.BG_SLOT,
+		hbg = C.BTN_GRAY_H,
 		color = C.WHITE,
+		isNegative = true,
 		ts = 16,
 		font = F.TITLE,
 		r = 6,
@@ -417,6 +420,7 @@ function EnhanceUI.Init(parent, manager)
 		pos = UDim2.new(1, -10, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
 		bg = C.BTN,
+		hbg = C.BTN_H,
 		color = C.WHITE,
 		ts = 15,
 		r = 8,
@@ -447,6 +451,7 @@ function EnhanceUI.Init(parent, manager)
 		pos = UDim2.new(0.5, 0, 1, -5),
 		anchor = Vector2.new(0.5, 1),
 		bg = C.GOLD_SEL,
+		hbg = C.BTN_H,
 		color = C.WHITE,
 		ts = 18,
 		font = F.TITLE,

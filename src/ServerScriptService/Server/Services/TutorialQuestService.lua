@@ -38,7 +38,7 @@ local _hasEnhancedItem
 local STEP_DEFS = {
 	[1] = {
 		id = "KILL_SLIME",
-		currentStepText = "1. 슬라임 잡기",
+		currentStepText = "슬라임 잡기",
 		stepCommand = "슬라임 1마리를 처치하세요.",
 		stepKind = "KILL",
 		stepCount = 1,
@@ -46,7 +46,7 @@ local STEP_DEFS = {
 	},
 	[2] = {
 		id = "COLLECT_SLIME_MUCUS",
-		currentStepText = "2. 슬라임 점액 모으기",
+		currentStepText = "슬라임 점액 모으기",
 		stepCommand = "슬라임 점액 10개를 모으세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 10,
@@ -57,7 +57,7 @@ local STEP_DEFS = {
 	},
 	[3] = {
 		id = "CRAFT_SOFTCLUB",
-		currentStepText = "3. 슬라임검 만들기",
+		currentStepText = "슬라임검 만들기",
 		stepCommand = "슬라임검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -65,7 +65,7 @@ local STEP_DEFS = {
 	},
 	[4] = {
 		id = "EQUIP_SOFTCLUB",
-		currentStepText = "4. 슬라임검 장착하기",
+		currentStepText = "슬라임검 장착하기",
 		stepCommand = "가방(I) 또는 캐릭터 창을 열어 제작한 슬라임검을 장착하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -89,7 +89,7 @@ local STEP_DEFS = {
 	},
 	[5] = {
 		id = "DISTRIBUTE_STAT",
-		currentStepText = "5. 스탯 올리기",
+		currentStepText = "스탯 올리기",
 		stepCommand = "장비창(스탯)을 열고 공격력 스탯을 1 올리세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -103,7 +103,7 @@ local STEP_DEFS = {
 	},
 	[6] = {
 		id = "KILL_HORNED_LARVA",
-		currentStepText = "6. 뿔 애벌레 잡기",
+		currentStepText = "뿔 애벌레 잡기",
 		stepCommand = "뿔 애벌레 15마리를 처치하세요.",
 		stepKind = "KILL",
 		stepCount = 15,
@@ -111,7 +111,7 @@ local STEP_DEFS = {
 	},
 	[7] = {
 		id = "CRAFT_GAKCHANG",
-		currentStepText = "7. 단단한 검 만들기",
+		currentStepText = "단단한 검 만들기",
 		stepCommand = "단단한 검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -119,7 +119,7 @@ local STEP_DEFS = {
 	},
 	[8] = {
 		id = "ENHANCE_GAKCHANG",
-		currentStepText = "8. 단단한 검 1강 강화해보기",
+		currentStepText = "단단한 검 1강 강화해보기",
 		stepCommand = "단단한 검을 +1 이상으로 강화하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -127,7 +127,7 @@ local STEP_DEFS = {
 	},
 	[9] = {
 		id = "REGISTER_POTION",
-		currentStepText = "9. 포션 단축키 등록하기",
+		currentStepText = "포션 단축키 등록하기",
 		stepCommand = "HP/MP 포션을 구매하고, 가방(I)에서 소비 단축슬롯에 등록하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
@@ -149,7 +149,7 @@ local STEP_DEFS = {
 	},
 	[10] = {
 		id = "COLLECT_STUMP_BARK",
-		currentStepText = "10. 사막의 검 재료 모으기",
+		currentStepText = "사막의 검 재료 모으기",
 		stepCommand = "스텀프 나무껍질 30개를 모으세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 30,
@@ -160,7 +160,7 @@ local STEP_DEFS = {
 	},
 	[11] = {
 		id = "CRAFT_MOGWOLDO",
-		currentStepText = "11. 사막의 검 만들기",
+		currentStepText = "사막의 검 만들기",
 		stepCommand = "사막의 검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,

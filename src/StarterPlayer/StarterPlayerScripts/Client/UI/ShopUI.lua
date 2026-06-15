@@ -803,7 +803,9 @@ function ShopUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(1, 0, 0, 0),
 		anchor = Vector2.new(1, 0),
 		bg = C.BG_SLOT,
+		hbg = C.BTN_GRAY_H,
 		color = C.WHITE,
+		isNegative = true,
 		ts = 18,
 		r = 6,
 		fn = function()

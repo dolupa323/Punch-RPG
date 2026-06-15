@@ -18,6 +18,7 @@ C.GOLD_SEL = Color3.fromRGB(40, 80, 160) -- Accent Blue
 C.BORDER = Color3.fromRGB(60, 85, 130)   -- Light Navy
 C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
 C.BTN = Color3.fromRGB(40, 80, 160)      -- Action Buttons -> Navy
+C.BTN_H = Color3.fromRGB(60, 100, 180)
 
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -107,6 +108,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(1, -10, 0.5, 0), 
 		anchor = Vector2.new(1, 0.5), 
 		isNegative = true,
+		hbg = C.BTN_GRAY_H,
 		bgT = 0.5, ts = 24, color = C.WHITE, r = 4, z = 100, 
 		fn = function() 
 			local WindowManager = require(script.Parent.Parent:WaitForChild("Utils"):WaitForChild("WindowManager"))
@@ -202,7 +204,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 	
 	CraftingUI.Refs.Detail.BtnCraft = Utils.mkBtn({
 		text=UILocalizer.Localize("제작 시작"), size=UDim2.new(1, -24, 0, 52), pos=UDim2.new(0, 12, 1, -62),
-		bg=C.GOLD_SEL, color=C.BG_DARK, ts=20, font=F.TITLE, r=5,
+		bg=C.GOLD_SEL, hbg=C.BTN_H, color=C.BG_DARK, ts=20, font=F.TITLE, r=5,
 		fn=function() UIManager._DoCraft() end, parent=detail
 	})
 	
@@ -307,6 +309,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(0.27, 0, 1, -15),
 		anchor = Vector2.new(0.5, 1),
 		bg = C.BTN,
+		hbg = C.BTN_H,
 		color = C.WHITE,
 		ts = 16,
 		font = F.TITLE,
@@ -327,6 +330,7 @@ function CraftingUI.Init(parent, UIManager, isMobile)
 		pos = UDim2.new(0.73, 0, 1, -15),
 		anchor = Vector2.new(0.5, 1),
 		bg = Color3.fromRGB(50, 200, 50),
+		hbg = Color3.fromRGB(80, 220, 80),
 		color = C.WHITE,
 		ts = 16,
 		font = F.TITLE,

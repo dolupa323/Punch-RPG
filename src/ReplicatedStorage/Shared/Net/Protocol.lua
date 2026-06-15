@@ -226,6 +226,14 @@ Protocol.Commands = {
 	-- Tent 명령어
 	["Tent.SetSpawn"] = true,
 	["Tent.OpenUI"] = true,
+
+	-- Auction (경매장) 명령어
+	["Auction.GetListings.Request"] = true,
+	["Auction.RegisterSale.Request"] = true,
+	["Auction.BuyItem.Request"] = true,
+	["Auction.CancelSale.Request"] = true,
+	["Auction.GetPending.Request"] = true,
+	["Auction.ClaimPending.Request"] = true,
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

@@ -467,6 +467,7 @@ function UIUtils.CreateCloseButton(UIManager, winId)
 		size = UDim2.new(0, 30, 0, 30),
 		text = "X",
 		bg = C.RED,
+		hbg = Color3.fromRGB(240, 90, 80),
 		r = "full"
 	})
 	btn.Activated:Connect(function()

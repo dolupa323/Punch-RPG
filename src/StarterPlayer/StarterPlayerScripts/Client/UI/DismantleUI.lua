@@ -25,6 +25,9 @@ C.BG_SLOT = Color3.fromRGB(12, 12, 15)  -- Near Black
 C.BORDER = Color3.fromRGB(60, 85, 130)   -- Soft Light Blue
 C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
 C.BTN_DANGER = Color3.fromRGB(180, 60, 60) -- Rosewood Red
+C.BTN = Color3.fromRGB(40, 80, 160)
+C.BTN_H = Color3.fromRGB(60, 100, 180)
+C.GOLD_SEL = Color3.fromRGB(40, 80, 160)
 
 local F = Theme.Fonts
 local DismantleUI = {}
@@ -126,7 +129,9 @@ function DismantleUI.Init(parent, manager)
 		pos = UDim2.new(1, -12, 0, 12),
 		anchor = Vector2.new(1, 0),
 		bg = C.BG_SLOT,
+		hbg = C.BTN_GRAY_H,
 		color = C.WHITE,
+		isNegative = true,
 		ts = 16,
 		font = F.TITLE,
 		r = 6,
@@ -345,11 +350,12 @@ function DismantleUI.Init(parent, manager)
 	
 	-- 분해 실행 액션 버튼 (공통 블루 테마 적용)
 	local actionBtn = Utils.mkBtn({
-		text = UILocalizer.Localize("무기 분해 실행"),
+		text = UILocalizer.Localize("무기 분해"),
 		size = UDim2.new(1, 0, 0, 44),
 		pos = UDim2.new(0.5, 0, 1, 0),
 		anchor = Vector2.new(0.5, 1),
-		bg = C.GOLD_SEL,
+		bg = C.BTN,
+		hbg = C.BTN_H,
 		color = C.WHITE,
 		ts = 16,
 		font = F.TITLE,
@@ -501,7 +507,7 @@ function DismantleUI.selectWeaponSlot(slotIdx: number?)
 				local sIdx = tonumber(child.Name:sub(6))
 				local stroke = child:FindFirstChildOfClass("UIStroke")
 				if stroke then
-					stroke.Color = (sIdx == slotIdx) and Color3.fromRGB(255, 210, 100) or C.BORDER_DIM
+					stroke.Color = (sIdx == slotIdx) and C.GOLD_SEL or C.BORDER_DIM
 					stroke.Thickness = (sIdx == slotIdx) and 2 or 1
 				end
 			end
@@ -655,7 +661,7 @@ function DismantleUI.executeDismantle()
 			DismantleController.requestDismantle(slot, function(success, errorCode, data)
 				DismantleUI.State.isProcessing = false
 				if DismantleUI.Refs.ActionBtn then
-					DismantleUI.Refs.ActionBtn.Text = UILocalizer.Localize("무기 분해 실행")
+					DismantleUI.Refs.ActionBtn.Text = UILocalizer.Localize("무기 분해")
 					DismantleUI.Refs.ActionBtn.Active = true
 				end
 				

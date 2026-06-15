@@ -215,4 +215,37 @@ function DataHelper.GetEnhanceCostMultiplier(rarity)
 	return mults[rarity] or 1.0
 end
 
+function DataHelper.IsTradeable(itemId: string): boolean
+	local itemData = DataHelper.GetData("ItemData", itemId)
+	if not itemData then
+		return false
+	end
+
+	-- 1. 스킬북 (ID가 BOOK_으로 시작)
+	if string.sub(itemId, 1, 5) == "BOOK_" then
+		return true
+	end
+
+	-- 2. 하락방지권 & 강화 주문서
+	if itemData.type == "ENHANCE_SCROLL" then
+		return true
+	end
+
+	-- 3. 악세서리 (type이 ARMOR이면서 slot이 NECKLACE, RING, EARRING 등인 장비)
+	if itemData.type == "ARMOR" then
+		local slot = itemData.slot
+		if slot == "NECKLACE" or slot == "RING" or slot == "EARRING" or slot == "RING1" or slot == "RING2" then
+			return true
+		end
+	end
+
+	-- 4. 소비아이템 & 물약 & 음식 & 수리 키트 등
+	if itemData.type == "CONSUMABLE" or itemData.type == "FOOD" or itemData.type == "REPAIR_ITEM" then
+		return true
+	end
+
+	-- 5. 그 외 (완성품 무기, 완성품 방어구, 기타 재료, 슬라임 점액 등등)는 교환 불가
+	return false
+end
+
 return DataHelper

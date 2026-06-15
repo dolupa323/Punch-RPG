@@ -68,6 +68,8 @@ local KO_TO_EN = {
 	["연구 보너스 정보가 없습니다.\n(추후 업데이트 예정)"] = "No research bonus info.\n(Coming soon)",
 	["[장착 보너스 비활성]\n준비 중인 기능입니다."] = "[Equipment bonus disabled]\nFeature in preparation.",
 	["섬 상점"] = "Island Shop",
+	["상점"] = "Shop",
+	["경매장"] = "Auction House",
 	["구매"] = "Buy",
 	["판매"] = "Sell",
 	["보관함"] = "Storage",
@@ -841,6 +843,24 @@ function UILocalizer.LocalizeDataText(tableName: string, dataId: string, fieldNa
 	end
 
 	return UILocalizer.Localize(src)
+end
+
+function UILocalizer.GetBothNames(tableName: string, dataId: string, sourceText: string?): (string, string)
+	if not sourceText or sourceText == "" then
+		return "", ""
+	end
+	
+	local nameKo = sourceText
+	local nameEn = KO_TO_EN[sourceText]
+	if not nameEn then
+		if tableName == "ItemData" then
+			nameEn = titleFromId(dataId)
+		else
+			nameEn = sourceText
+		end
+	end
+	
+	return nameKo, nameEn
 end
 
 local function applyLocalizedProperty(inst: Instance, propName: string)

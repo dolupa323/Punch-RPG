@@ -52,6 +52,7 @@ local EnhanceUI = require(UI:WaitForChild("EnhanceUI"))
 local NPCRadialUI = require(UI:WaitForChild("NPCRadialUI"))
 local TentUI = require(UI:WaitForChild("TentUI"))
 local DismantleUI = require(UI:WaitForChild("DismantleUI"))
+local AuctionUI = require(UI:WaitForChild("AuctionUI"))
 
 local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
@@ -833,6 +834,10 @@ end
 
 function UIManager._onOpenInventory(startTab)
 	selectedInvSlot = nil 
+	
+	if InventoryUI and InventoryUI.RestoreDetailParent then
+		InventoryUI.RestoreDetailParent()
+	end 
 	
 	InventoryUI.SetVisible(true)
 	InventoryUI.SetTab(startTab or "BAG")
@@ -1800,6 +1805,31 @@ function UIManager.refreshShop(shopId)
 	
 	ShopUI.UpdateGold(gold)
 	ShopUI.Refresh(shopInfo, playerItems, getItemIcon, C, UIManager)
+end
+
+function UIManager.openAuctionHouse()
+	WindowManager.open("AUCTION")
+end
+
+function UIManager._onOpenAuctionHouse()
+	AuctionUI.SetVisible(true)
+	updateUIMode()
+end
+
+function UIManager.closeAuctionHouse()
+	WindowManager.close("AUCTION")
+end
+
+function UIManager._onCloseAuctionHouse()
+	AuctionUI.SetVisible(false)
+end
+
+function UIManager.toggleAuctionHouse()
+	WindowManager.toggle("AUCTION")
+end
+
+function UIManager.refreshAuctionPending(data)
+	AuctionUI.RefreshPendingOnly(data)
 end
 
 function UIManager.requestBuy(itemId, count)
@@ -2789,6 +2819,7 @@ function UIManager.Init()
 	safeInit("StorageUI", StorageUI, mainGui, UIManager, isMobile)
 	safeInit("MaterialSelectUI", MaterialSelectUI, mainGui, UIManager)
 	safeInit("PremiumShopUI", PremiumShopUI, mainGui, UIManager)
+	safeInit("AuctionUI", AuctionUI, mainGui, UIManager, isMobile)
 
 	safeInit("PortalUI", PortalUI, mainGui, UIManager, isMobile)
 	if PortalRadialUI then
@@ -2853,6 +2884,7 @@ function UIManager.Init()
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
 	WindowManager.register("ENHANCE", UIManager._onOpenEnhance, UIManager._onCloseEnhance)
 	WindowManager.register("DISMANTLE", UIManager._onOpenDismantle, UIManager._onCloseDismantle)
+	WindowManager.register("AUCTION", UIManager._onOpenAuctionHouse, UIManager._onCloseAuctionHouse)
 
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
@@ -2886,6 +2918,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("CRAFTING", findMainPanel(CraftingUI.Refs.Frame))
 
 		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
+		WindowManager.registerFrame("AUCTION", findMainPanel(AuctionUI.Refs.Frame))
 
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)
@@ -3772,7 +3805,9 @@ function UIManager.showDismantleConfirm(params)
 		text = UILocalizer.Localize("취소"),
 		size = UDim2.new(0, 120, 1, 0),
 		bg = C.BG_SLOT,
+		hbg = C.BTN_GRAY_H,
 		color = C.WHITE,
+		isNegative = true,
 		ts = 16,
 		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
 		parent = btnWrap
@@ -3781,7 +3816,8 @@ function UIManager.showDismantleConfirm(params)
 	local confirmBtn = Utils.mkBtn({
 		text = UILocalizer.Localize("확인"),
 		size = UDim2.new(0, 120, 1, 0),
-		bg = C.BTN,
+		bg = Color3.fromRGB(40, 80, 160),
+		hbg = Color3.fromRGB(60, 100, 180),
 		color = C.WHITE,
 		ts = 16,
 		fn = function()

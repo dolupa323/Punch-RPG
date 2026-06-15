@@ -23,11 +23,14 @@ C.GOLD_SEL = Color3.fromRGB(40, 80, 160)
 C.BORDER = Color3.fromRGB(60, 85, 130)
 C.BORDER_DIM = Color3.fromRGB(30, 45, 70)
 C.BTN = Color3.fromRGB(40, 80, 160)
+C.BTN_H = Color3.fromRGB(60, 100, 180)
 local T = Theme.Transp
 
 local PremiumShopUI = {}
 local UI_MANAGER = nil
 local gamePassOwnershipCache = {}
+local productPriceCache = {}
+local priceLoading = {}
 PremiumShopUI.Refs = {
 	Frame = nil,
 	Main = nil,
@@ -80,6 +83,47 @@ local function getGamePassOwnership(gamePassId: number): boolean
 
 	local cached = gamePassOwnershipCache[gamePassId]
 	return cached == true
+end
+
+local function fetchProductPrice(productId, isGamePass, callback)
+	productId = tonumber(productId)
+	if not productId then
+		callback(nil)
+		return
+	end
+
+	if productPriceCache[productId] then
+		callback(productPriceCache[productId])
+		return
+	end
+
+	if priceLoading[productId] then
+		task.spawn(function()
+			while priceLoading[productId] do
+				task.wait(0.1)
+			end
+			callback(productPriceCache[productId])
+		end)
+		return
+	end
+
+	priceLoading[productId] = true
+	task.spawn(function()
+		local infoType = isGamePass and Enum.InfoType.GamePass or Enum.InfoType.Product
+		local success, info = pcall(function()
+			return MarketplaceService:GetProductInfo(productId, infoType)
+		end)
+
+		priceLoading[productId] = nil
+		if success and info and info.PriceInRobux then
+			local priceStr = tostring(info.PriceInRobux) .. " R$"
+			productPriceCache[productId] = priceStr
+			callback(priceStr)
+		else
+			warn("[PremiumShopUI] Failed to get product info for ID: " .. tostring(productId))
+			callback(nil)
+		end
+	end)
 end
 
 local function resolveProductIcon(data, getItemIcon)
@@ -157,7 +201,7 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 	-- 이름 및 설명
 	local nameLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(data.name or "상품"),
-		size = UDim2.new(1, -240, 0, 28),
+		size = UDim2.new(1, -265, 0, 28),
 		pos = UDim2.new(0, 118, 0, 12),
 		ts = 17,
 		bold = true,
@@ -180,7 +224,7 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 
 	local descLabel = Utils.mkLabel({
 		text = UILocalizer.Localize(desc),
-		size = UDim2.new(1, -250, 0, 48),
+		size = UDim2.new(1, -275, 0, 48),
 		pos = UDim2.new(0, 118, 0, 40),
 		ts = 13,
 		color = C.GRAY,
@@ -203,12 +247,13 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 	end
 	local buyBtn = Utils.mkBtn({
 		text = UILocalizer.Localize(buttonText),
-		size = UDim2.new(0, 110, 0, 42),
+		size = UDim2.new(0, 135, 0, 42),
 		pos = UDim2.new(1, -18, 0.5, 0),
 		anchor = Vector2.new(1, 0.5),
 		bg = (isMaxed or ownsGamePass) and C.BG_SLOT or C.BTN,
+		hbg = (isMaxed or ownsGamePass) and Color3.fromRGB(45, 45, 55) or C.BTN_H,
 		color = (isMaxed or ownsGamePass) and C.GRAY or C.WHITE,
-		ts = 15,
+		ts = 13,
 		font = Theme.Fonts.TITLE,
 		r = 10,
 		fn = function()
@@ -234,6 +279,63 @@ local function makeProductRow(parent: Instance, productId: string, data: any, ge
 	})
 	buyBtn.Active = not isMaxed and not ownsGamePass
 	buyBtn.AutoButtonColor = not isMaxed and not ownsGamePass
+
+	if not isMaxed and not ownsGamePass then
+		fetchProductPrice(productId, isGamePass, function(priceStr)
+			if priceStr and buyBtn and buyBtn.Parent then
+				local priceNum = string.match(priceStr, "%d+") or priceStr
+				buyBtn.Text = ""
+				
+				-- Row 아래에 이미 존재하는 RobuxContent 삭제
+				local existing = buyBtn.Parent:FindFirstChild("RobuxContent_" .. productId)
+				if existing then existing:Destroy() end
+				
+				-- 버튼 영역 바로 위에 투명 오버레이로 마운트하여 렌더링 순서 보장
+				local content = Instance.new("Frame")
+				content.Name = "RobuxContent_" .. productId
+				content.Size = buyBtn.Size
+				content.Position = buyBtn.Position
+				content.AnchorPoint = buyBtn.AnchorPoint
+				content.BackgroundTransparency = 1
+				content.Active = false
+				content.ZIndex = buyBtn.ZIndex + 5
+				content.Parent = buyBtn.Parent
+				
+				local listLayout = Instance.new("UIListLayout")
+				listLayout.FillDirection = Enum.FillDirection.Horizontal
+				listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+				listLayout.Padding = UDim.new(0, 5)
+				listLayout.Parent = content
+				
+				local icon = Instance.new("ImageLabel")
+				icon.Name = "Icon"
+				icon.Size = UDim2.new(0, 18, 0, 18)
+				icon.BackgroundTransparency = 1
+				icon.Active = false
+				icon.ZIndex = content.ZIndex + 1
+				icon.Image = "rbxassetid://109619052878813" -- 진짜 로벅스 아이콘 이미지 ID
+				icon.ImageColor3 = Color3.new(1, 1, 1) -- 틴트 없이 오리지널 색상 유지
+				icon.Parent = content
+				
+				local textStr = tostring(priceNum)
+				local font = Theme.Fonts.TITLE
+				local textBounds = game:GetService("TextService"):GetTextSize(textStr, 15, font, Vector2.new(1000, 1000))
+				local labelWidth = textBounds.X + 4
+				
+				local label = Utils.mkLabel({
+					text = textStr,
+					size = UDim2.new(0, labelWidth, 1, 0),
+					ts = 15,
+					bold = true,
+					color = C.WHITE,
+					active = false,
+					z = content.ZIndex + 1,
+					parent = content,
+				})
+			end
+		end)
+	end
 	
 	-- 로벅스 아이콘 (구매 텍스트 옆에 작게 추가 가능하지만 일단 심플하게 유지)
 
@@ -295,7 +397,7 @@ function PremiumShopUI.Init(parent, UIManager)
 	})
 
 	Utils.mkLabel({
-		text = UILocalizer.Localize("게임 패스"),
+		text = UILocalizer.Localize("상점"),
 		size = UDim2.new(1, 0, 1, 0),
 		ts = 26,
 		bold = true,
@@ -321,6 +423,8 @@ function PremiumShopUI.Init(parent, UIManager)
 		pos = UDim2.new(1, 0, 0, 0),
 		anchor = Vector2.new(1, 0),
 		bgT = 1,
+		isNegative = true,
+		hbg = C.BTN_GRAY_H,
 		color = C.WHITE,
 		ts = 22,
 		fn = function()

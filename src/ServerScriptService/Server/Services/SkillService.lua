@@ -353,6 +353,10 @@ function SkillService.getActiveSkillSlots(userId: number): { string? }
 	return playerSkillCache[userId].activeSkillSlots
 end
 
+function SkillService.getClientSkillData(userId: number)
+	return _getClientSkillData(userId)
+end
+
 --========================================
 -- Handlers
 --========================================
