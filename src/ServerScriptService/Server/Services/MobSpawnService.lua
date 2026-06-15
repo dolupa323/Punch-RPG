@@ -254,6 +254,22 @@ local function getNextSpawnPosition(config, index)
 	return Vector3.new(0, 10, 0)
 end
 
+local function deformSlime(model, scaleX, scaleY, scaleZ, duration)
+	local ts = game:GetService("TweenService")
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local originalSize = part:GetAttribute("OriginalSize")
+			if not originalSize then
+				originalSize = part.Size
+				part:SetAttribute("OriginalSize", originalSize)
+			end
+			ts:Create(part, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = Vector3.new(originalSize.X * scaleX, originalSize.Y * scaleY, originalSize.Z * scaleZ)
+			}):Play()
+		end
+	end
+end
+
 local function createMobModel(areaId, index, config)
 	-- 실시간으로 스폰할 정확한 위치 계산! (파트 있으면 파트 위 랜덤 위치)
 	local spawnPos = getNextSpawnPosition(config, index)
@@ -5297,9 +5313,216 @@ local function createMobModel(areaId, index, config)
 							humanoid:MoveTo(targetPlayerPos)
 							task.wait(0.2)
 						end
+					elseif config.mobModelName == "Slime" then
+						--========================================================================
+						-- [Slime 전용 FSM 분기]: 일반 공격(연두빛 몸통 박치기)
+						--========================================================================
+						if minDist <= ATTACK_RANGE or (minDist <= 25 and os.clock() - lastAttackTick >= (config.attackCooldown or 2.5) + 1.0) then
+							humanoid:MoveTo(hrp.Position) -- 멈춤
+							local now = os.clock()
+							local cooldown = config.attackCooldown or 2.5
+							
+							if now - lastAttackTick >= cooldown then
+								lastAttackTick = now
+								
+								-- [일반 공격] 연두빛 몸통 박치기 (히트박스 경고 범위 및 실제 판정 100% 일치화)
+								local targetHrpPos = phrp.Position
+								local lungeDir = (targetHrpPos - hrp.Position)
+								lungeDir = Vector3.new(lungeDir.X, 0, lungeDir.Z).Unit
+								
+								-- 돌진할 대상 지점 및 경고 장판 반경 정의
+								local lungeTargetPos = hrp.Position + lungeDir * 6
+								local telegraphRadius = 7
+								local telegraphDuration = 0.7
+								
+								-- 1. 연두색 팽창 링 전조 생성
+								task.spawn(function()
+									local warnCircle = Instance.new("Part")
+									warnCircle.Name = "SlimeAtkTelegraph"
+									warnCircle.Shape = Enum.PartType.Cylinder
+									warnCircle.Size = Vector3.new(0.4, 0.1, 0.1)
+									
+									local rayParams = RaycastParams.new()
+									rayParams.FilterType = Enum.RaycastFilterType.Exclude
+									local ignoreList = {model}
+									for _, p in ipairs(Players:GetPlayers()) do
+										if p.Character then table.insert(ignoreList, p.Character) end
+									end
+									rayParams.FilterDescendantsInstances = ignoreList
+									local rayResult = workspace:Raycast(lungeTargetPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), rayParams)
+									local floorPos = rayResult and rayResult.Position or (lungeTargetPos - Vector3.new(0, 2, 0))
+									
+									warnCircle.CFrame = CFrame.new(floorPos + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
+									warnCircle.Anchored = true
+									warnCircle.CanCollide = false
+									warnCircle.Material = Enum.Material.Neon
+									warnCircle.Color = Color3.fromRGB(50, 255, 50)
+									warnCircle.Transparency = 0.85
+									warnCircle.Parent = workspace
+									
+									local ts = game:GetService("TweenService")
+									ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										Size = Vector3.new(0.4, telegraphRadius * 2, telegraphRadius * 2),
+										Transparency = 0.6
+									}):Play()
+									
+									task.wait(telegraphDuration)
+									warnCircle:Destroy()
+								end)
+								
+								-- 2. 몸통 박치기 동작 트윈 연출 (웅크림 -> 튕겨 나감)
+								deformSlime(model, 1.4, 0.4, 1.4, 0.2)
+								task.wait(0.25)
+								
+								if isAlive then
+									deformSlime(model, 0.7, 1.5, 0.7, 0.15)
+									
+									-- 앞으로 살짝 돌진
+									local origCF = hrp.CFrame
+									local ts = game:GetService("TweenService")
+									ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										CFrame = CFrame.new(lungeTargetPos) * origCF.Rotation
+									}):Play()
+									
+									task.wait(0.2)
+									deformSlime(model, 1.0, 1.0, 1.0, 0.2)
+									
+									-- 3. 최종 판정 및 데미지 (예고된 원반의 중심/반경과 100% 일치 판정)
+									local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
+									if currentPhrp then
+										local playerDistFromCenter = (currentPhrp.Position - lungeTargetPos).Magnitude
+										if playerDistFromCenter <= telegraphRadius then
+											local dmg = config.baseDamage or 6
+											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+											if currentPhum and currentPhum.Health > 0 then
+												dealDamageToHumanoid(currentPhum, dmg)
+												
+												local bounceDir = (currentPhrp.Position - lungeTargetPos)
+												bounceDir = Vector3.new(bounceDir.X, 0.2, bounceDir.Z).Unit
+												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+												if hitPlayer then
+													local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+													local NetController = require(Controllers:WaitForChild("NetController"))
+													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir * 0.7)
+												end
+											end
+										end
+									end
+								end
+							end
+						else
+							humanoid:MoveTo(phrp.Position)
+						end
+					elseif config.mobModelName == "HornedLarva" then
+						--========================================================================
+						-- [HornedLarva 전용 FSM 분기]: 일반 공격(뿔 크레센트 스윕)
+						--========================================================================
+						if minDist <= ATTACK_RANGE or (minDist <= 28 and os.clock() - lastAttackTick >= (config.attackCooldown or 2.5) + 1.0) then
+							humanoid:MoveTo(hrp.Position) -- 멈춤
+							local now = os.clock()
+							local cooldown = config.attackCooldown or 2.5
+							
+							if now - lastAttackTick >= cooldown then
+								lastAttackTick = now
+								
+								-- [일반 공격] 뿔 크레센트 스윕 (Horn Crescent Sweep)
+								local sweepWidth = 14
+								local sweepDuration = 0.6
+								local sweepTelegraphCF = hrp.CFrame * CFrame.new(0, 0, -4)
+								
+								-- 1. 초승달 전방 전조 생성
+								task.spawn(function()
+									local warnArc = Instance.new("Part")
+									warnArc.Name = "LarvaAtkTelegraph"
+									warnArc.Size = Vector3.new(sweepWidth, 0.4, 6)
+									
+									local rayParams = RaycastParams.new()
+									rayParams.FilterType = Enum.RaycastFilterType.Exclude
+									rayParams.FilterDescendantsInstances = {model}
+									local rayResult = workspace:Raycast(sweepTelegraphCF.Position, Vector3.new(0, -50, 0), rayParams)
+									local floorY = rayResult and rayResult.Position.Y or (sweepTelegraphCF.Position.Y - 2)
+									
+									warnArc.CFrame = CFrame.new(sweepTelegraphCF.Position.X, floorY + 0.1, sweepTelegraphCF.Position.Z) * hrp.CFrame.Rotation
+									warnArc.Anchored = true
+									warnArc.CanCollide = false
+									warnArc.Material = Enum.Material.Neon
+									warnArc.Color = Color3.fromRGB(255, 140, 0) -- 주황색
+									warnArc.Transparency = 0.8
+									warnArc.Parent = workspace
+									
+									local ts = game:GetService("TweenService")
+									ts:Create(warnArc, TweenInfo.new(sweepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										Transparency = 0.5,
+										Size = Vector3.new(sweepWidth + 2, 0.4, 7)
+									}):Play()
+									
+									task.wait(sweepDuration)
+									warnArc:Destroy()
+								end)
+								
+								-- 2. 머리 젖히기 좌우 스윕 회전 물리 모션 연출
+								local origCF = hrp.CFrame
+								local ts = game:GetService("TweenService")
+								ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+									CFrame = origCF * CFrame.Angles(0, math.rad(-25), 0)
+								}):Play()
+								
+								task.wait(0.25)
+								
+								if isAlive then
+									ts:Create(hrp, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+										CFrame = origCF * CFrame.Angles(0, math.rad(25), 0)
+									}):Play()
+									
+									task.wait(0.15)
+									ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										CFrame = origCF
+									}):Play()
+									
+									-- 날카로운 주황색 스파크 파티클 뿜어내기
+									local att = Instance.new("Attachment", hrp)
+									att.Position = Vector3.new(0, 0, -2)
+									
+									local pe = Instance.new("ParticleEmitter")
+									pe.Texture = "rbxasset://textures/particles/spark.dds"
+									pe.Color = ColorSequence.new(Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 255, 255))
+									pe.Size = NumberSequence.new(0.5, 1.5)
+									pe.Rate = 80
+									pe.Lifetime = NumberRange.new(0.3, 0.5)
+									pe.Speed = NumberRange.new(12, 22)
+									pe.SpreadAngle = Vector2.new(45, 45)
+									pe.Parent = att
+									game.Debris:AddItem(att, 0.4)
+									
+									-- 3. 최종 판정 및 데미지 (전방 장판 범위와 100% 정합)
+									local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
+									if currentPhrp then
+										local relativePos = hrp.CFrame:PointToObjectSpace(currentPhrp.Position)
+										if relativePos.Z < 0 and relativePos.Z > -8 and math.abs(relativePos.X) <= (sweepWidth / 2 + 1) and math.abs(relativePos.Y) < 6 then
+											local dmg = config.baseDamage or 5
+											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+											if currentPhum and currentPhum.Health > 0 then
+												dealDamageToHumanoid(currentPhum, dmg)
+												
+												local bounceDir = (currentPhrp.Position - hrp.Position)
+												bounceDir = Vector3.new(bounceDir.X, 0.1, bounceDir.Z).Unit
+												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+												if hitPlayer then
+													local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+													local NetController = require(Controllers:WaitForChild("NetController"))
+													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir * 0.8)
+												end
+											end
+										end
+									end
+								end
+							end
+						else
+							humanoid:MoveTo(phrp.Position)
+						end
 					else
 						--========================================================================
-						-- [일반 몬스터 (Slime, HornedLarva 등) Melee 전투 FSM 분기]
+						-- [기타 일반 몬스터 Melee 전투 FSM 분기]
 						--========================================================================
 						if minDist <= ATTACK_RANGE then
 							-- 사거리 이내라면 정지하고 즉시 공격!

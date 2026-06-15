@@ -861,6 +861,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		
 		-- Damage logic (4타 멀티 히트)
 		task.spawn(function()
+			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
 			for hitIndex = 1, 4 do
 				local radius = 15 -- 넓은 광역 폭발
 				

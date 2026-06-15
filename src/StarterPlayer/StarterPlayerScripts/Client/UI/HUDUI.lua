@@ -428,6 +428,8 @@ HUDUI.Refs = {
 
 function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	_UIManager = UIManager
+	local runeFrame = nil
+	local consumableFrame = nil
 	-- [수정] 차단성 WaitForChild를 Init 내부로 이동하고 타임아웃 추가
 	task.spawn(function()
 		local Assets = ReplicatedStorage:WaitForChild("Assets", 5)
@@ -458,7 +460,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- for adjacent floating components like the Hotbar to attach without colliding with UIListLayout.
 	local mainAnchor = Utils.mkFrame({
 		name = "MainHUDAnchor",
-		size = UDim2.new(0.34, 0, 0.08, 0), -- Restored to 0.34 for original button sizes
+		size = UDim2.new(0.34, 0, 0.08, 0), 
 		pos = UDim2.new(0.5, 0, 0.98, 0), 
 		anchor = Vector2.new(0.5, 1),
 		bgT = 1, -- Invisible root
@@ -540,28 +542,94 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	expLabel.TextScaled = true
 	HUDUI.Refs.xpValueLabel = expLabel
 
-	-- 3. Menu Row (Bottom 54% height maximizing icon clarity)
-	local menuRow = Utils.mkFrame({name = "MenuRow", size = UDim2.new(1, 0, 0.54, 0), bgT=1, r=0, parent = mainContainer})
-	menuRow.LayoutOrder = 5
-	local menuGrid = Instance.new("UIGridLayout")
-	menuGrid.CellSize = UDim2.new(0.16, 0, 0.95, 0) -- Perfect maximizing fit
-	menuGrid.CellPadding = UDim2.new(0.006, 0, 0, 0); menuGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; menuGrid.VerticalAlignment = Enum.VerticalAlignment.Center; menuGrid.SortOrder = Enum.SortOrder.LayoutOrder; menuGrid.Parent = menuRow
+	-- Placeholder replaced by Consumable Hotbar
+
+	-- 3. Left Menu Panel (Vertical layout on left edge) - Mobile Responsive Sizes
+	local menuWidth = isMobile and 58 or 72
+	local cellSize = isMobile and 46 or 56
+	local menuHeight = isMobile and 330 or 440
+	local menuPadding = isMobile and 6 or 8
+	local menuY = isMobile and 80 or 100
+	local toggleY = menuY + (menuHeight / 2)
+
+	local leftMenuContainer = Utils.mkFrame({
+		name = "LeftMenuContainer",
+		size = UDim2.new(0, menuWidth, 0, menuHeight),
+		pos = UDim2.new(0, 12, 0, menuY),
+		bg = Color3.fromRGB(15, 15, 20),
+		bgT = 0.55,
+		r = 10,
+		stroke = 1.5,
+		strokeC = Color3.fromRGB(30, 45, 70), -- Blue border convention (matches Dismantle/Tutorial)
+		parent = parent
+	})
+	HUDUI.Refs.leftMenuContainer = leftMenuContainer
+
+	local leftList = Instance.new("UIListLayout")
+	leftList.FillDirection = Enum.FillDirection.Vertical
+	leftList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	leftList.VerticalAlignment = Enum.VerticalAlignment.Center
+	leftList.Padding = UDim.new(0, menuPadding)
+	leftList.Parent = leftMenuContainer
 
 	local function mkMenuCell(name, iconId, label, order, fn)
-		local btn = Utils.mkFrame({name=name, size=UDim2.new(1,0,1,0), bg=Color3.fromRGB(28,28,28), bgT=1, r=0, parent=menuRow})
+		local btn = Utils.mkFrame({
+			name = name,
+			size = UDim2.new(0, cellSize, 0, cellSize),
+			bg = Color3.fromRGB(28, 28, 28),
+			bgT = 0.3,
+			r = 8,
+			stroke = 1,
+			strokeC = Color3.fromRGB(30, 45, 70), -- Blue border convention (matches Dismantle/Tutorial)
+			parent = leftMenuContainer
+		})
 		btn.LayoutOrder = order
+		
 		local inner = Instance.new("ImageLabel")
-		inner.Size = UDim2.new(0.4, 0, 0.6, 0); inner.Position = UDim2.new(0.5, 0, 0.35, 0); inner.AnchorPoint = Vector2.new(0.5, 0.5); inner.BackgroundTransparency = 1; inner.ScaleType = Enum.ScaleType.Fit; inner.Image = iconId; inner.Parent = btn
-		local asp = Instance.new("UIAspectRatioConstraint"); asp.AspectRatio = 1; asp.Parent = inner
-		local txt = Utils.mkLabel({text=UILocalizer.Localize(label), size=UDim2.new(0.9, 0, 0.3, 0), pos=UDim2.new(0.5, 0, 0.8, 0), anchor=Vector2.new(0.5, 0.5), font=F.TITLE, color=C.WHITE, st=1, parent=btn})
+		inner.Size = UDim2.new(0.45, 0, 0.45, 0)
+		inner.Position = UDim2.new(0.5, 0, 0.35, 0)
+		inner.AnchorPoint = Vector2.new(0.5, 0.5)
+		inner.BackgroundTransparency = 1
+		inner.ScaleType = Enum.ScaleType.Fit
+		inner.Image = iconId
+		inner.Parent = btn
+		
+		local asp = Instance.new("UIAspectRatioConstraint")
+		asp.AspectRatio = 1
+		asp.Parent = inner
+		
+		local txt = Utils.mkLabel({
+			text = UILocalizer.Localize(label),
+			size = UDim2.new(0.9, 0, 0.28, 0),
+			pos = UDim2.new(0.5, 0, 0.78, 0),
+			anchor = Vector2.new(0.5, 0.5),
+			font = F.TITLE,
+			color = C.WHITE,
+			st = 1,
+			parent = btn
+		})
 		txt.TextScaled = true
+		
 		local clk = Instance.new("TextButton")
-		clk.Size = UDim2.new(1,0,1,0); clk.BackgroundTransparency=1; clk.Text=""; clk.Parent=btn
+		clk.Size = UDim2.new(1, 0, 1, 0)
+		clk.BackgroundTransparency = 1
+		clk.Text = ""
+		clk.Parent = btn
+		
 		local sc = Instance.new("UIScale", btn)
-		clk.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(65,65,65)}):Play() end)
-		clk.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28,28,28)}):Play() end)
-		clk.MouseButton1Down:Connect(function() TweenService:Create(sc, TweenInfo.new(0.05), {Scale = 0.9}):Play() end)
-		clk.MouseButton1Up:Connect(function() TweenService:Create(sc, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play() end)
+		
+		clk.MouseEnter:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(65, 65, 65)}):Play()
+		end)
+		clk.MouseLeave:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28, 28, 28)}):Play()
+		end)
+		clk.MouseButton1Down:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.05), {Scale = 0.9}):Play()
+		end)
+		clk.MouseButton1Up:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
+		end)
 		clk.MouseButton1Click:Connect(fn)
 		return btn
 	end
@@ -572,6 +640,83 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "게임 패스", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
 	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
 	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function() end)
+
+	-- Sidebar collapse/expand functionality (Premium Glassmorphic Design) - Mobile Responsive
+	local menuOpen = true
+	local toggleBtnWidth = isMobile and 20 or 24
+	local toggleBtnHeight = isMobile and 48 or 56
+	local openToggleX = 12 + menuWidth
+	local closedToggleX = 12
+	local hideMenuX = -(menuWidth + 2)
+
+	local toggleBtn = Utils.mkFrame({
+		name = "MenuToggleBtn",
+		size = UDim2.new(0, toggleBtnWidth, 0, toggleBtnHeight),
+		pos = UDim2.new(0, openToggleX, 0, toggleY),
+		anchor = Vector2.new(0, 0.5),
+		bg = Color3.fromRGB(20, 22, 30),
+		bgT = 0.25,
+		r = 6,
+		stroke = 1.5,
+		strokeC = Color3.fromRGB(30, 45, 70), -- Blue border convention (matches Dismantle/Tutorial)
+		parent = parent -- Parented to screen directly so it is never clipped when sidebar is hidden
+	})
+	
+	local toggleLabel = Utils.mkLabel({
+		text = "<",
+		size = UDim2.new(1, 0, 1, 0),
+		font = Enum.Font.GothamBold,
+		color = C.WHITE,
+		parent = toggleBtn
+	})
+	toggleLabel.TextScaled = true
+	
+	local toggleClick = Instance.new("TextButton")
+	toggleClick.Size = UDim2.new(1, 0, 1, 0)
+	toggleClick.BackgroundTransparency = 1
+	toggleClick.Text = ""
+	toggleClick.ZIndex = toggleBtn.ZIndex + 5
+	toggleClick.Parent = toggleBtn
+
+	local sc = Instance.new("UIScale", toggleBtn)
+	local stroke = toggleBtn:FindFirstChildOfClass("UIStroke")
+
+	toggleClick.MouseEnter:Connect(function()
+		TweenService:Create(toggleBtn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(35, 38, 50)}):Play()
+		if stroke then
+			TweenService:Create(stroke, TweenInfo.new(0.12), {Color = Color3.fromRGB(60, 85, 130)}):Play()
+		end
+	end)
+	toggleClick.MouseLeave:Connect(function()
+		TweenService:Create(toggleBtn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 22, 30)}):Play()
+		if stroke then
+			TweenService:Create(stroke, TweenInfo.new(0.12), {Color = Color3.fromRGB(30, 45, 70)}):Play()
+		end
+	end)
+	toggleClick.MouseButton1Down:Connect(function()
+		TweenService:Create(sc, TweenInfo.new(0.05), {Scale = 0.88}):Play()
+	end)
+	toggleClick.MouseButton1Up:Connect(function()
+		TweenService:Create(sc, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
+	end)
+
+	toggleClick.MouseButton1Click:Connect(function()
+		menuOpen = not menuOpen
+		
+		local targetMenuX = menuOpen and 12 or hideMenuX
+		local targetToggleX = menuOpen and openToggleX or closedToggleX
+		local targetArrow = menuOpen and "<" or ">"
+		
+		toggleLabel.Text = targetArrow
+		
+		TweenService:Create(leftMenuContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, targetMenuX, 0, menuY)
+		}):Play()
+		
+		TweenService:Create(toggleBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0, targetToggleX, 0, toggleY)
+		}):Play()
+	end)
 
 	local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 	local starterBtnPx = math.clamp(
@@ -625,8 +770,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local tutorialFrame = Utils.mkFrame({
 		name = "TutorialPanel",
 		size = UDim2.new(isSmall and 0.42 or 0.24, 0, 0, isSmall and 92 or 82),
-		pos = UDim2.new(0, 12, 0, 180),
-		anchor = Vector2.new(0, 0),
+		pos = UDim2.new(1, -12, 0, isSmall and 210 or 240),
+		anchor = Vector2.new(1, 0),
 		bg = Color3.fromRGB(15, 20, 30),
 		bgT = 0.2,
 		r = 12,
@@ -642,11 +787,19 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local function updateTutorialMinimize()
 		-- [Fix] 하드코딩된 큰 수치 제거 및 동적 너비 유지
 		local vp = workspace.CurrentCamera.ViewportSize
-		local panelWidth = math.clamp(math.floor(vp.X * (isSmall and 0.28 or 0.16)), isSmall and 160 or 180, isSmall and 220 or 260)
-		
+		local panelWidth
 		if isTutorialMinimized then
-			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 48)
+			HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트")
+			local titleText = HUDUI.Refs.tutorialTitle.Text
+			local titleFontSize = HUDUI.Refs.tutorialTitle.TextSize
+			local font = HUDUI.Refs.tutorialTitle.Font
+			local bounds = TextService:GetTextSize(titleText, titleFontSize, font, Vector2.new(1000, 1000))
+			panelWidth = math.max(80, bounds.X + 44)
+			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 40)
 		else
+			panelWidth = math.floor(vp.X * (isSmall and 0.35 or 0.22))
+			panelWidth = math.clamp(panelWidth, isSmall and 220 or 280, isSmall and 280 or 360)
+			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, tutorialFrame.Size.Y.Offset)
 			-- 확장 상태는 relayoutTutorialPanel에서 텍스트 길이에 맞춰 높이를 자동 계산함
 			relayoutTutorialPanel()
 		end
@@ -794,7 +947,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		end
 
 		local panel = HUDUI.Refs.tutorialFrame
-		local panelWidth = panel.AbsoluteSize.X > 0 and panel.AbsoluteSize.X or (isSmall and 320 or 220)
+		local panelWidth = panel.Size.X.Offset > 0 and panel.Size.X.Offset or (isSmall and 320 or 220)
 		local contentWidth = panelWidth - 20
 		local topPadding = 6
 		local sidePadding = 10
@@ -802,13 +955,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local bottomPadding = 6
 
 		-- [중요] 전체 퀘스트 진행도 표시
-		local titleBase = UILocalizer.Localize("튜토리얼 퀘스트")
 		local status = HUDUI.LastStatus or {}
 		if status.completed then
 			return
 		end
-		local progressText = string.format("%d/%d", math.clamp(tonumber(status.stepIndex) or 0, 0, tonumber(status.totalSteps) or 0), tonumber(status.totalSteps) or 0)
-		HUDUI.Refs.tutorialTitle.Text = string.format("%s (%s)", titleBase, progressText)
+		if isTutorialMinimized then
+			HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트")
+		else
+			local titleBase = UILocalizer.Localize("튜토리얼 퀘스트")
+			local progressText = string.format("%d/%d", math.clamp(tonumber(status.stepIndex) or 0, 0, tonumber(status.totalSteps) or 0), tonumber(status.totalSteps) or 0)
+			HUDUI.Refs.tutorialTitle.Text = string.format("%s %s", titleBase, progressText)
+		end
 
 		local titleH = math.ceil(HUDUI.Refs.tutorialTitle.TextSize * 1.3)
 		local stepBounds = TextService:GetTextSize(stripRichTextTags(HUDUI.Refs.tutorialStep.Text or ""), HUDUI.Refs.tutorialStep.TextSize, HUDUI.Refs.tutorialStep.Font, Vector2.new(contentWidth, 10000))
@@ -842,20 +999,30 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		end
 
 		local vp = camera.ViewportSize
-		local panelWidth = math.floor(vp.X * (isSmall and 0.28 or 0.16))
-		panelWidth = math.clamp(panelWidth, isSmall and 160 or 180, isSmall and 220 or 260)
-
-		tutorialFrame.Size = UDim2.new(0, panelWidth, 0, tutorialFrame.Size.Y.Offset)
-		tutorialFrame.Position = UDim2.new(0, 12, 0, 180)
-
-		local titleSize = math.clamp(math.floor(vp.Y * (isSmall and 0.022 or 0.018)), 14, 20)
-		local bodySize = math.clamp(math.floor(vp.Y * (isSmall and 0.018 or 0.015)), 12, 16)
-		local progressSize = math.clamp(math.floor(vp.Y * (isSmall and 0.018 or 0.015)), 12, 16)
+		
+		local titleSize = math.clamp(math.floor(vp.Y * (isSmall and 0.030 or 0.024)), 18, 26)
+		local bodySize = math.clamp(math.floor(vp.Y * (isSmall and 0.024 or 0.018)), 14, 20)
+		local progressSize = math.clamp(math.floor(vp.Y * (isSmall and 0.024 or 0.018)), 14, 20)
 
 		HUDUI.Refs.tutorialTitle.TextSize = titleSize
 		HUDUI.Refs.tutorialStep.TextSize = bodySize
 		HUDUI.Refs.tutorialProgress.TextSize = progressSize
-		HUDUI.Refs.tutorialReward.TextSize = math.clamp(math.floor(vp.Y * (isSmall and 0.022 or 0.020)), 16, 24)
+		HUDUI.Refs.tutorialReward.TextSize = math.clamp(math.floor(vp.Y * (isSmall and 0.030 or 0.028)), 20, 28)
+
+		local panelWidth
+		if isTutorialMinimized then
+			local titleText = HUDUI.Refs.tutorialTitle.Text or ""
+			local font = HUDUI.Refs.tutorialTitle.Font
+			local bounds = TextService:GetTextSize(titleText, titleSize, font, Vector2.new(1000, 1000))
+			panelWidth = math.max(120, bounds.X + 44)
+			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, 40)
+		else
+			panelWidth = math.floor(vp.X * (isSmall and 0.35 or 0.22))
+			panelWidth = math.clamp(panelWidth, isSmall and 220 or 280, isSmall and 280 or 360)
+			tutorialFrame.Size = UDim2.new(0, panelWidth, 0, tutorialFrame.Size.Y.Offset)
+		end
+
+		tutorialFrame.Position = UDim2.new(1, -12, 0, isSmall and 210 or 240)
 
 		local panelHeight = math.max(40, tutorialFrame.Size.Y.Offset) 
 		local btnWidth = math.clamp(math.floor(panelWidth * 0.24), 90, 130)
@@ -1073,22 +1240,23 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local consumableQuickslots = { "", "", "" }
 	HUDUI.ConsumableQuickslots = consumableQuickslots
 
-	local consumableFrame = Utils.mkFrame({
+	consumableFrame = Utils.mkFrame({
 		name = "ConsumableHotbarFrame",
-		size = UDim2.new(0, 52, 0, 180),
+		size = UDim2.new(1, 0, 0.54, 0),
 		pos = UDim2.new(0, 0, 0, 0),
-		anchor = Vector2.new(0, 1),
+		anchor = Vector2.new(0, 0),
 		bgT = 1,
-		parent = parent
+		parent = mainContainer
 	})
+	consumableFrame.LayoutOrder = 5
 
-	local consumableVList = Instance.new("UIListLayout")
-	consumableVList.FillDirection = Enum.FillDirection.Vertical
-	consumableVList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	consumableVList.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	consumableVList.Padding = UDim.new(0, 8)
-	consumableVList.SortOrder = Enum.SortOrder.LayoutOrder
-	consumableVList.Parent = consumableFrame
+	local consumableHList = Instance.new("UIListLayout")
+	consumableHList.FillDirection = Enum.FillDirection.Horizontal
+	consumableHList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	consumableHList.VerticalAlignment = Enum.VerticalAlignment.Center
+	consumableHList.Padding = UDim.new(0, 8)
+	consumableHList.SortOrder = Enum.SortOrder.LayoutOrder
+	consumableHList.Parent = consumableFrame
 
 	HUDUI.Refs.consumableSlots = {}
 	local consumableKeys = {"1", "2", "3"}
@@ -1099,7 +1267,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			size = UDim2.new(0, 48, 0, 48),
 			bg = C.BG_SLOT, bgT = 0.4, r = 6, parent = consumableFrame
 		})
-		slot.frame.LayoutOrder = 4 - i -- descending: 1 is top, 2 is middle, 3 is bottom
+		slot.frame.LayoutOrder = i -- descending: 1 is top, 2 is middle, 3 is bottom
 		
 		local keyLabel = Utils.mkLabel({
 			text = keyName, size = UDim2.new(0.4, 0, 0.4, 0), pos = UDim2.new(0.06, 0, 0.06, 0),
@@ -1198,40 +1366,6 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		end
 	end)
 
-	-- 6. Mobile/Universal Jump Button (Styled to match other slots)
-	local jumpSlot = Utils.mkSlot({
-		name = "JumpSlot",
-		size = UDim2.new(0, actionButtonSize, 0, actionButtonSize),
-		bg = C.BG_SLOT,
-		bgT = 0.4,
-		r = 6,
-		z = 10,
-		parent = parent
-	})
-	
-	local jumpIconId = getIconImage("Jump")
-	if jumpIconId and jumpIconId ~= "" then
-		jumpSlot.icon.Image = jumpIconId
-		jumpSlot.icon.Visible = true
-	else
-		jumpSlot.icon.Visible = false
-	end
-
-	local jumpLabel = Utils.mkLabel({
-		text = jumpIconId and "" or UILocalizer.Localize("점프"),
-		size = UDim2.new(1, 0, 1, 0),
-		font = F.TITLE,
-		color = C.WHITE,
-		ts = 13,
-		z = 12,
-		parent = jumpSlot.frame
-	})
-	jumpLabel.TextScaled = true
-
-	bindSlotAction(jumpSlot, "Jump", function()
-		PlatformerInput.requestJump()
-	end)
-
 	-- 7. Mobile/Universal Dash Button (Styled to match other slots)
 	local dashSlot = Utils.mkSlot({
 		name = "DashSlot",
@@ -1267,12 +1401,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 
 	local function syncConsumableHotbarPosition()
-		if not mainAnchor or not consumableFrame then return end
+		if not mainAnchor or not runeFrame then return end
 		local ap = mainAnchor.AbsolutePosition
 		local as = mainAnchor.AbsoluteSize
 		local scale = parent:FindFirstChildOfClass("UIScale") and parent:FindFirstChildOfClass("UIScale").Scale or 1
 		
-		consumableFrame.Position = UDim2.new(
+		runeFrame.Position = UDim2.new(
 			0, (ap.X + as.X) / scale + 12,
 			0, ap.Y / scale + as.Y * 0.35
 		)
@@ -1283,25 +1417,16 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		local screenWidth = vpSize.X / scale
 
 		local attackX = (ap.X + as.X) / scale + 90
-		local jumpX = attackX + actionButtonSize + actionButtonGap
-		local dashX = jumpX + actionButtonSize + actionButtonGap
+		local dashX = attackX + actionButtonSize + actionButtonGap
 
 		-- If the buttons would go off-screen, align them from the right edge of the screen instead
 		if dashX + actionButtonSize > screenWidth - 10 then
 			dashX = screenWidth - 16 - actionButtonSize
-			jumpX = dashX - actionButtonGap - actionButtonSize
-			attackX = jumpX - actionButtonGap - actionButtonSize
+			attackX = dashX - actionButtonGap - actionButtonSize
 		end
 
 		if attackSlot and attackSlot.frame then
 			attackSlot.frame.Position = UDim2.new(0, attackX, 0, ap.Y / scale + as.Y * 0.35)
-		end
-
-		if jumpSlot and jumpSlot.frame then
-			jumpSlot.frame.Position = UDim2.new(
-				0, jumpX,
-				0, ap.Y / scale + as.Y * 0.35
-			)
 		end
 
 		if dashSlot and dashSlot.frame then
@@ -1435,12 +1560,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end
 
 	-- 3. Rune Hotbar (E, R, T) - Decoupled parent to guarantee clicks work
-	local runeFrame = Utils.mkFrame({
+	runeFrame = Utils.mkFrame({
 		name = "RuneHotbarFrame",
-		size = UDim2.new(0, 52, 0, 200), 
-		-- Map center is at right margin -80. 180px down puts it right below map and coord text.
-		pos = UDim2.new(1, -80, 0, 180), 
-		anchor = Vector2.new(0.5, 0),
+		size = UDim2.new(0, 52, 0, 180), 
+		pos = UDim2.new(0, 0, 0, 0), 
+		anchor = Vector2.new(0, 1),
 		bgT = 1,
 		parent = parent -- CRITICAL: Parent to ScreenGui ensures slots can accept click events
 	})
@@ -1448,7 +1572,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local runeVList = Instance.new("UIListLayout")
 	runeVList.FillDirection = Enum.FillDirection.Vertical
 	runeVList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	runeVList.VerticalAlignment = Enum.VerticalAlignment.Top
+	runeVList.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	runeVList.Padding = UDim.new(0, 8) 
 	runeVList.SortOrder = Enum.SortOrder.LayoutOrder
 	runeVList.Parent = runeFrame
@@ -1958,7 +2082,7 @@ end
 function HUDUI.SetVisible(visible)
 	if HUDUI.Refs.statusPanel then HUDUI.Refs.statusPanel.Visible = visible end
 	if HUDUI.Refs.bottomEdge then HUDUI.Refs.bottomEdge.Visible = visible end
-	if HUDUI.Refs.menuRow then HUDUI.Refs.menuRow.Visible = visible end
+	if HUDUI.Refs.leftMenuContainer then HUDUI.Refs.leftMenuContainer.Visible = visible end
 	if HUDUI.Refs.hex_Attack then HUDUI.Refs.hex_Attack.Parent.Visible = visible end
 	if HUDUI.Refs.starterPackButton then
 		HUDUI.Refs.starterPackButton.Visible = visible and starterPackWantedVisible
@@ -2018,7 +2142,11 @@ function HUDUI.UpdateTutorialStatus(status)
 
 	local stepIndex = tonumber(status.stepIndex) or 0
 	local totalSteps = tonumber(status.totalSteps) or 0
-	HUDUI.Refs.tutorialTitle.Text = string.format("%s (%d/%d)", UILocalizer.Localize("튜토리얼 퀘스트"), stepIndex, totalSteps)
+	if isTutorialMinimized then
+		HUDUI.Refs.tutorialTitle.Text = UILocalizer.Localize("퀘스트")
+	else
+		HUDUI.Refs.tutorialTitle.Text = string.format("%s %d/%d", UILocalizer.Localize("튜토리얼 퀘스트"), stepIndex, totalSteps)
+	end
 	
 	HUDUI.Refs.tutorialProgress.Visible = false
 	HUDUI.Refs.tutorialReward.Visible = false
@@ -2027,7 +2155,7 @@ function HUDUI.UpdateTutorialStatus(status)
 
 	local progressText = ""
 	if status.progress and status.stepCount and status.stepCount > 0 then
-		progressText = string.format(" [%d/%d]", status.progress.count or 0, status.stepCount)
+		progressText = string.format(" %d/%d", status.progress.count or 0, status.stepCount)
 	end
 
 	local stepLines = {}

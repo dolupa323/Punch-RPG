@@ -376,6 +376,14 @@ local function onCharacterAdded(character: Model)
 	clearDash()
 	setMovementFlags(true, true, true, false)
 
+	-- Intercept default mobile jump request to trigger code-driven custom jump and double jump
+	table.insert(connections, humanoid:GetPropertyChangedSignal("Jump"):Connect(function()
+		if humanoid and humanoid.Jump then
+			humanoid.Jump = false -- Consume default physics jump
+			MovementAbilityController.requestJump()
+		end
+	end))
+
 	table.insert(connections, character.AncestryChanged:Connect(function()
 		if not character:IsDescendantOf(game) then
 			clearDash()

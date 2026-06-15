@@ -1041,8 +1041,27 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		if castVFXFolder then
 			local vfxTemplate = castVFXFolder:FindFirstChild(assetKey .. "_Cast")
 			if vfxTemplate then
-				-- 스킬의 경우 투사체가 날아갈 수 있도록 moveForwardDist 부여 (예: 20 스터드)
-				spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, 1.0, 20.0)
+				local scale = 1.0
+				local moveDist = 20.0
+				
+				-- 불씨(EMBER), 물방울(DROPLET), 짙은밤(NIGHT/ROCK)은 날아가지 않고 원래 스케일/방향대로 한번 출력
+				if assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" then
+					scale = 1.0
+					moveDist = nil -- 투사체 비행 제외
+				end
+				
+				local spawned = spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, scale, moveDist)
+				if spawned and (assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT") then
+					task.delay(0.25, function()
+						if spawned and spawned.Parent then
+							for _, desc in ipairs(spawned:GetDescendants()) do
+								if desc:IsA("ParticleEmitter") then
+									desc.Enabled = false
+								end
+							end
+						end
+					end)
+				end
 			else
 				warn(string.format("[VFX INFO] '%s_Cast' not found in Assets.VFX.Cast", assetKey))
 			end

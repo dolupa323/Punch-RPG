@@ -361,12 +361,12 @@ function UIManager.updateTutorialBlinking(status)
 		local eqTab = HUDUI.Refs.EquipTabButton
 		if eqTab then
 			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-			eqTab.BackgroundTransparency = 1
+			eqTab.BackgroundTransparency = 0.3
 		end
 		local invTab = HUDUI.Refs.InventoryTabButton
 		if invTab then
 			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-			invTab.BackgroundTransparency = 1
+			invTab.BackgroundTransparency = 0.3
 		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then
@@ -405,13 +405,13 @@ function UIManager.updateTutorialBlinking(status)
 				
 				if invTab then
 					invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-					invTab.BackgroundTransparency = 1
+					invTab.BackgroundTransparency = 0.3
 				end
 				
 				if isEquipOpen then
 					if eqTab then
 						eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-						eqTab.BackgroundTransparency = 1
+						eqTab.BackgroundTransparency = 0.3
 					end
 					
 					local hasPendingAtk = (UIManager.getPendingStatCount(Enums.StatId.ATTACK) > 0)
@@ -439,7 +439,7 @@ function UIManager.updateTutorialBlinking(status)
 					end
 					if eqTab then
 						eqTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
-						eqTab.BackgroundTransparency = isHighlight and 0.25 or 1
+						eqTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
 					end
 				end
 				
@@ -448,13 +448,13 @@ function UIManager.updateTutorialBlinking(status)
 				
 				if eqTab then
 					eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-					eqTab.BackgroundTransparency = 1
+					eqTab.BackgroundTransparency = 0.3
 				end
 				
 				if isInvOpen then
 					if invTab then
 						invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-						invTab.BackgroundTransparency = 1
+						invTab.BackgroundTransparency = 0.3
 					end
 					
 					local targetSlotIndex = nil
@@ -488,7 +488,7 @@ function UIManager.updateTutorialBlinking(status)
 					
 					if invTab then
 						invTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
-						invTab.BackgroundTransparency = isHighlight and 0.25 or 1
+						invTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
 					end
 				end
 			end
@@ -501,12 +501,12 @@ function UIManager.updateTutorialBlinking(status)
 		local eqTab = HUDUI.Refs.EquipTabButton
 		if eqTab then
 			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-			eqTab.BackgroundTransparency = 1
+			eqTab.BackgroundTransparency = 0.3
 		end
 		local invTab = HUDUI.Refs.InventoryTabButton
 		if invTab then
 			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-			invTab.BackgroundTransparency = 1
+			invTab.BackgroundTransparency = 0.3
 		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then
