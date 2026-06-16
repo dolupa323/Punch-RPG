@@ -12,6 +12,9 @@ local Balance
 local player = Players.LocalPlayer
 local mainGui
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("UITheme"))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
+local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local T = Theme.Transp
 
 -- State
@@ -488,7 +491,25 @@ function DragDropController.handleDragEnd()
 			local items = InventoryController.getItems()
 			local item = items[draggingSlotIdx]
 			if item and item.itemId then
-				InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
+				local isTradeable = true
+				if DataHelper and DataHelper.IsTradeable then
+					isTradeable = DataHelper.IsTradeable(item.itemId)
+				end
+				
+				if not isTradeable then
+					local itemData = DataHelper.GetData("ItemData", item.itemId)
+					local rawName = itemData and itemData.name or item.itemId
+					local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
+					
+					UIManager.showDropConfirm({
+						message = string.format("<font color='#FF5555'>%s</font>은(는) <font color='#FFAA00'>교환 불가</font> 아이템입니다.<br/>버리면 땅에 떨어지지 않고 완전히 소멸되어 복구할 수 없습니다.<br/>정말 버리시겠습니까?", tostring(localizedName)),
+						onConfirm = function()
+							InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
+						end
+					})
+				else
+					InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
+				end
 			end
 		end
 	end

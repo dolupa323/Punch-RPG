@@ -27,6 +27,8 @@ local function titleFromId(id: string?): string
 end
 
 local KO_TO_EN = {
+	["하락 방지권"] = "Anti-Downgrade Scroll",
+	["하락방지권"] = "Anti-Downgrade Scroll",
 	["INVENTORY [Tab]"] = "INVENTORY [Tab]",
 	["CRAFTING"] = "CRAFTING",
 	["ITEM DETAILS"] = "ITEM DETAILS",
@@ -822,6 +824,10 @@ function UILocalizer.LocalizeDataText(tableName: string, dataId: string, fieldNa
 		local localized = KO_TO_EN[src]
 		if localized then
 			return localized
+		end
+		-- ID가 순수 숫자 형태(예: "3586927112")인 경우 영어 번역쌍이 없다면 titleFromId로 숫자가 그대로 나오는 것을 방지
+		if tonumber(dataId) then
+			return src
 		end
 		return titleFromId(fieldName == "npcName" and (dataId .. "_NPC") or dataId)
 	end

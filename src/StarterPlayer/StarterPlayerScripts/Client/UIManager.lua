@@ -867,6 +867,7 @@ function UIManager._onCloseInventory()
 end
 
 function UIManager.toggleInventory(startTab)
+	print("[UIManager] toggleInventory called with startTab:", tostring(startTab))
 	WindowManager.toggle("INV", startTab)
 	UIManager.fireInventoryOpened()
 end
@@ -1032,7 +1033,26 @@ function UIManager.confirmModalAction(count)
 		if totalCount < 1 then totalCount = 1 end
 		
 		local validCount = math.max(1, math.min(count, totalCount))
-		InventoryController.requestDropByItemId(item.itemId, validCount)
+		
+		local isTradeable = true
+		if DataHelper and DataHelper.IsTradeable then
+			isTradeable = DataHelper.IsTradeable(item.itemId)
+		end
+		
+		if not isTradeable then
+			local itemData = DataHelper.GetData("ItemData", item.itemId)
+			local rawName = itemData and itemData.name or item.itemId
+			local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
+			
+			UIManager.showDropConfirm({
+				message = string.format("<font color='#FF5555'>%s %d개</font>는 <font color='#FFAA00'>교환 불가</font> 아이템입니다.<br/>버리면 땅에 떨어지지 않고 완전히 소멸되어 복구할 수 없습니다.<br/>정말 버리시겠습니까?", tostring(localizedName), validCount),
+				onConfirm = function()
+					InventoryController.requestDropByItemId(item.itemId, validCount)
+				end
+			})
+		else
+			InventoryController.requestDropByItemId(item.itemId, validCount)
+		end
 	elseif modalActionType == "SPLIT" then
 		local maxCount = (item.count or 1) - 1
 		if maxCount >= 1 then
@@ -3818,6 +3838,92 @@ function UIManager.showDismantleConfirm(params)
 		size = UDim2.new(0, 120, 1, 0),
 		bg = Color3.fromRGB(40, 80, 160),
 		hbg = Color3.fromRGB(60, 100, 180),
+		color = C.WHITE,
+		ts = 16,
+		fn = function()
+			overlay:Destroy()
+			if params.onConfirm then params.onConfirm() end
+		end,
+		parent = btnWrap
+	})
+end
+
+function UIManager.showDropConfirm(params)
+	local overlay = Utils.mkFrame({
+		name = "DropConfirmOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.5,
+		z = 2000,
+		parent = mainGui
+	})
+	
+	local win = Utils.mkWindow({
+		name = "ConfirmWindow",
+		size = UDim2.new(0, 400, 0, 320),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C.BG_PANEL,
+		stroke = 2,
+		strokeC = Color3.fromRGB(60, 85, 130),
+		r = 10,
+		parent = overlay
+	})
+	
+	Utils.mkLabel({
+		text = UILocalizer.Localize("아이템 버리기 경고"),
+		size = UDim2.new(1, 0, 0, 40),
+		pos = UDim2.new(0.5, 0, 0, 10),
+		anchor = Vector2.new(0.5, 0),
+		ts = 20,
+		font = Theme.Fonts.TITLE,
+		color = C.WHITE,
+		parent = win
+	})
+	
+	local content = Utils.mkLabel({
+		text = params.message or UILocalizer.Localize("교환 불가 아이템은 버리면 소멸됩니다. 버리시겠습니까?"),
+		size = UDim2.new(0.9, 0, 0, 140),
+		pos = UDim2.new(0.5, 0, 0.45, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 15,
+		color = Color3.fromRGB(220, 220, 220),
+		rich = true,
+		wrap = true,
+		parent = win
+	})
+	
+	local btnWrap = Utils.mkFrame({
+		size = UDim2.new(1, -40, 0, 50),
+		pos = UDim2.new(0.5, 0, 1, -20),
+		anchor = Vector2.new(0.5, 1),
+		bgT = 1,
+		parent = win
+	})
+	
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.Padding = UDim.new(0, 20)
+	list.Parent = btnWrap
+	
+	local cancelBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("취소"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = C.BG_SLOT,
+		hbg = C.BTN_GRAY_H,
+		color = C.WHITE,
+		isNegative = true,
+		ts = 16,
+		fn = function() overlay:Destroy() if params.onCancel then params.onCancel() end end,
+		parent = btnWrap
+	})
+	
+	local confirmBtn = Utils.mkBtn({
+		text = UILocalizer.Localize("확인"),
+		size = UDim2.new(0, 120, 1, 0),
+		bg = Color3.fromRGB(180, 50, 50),
+		hbg = Color3.fromRGB(210, 70, 70),
 		color = C.WHITE,
 		ts = 16,
 		fn = function()

@@ -592,6 +592,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		inner.BackgroundTransparency = 1
 		inner.ScaleType = Enum.ScaleType.Fit
 		inner.Image = iconId
+		inner.Active = false
 		inner.Parent = btn
 		
 		local asp = Instance.new("UIAspectRatioConstraint")
@@ -609,11 +610,15 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			parent = btn
 		})
 		txt.TextScaled = true
+		txt.Active = false
 		
 		local clk = Instance.new("TextButton")
 		clk.Size = UDim2.new(1, 0, 1, 0)
 		clk.BackgroundTransparency = 1
 		clk.Text = ""
+		clk.ZIndex = 5
+		clk.Active = true
+		clk.Selectable = true
 		clk.Parent = btn
 		
 		local sc = Instance.new("UIScale", btn)
@@ -630,16 +635,37 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		clk.MouseButton1Up:Connect(function()
 			TweenService:Create(sc, TweenInfo.new(0.1, Enum.EasingStyle.Back), {Scale = 1}):Play()
 		end)
-		clk.MouseButton1Click:Connect(fn)
+		clk.Activated:Connect(function()
+			print(string.format("[HUDUI] Menu Cell '%s' (%s) Activated!", name, label))
+			fn()
+		end)
 		return btn
 	end
 
-	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function() UIManager.toggleInventory() end)
-	HUDUI.Refs.EquipTabButton = mkMenuCell("BtnStats", UIManager.getItemIcon("Icon_Equipment"), "스탯", 2, function() UIManager.toggleEquipment() end)
-	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "스킬", 3, function() UIManager.toggleSkillTree() end)
-	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "상점", 4, function() if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end end)
-	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function() if UIManager.toggleQuest then UIManager.toggleQuest() end end)
-	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "경매장", 6, function() if UIManager.toggleAuctionHouse then UIManager.toggleAuctionHouse() end end)
+	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function()
+		print("[HUDUI] InventoryTabButton Clicked! calling UIManager.toggleInventory")
+		UIManager.toggleInventory()
+	end)
+	HUDUI.Refs.EquipTabButton = mkMenuCell("BtnStats", UIManager.getItemIcon("Icon_Equipment"), "스탯", 2, function()
+		print("[HUDUI] EquipTabButton Clicked! calling UIManager.toggleEquipment")
+		UIManager.toggleEquipment()
+	end)
+	HUDUI.Refs.SkillTabButton = mkMenuCell("BtnRune", UIManager.getItemIcon("Icon_Skill"), "스킬", 3, function()
+		print("[HUDUI] SkillTabButton Clicked! calling UIManager.toggleSkillTree")
+		UIManager.toggleSkillTree()
+	end)
+	HUDUI.Refs.ShopTabButton = mkMenuCell("BtnPass", UIManager.getItemIcon("Icon_Shop"), "상점", 4, function()
+		print("[HUDUI] ShopTabButton Clicked! calling UIManager.togglePremiumShop")
+		if UIManager.togglePremiumShop then UIManager.togglePremiumShop() end
+	end)
+	HUDUI.Refs.QuestTabButton = mkMenuCell("BtnStats2", UIManager.getItemIcon("Icon_Quest"), "통계", 5, function()
+		print("[HUDUI] QuestTabButton Clicked! calling UIManager.toggleQuest")
+		if UIManager.toggleQuest then UIManager.toggleQuest() end
+	end)
+	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "경매장", 6, function()
+		print("[HUDUI] BtnTrade (경매장) Clicked! calling UIManager.toggleAuctionHouse")
+		if UIManager.toggleAuctionHouse then UIManager.toggleAuctionHouse() end
+	end)
 
 	-- Sidebar collapse/expand functionality (Premium Glassmorphic Design) - Mobile Responsive
 	local menuOpen = true

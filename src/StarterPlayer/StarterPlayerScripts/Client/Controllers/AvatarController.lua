@@ -51,15 +51,8 @@ end
 local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: number, parentPart: BasePart?, scaleFactor: number?, moveForwardDist: number?)
 	if not template then return end
 	
-	-- [수정] 스튜디오에서 설정한 원본 에셋의 회전값(Orientation/Rotation)을 보존합니다.
-	local originalRot = CFrame.identity
-	if template:IsA("BasePart") then
-		originalRot = template.CFrame.Rotation
-	elseif template:IsA("Model") then
-		originalRot = template:GetPivot().Rotation
-	end
-	
 	local vfx = template:Clone()
+	local rotationAdjustment = CFrame.Angles(0, math.rad(180), 0)
 	
 	if vfx:IsA("Attachment") or vfx:IsA("ParticleEmitter") then
 		local wrapper = Instance.new("Part")
@@ -123,7 +116,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	local shouldTweenForward = (moveForwardDist and moveForwardDist > 0)
 	
 	if vfx:IsA("BasePart") then
-		vfx.CFrame = cframe * originalRot
+		vfx.CFrame = cframe * rotationAdjustment
 		-- 앞으로 뻗어나갈 때는 물리 엔진의 중력 낙하를 막기 위해 무조건 고정(Anchored) 처리
 		vfx.Anchored = (parentPart == nil) or shouldTweenForward
 		vfx.CanCollide = false
@@ -138,7 +131,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 			weld.Parent = vfx
 		end
 	elseif vfx:IsA("Model") then
-		vfx:PivotTo(cframe * originalRot)
+		vfx:PivotTo(cframe * rotationAdjustment)
 		if parentPart and not shouldTweenForward then
 			local root = vfx.PrimaryPart or vfx:FindFirstChildWhichIsA("BasePart")
 			if root then
@@ -176,7 +169,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 				-- 모델의 피벗을 내부 구성물들의 기하학적 정중앙으로 강제 귀속
 				vfx.WorldPivot = currentBoundingCF
 				-- 바뀐 중앙 피벗 기준으로 몸통 중심(cframe)에 재배치
-				vfx:PivotTo(cframe)
+				vfx:PivotTo(cframe * rotationAdjustment)
 			end)
 		end
 	end
@@ -202,7 +195,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 		task.delay(0.06, function()
 			if not vfx or not vfx.Parent then return end
 			
-			local targetCF = (cframe * CFrame.new(0, 0, -moveForwardDist)) * originalRot
+			local targetCF = (cframe * CFrame.new(0, 0, -moveForwardDist)) * rotationAdjustment
 			local tweenDur = math.min(lifetime * 0.65, 0.45) 
 			local info = TweenInfo.new(tweenDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			
@@ -210,7 +203,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 				TweenService:Create(vfx, info, {CFrame = targetCF}):Play()
 			elseif vfx:IsA("Model") then
 				local cfProxy = Instance.new("CFrameValue")
-				cfProxy.Value = cframe * originalRot
+				cfProxy.Value = cframe * rotationAdjustment
 				cfProxy.Changed:Connect(function(val)
 					if vfx and vfx.Parent then
 						vfx:PivotTo(val)

@@ -5,34 +5,46 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Client = script.Parent.Parent
-local NetClient = require(Client:WaitForChild("NetClient"))
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SpawnConfig = require(Shared:WaitForChild("Config"):WaitForChild("SpawnConfig"))
 
 local BGMController = {}
 
 local initialized = false
-local combatSound = nil
 local zoneSound = nil
-local combatActive = false
 local currentZoneName = nil
 local zonePollAccumulator = 0
 
-local COMBAT_SOUND_NAME = "COMBAT_BGM"
-local COMBAT_CHANNEL_NAME = "CombatBGMChannel"
 local ZONE_CHANNEL_NAME = "ZoneBGMChannel"
-local COMBAT_VOLUME = 0.04
 local ZONE_VOLUME = 0.02
 local FADE_TIME = 0.6
 local ZONE_POLL_INTERVAL = 1.0
 
 local ZONE_SOUND_NAMES = {
-	GRASSLAND = "GRASSLAND_BGM",
-	TROPICAL = "TROPICAL_BGM",
+	-- New RPG World Zones
+	CHEONGUN = "TOWN_BGM",                 -- 청운촌 (스타팅 마을)
+	SLIME_HABITAT = "FOREST_BGM",          -- 슬라임 서식지
+	HornedLarvaZone = "FOREST_BGM",        -- 애벌레의 숲
+	STUMP_ZONE = "FOREST_BGM",             -- 스텀프의 땅
+	STUMP_KING_ZONE = "FOREST_BGM",        -- 스텀프 킹의 안식처
+	CYCLOPS_BAT_ZONE = "FOREST_BGM",       -- 박쥐의 언덕
+	SMALL_GOLEM_ZONE = "CAVE_BGM",         -- 스산한 동굴
+	EERIE_CAVE = "CAVE_BGM",               -- 스산한 동굴
+	SPIDER_ZONE = "CAVE_BGM",              -- 거미구역
+	POISON_NEST = "CAVE_BGM",              -- 맹독 둥지
+	SAMURAI_ZONE = "SAMURAI_BGM",          -- 멸망한 동쪽의 나라
+	DEATH_SNOW_MOUNTAIN = "SNOW_BGM",      -- 죽음의 설산
+	SKY_ISLAND = "SKY_BGM",                -- 하늘섬
+	BLUE_FLAME_KNIGHT_ZONE = "SAMURAI_BGM",-- 푸른 신념 (최종 보스)
+
+	-- Legacy Zones
+	GRASSLAND = "FOREST_BGM",
+	TROPICAL = "HARBOR_BGM",
 	DESERT = "DESERT_BGM",
 	SNOW = "SNOW_BGM",
 	SNOWFIELD = "SNOW_BGM",
 	SNOWLAND = "SNOW_BGM",
+	SNOWY = "SNOW_BGM",
 }
 
 local function findSoundSourceByName(soundName: string): Sound?
@@ -49,35 +61,8 @@ local function findSoundSourceByName(soundName: string): Sound?
 		end
 	end
 
+	warn("[BGMController] BGM Asset not found in game tree: " .. tostring(soundName))
 	return nil
-end
-
-local function findCombatSource(): Sound?
-	return findSoundSourceByName(COMBAT_SOUND_NAME)
-end
-
-local function ensureCombatChannel(): Sound?
-	if combatSound and combatSound.Parent then
-		return combatSound
-	end
-
-	local source = findCombatSource()
-	if not source then
-		return nil
-	end
-
-	combatSound = SoundService:FindFirstChild(COMBAT_CHANNEL_NAME)
-	if not combatSound or not combatSound:IsA("Sound") then
-		combatSound = Instance.new("Sound")
-		combatSound.Name = COMBAT_CHANNEL_NAME
-		combatSound.Parent = SoundService
-	end
-
-	combatSound.SoundId = source.SoundId
-	combatSound.Volume = 0
-	combatSound.Looped = true
-	combatSound.RollOffMaxDistance = 10000
-	return combatSound
 end
 
 local function ensureZoneChannel(): Sound?
@@ -106,39 +91,15 @@ local function tweenVolume(sound: Sound, volume: number)
 	return tween
 end
 
-local function startCombatBGM()
-	local sound = ensureCombatChannel()
-	if not sound then
-		return
-	end
-	if not sound.IsPlaying then
-		sound:Play()
-	end
-	tweenVolume(sound, COMBAT_VOLUME)
-end
-
-local function stopCombatBGM()
-	local sound = combatSound
-	if not sound or not sound.Parent then
-		return
-	end
-	local tween = tweenVolume(sound, 0)
-	task.delay(FADE_TIME + 0.05, function()
-		if sound.Parent and not combatActive then
-			sound:Stop()
-		end
-	end)
-	return tween
-end
-
 local function stopZoneBGM()
 	local sound = zoneSound
 	if not sound or not sound.Parent then
 		return
 	end
+	print("[BGMController] stopZoneBGM")
 	tweenVolume(sound, 0)
 	task.delay(FADE_TIME + 0.05, function()
-		if sound.Parent and (combatActive or not currentZoneName) then
+		if sound.Parent and not currentZoneName then
 			sound:Stop()
 		end
 	end)
@@ -146,9 +107,6 @@ end
 
 local function playZoneBGM(zoneName: string?)
 	currentZoneName = zoneName
-	if combatActive then
-		return
-	end
 
 	if not zoneName then
 		stopZoneBGM()
@@ -161,6 +119,8 @@ local function playZoneBGM(zoneName: string?)
 		stopZoneBGM()
 		return
 	end
+
+	print("[BGMController] playZoneBGM - Zone:", zoneName, "Sound:", soundName)
 
 	local sound = ensureZoneChannel()
 	if not sound then
@@ -188,7 +148,7 @@ local function refreshZoneBGM()
 		return
 	end
 
-	local nextZone = SpawnConfig.GetZoneAtPosition(hrp.Position)
+	local nextZone = SpawnConfig.GetZoneAtPosition(hrp.Position) or "CHEONGUN"
 	if nextZone == currentZoneName then
 		return
 	end
@@ -201,25 +161,9 @@ function BGMController.Init()
 		return
 	end
 	initialized = true
-
-	NetClient.On("Combat.PlayerState.Changed", function(data)
-		local nextState = type(data) == "table" and data.inCombat == true or false
-		if combatActive == nextState then
-			return
-		end
-		combatActive = nextState
-		if combatActive then
-			stopZoneBGM()
-			startCombatBGM()
-		else
-			stopCombatBGM()
-			playZoneBGM(currentZoneName)
-		end
-	end)
+	print("[BGMController] BGMController Init start")
 
 	Players.LocalPlayer.CharacterAdded:Connect(function()
-		combatActive = false
-		stopCombatBGM()
 		task.defer(function()
 			refreshZoneBGM()
 		end)

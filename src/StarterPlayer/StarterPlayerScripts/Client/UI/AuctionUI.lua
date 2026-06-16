@@ -418,8 +418,9 @@ function AuctionUI.Init(parent, UIManager, isMobile)
 		local absSize = invScroll.AbsoluteSize
 		if absSize.X <= 0 then return end
 		local availableWidth = absSize.X - 28
-		local slotsPerRow = isMobile and 4 or 6
 		local paddingSize = 6
+		local targetSize = 64
+		local slotsPerRow = math.max(4, math.floor((availableWidth + paddingSize) / (targetSize + paddingSize)))
 		local cellSize = math.floor((availableWidth - (paddingSize * (slotsPerRow - 1))) / slotsPerRow)
 		invGrid.CellSize = UDim2.new(0, cellSize, 0, cellSize)
 		invGrid.CellPadding = UDim2.new(0, paddingSize, 0, paddingSize)

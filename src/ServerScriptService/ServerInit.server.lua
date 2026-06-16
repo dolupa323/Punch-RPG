@@ -17,6 +17,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local ServiceRegistry = require(Shared:WaitForChild("Utils"):WaitForChild("ServiceRegistry"))
 local GameEventBus = require(Shared:WaitForChild("Utils"):WaitForChild("GameEventBus"))
+local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local function initCollisionGroups()
 	local groups = {"Players", "Creatures", "CombatCreatures", "Structures", "Resources"}
@@ -87,13 +88,16 @@ local function handleInventoryDropWithWorldDrop(player, payload)
 	if not success then return { success = false, errorCode = errorCode } end
 	local dropped = data.dropped
 	if dropped then
-		local character = player.Character
-		if character then
-			local hrp = character:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
-				if spawnOk then data.worldDrop = spawnData end
+		local isTradeable = DataHelper.IsTradeable(dropped.itemId)
+		if isTradeable then
+			local character = player.Character
+			if character then
+				local hrp = character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
+					local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
+					if spawnOk then data.worldDrop = spawnData end
+				end
 			end
 		end
 	end
@@ -108,13 +112,16 @@ local function handleInventoryDropByItemIdWithWorldDrop(player, payload)
 	
 	local dropped = data.dropped
 	if dropped then
-		local character = player.Character
-		if character then
-			local hrp = character:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-				local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
-				if spawnOk then data.worldDrop = spawnData end
+		local isTradeable = DataHelper.IsTradeable(dropped.itemId)
+		if isTradeable then
+			local character = player.Character
+			if character then
+				local hrp = character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
+					local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
+					if spawnOk then data.worldDrop = spawnData end
+				end
 			end
 		end
 	end
