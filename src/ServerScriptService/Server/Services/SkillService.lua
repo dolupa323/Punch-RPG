@@ -663,7 +663,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 				local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 10
 				if equippedWeapon then
 					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
-					weaponDmg = math.floor(weaponDmg * (quality / 100))
+					local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+					weaponDmg = DataHelper.GetQualityAdjustedWeaponDamage(equippedWeapon.itemId, quality)
 				end
 				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
@@ -831,7 +832,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		
 		if equippedWeapon then
 			local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
-			weaponDmg = math.floor(weaponDmg * (quality / 100))
+			local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+			weaponDmg = DataHelper.GetQualityAdjustedWeaponDamage(equippedWeapon.itemId, quality)
 		end
 		
 		local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0

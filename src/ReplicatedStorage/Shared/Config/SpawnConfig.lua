@@ -141,6 +141,14 @@ local ZONES = {
 		subName = "BLUE FAITH",
 		priority = 30,
 	},
+	DesertGuardianZone = {
+		min = Vector2.new(-2160, 790),
+		max = Vector2.new(-1840, 1090),
+		spawnPoint = Vector3.new(-2002.4, -60.9, 940.0),
+		displayName = "사막의 수호자 구역",
+		subName = "DESERT GUARDIAN ARENA",
+		priority = 30,
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -262,6 +270,10 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	BLUE_FLAME_KNIGHT_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	DesertGuardianZone = {
 		Creatures = {},
 		Harvests = {},
 	},

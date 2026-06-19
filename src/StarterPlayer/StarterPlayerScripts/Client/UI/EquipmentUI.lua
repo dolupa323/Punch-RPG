@@ -652,7 +652,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 							end
 						end
 						
-						local baseDmg = math.floor((itemData.damage or 0) * qMult)
+						local baseDmg = DataHelper.GetQualityAdjustedWeaponDamage(item.itemId, quality)
 						local enhanceLevel = item.attributes and item.attributes.enhanceLevel or 0
 						local enhanceDamage = item.attributes and item.attributes.enhanceDamage or 0
 						
@@ -852,7 +852,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 				
 				local quality = (wData.attributes and wData.attributes.quality) or 100
 				local qMult = quality / 100
-				local baseDmg = itemData and math.floor((itemData.damage or 0) * qMult) or 0
+				local baseDmg = itemData and DataHelper.GetQualityAdjustedWeaponDamage(wData.itemId, quality) or 0
 				
 				local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
 				local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
@@ -900,7 +900,7 @@ function EquipmentUI.Refresh(cachedStats, totalPending, equipmentData, getItemIc
 			local DataHelper = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("DataHelper"))
 			local itemData = DataHelper.GetData("ItemData", wData.itemId)
 			local quality = (wData.attributes and wData.attributes.quality) or 100
-			local baseDmg = itemData and math.floor((itemData.damage or 0) * (quality/100)) or 0
+			local baseDmg = itemData and DataHelper.GetQualityAdjustedWeaponDamage(wData.itemId, quality) or 0
 			local enhanceLevel = wData.attributes and wData.attributes.enhanceLevel or 0
 			local bonusRate = DataHelper.GetEnhanceBonusRate(itemData and itemData.rarity or "COMMON")
 			local finalDmg = math.floor(baseDmg * (1 + enhanceLevel * bonusRate) + 0.5)

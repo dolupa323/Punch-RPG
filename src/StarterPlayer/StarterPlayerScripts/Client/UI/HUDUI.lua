@@ -12,6 +12,8 @@ local Client = script.Parent.Parent
 local NetClient = require(Client:WaitForChild("NetClient"))
 local PlatformerInput = require(Client:WaitForChild("Controllers"):WaitForChild("PlatformerInput"))
 local LocaleService = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("LocaleService"))
+local RaidBossData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RaidBossData"))
+
 local C = Theme.Colors
 local F = Theme.Fonts
 local T = Theme.Transp
@@ -424,6 +426,16 @@ HUDUI.Refs = {
 	tutorialCompleteBtn = nil,
 	tutorialClickArea = nil,
 	starterPackButton = nil,
+	raidBossContainer = nil,
+	raidBossSizeConstraint = nil,
+	raidBossName = nil,
+	raidHpBarBg = nil,
+	raidHpUnderFill = nil,
+	raidHpBarFill = nil,
+	raidHpLabel = nil,
+	raidMultiplier = nil,
+	raidHpBorder = nil,
+	raidHpGradient = nil,
 }
 
 function HUDUI.Init(parent, UIManager, InputManager, isMobile)
@@ -1846,6 +1858,127 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	HUDUI.Refs.combatHPLabel.BackgroundTransparency = 1
 
 	-- =============================================
+	-- =============================================
+	-- Raid Boss HP UI (Premium Center Top Design)
+	-- =============================================
+	local raidBossContainer = Instance.new("Frame")
+	raidBossContainer.Name = "RaidBossUIContainer"
+	raidBossContainer.Size = UDim2.new(0.75, 0, 0, 120)
+	raidBossContainer.Position = UDim2.new(0.5, 0, 0, 15) -- Placed at top center, 15px below top
+	raidBossContainer.AnchorPoint = Vector2.new(0.5, 0)
+	raidBossContainer.BackgroundTransparency = 1
+	raidBossContainer.BorderSizePixel = 0
+	raidBossContainer.Visible = false
+	raidBossContainer.ZIndex = 100
+	raidBossContainer.Parent = parent
+	HUDUI.Refs.raidBossContainer = raidBossContainer
+
+	local raidBossSizeConstraint = Instance.new("UISizeConstraint")
+	raidBossSizeConstraint.Name = "RaidBossSizeConstraint"
+	raidBossSizeConstraint.MinSize = Vector2.new(450, 0)
+	raidBossSizeConstraint.MaxSize = Vector2.new(900, 999)
+	raidBossSizeConstraint.Parent = raidBossContainer
+	HUDUI.Refs.raidBossSizeConstraint = raidBossSizeConstraint
+
+	-- Boss Name Label
+	local raidBossName = Utils.mkLabel({
+		name = "RaidBossName",
+		text = "사막의 수호자",
+		size = UDim2.new(1, 0, 0, 32),
+		pos = UDim2.new(0.5, 0, 0, 0),
+		anchor = Vector2.new(0.5, 0),
+		ts = 22,
+		bold = true,
+		color = Color3.fromRGB(255, 255, 255),
+		ax = Enum.TextXAlignment.Center,
+		parent = raidBossContainer
+	})
+	raidBossName.Font = F.TITLE
+	HUDUI.Refs.raidBossName = raidBossName
+
+	local nameStroke = Instance.new("UIStroke")
+	nameStroke.Color = Color3.fromRGB(0, 0, 0)
+	nameStroke.Thickness = 2.5
+	nameStroke.Parent = raidBossName
+
+	-- HP Bar Background Frame (Full Width)
+	local raidHpBarBg = Instance.new("Frame")
+	raidHpBarBg.Name = "RaidHPBarBg"
+	raidHpBarBg.Size = UDim2.new(1, 0, 0, 26) -- Stretching to fill full container width
+	raidHpBarBg.Position = UDim2.new(0, 0, 0, 42)
+	raidHpBarBg.BackgroundColor3 = Color3.fromRGB(15, 20, 30) -- Deep Navy BG
+	raidHpBarBg.BorderSizePixel = 0
+	raidHpBarBg.Parent = raidBossContainer
+	HUDUI.Refs.raidHpBarBg = raidHpBarBg
+
+	local raidHpCorner = Instance.new("UICorner")
+	raidHpCorner.CornerRadius = UDim.new(0, 6)
+	raidHpCorner.Parent = raidHpBarBg
+
+	local raidHpBorder = Instance.new("UIStroke")
+	raidHpBorder.Color = Color3.fromRGB(190, 155, 75) -- Default gold border
+	raidHpBorder.Thickness = 2
+	raidHpBorder.Parent = raidHpBarBg
+	HUDUI.Refs.raidHpBorder = raidHpBorder
+
+	-- HP Decay Underfill (rust-orange)
+	local raidHpUnderFill = Instance.new("Frame")
+	raidHpUnderFill.Name = "RaidHPUnderFill"
+	raidHpUnderFill.Size = UDim2.new(1, 0, 1, 0)
+	raidHpUnderFill.BackgroundColor3 = Color3.fromRGB(200, 80, 40) -- Orange/Rust damage decay
+	raidHpUnderFill.BorderSizePixel = 0
+	raidHpUnderFill.Parent = raidHpBarBg
+	HUDUI.Refs.raidHpUnderFill = raidHpUnderFill
+
+	local underCorner = Instance.new("UICorner")
+	underCorner.CornerRadius = UDim.new(0, 6)
+	underCorner.Parent = raidHpUnderFill
+
+	-- Main HP Bar Fill
+	local raidHpBarFill = Instance.new("Frame")
+	raidHpBarFill.Name = "RaidHPBarFill"
+	raidHpBarFill.Size = UDim2.new(1, 0, 1, 0)
+	raidHpBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	raidHpBarFill.BorderSizePixel = 0
+	raidHpBarFill.ClipsDescendants = true
+	raidHpBarFill.Parent = raidHpBarBg
+	HUDUI.Refs.raidHpBarFill = raidHpBarFill
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 6)
+	fillCorner.Parent = raidHpBarFill
+
+	-- Dynamic UIGradient for custom boss themes
+	local fillGradient = Instance.new("UIGradient")
+	fillGradient.Name = "RaidHPGradient"
+	fillGradient.Parent = raidHpBarFill
+	HUDUI.Refs.raidHpGradient = fillGradient
+
+	-- HP Text Label
+	local raidHpLabel = Utils.mkLabel({
+		name = "RaidHPLabel",
+		text = "0 / 0",
+		size = UDim2.new(1, 0, 1, 0),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		ts = 14,
+		bold = true,
+		color = Color3.fromRGB(255, 255, 255),
+		ax = Enum.TextXAlignment.Center,
+		ay = Enum.TextYAlignment.Center,
+		parent = raidHpBarBg
+	})
+	raidHpLabel.ZIndex = raidHpBarBg.ZIndex + 5
+	HUDUI.Refs.raidHpLabel = raidHpLabel
+
+	local textStroke = Instance.new("UIStroke")
+	textStroke.Color = Color3.fromRGB(0, 0, 0)
+	textStroke.Thickness = 1.8
+	textStroke.Parent = raidHpLabel
+
+	HUDUI.Refs.raidMultiplier = nil
+
+	-- =============================================
 	-- HUD 바 툴팁 (마우스 호버 시 설명창) - 프리미엄 Navy + Black 테마로 색감 강제 대통합
 	-- =============================================
 	local tooltip = Instance.new("Frame")
@@ -2043,7 +2176,193 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			triggerScale(HUDUI.Refs.hex_Dodge)
 		end
 	end)
+
+	-- =============================================
+	-- Raid Boss HP Bar Client Loop (Data-Driven Theme Mapping)
+	-- =============================================
+	task.spawn(function()
+		local Players = game:GetService("Players")
+		local localPlayer = Players.LocalPlayer
+		
+		-- Cache active boss visual styling to avoid redundantly setting properties
+		local currentActiveBossKey = nil
+		
+		while true do
+			task.wait(0.1)
+			
+			local character = localPlayer.Character
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+			
+			-- Search workspace for any active raid boss defined in RaidBossData
+			local activeBossModel = nil
+			local activeBossData = nil
+			local bossKey = nil
+			
+			for key, data in pairs(RaidBossData) do
+				local foundModel = nil
+				for _, child in ipairs(workspace:GetChildren()) do
+					if child.Name == data.mobModelName and child:FindFirstChildOfClass("Humanoid") then
+						foundModel = child
+						break
+					end
+				end
+				
+				if foundModel then
+					activeBossModel = foundModel
+					activeBossData = data
+					bossKey = key
+					break
+				end
+			end
+			
+			local bossHrp = activeBossModel and (activeBossModel:FindFirstChild("HumanoidRootPart") or activeBossModel.PrimaryPart)
+			local bossHum = activeBossModel and activeBossModel:FindFirstChildOfClass("Humanoid")
+			
+			if hrp and bossHrp and bossHum and bossHum.Health > 0 then
+				local dist = (hrp.Position - bossHrp.Position).Magnitude
+				if dist < 85 then
+					-- 1. Client-side: hide the default 3D head-up health BillboardGui
+					local mobUI = activeBossModel:FindFirstChild("MobUI", true)
+					if mobUI and mobUI:IsA("BillboardGui") then
+						mobUI.Enabled = false
+					end
+					
+					-- 2. Dynamically bind boss theme visual assets on initial detection
+					if currentActiveBossKey ~= bossKey then
+						currentActiveBossKey = bossKey
+						
+						if HUDUI.Refs.raidBossName then
+							HUDUI.Refs.raidBossName.Text = UILocalizer.Localize(activeBossData.displayName)
+						end
+						if HUDUI.Refs.raidHpBorder then
+							HUDUI.Refs.raidHpBorder.Color = activeBossData.themeColor
+						end
+						if HUDUI.Refs.raidHpGradient then
+							HUDUI.Refs.raidHpGradient.Color = activeBossData.hpGradient
+						end
+						if HUDUI.Refs.raidHpUnderFill then
+							HUDUI.Refs.raidHpUnderFill.BackgroundColor3 = activeBossData.underfillColor
+						end
+						if HUDUI.Refs.raidMultiplier then
+							HUDUI.Refs.raidMultiplier.TextColor3 = activeBossData.themeColor
+						end
+					end
+					
+					-- 3. Show 2D ScreenGui Raid Boss health container
+					if HUDUI.Refs.raidBossContainer then
+						HUDUI.Refs.raidBossContainer.Visible = true
+					end
+					
+					-- 4. Calculate actual HP bar details in real time
+					local curHP = bossHum.Health
+					local maxHP = bossHum.MaxHealth
+					local hpRatio = math.clamp(curHP / maxHP, 0, 1)
+					
+					if HUDUI.Refs.raidHpBarFill then
+						TweenService:Create(HUDUI.Refs.raidHpBarFill, TweenInfo.new(0.05, Enum.EasingStyle.Quad), {Size = UDim2.new(hpRatio, 0, 1, 0)}):Play()
+					end
+					
+					if HUDUI.Refs.raidHpUnderFill then
+						TweenService:Create(HUDUI.Refs.raidHpUnderFill, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {Size = UDim2.new(hpRatio, 0, 1, 0)}):Play()
+					end
+					
+					if HUDUI.Refs.raidHpLabel then
+						HUDUI.Refs.raidHpLabel.Text = string.format("%d / %d", math.floor(curHP), math.floor(maxHP))
+					end
+				else
+					-- Player moved away, hide boss HP bar and restore 3D UI
+					if HUDUI.Refs.raidBossContainer and HUDUI.Refs.raidBossContainer.Visible then
+						HUDUI.Refs.raidBossContainer.Visible = false
+					end
+					local mobUI = activeBossModel:FindFirstChild("MobUI", true)
+					if mobUI and mobUI:IsA("BillboardGui") then
+						mobUI.Enabled = true
+					end
+					currentActiveBossKey = nil
+				end
+			else
+				-- Boss is dead/nil, reset and hide 2D ScreenGui HP bar
+				if HUDUI.Refs.raidBossContainer and HUDUI.Refs.raidBossContainer.Visible then
+					-- Fast zero-out animation before hiding
+					if HUDUI.Refs.raidHpBarFill then HUDUI.Refs.raidHpBarFill.Size = UDim2.new(0, 0, 1, 0) end
+					if HUDUI.Refs.raidHpUnderFill then HUDUI.Refs.raidHpUnderFill.Size = UDim2.new(0, 0, 1, 0) end
+					if HUDUI.Refs.raidMultiplier then HUDUI.Refs.raidMultiplier.Text = "x0" end
+					
+					local containerToHide = HUDUI.Refs.raidBossContainer
+					task.spawn(function()
+						task.wait(0.5)
+						if containerToHide and currentActiveBossKey == nil then
+							containerToHide.Visible = false
+						end
+					end)
+				end
+				currentActiveBossKey = nil
+			end
+		end
+	end)
+
+	-- Responsive Layout for Raid Boss HP UI (Mobile / Portrait / Landscape support)
+	local function updateRaidBossLayout()
+		local camera = workspace.CurrentCamera
+		local vp = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		local isSmallScreen = isSmall or vp.X < 768
+
+		local container = HUDUI.Refs.raidBossContainer
+		local constraint = HUDUI.Refs.raidBossSizeConstraint
+		local bossName = HUDUI.Refs.raidBossName
+		local hpBarBg = HUDUI.Refs.raidHpBarBg
+		local hpLabel = HUDUI.Refs.raidHpLabel
+
+		if not container then return end
+
+		if isSmallScreen then
+			-- Mobile / Small Screen layout
+			container.Size = UDim2.new(0.85, 0, 0, 65)
+			container.Position = UDim2.new(0.5, 0, 0, 8)
+			if constraint then
+				constraint.MinSize = Vector2.new(280, 0)
+				constraint.MaxSize = Vector2.new(500, 999)
+			end
+			if bossName then
+				bossName.Size = UDim2.new(1, 0, 0, 20)
+				bossName.TextSize = 15
+			end
+			if hpBarBg then
+				hpBarBg.Size = UDim2.new(1, 0, 0, 16)
+				hpBarBg.Position = UDim2.new(0, 0, 0, 24)
+			end
+			if hpLabel then
+				hpLabel.TextSize = 10
+			end
+		else
+			-- PC / Large Screen layout
+			container.Size = UDim2.new(0.75, 0, 0, 120)
+			container.Position = UDim2.new(0.5, 0, 0, 15)
+			if constraint then
+				constraint.MinSize = Vector2.new(450, 0)
+				constraint.MaxSize = Vector2.new(900, 999)
+			end
+			if bossName then
+				bossName.Size = UDim2.new(1, 0, 0, 32)
+				bossName.TextSize = 22
+			end
+			if hpBarBg then
+				hpBarBg.Size = UDim2.new(1, 0, 0, 26)
+				hpBarBg.Position = UDim2.new(0, 0, 0, 42)
+			end
+			if hpLabel then
+				hpLabel.TextSize = 14
+			end
+		end
+	end
+
+	updateRaidBossLayout()
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateRaidBossLayout)
+	end
 end
+
 
 
 local function _setReadyPulse(ready)
@@ -2575,6 +2894,7 @@ function HUDUI.UpdateCombatUI(currentHP, maxHP)
 		HUDUI.Refs.combatHPLabel.Text = string.format("%d / %d", math.floor(currentHP), math.floor(maxHP))
 	end
 end
+
 
 function HUDUI.isSideMenuVisible()
 	return false -- Side menu fully replaced by bottom menu row

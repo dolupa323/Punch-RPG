@@ -227,16 +227,7 @@ end
 function SpiritController.Init()
 	if initialized then return end
 	initialized = true
-	print("[SpiritController] SpiritController Initialized in Demon mode")
-	
-	local localPlayer = Players.LocalPlayer
-	localPlayer.CharacterAdded:Connect(function(character)
-		setupSpirit(character)
-	end)
-	
-	if localPlayer.Character then
-		setupSpirit(localPlayer.Character)
-	end
+	print("[SpiritController] SpiritController disabled (Demon spawning removed)")
 end
 
 return SpiritController

@@ -160,6 +160,8 @@ local function _getDefaultPlayerSave()
 		},
 		-- 스냅샷 (롤백용)
 		snapshots = {},
+		-- 결제 완료 처리된 PurchaseId 목록 (중복 결제 방지용)
+		processedPurchases = {},
 	}
 end
 
@@ -356,6 +358,7 @@ local function _normalizePlayerState(state: any): any
 	state.stats.inventoryBonusSlots = math.max(0, math.floor(tonumber(state.stats.inventoryBonusSlots) or 0))
 	state.snapshots = type(state.snapshots) == "table" and state.snapshots or {}
 	state._session = type(state._session) == "table" and state._session or { jobId = nil, timestamp = 0 }
+	state.processedPurchases = type(state.processedPurchases) == "table" and state.processedPurchases or {}
 
 	-- 스킬 트리 필드 정규화
 	state.skillPointsSpent = type(state.skillPointsSpent) == "number" and state.skillPointsSpent or 0

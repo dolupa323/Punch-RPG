@@ -52,7 +52,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	if not template then return end
 	
 	local vfx = template:Clone()
-	local rotationAdjustment = CFrame.Angles(0, math.rad(180), 0)
+	local rotationAdjustment = CFrame.new() -- 180도 강제 반대 출력 회전 제거 (0도로 원상복구)
 	
 	if vfx:IsA("Attachment") or vfx:IsA("ParticleEmitter") then
 		local wrapper = Instance.new("Part")
@@ -125,9 +125,15 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 		
 		-- 날아가는 투사체 형태가 아닐 때만 원래대로 캐릭터에 본드 고정(Weld)
 		if parentPart and not shouldTweenForward then
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = vfx
-			weld.Part1 = parentPart
+			-- 템플릿 에셋이 스튜디오 상에서 가졌던 고유한 원래의 3D 회전 각도를 추출합니다.
+			local originalRotation = template.CFrame.Rotation
+			
+			-- WeldConstraint 대신 클래식 Weld를 사용하여 물리 프레임 지연으로 인한 위치 오차를 완전히 차단합니다.
+			local weld = Instance.new("Weld")
+			weld.Part0 = parentPart
+			weld.Part1 = vfx
+			weld.C0 = CFrame.new(0, 0, -3.5) * originalRotation
+			weld.C1 = CFrame.new()
 			weld.Parent = vfx
 		end
 	elseif vfx:IsA("Model") then
@@ -179,14 +185,21 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	-- 파티클의 즉각적인 생성을 보장하기 위해 첫 발을 강제로 Emit 합니다. (Delay 등의 속성 무시)
 	for _, desc in ipairs(vfx:GetDescendants()) do
 		if desc:IsA("ParticleEmitter") then
-			local burstCount = desc:GetAttribute("BurstCount")
-			if burstCount then
-				desc:Emit(burstCount)
-			else
-				-- 즉시 분출로 딜레이 체감 제거
-				pcall(function() desc:Emit(math.max(1, math.floor(desc.Rate * 0.2))) end)
-				desc.Enabled = true
-			end
+			local emitCount = tonumber(desc:GetAttribute("EmitCount")) or 1
+			
+			-- [엔진 글로벌 렌더 싱크 버그 차단]
+			-- 복제 즉시 원래 텍스처 ID를 캐싱하고 비워두어, 글로벌 텍스처 타이머 동기화를 강제로 끊습니다.
+			local originalTexture = desc.Texture
+			desc.Texture = ""
+			
+			task.spawn(function()
+				task.wait()
+				if desc and desc.Parent then
+					-- 방출 직전 텍스처를 복원하여 무조건 1프레임부터 새롭게 재생을 개시하도록 강제합니다.
+					desc.Texture = originalTexture
+					pcall(function() desc:Emit(emitCount) end)
+				end
+			end)
 		end
 	end
 	
@@ -783,8 +796,8 @@ local function handleLMBAttack()
 			
 			local targetTemplate = elementTemplate or castVFXFolder:FindFirstChild(string.format("Default_Attack_Cast_%d", comboIndex)) or castVFXFolder:FindFirstChild(string.format("Base_Attack_Cast_%d", comboIndex))
 			if targetTemplate then
-				-- 캐릭터 이동에 끌려가서 원형이 찌그러지지 않도록 hrp 대신 nil을 넘겨 공중에 고정(Anchored)시킵니다.
-				spawnedVFX = spawnCombatVFX(targetTemplate, targetCFrame, 10.0, nil, 1.0, 0)
+				-- 캐릭터 몸에 달라붙어 이동을 따라가도록 nil 대신 hrp를 넘겨 결속(Weld)시킵니다.
+				spawnedVFX = spawnCombatVFX(targetTemplate, targetCFrame, 0.5, hrp, 1.0, 0)
 			end
 		end
 	end

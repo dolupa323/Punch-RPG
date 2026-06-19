@@ -2712,13 +2712,33 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-MarketplaceService.ProcessReceipt = function(receiptInfo)
+function InventoryService.ProcessReceipt(receiptInfo)
 	local userId = receiptInfo.PlayerId
 	local productId = tostring(receiptInfo.ProductId)
+	local purchaseId = receiptInfo.PurchaseId
 	
 	local player = Players:GetPlayerByUserId(userId)
 	if not player then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	-- 1. SaveService가 유효한지 확인하고 플레이어 상태 로드
+	if not SaveService or not SaveService.getPlayerState then
+		warn("[Purchase] SaveService not ready, deferring purchase")
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	local state = SaveService.getPlayerState(userId)
+	if not state then
+		warn(string.format("[Purchase] Player state not loaded for user %d, deferring purchase", userId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	-- 2. 중복 수령 방지 (Deduplication Check)
+	state.processedPurchases = state.processedPurchases or {}
+	if state.processedPurchases[purchaseId] then
+		print(string.format("[Purchase] PurchaseId %s already processed for %s, skipping reward grant", purchaseId, player.Name))
+		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	
 	-- ProductConfig 로딩
@@ -2727,97 +2747,137 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 		ProductConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("ProductConfig"))
 	end)
 	
-	if ProductConfig and ProductConfig.PRODUCTS then
-		local productData = ProductConfig.PRODUCTS[productId]
-		if productData then
-			if productData.rewardType == "INVENTORY_EXPAND" then
-				local slots = tonumber(productData.slots) or 30
-				if PlayerStatService and PlayerStatService.grantInventoryBonusSlots then
-					local ok, newMaxSlots, appliedSlots = PlayerStatService.grantInventoryBonusSlots(userId, slots)
-					if ok then
-						print(string.format("[Purchase] Inventory expansion granted to %s (+%d slots, max=%d) for product %s",
-							player.Name, appliedSlots or 0, newMaxSlots or 0, productId))
-						return Enum.ProductPurchaseDecision.PurchaseGranted
-					end
-				end
-				warn(string.format("[Purchase] Inventory expansion failed for %s (product %s)", player.Name, productId))
-				return Enum.ProductPurchaseDecision.NotProcessedYet
-			elseif productData.rewardType == "STARTER_PACK" then
-				local boxItemId = productData.itemId or productData.boxItemId
-				local amount = tonumber(productData.amount) or 1
-				if type(boxItemId) == "string" and boxItemId ~= "" then
-					local added, remaining = InventoryService.addItem(userId, boxItemId, amount)
-					if added > 0 and remaining == 0 then
-						print(string.format("[Purchase] Successfully awarded starter pack box (%s) to player %s for product %s", boxItemId, player.Name, productId))
-						return Enum.ProductPurchaseDecision.PurchaseGranted
-					end
-					warn(string.format("[Purchase] Failed to award starter pack box to player %s - Inventory Full? product %s", player.Name, productId))
-				else
-					warn(string.format("[Purchase] Starter pack missing box itemId for product %s (player=%s)", productId, player.Name))
-				end
-				return Enum.ProductPurchaseDecision.NotProcessedYet
-			elseif productData.rewardType == "GOLD" then
-				local amount = tonumber(productData.amount) or 0
-				local goldService = NPCShopService
-				if not goldService then
-					local okReq, svc = pcall(function()
-						return require(Services.NPCShopService)
-					end)
-					if okReq then
-						goldService = svc
-						NPCShopService = svc
-					end
-				end
-				if goldService and amount > 0 then
-					local ok, err = goldService.addGold(userId, amount)
-					if ok then
-						print(string.format("[Purchase] Successfully awarded %d gold to player %s for product %s", amount, player.Name, productId))
-						return Enum.ProductPurchaseDecision.PurchaseGranted
-					end
-					warn(string.format("[Purchase] Failed to award gold to player %s - %s", player.Name, tostring(err)))
-				else
-					warn(string.format("[Purchase] Gold service unavailable or invalid amount for product %s (player=%s, amount=%s)", productId, player.Name, tostring(amount)))
-				end
-				return Enum.ProductPurchaseDecision.NotProcessedYet
-			elseif productData.rewardType == "CRAFT_SPEEDUP" then
-				local craftId = player:GetAttribute("PendingInstantCompleteCraftId")
-				if craftId and craftId ~= "" then
-					local CraftingService = nil
-					pcall(function()
-						CraftingService = require(ServerScriptService.Server.Services.CraftingService)
-					end)
-					if CraftingService then
-						local ok, err, data = CraftingService.instantComplete(player, craftId)
-						if ok then
-							player:SetAttribute("PendingInstantCompleteCraftId", nil)
-							print(string.format("[Purchase] Successfully speeded up craft %s for player %s via product %s", craftId, player.Name, productId))
-							return Enum.ProductPurchaseDecision.PurchaseGranted
-						else
-							warn(string.format("[Purchase] Failed to speed up craft %s for player %s: %s", craftId, player.Name, tostring(err)))
-						end
-					else
-						warn("[Purchase] CraftingService not found for speedup")
-					end
-				else
-					warn(string.format("[Purchase] No PendingInstantCompleteCraftId found for player %s on speedup purchase", player.Name))
-				end
-				return Enum.ProductPurchaseDecision.NotProcessedYet
-			elseif productData.itemId then
-				local itemId = productData.itemId
-				local amount = productData.amount or 1
-				local added, remaining = InventoryService.addItem(userId, itemId, amount)
-				if added > 0 then
-					print(string.format("[Purchase] Successfully awarded %d of %s to player %s for product %s", amount, itemId, player.Name, productId))
-					return Enum.ProductPurchaseDecision.PurchaseGranted
-				else
-					warn(string.format("[Purchase] Failed to award %s to player %s - Inventory Full?", itemId, player.Name))
-					return Enum.ProductPurchaseDecision.NotProcessedYet
-				end
+	if not (ProductConfig and ProductConfig.PRODUCTS) then
+		warn("[Purchase] ProductConfig or PRODUCTS not loaded, deferring purchase")
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	local productData = ProductConfig.PRODUCTS[productId]
+	if not productData then
+		warn(string.format("[Purchase] Product data missing for ProductId %s, deferring purchase", productId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	
+	local rewardGranted = false
+	
+	-- 3. 보상 처리 분기
+	if productData.rewardType == "INVENTORY_EXPAND" then
+		local slots = tonumber(productData.slots) or 30
+		if PlayerStatService and PlayerStatService.grantInventoryBonusSlots then
+			local ok, newMaxSlots, appliedSlots = PlayerStatService.grantInventoryBonusSlots(userId, slots)
+			if ok then
+				print(string.format("[Purchase] Inventory expansion granted to %s (+%d slots, max=%d) for product %s",
+					player.Name, appliedSlots or 0, newMaxSlots or 0, productId))
+				rewardGranted = true
 			end
+		end
+		if not rewardGranted then
+			warn(string.format("[Purchase] Inventory expansion failed for %s (product %s)", player.Name, productId))
+		end
+	elseif productData.rewardType == "STARTER_PACK" then
+		local boxItemId = productData.itemId or productData.boxItemId
+		local amount = tonumber(productData.amount) or 1
+		if type(boxItemId) == "string" and boxItemId ~= "" then
+			local added, remaining = InventoryService.addItem(userId, boxItemId, amount)
+			if added > 0 and remaining == 0 then
+				print(string.format("[Purchase] Successfully awarded starter pack box (%s) to player %s for product %s", boxItemId, player.Name, productId))
+				rewardGranted = true
+			else
+				warn(string.format("[Purchase] Failed to award starter pack box to player %s - Inventory Full? product %s", player.Name, productId))
+			end
+		else
+			warn(string.format("[Purchase] Starter pack missing box itemId for product %s (player=%s)", productId, player.Name))
+		end
+	elseif productData.rewardType == "GOLD" then
+		local amount = tonumber(productData.amount) or 0
+		local goldService = NPCShopService
+		if not goldService then
+			local okReq, svc = pcall(function()
+				return require(Services.NPCShopService)
+			end)
+			if okReq then
+				goldService = svc
+				NPCShopService = svc
+			end
+		end
+		if goldService and amount > 0 then
+			local ok, err = goldService.addGold(userId, amount)
+			if ok then
+				print(string.format("[Purchase] Successfully awarded %d gold to player %s for product %s", amount, player.Name, productId))
+				rewardGranted = true
+			else
+				warn(string.format("[Purchase] Failed to award gold to player %s - %s", player.Name, tostring(err)))
+			end
+		else
+			warn(string.format("[Purchase] Gold service unavailable or invalid amount for product %s (player=%s, amount=%s)", productId, player.Name, tostring(amount)))
+		end
+	elseif productData.rewardType == "CRAFT_SPEEDUP" then
+		local craftId = player:GetAttribute("PendingInstantCompleteCraftId")
+		if craftId and craftId ~= "" then
+			local CraftingService = nil
+			pcall(function()
+				CraftingService = require(ServerScriptService.Server.Services.CraftingService)
+			end)
+			if CraftingService then
+				local ok, err, data = CraftingService.instantComplete(player, craftId)
+				if ok then
+					player:SetAttribute("PendingInstantCompleteCraftId", nil)
+					print(string.format("[Purchase] Successfully speeded up craft %s for player %s via product %s", craftId, player.Name, productId))
+					rewardGranted = true
+				else
+					warn(string.format("[Purchase] Failed to speed up craft %s for player %s: %s", craftId, player.Name, tostring(err)))
+				end
+			else
+				warn("[Purchase] CraftingService not found for speedup")
+			end
+		else
+			warn(string.format("[Purchase] No PendingInstantCompleteCraftId found for player %s on speedup purchase", player.Name))
+		end
+	elseif productData.itemId then
+		local itemId = productData.itemId
+		local amount = productData.amount or 1
+		local added, remaining = InventoryService.addItem(userId, itemId, amount)
+		if added > 0 then
+			print(string.format("[Purchase] Successfully awarded %d of %s to player %s for product %s", amount, itemId, player.Name, productId))
+			rewardGranted = true
+		else
+			warn(string.format("[Purchase] Failed to award %s to player %s - Inventory Full?", itemId, player.Name))
 		end
 	end
 	
-	return Enum.ProductPurchaseDecision.PurchaseGranted
+	-- 4. Failsafe Save 및 최종 판정
+	if rewardGranted then
+		-- 중복 방지 기록
+		state.processedPurchases[purchaseId] = true
+		if SaveService.markPlayerDirty then
+			SaveService.markPlayerDirty(userId)
+		end
+		
+		-- 즉시 DB 저장
+		if SaveService.savePlayer then
+			local saveSuccess, saveErr = SaveService.savePlayer(userId)
+			if saveSuccess then
+				print(string.format("[Purchase] Successfully saved purchase %s to DataStore for %s", purchaseId, player.Name))
+				return Enum.ProductPurchaseDecision.PurchaseGranted
+			else
+				-- 저장 실패 시 메모리 데이터 롤백 후 재시도 유도 (로벅스 차감 안 됨)
+				state.processedPurchases[purchaseId] = nil
+				warn(string.format("[Purchase] Failed to save database for purchase %s: %s. Rolling back and deferring.", purchaseId, tostring(saveErr)))
+				return Enum.ProductPurchaseDecision.NotProcessedYet
+			end
+		else
+			-- 만약 savePlayer가 비정상적으로 누락된 경우
+			warn("[Purchase] SaveService.savePlayer function not found! Deferring purchase to prevent data loss.")
+			state.processedPurchases[purchaseId] = nil
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+	end
+	
+	-- 보상 지급 자체가 실패했거나 미처리된 경우
+	warn(string.format("[Purchase] Reward not granted for ProductId %s, PurchaseId %s. Deferring purchase.", productId, purchaseId))
+	return Enum.ProductPurchaseDecision.NotProcessedYet
 end
+
+MarketplaceService.ProcessReceipt = InventoryService.ProcessReceipt
 
 return InventoryService

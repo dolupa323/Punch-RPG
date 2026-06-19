@@ -21,11 +21,11 @@ local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number)
 	if char then
 		defense = tonumber(char:GetAttribute("Defense")) or 0
 	end
-	
+
 	-- Defense damage reduction formula: damage = rawDamage * (100 / (100 + defense))
 	local finalDamage = rawDamage * (100 / (100 + defense))
 	finalDamage = math.max(1, math.floor(finalDamage + 0.5))
-	
+
 	phum:TakeDamage(finalDamage)
 end
 
@@ -50,6 +50,15 @@ local function resolveSpawnConfig(config, index)
 	return merged
 end
 
+local function getSpawnConfigForSlot(areaId, index, fallbackConfig)
+	local spawnDataList = DataService.get("MobSpawnData")
+	local areaConfig = spawnDataList and spawnDataList[areaId]
+	if type(areaConfig) == "table" then
+		return resolveSpawnConfig(areaConfig, index)
+	end
+	return resolveSpawnConfig(fallbackConfig, index)
+end
+
 --========================================
 -- Internal: Loot 생성
 --========================================
@@ -62,18 +71,18 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		warn("[MobSpawnService] Cannot spawn loot: DataService is not initialized!")
 		return
 	end
-	
+
 	-- 드롭 테이블 조회 (대문자로 변환하여 매칭)
 	local dropTableId = string.upper(mobName)
 	local dropTable = DataService.getDropTable(dropTableId)
-	
+
 	if not dropTable then
 		warn(string.format("[MobSpawnService] No drop table found for mob '%s' (Table ID: '%s')", mobName, dropTableId))
 		return
 	end
-	
+
 	print(string.format("[MobSpawnService] Processing loot drop for '%s' at %s. Table entries: %d", mobName, tostring(pos), #dropTable))
-	
+
 	for i, entry in ipairs(dropTable) do
 		local roll = math.random()
 		local chance = entry.chance or 1.0
@@ -86,7 +95,7 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		if roll <= chance then
 			local count = math.random(entry.min or 1, entry.max or 1)
 			print(string.format("[MobSpawnService] -> Roll success (%.2f <= %.2f): Spawning %d of '%s'", roll, chance, count, entry.itemId))
-			
+
 			if entry.itemId == "GOLD" or entry.itemId == "GOLD_COIN" then
 				local ok, err = WorldDropService.spawnGoldDrop(pos, count)
 				if not ok then
@@ -113,17 +122,17 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 					end
 					targetPlayer = closestPlayer
 				end
-				
+
 				-- [기획 보강]: 재료 아이템(RESOURCE 타입)은 월드 드롭 모델로 땅에 떨어지지 않고 타겟 플레이어의 인벤토리에 즉시 자동 파밍 지급!
 				local itemData = DataService.getItem(entry.itemId)
 				local isResource = itemData and itemData.type == "RESOURCE"
-				
+
 				if isResource and targetPlayer and targetPlayer:IsA("Player") then
 					local InventoryService = require(Services:WaitForChild("InventoryService"))
 					if InventoryService and InventoryService.addItem then
 						local added, remaining = InventoryService.addItem(targetPlayer.UserId, entry.itemId, count)
 						print(string.format("[MobSpawnService] Direct Resource Add - Player: %s, Item: %s, Added: %d, Remaining: %d", targetPlayer.Name, entry.itemId, added, remaining))
-						
+
 						-- [명품 UI 피드백]: 획득 알림 전송!
 						if added > 0 then
 							local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
@@ -136,7 +145,7 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 								})
 							end
 						end
-						
+
 						-- 인벤토리가 가득 찬 특수 예외 상황 시에는 땅바닥에 Failsafe용 주머니(Pouch) 드롭으로 처리!
 						if remaining > 0 then
 							local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, remaining, nil, nil, "DISCARD")
@@ -159,7 +168,7 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 			print(string.format("[MobSpawnService] -> Roll failed (%.2f > %.2f) for '%s'", roll, chance, entry.itemId))
 		end
 	end
-	
+
 	-- [Skill Book Drop Logic] 몬스터 처치 시 스킬북 1% 개별 드롭 분리
 	if killerPlayer then
 		local bookItemId = nil
@@ -170,7 +179,7 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		elseif mobName == "SmallGolem" then
 			bookItemId = "BOOK_ROCK" -- 짙은밤 (어둠 속성)
 		end
-		
+
 		if bookItemId then
 			local bookRoll = math.random(1, 100)
 			if bookRoll <= 1 then
@@ -206,7 +215,7 @@ local function getRandomPosInQuad(p1, p2, p3, p4)
 	local area1 = (p2 - p1):Cross(p3 - p1).Magnitude
 	local area2 = (p3 - p1):Cross(p4 - p1).Magnitude
 	local totalArea = area1 + area2
-	
+
 	if math.random() * totalArea <= area1 then
 		return getRandomPointInTriangle(p1, p2, p3)
 	else
@@ -219,7 +228,7 @@ local function getNextSpawnPosition(config, index)
 	if config.exactSpawnPosition then
 		return Vector3.new(config.exactSpawnPosition.x, config.exactSpawnPosition.y, config.exactSpawnPosition.z)
 	end
-	
+
 	-- 1순위: 구역 파트 기반 랜덤 스폰
 	if config.spawnZonePartName then
 		-- Workspace에서 해당 이름의 파트 검색
@@ -238,7 +247,7 @@ local function getNextSpawnPosition(config, index)
 		local v2 = Vector3.new(pts[2].x, pts[2].y, pts[2].z)
 		local v3 = Vector3.new(pts[3].x, pts[3].y, pts[3].z)
 		local v4 = Vector3.new(pts[4].x, pts[4].y, pts[4].z)
-		
+
 		-- 시계/반시계 순서가 꼬이지 않게 순서 배치 (1->2->3->4)
 		return getRandomPosInQuad(v1, v2, v3, v4)
 	end
@@ -282,7 +291,7 @@ local function createMobModel(areaId, index, config)
 	if mobAsset then
 		-- 실물 에셋 복제 스폰
 		model = mobAsset:Clone()
-		
+
 		-- [중요] 만약 모델이 이중 중첩되어 있는 경우 (예: Samurai -> elite samurai -> Humanoid)
 		-- 실제 Humanoid를 품고 있는 서브 모델을 메인 모델로 승격시키고 겉껍질을 제거합니다.
 		local innerHumanoid = model:FindFirstChildOfClass("Humanoid", true)
@@ -296,34 +305,34 @@ local function createMobModel(areaId, index, config)
 				model = actualModel
 			end
 		end
-		
-		-- [지형 인식 스폰 (Terrain Raycast)] 
+
+		-- [지형 인식 스폰 (Terrain Raycast)]
 		if not config.skipTerrainScan then
 			local raycastParams = RaycastParams.new()
 			raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 			raycastParams.FilterDescendantsInstances = {model}
 			raycastParams.RespectCanCollide = true
-			
+
 			local startOffset = config.raycastStartOffsetY or (config.isIndoor and 20 or 200)
 			local rayDist = config.raycastDepth or (config.isIndoor and -100 or -1000)
-			
+
 			local startY = spawnPos.Y + startOffset
 			if not config.raycastStartOffsetY and not config.isIndoor then
 				startY = math.max(startY, 500)
 			end
-			
+
 			local skyPos = Vector3.new(spawnPos.X, startY, spawnPos.Z)
 			local rayResult = workspace:Raycast(skyPos, Vector3.new(0, rayDist, 0), raycastParams)
-			
+
 			if rayResult then
 				-- 바닥(Floor) 정확한 고도를 찾아내고, 모델이 지형에 끼이지 않도록 살짝(5스터드) 위에서 스폰시킴
 				-- 이후 아래에 있는 하이브리드 HipHeight 엔진이 알아서 중력과 함께 완벽히 안착시킴
 				spawnPos = rayResult.Position + Vector3.new(0, 5, 0)
 			end
 		end
-		
+
 		model:PivotTo(CFrame.new(spawnPos))
-		
+
 		-- [물리 폭발 방지] 모델 내부 파트들의 자체 충돌로 인한 튕김(Fling) 방지
 		for _, part in ipairs(model:GetDescendants()) do
 			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
@@ -335,7 +344,7 @@ local function createMobModel(areaId, index, config)
 		-- 실물 에셋 부재 시 자동 생성 임시 파트 조립 (디버깅 안전장치)
 		model = Instance.new("Model")
 		model.Name = config.mobModelName
-		
+
 		local hrp = Instance.new("Part")
 		hrp.Name = "HumanoidRootPart"
 		hrp.Size = Vector3.new(3, 3, 3)
@@ -351,7 +360,7 @@ local function createMobModel(areaId, index, config)
 
 		local hum = Instance.new("Humanoid")
 		hum.Parent = model
-		
+
 		warn(string.format("[MobSpawnService] %s Asset NOT found. Generated temp visual for %s_%d at %s.", config.mobModelName, areaId, index, tostring(spawnPos)))
 	end
 
@@ -369,7 +378,7 @@ local function createMobModel(areaId, index, config)
 
 	-- [물리혁신 1단계] ScaleTo 연산 및 부모화를 "가장 먼저" 수행하여 가상 HRP 크기가 강제 쪼그라드는 버그를 근본적으로 방지!
 	model.Parent = workspace
-	
+
 	-- [최강의 자가진단 및 물리 스케일링 엔진]
 	-- 1. PrimaryPart 강제 확보 (ScaleTo가 정상 작동하기 위한 필수 선행요건)
 	if not model.PrimaryPart then
@@ -412,10 +421,10 @@ local function createMobModel(areaId, index, config)
 		humanoid = Instance.new("Humanoid")
 		humanoid.Parent = model
 	end
-	
+
 	local hrp = model:FindFirstChild("HumanoidRootPart")
 	if not hrp then
-		-- [정석적인 뼈대 보존형 자가복구] 
+		-- [정석적인 뼈대 보존형 자가복구]
 		-- 비주얼 파트들의 이름이나 리깅을 훼손하지 않기 위해 가상의 깡통 투명 RootPart를 생성!
 		-- 축소가 완료된 이후에 장착되므로, 규격 사이즈(2, 4, 2)가 축소되지 않고 온전하게 유지됨!
 		hrp = Instance.new("Part")
@@ -426,7 +435,7 @@ local function createMobModel(areaId, index, config)
 		hrp.CanCollide = true
 		hrp.Parent = model
 		model.PrimaryPart = hrp
-		
+
 		-- 오리지널 비주얼 파트들을 이 투명 RootPart에 단 하나의 WeldConstraint로 얹어 결속!
 		for _, p in ipairs(model:GetChildren()) do
 			if p:IsA("BasePart") and p ~= hrp then
@@ -447,7 +456,7 @@ local function createMobModel(areaId, index, config)
 		humanoid.MaxHealth = config.maxHealth or 100
 		humanoid.Health = humanoid.MaxHealth
 		humanoid.WalkSpeed = config.walkSpeed or 8 -- [추가] 데이터 테이블 연동 또는 기본 배회속도 세팅!
-		
+
 		-- [중요] 모든 애니메이션의 서버 로딩 및 클라이언트 동기화 복제를 위해 Animator 객체 선제 생성 보장!
 		local animator = humanoid:FindFirstChildOfClass("Animator")
 		if not animator then
@@ -467,10 +476,10 @@ local function createMobModel(areaId, index, config)
 		humanoid.MaxHealth = targetHp
 		humanoid.Health = targetHp -- 풀체력 설정
 	end
-	
+
 	if humanoid and hrp then
 		model.PrimaryPart = hrp
-		
+
 		-- [하이브리드 힙 하이트(HipHeight) 엔진] 원본 아티스트 캘리브레이션 비율 캡처
 		local originalHipHeight = humanoid.HipHeight or 0
 		local originalHrpSizeY = hrp.Size.Y
@@ -478,26 +487,26 @@ local function createMobModel(areaId, index, config)
 		if originalHrpSizeY > 0.001 then
 			hipHeightRatio = originalHipHeight / originalHrpSizeY
 		end
-		
+
 		-- [물리갱신] HRP의 물리 충돌 영역이 너무 작아 지형 아래로 꺼지는 물리 엔진 버그를 완벽 해결하기 위해 최소 규격 강제 조정!
 		local currentSize = hrp.Size
 		if currentSize.X < 2 or currentSize.Y < 2 or currentSize.Z < 2 then
 			hrp.Size = Vector3.new(math.max(2, currentSize.X), math.max(2, currentSize.Y), math.max(2, currentSize.Z))
 		end
-		
+
 		-- [물리갱신] 몬스터 밀림(축구공) 방지 및 유저 튕겨남(Fling) 방지: HRP 밀도를 5로 낮추어 유저가 부딪혀도 멀리 날아가지 않게 함!
 		hrp.CustomPhysicalProperties = PhysicalProperties.new(5, 2.0, 0)
 		hrp.Massless = false
 		hrp.Transparency = 1
-		
+
 		-- 1. 물리 해제 및 안정화 (Anchored 제거)
 		-- [중요] 모든 몬스터는 파트 간 물리적 겹침 반발 폭발(하늘 발사 버그) 차단을 위해 HRP 외의 파트 CanCollide를 false로 처리!
 		for _, p in ipairs(model:GetDescendants()) do
 			if p:IsA("BasePart") then
 				p.Anchored = false
-				
+
 				if p == hrp then
-					p.CanCollide = true 
+					p.CanCollide = true
 					p.Massless = false
 				else
 					p.CanCollide = false
@@ -505,7 +514,7 @@ local function createMobModel(areaId, index, config)
 				end
 			end
 		end
-		
+
 		-- [신규] 몬스터 모델의 자체 방향이 잘못되었을 때 (세로로 서 있는 모델 등) 비주얼 회전 보정 (재귀형 웰드 세이프 연산)
 		if config.spawnRotationOffset then
 			local rotCF = CFrame.Angles(
@@ -523,10 +532,10 @@ local function createMobModel(areaId, index, config)
 			end
 
 			-- A. Rig 모델인 경우 RootJoint 회전 보정 (Roblox Humanoid가 HRP의 upright 상태를 강제하므로 joint 회전이 가장 적합)
-			local rootJoint = model:FindFirstChild("RootJoint", true) 
-				or model:FindFirstChild("Root Joint", true) 
+			local rootJoint = model:FindFirstChild("RootJoint", true)
+				or model:FindFirstChild("Root Joint", true)
 				or hrp:FindFirstChildOfClass("Motor6D")
-			
+
 			if rootJoint then
 				rootJoint.C0 = rootJoint.C0 * rotCF
 			else
@@ -545,6 +554,60 @@ local function createMobModel(areaId, index, config)
 			end
 		end
 
+		if config.visualGroundSink and config.visualGroundSink > 0 then
+			local welds = {}
+			for _, w in ipairs(model:GetDescendants()) do
+				if w:IsA("WeldConstraint") then
+					w.Enabled = false
+					table.insert(welds, w)
+				end
+			end
+
+			for _, p in ipairs(model:GetDescendants()) do
+				if p:IsA("BasePart") and p ~= hrp and p.Name ~= "CombatHitbox" then
+					p.CFrame = p.CFrame - Vector3.new(0, config.visualGroundSink, 0)
+				end
+			end
+
+			for _, w in ipairs(welds) do
+				w.Enabled = true
+			end
+		end
+
+		if config.hitboxScaleFromBounds then
+			local _, boundsSize = model:GetBoundingBox()
+			local scale = config.hitboxScaleFromBounds
+			local hitboxSize = Vector3.new(
+				math.max(2, boundsSize.X * (scale.x or 1)),
+				math.max(2, boundsSize.Y * (scale.y or 1)),
+				math.max(2, boundsSize.Z * (scale.z or 1))
+			)
+			local combatHitbox = model:FindFirstChild("CombatHitbox")
+			if not combatHitbox then
+				combatHitbox = Instance.new("Part")
+				combatHitbox.Name = "CombatHitbox"
+				combatHitbox.Transparency = 1
+				combatHitbox.Anchored = false
+				combatHitbox.CanCollide = false
+				combatHitbox.CanTouch = false
+				combatHitbox.CanQuery = true
+				combatHitbox.Massless = true
+				combatHitbox.Parent = model
+
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = hrp
+				weld.Part1 = combatHitbox
+				weld.Parent = combatHitbox
+			end
+			combatHitbox.Size = hitboxSize
+			combatHitbox.CFrame = hrp.CFrame
+			model:SetAttribute("HitboxRadius", math.max(hitboxSize.X, hitboxSize.Z) * 0.5)
+			model:SetAttribute("HitboxHeight", hitboxSize.Y)
+		else
+			model:SetAttribute("HitboxRadius", math.max(hrp.Size.X, hrp.Size.Z) * 0.5)
+			model:SetAttribute("HitboxHeight", hrp.Size.Y)
+		end
+
 		-- 2. 동적 힙 하이트(HipHeight) 정밀 보정 (모든 몬스터 지형 파고듦 및 낙하 버그 방지)
 		if config.customHipHeight then
 			humanoid.HipHeight = config.customHipHeight
@@ -555,7 +618,7 @@ local function createMobModel(areaId, index, config)
 			-- [비주얼 스캐너 렌더링 폴백] 슬라임 같이 HipHeight가 없는 조립형 몬스터용 (회전 반영 정밀 보정)
 			local lowestY = math.huge
 			local ignoreParts = {["HumanoidRootPart"] = true}
-			
+
 			for _, part in ipairs(model:GetDescendants()) do
 				if part:IsA("BasePart") and not ignoreParts[part.Name] and part.Transparency < 0.9 then
 					local CF = part.CFrame
@@ -568,20 +631,20 @@ local function createMobModel(areaId, index, config)
 					end
 				end
 			end
-			
+
 			if lowestY == math.huge then
 				lowestY = hrp.Position.Y - hrp.Size.Y / 2
 			end
-			
+
 			-- HRP 중심에서 최하단 비주얼까지의 정밀 거리 계산
 			local offset = hrp.Position.Y - lowestY
 			local halfHrpY = hrp.Size.Y / 2
 			local targetHipHeight = offset - halfHrpY
-			
+
 			if targetHipHeight < 0 then
 				-- 비주얼이 너무 작아 HRP 바닥에 안 닿는 경우: 모든 비주얼 파트를 HRP 바닥면으로 강제 재배치 (재귀 웰드 해제 적용)
 				local shiftY = -targetHipHeight -- 아래로 내릴 거리
-				
+
 				local welds = {}
 				for _, w in ipairs(model:GetDescendants()) do
 					if w:IsA("WeldConstraint") then
@@ -605,20 +668,20 @@ local function createMobModel(areaId, index, config)
 				humanoid.HipHeight = targetHipHeight
 			end
 		end
-		
+
 		-- 3. 최종 위치 초기화
 		-- [물리혁신 2단계] 이미 상단에서 선행 다운사이징 및 정확한 CFrame 정렬이 끝났으므로, 조립 완료 후의 중복 PivotTo는 물리 엔진 교란을 막기 위해 제외 처리!
-		
+
 		-- [완성] 몬스터 헤드업 UI (프리미엄 HP 바 & 이름표) 통합 생성
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		
+
 		local bb = Instance.new("BillboardGui")
 		bb.Name = "MobUI"
 		bb.Size = UDim2.new(0, 90, 0, 30) -- 폭과 높이 전체적으로 다이어트! (120x45 -> 90x30)
 		bb.StudsOffset = Vector3.new(0, humanoid.HipHeight + hrp.Size.Y/2 + 0.5, 0) -- 캐릭터 머리에 더 바짝 붙임
 		bb.AlwaysOnTop = true
 		bb.MaxDistance = 60 -- 너무 멀리있는건 안보여서 화면 깔끔하게 유지
-		
+
 		-- 1. 이름표 라벨 (더 얇고 작게)
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "NameLabel"
@@ -630,7 +693,7 @@ local function createMobModel(areaId, index, config)
 		nameLabel.Font = Enum.Font.SourceSansBold
 		nameLabel.TextSize = 12 -- 미니멀 폰트사이즈
 		nameLabel.Parent = bb
-		
+
 		-- 2. HP 바 컨테이너 (극도로 얇게 조정)
 		local hpBg = Instance.new("Frame")
 		hpBg.Name = "HPBackground"
@@ -641,16 +704,16 @@ local function createMobModel(areaId, index, config)
 		hpBg.BackgroundTransparency = 0.2
 		hpBg.BorderSizePixel = 0
 		hpBg.Parent = bb
-		
+
 		local bgCorner = Instance.new("UICorner")
 		bgCorner.CornerRadius = UDim.new(0, 3) -- 뚱뚱해보이지 않게 코너값 축소
 		bgCorner.Parent = hpBg
-		
+
 		local bgStroke = Instance.new("UIStroke")
 		bgStroke.Thickness = 1
 		bgStroke.Color = Color3.fromRGB(0, 0, 0)
 		bgStroke.Parent = hpBg
-		
+
 		-- 3. 실제 채워지는 게이지 (Fill)
 		local hpFill = Instance.new("Frame")
 		hpFill.Name = "HPFill"
@@ -658,11 +721,11 @@ local function createMobModel(areaId, index, config)
 		hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 80)
 		hpFill.BorderSizePixel = 0
 		hpFill.Parent = hpBg
-		
+
 		local fillCorner = Instance.new("UICorner")
 		fillCorner.CornerRadius = UDim.new(0, 3)
 		fillCorner.Parent = hpFill
-		
+
 		-- 4. 게이지 안에 들어갈 HP 텍스트 숫자 (초슬림바에 맞게 아주 작게)
 		local hpLabel = Instance.new("TextLabel")
 		hpLabel.Name = "HPLabel"
@@ -680,15 +743,15 @@ local function createMobModel(areaId, index, config)
 			local cur = math.max(0, humanoid.Health)
 			local mx = math.max(1, humanoid.MaxHealth)
 			local pct = math.clamp(cur / mx, 0, 1)
-			
+
 			-- 텍스트 갱신
 			hpLabel.Text = string.format("%d / %d", math.floor(cur), math.floor(mx))
-			
+
 			-- 게이지 부드러운 애니메이션 트윈
 			TweenService:Create(hpFill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(pct, 0, 1, 0)
 			}):Play()
-			
+
 			-- 색상 동적 변경 (피 적어지면 노랑 -> 빨강 트랜지션)
 			local targetColor = Color3.fromRGB(60, 220, 80) -- 기본 녹색
 			if pct <= 0.3 then
@@ -696,28 +759,28 @@ local function createMobModel(areaId, index, config)
 			elseif pct <= 0.6 then
 				targetColor = Color3.fromRGB(240, 200, 40) -- 노랑
 			end
-			
+
 			TweenService:Create(hpFill, TweenInfo.new(0.25), {
 				BackgroundColor3 = targetColor
 			}):Play()
 		end
-		
+
 		updateHPDisplay()
 		humanoid.HealthChanged:Connect(updateHPDisplay)
-		
+
 		bb.Parent = hrp
-		
+
 		-- 몬스터 모델 전용 Idle 애니메이션 동적 감지 및 루프 재생 (서버 동기화)
 		task.spawn(function()
 			local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
 			local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
 			local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
 			local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
-			
+
 			if monsterAnims then
 				local idleAnimName = config.mobModelName .. "_Idle"
 				local walkAnimName = config.mobModelName .. "_Walk"
-				
+
 				-- StumpKing일 때 전용 애니메이션이 없으면 Stump 애니메이션으로 안전히 폴백
 				if config.mobModelName == "StumpKing" then
 					if not monsterAnims:FindFirstChild(idleAnimName) then
@@ -730,10 +793,10 @@ local function createMobModel(areaId, index, config)
 
 				local idleAnim = monsterAnims:FindFirstChild(idleAnimName)
 				local walkAnim = monsterAnims:FindFirstChild(walkAnimName)
-				
+
 				local idleTrack = nil
 				local walkTrack = nil
-				
+
 				if idleAnim then
 					local success, track = pcall(function() return animator:LoadAnimation(idleAnim) end)
 					if success and track then
@@ -742,7 +805,7 @@ local function createMobModel(areaId, index, config)
 						idleTrack = track
 					end
 				end
-				
+
 				if walkAnim then
 					local success, track = pcall(function() return animator:LoadAnimation(walkAnim) end)
 					if success and track then
@@ -751,7 +814,7 @@ local function createMobModel(areaId, index, config)
 						walkTrack = track
 					end
 				end
-				
+
 				if idleTrack or walkTrack then
 					task.spawn(function()
 						while model and model.Parent and humanoid and humanoid.Health > 0 do
@@ -759,7 +822,7 @@ local function createMobModel(areaId, index, config)
 							if config.mobModelName == "IceDragon" then
 								isMoving = true -- 아이스 드래곤은 Idle이 없고 항상 날갯짓(Walk) 애니메이션 상태를 유지합니다.
 							end
-							
+
 							if isMoving then
 								if idleTrack and idleTrack.IsPlaying then idleTrack:Stop() end
 								if walkTrack and not walkTrack.IsPlaying then
@@ -768,7 +831,7 @@ local function createMobModel(areaId, index, config)
 								task.wait(0.1)
 							else
 								if walkTrack and walkTrack.IsPlaying then walkTrack:Stop() end
-								
+
 								if idleTrack then
 									task.wait(math.random(20, 50) / 10.0)
 									local stillNotMoving = humanoid.MoveDirection.Magnitude <= 0.05 and (hrp and hrp.AssemblyLinearVelocity.Magnitude <= 0.5)
@@ -791,8 +854,26 @@ local function createMobModel(areaId, index, config)
 		-- [완착 보정] 스케일링/부모화 및 힙하이트 조정이 모두 완료된 후, 물리 엔진에 의한 지면 반발 또는 땅속 끼임 후 기어올라옴을 방지하기 위해 최종 스폰 높이 재조정!
 		if hrp then
 			pcall(function()
-				local heightOffset = humanoid.HipHeight + (hrp.Size.Y / 2) + 0.1
+				local groundClearance = if config.groundClearance ~= nil then config.groundClearance else 0.1
+				local heightOffset = humanoid.HipHeight + (hrp.Size.Y / 2) + groundClearance
 				model:PivotTo(CFrame.new(spawnPos.X, spawnPos.Y + heightOffset, spawnPos.Z))
+
+				if config.snapVisualToGround then
+					local lowestY = math.huge
+					for _, part in ipairs(model:GetDescendants()) do
+						if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Name ~= "CombatHitbox" and part.Transparency < 0.9 then
+							local cf = part.CFrame
+							local size = part.Size
+							local halfHeight = 0.5 * (math.abs(cf.RightVector.Y) * size.X + math.abs(cf.UpVector.Y) * size.Y + math.abs(cf.LookVector.Y) * size.Z)
+							lowestY = math.min(lowestY, cf.Position.Y - halfHeight)
+						end
+					end
+
+					if lowestY < math.huge then
+						local desiredBottomY = spawnPos.Y + groundClearance
+						model:PivotTo(model:GetPivot() + Vector3.new(0, desiredBottomY - lowestY, 0))
+					end
+				end
 			end)
 		end
 	end
@@ -818,22 +899,22 @@ local function createMobModel(areaId, index, config)
 			local lastGimmickTick = 0
 			local lastSwordDropTick = 0 -- 유령기사 패턴 3(검 낙하)용
 			local currentGimmickMode = 1
-			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump")
+			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian")
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
-			
+
 			-- [푸른불꽃 기사 전용 Phase 2 스태틱 변수군]
 			local bfkPhase2Active = false
 			local bfkAuraEmitters = {}
-			
+
 			-- [반응속도 및 감지혁신]: 스텀프/박쥐의 유저 인식 반경 상승, FSM 주기를 단축하여 극적인 초고속 즉시 타격 실현!
 			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or (isBoss and 40 or 30))
 			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or 6)
 			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or (isBoss and 0.3 or 0.5))
-			
+
 			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
 			local function playRockSmashEffect(pos, radius)
 				local ts = game:GetService("TweenService")
-				
+
 				-- 1. 땅 패임 (크레이터 흉내)
 				local crater = Instance.new("Part")
 				crater.Name = "Crater"
@@ -847,14 +928,14 @@ local function createMobModel(areaId, index, config)
 				crater.Parent = workspace
 				ts:Create(crater, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1.0), {Transparency = 1}):Play()
 				game:GetService("Debris"):AddItem(crater, 3.5)
-				
+
 				-- 2. 묵직한 타격음 (사운드 객체를 찾아서 클론하거나 기본 폭발음 사용)
 				local sfx = nil
-				local customSound = game.ReplicatedStorage:FindFirstChild("Assets") 
+				local customSound = game.ReplicatedStorage:FindFirstChild("Assets")
 					and game.ReplicatedStorage.Assets:FindFirstChild("Sounds")
 					and game.ReplicatedStorage.Assets.Sounds:FindFirstChild("Monster")
 					and game.ReplicatedStorage.Assets.Sounds.Monster:FindFirstChild("BigGolem_Smash")
-					
+
 				if customSound and customSound:IsA("Sound") then
 					sfx = customSound:Clone()
 					sfx.Parent = crater
@@ -865,10 +946,10 @@ local function createMobModel(areaId, index, config)
 					sfx.Volume = 2.0
 					sfx.Parent = crater
 				end
-				
+
 				sfx.RollOffMaxDistance = 150
 				sfx:Play()
-				
+
 				-- 3. 파편 (Debris) 튀기기
 				for i = 1, 10 do
 					local rock = Instance.new("Part")
@@ -879,16 +960,16 @@ local function createMobModel(areaId, index, config)
 					rock.CanCollide = true
 					rock.Anchored = false
 					rock.Parent = workspace
-					
+
 					local angle = math.random() * math.pi * 2
 					local speed = math.random(40, 80)
 					rock.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(50, 100), math.sin(angle) * speed)
 					rock.AssemblyAngularVelocity = Vector3.new(math.random(-20,20), math.random(-20,20), math.random(-20,20))
-					
+
 					ts:Create(rock, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1.5), {Transparency = 1}):Play()
 					game:GetService("Debris"):AddItem(rock, 3.0)
 				end
-				
+
 				-- 4. 흙먼지 (Smoke)
 				local smokePart = Instance.new("Part")
 				smokePart.Size = Vector3.new(1,1,1)
@@ -905,7 +986,7 @@ local function createMobModel(areaId, index, config)
 				smoke.Parent = smokePart
 				game:GetService("Debris"):AddItem(smokePart, 3)
 				task.delay(0.4, function() if smoke then smoke.Enabled = false end end)
-				
+
 				-- 5. 확산되는 충격파 고리
 				local shockwave = Instance.new("Part")
 				shockwave.Name = "RockShockwave"
@@ -927,7 +1008,7 @@ local function createMobModel(areaId, index, config)
 			-- [스텀프 킹 전용] 자연 대지 나무 타격 이펙트 함수
 			local function playWoodSmashEffect(pos, radius)
 				local ts = game:GetService("TweenService")
-				
+
 				-- 1. 나무 잔디 고리 이펙트
 				local crater = Instance.new("Part")
 				crater.Name = "WoodCrater"
@@ -941,7 +1022,7 @@ local function createMobModel(areaId, index, config)
 				crater.Parent = workspace
 				ts:Create(crater, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
 				game:GetService("Debris"):AddItem(crater, 3.5)
-				
+
 				-- 2. 타격음
 				local sfx = Instance.new("Sound")
 				sfx.SoundId = "rbxassetid://142070127" -- 묵직한 폭발음 베이스
@@ -950,7 +1031,7 @@ local function createMobModel(areaId, index, config)
 				sfx.RollOffMaxDistance = 150
 				sfx.Parent = crater
 				sfx:Play()
-				
+
 				-- 3. 나무 파편(Wood Debris) 튀기기
 				for i = 1, 12 do
 					local wood = Instance.new("Part")
@@ -961,16 +1042,16 @@ local function createMobModel(areaId, index, config)
 					wood.CanCollide = true
 					wood.Anchored = false
 					wood.Parent = workspace
-					
+
 					local angle = math.random() * math.pi * 2
 					local speed = math.random(40, 80)
 					wood.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(50, 100), math.sin(angle) * speed)
 					wood.AssemblyAngularVelocity = Vector3.new(math.random(-20, 20), math.random(-20, 20), math.random(-20, 20))
-					
+
 					ts:Create(wood, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
 					game:GetService("Debris"):AddItem(wood, 3.0)
 				end
-				
+
 				-- 4. 무성한 나뭇잎 가루 (Green particles)
 				local leafPart = Instance.new("Part")
 				leafPart.Size = Vector3.new(1, 1, 1)
@@ -979,7 +1060,7 @@ local function createMobModel(areaId, index, config)
 				leafPart.CanCollide = false
 				leafPart.Transparency = 1
 				leafPart.Parent = workspace
-				
+
 				local pe = Instance.new("ParticleEmitter")
 				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
 				pe.Color = ColorSequence.new(Color3.fromRGB(225, 190, 130), Color3.fromRGB(190, 150, 95)) -- 사막 모래 먼지색
@@ -990,10 +1071,10 @@ local function createMobModel(areaId, index, config)
 				pe.Speed = NumberRange.new(10, 30)
 				pe.SpreadAngle = Vector2.new(90, 90)
 				pe.Parent = leafPart
-				
+
 				game:GetService("Debris"):AddItem(leafPart, 3)
 				task.delay(0.4, function() if pe then pe.Enabled = false end end)
-				
+
 				-- 5. 확산되는 나뭇잎 녹색 충격파 고리
 				local shockwave = Instance.new("Part")
 				shockwave.Name = "WoodShockwave"
@@ -1014,12 +1095,12 @@ local function createMobModel(areaId, index, config)
 
 			while isAlive and humanoid and humanoid.Parent and model:FindFirstChild("HumanoidRootPart") do
 				local hrp = model.HumanoidRootPart
-				
+
 				-- [푸른불꽃 기사 특수 기믹]: 체력 1만 이하 도달 시 몸을 휘감는 신비로운 푸른 불꽃 이펙트 활성화
 				if config.mobModelName == "BlueFlameKnight" and humanoid.Health <= 10000 and not bfkPhase2Active then
 					bfkPhase2Active = true
 					print("[MobSpawnService] Blue Flame Knight health below 10,000! Activating Phase 2 blue flame aura.")
-					
+
 					-- 페이즈 2 각성 폭발음 재생 연동
 					pcall(function()
 						local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -1032,7 +1113,7 @@ local function createMobModel(areaId, index, config)
 							game:GetService("Debris"):AddItem(s, 6)
 						end
 					end)
-					
+
 					-- 보스 파트마다 푸른 불꽃 이미터 추가
 					local function attachBlueFlame(part)
 						local pe = Instance.new("ParticleEmitter")
@@ -1058,7 +1139,7 @@ local function createMobModel(areaId, index, config)
 						pe.Parent = part
 						table.insert(bfkAuraEmitters, pe)
 					end
-					
+
 					for _, child in ipairs(model:GetChildren()) do
 						if child:IsA("BasePart") then
 							attachBlueFlame(child)
@@ -1069,12 +1150,12 @@ local function createMobModel(areaId, index, config)
 				-- 1단계: 주변에 가장 가까운 생존한 플레이어 탐색
 				local targetPlayer = nil
 				local minDist = AGGRO_RADIUS
-				
+
 				for _, p in ipairs(Players:GetPlayers()) do
 					local char = p.Character
 					local phum = char and char:FindFirstChild("Humanoid")
 					local phrp = char and char:FindFirstChild("HumanoidRootPart")
-					
+
 					if phum and phum.Health > 0 and phrp then
 						local d = (hrp.Position - phrp.Position).Magnitude
 						if d < minDist then
@@ -1083,50 +1164,50 @@ local function createMobModel(areaId, index, config)
 						end
 					end
 				end
-				
+
 				-- 2단계: 타겟 존재 여부에 따른 행동 분기
 				if targetPlayer then
 					-- [A. 전투 모드] 플레이어 추격 및 공격
 					local phrp = targetPlayer.HumanoidRootPart
 					local phum = targetPlayer.Humanoid
-					
+
 					if config.mobModelName == "Stump" then
 						--========================================================================
 						-- [Stump 전용 FSM 분기]: 이동 -> (근접/마법 교대 공격) FSM 순환
 						--========================================================================
-						
+
 						-- 1. 이동 단계 (Move)
 						local currentPos = hrp.Position
 						local targetPlayerPos = phrp.Position
 						local dir = (targetPlayerPos - currentPos)
 						local dirUnit = dir.Magnitude > 0.1 and dir.Unit or Vector3.new(1, 0, 0)
-						
+
 						-- 일반 근접공격을 위해 타겟팅 거리를 6스터드로 좁힘
 						local moveTargetPos = targetPlayerPos - dirUnit * 6
-						
+
 						-- 둥지 경계 CAMP_RADIUS = 35 클램프
 						local CAMP_RADIUS = 35
 						local distFromCenter = (moveTargetPos - spawnCenter).Magnitude
 						if distFromCenter > CAMP_RADIUS then
 							moveTargetPos = spawnCenter + (moveTargetPos - spawnCenter).Unit * CAMP_RADIUS
 						end
-						
+
 						-- Y축 고정
 						moveTargetPos = Vector3.new(moveTargetPos.X, currentPos.Y, moveTargetPos.Z)
-						
+
 						-- 플레이어와의 거리가 너무 멀거나 어긋날 때 이동 실행
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						if distToPlayer > 8 or (currentPos - moveTargetPos).Magnitude > 3 then
 							humanoid:MoveTo(moveTargetPos)
-							
+
 							local arrived = false
 							local conn = humanoid.MoveToFinished:Connect(function() arrived = true end)
 							local moveStartTime = os.clock()
-							
+
 							local stuckFrames = 0
 							while not arrived and os.clock() - moveStartTime < 1.5 and isAlive do
 								task.wait(0.1)
-								
+
 								-- [전투 벽걸림 우회 Flanking AI]
 								local speed = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z).Magnitude
 								if speed < 0.6 and humanoid.MoveDirection.Magnitude > 0.1 then
@@ -1146,41 +1227,41 @@ local function createMobModel(areaId, index, config)
 							if conn then conn:Disconnect() end
 							humanoid:MoveTo(hrp.Position) -- 이동 멈춤
 						end
-						
+
 						-- 이동 완료 후 0.3초 대기
 						task.wait(0.3)
-						
+
 						if not isAlive or not targetPlayer.Parent or not phrp.Parent then
 							task.wait(TICK_RATE)
 							continue
 						end
-						
+
 						-- 2. 캐스팅 및 공격 단계
 						local now = os.clock()
 						local cooldown = config.attackCooldown or 3.0
 						if now - lastAttackTick >= cooldown then
 							lastAttackTick = now
-							
+
 							-- [수정] 일반 근접 공격을 전면 제외하고, 100% 특수 대지 마법 공격만 가하도록 설계!
 							local isMagicAttack = true
-							
+
 							if isMagicAttack then
 								-- [스텀프 특수 마법 패턴 - 대지 나무 솟구치기]
 								local telegraphDuration = 1.0
 								local targetFloorPos = phrp.Position
-								
+
 								-- 지면 레이캐스트
 								local raycastParams = RaycastParams.new()
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-								
+
 								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
 								if rayResult then
 									targetFloorPos = rayResult.Position
 								else
 									targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2 + 0.1, 0)
 								end
-								
+
 								-- 나무 경판 예고 이펙트 생성 (어스 브라운 톤)
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "StumpTelegraph"
@@ -1196,7 +1277,7 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 예고 이펙트
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								-- [Stump_Magic 애니메이션 재생]
 								pcall(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
@@ -1223,7 +1304,7 @@ local function createMobModel(areaId, index, config)
 									Color = Color3.fromRGB(255, 200, 100) -- 모래/지진 느낌에 맞춘 황금빛 점멸
 								})
 								flashTween:Play()
-								
+
 								-- 1.0초 캐스팅 동안 정렬 회전
 								while os.clock() - castStartTime < telegraphDuration and isAlive do
 									if phrp and phrp.Parent then
@@ -1235,16 +1316,16 @@ local function createMobModel(areaId, index, config)
 									end
 									task.wait(0.05)
 								end
-								
+
 								warnCircle:Destroy()
 								if not isAlive then break end
-								
+
 								-- 땅에서 솟구치는 명품 나무 기둥 (나무 질감 갈색 기둥 + 풍성한 풀잎 녹색 구체 연합 이펙트)
 								local attackPos = targetFloorPos
-								
+
 								local magicSpikeModel = Instance.new("Model")
 								magicSpikeModel.Name = "MagicTreeSpike"
-								
+
 								-- A. 중앙 메인 사암 가시 (WedgePart로 뾰족한 형상 구현)
 								local mainSpire = Instance.new("WedgePart")
 								mainSpire.Name = "MainSpire"
@@ -1254,7 +1335,7 @@ local function createMobModel(areaId, index, config)
 								mainSpire.CanCollide = false
 								mainSpire.Anchored = true
 								mainSpire.Parent = magicSpikeModel
-								
+
 								-- B. 주변 보조 사암 파편 1 (좌측 경사 쐐기)
 								local sideShard1 = Instance.new("WedgePart")
 								sideShard1.Name = "SideShard1"
@@ -1264,7 +1345,7 @@ local function createMobModel(areaId, index, config)
 								sideShard1.CanCollide = false
 								sideShard1.Anchored = true
 								sideShard1.Parent = magicSpikeModel
-								
+
 								-- C. 주변 보조 사암 파편 2 (우측 경사 쐐기)
 								local sideShard2 = Instance.new("WedgePart")
 								sideShard2.Name = "SideShard2"
@@ -1274,7 +1355,7 @@ local function createMobModel(areaId, index, config)
 								sideShard2.CanCollide = false
 								sideShard2.Anchored = true
 								sideShard2.Parent = magicSpikeModel
-								
+
 								-- 일관적인 위치 보정 함수 (트윈/수학적 루프 연산용)
 								local function updateSpikeCF(centerPos, verticalOffset)
 									local baseCF = CFrame.new(centerPos + Vector3.new(0, verticalOffset, 0))
@@ -1282,10 +1363,10 @@ local function createMobModel(areaId, index, config)
 									sideShard1.CFrame = baseCF * CFrame.new(-1.2, -3, 0.8) * CFrame.Angles(math.rad(15), 0, math.rad(15))
 									sideShard2.CFrame = baseCF * CFrame.new(1.2, -4, -0.8) * CFrame.Angles(math.rad(-15), 0, math.rad(-15))
 								end
-								
+
 								updateSpikeCF(attackPos, -7)
 								magicSpikeModel.Parent = workspace
-								
+
 								-- 지면 위로 빠르게 솟아오르는 백 트윈 연출 (0.2초)
 								local popStartTime = os.clock()
 								local popDuration = 0.2
@@ -1297,7 +1378,7 @@ local function createMobModel(areaId, index, config)
 									task.wait()
 								end
 								updateSpikeCF(attackPos, 5.5) -- 최종 위치 고정
-								
+
 								if isAlive then
 									local exp = Instance.new("Explosion")
 									exp.BlastRadius = 12 -- 폭발 범위 12스터드로 확장
@@ -1305,24 +1386,24 @@ local function createMobModel(areaId, index, config)
 									exp.Position = attackPos
 									exp.ExplosionType = Enum.ExplosionType.NoCraters
 									exp.Parent = workspace
-									
+
 									-- 광역 피해 판정 및 넉백
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot then
 											local dist = (pRoot.Position - attackPos).Magnitude
 											if dist <= 12 then -- 피해 반경 12스터드로 확장
 												dealDamageToHumanoid(phum, config.baseDamage or 25)
-												
+
 												local bounceDir = (pRoot.Position - attackPos)
 												bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
 												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
 												local NetController = require(Controllers:WaitForChild("NetController"))
 												NetController.FireClient(p, "Player.Stun", bounceDir)
-												
+
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
 													highlight.Name = "DamageFlash"
@@ -1333,7 +1414,7 @@ local function createMobModel(areaId, index, config)
 													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 													highlight.Adornee = char
 													highlight.Parent = char
-													
+
 													task.wait(0.12)
 													if highlight and highlight.Parent then
 														highlight:Destroy()
@@ -1343,9 +1424,9 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end
-								
+
 								task.wait(0.6)
-								
+
 								-- 나무 가시를 부드럽게 지면 밑으로 회수
 								local pullStartTime = os.clock()
 								local pullDuration = 0.4
@@ -1357,7 +1438,7 @@ local function createMobModel(areaId, index, config)
 									task.wait()
 								end
 								magicSpikeModel:Destroy()
-								
+
 								task.wait(1.0)
 							else
 								-- [스텀프 일반 근접 물리 공격 패턴 - 예고 이펙트 추가!]
@@ -1365,7 +1446,7 @@ local function createMobModel(areaId, index, config)
 								local raycastParams = RaycastParams.new()
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-								
+
 								local rayResult = workspace:Raycast(meleeTelegraphPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
 								if rayResult then
 									meleeTelegraphPos = rayResult.Position
@@ -1411,15 +1492,15 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end)
-								
+
 								task.wait(0.3)
 								meleeWarn:Destroy()
-								
+
 								if isAlive and phrp and phum and phum.Health > 0 then
 									local dist = (hrp.Position - phrp.Position).Magnitude
 									if dist <= 12 then
 										dealDamageToHumanoid(phum, config.baseDamage or 25)
-										
+
 										local bounceDir = (phrp.Position - hrp.Position)
 										bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
 										local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
@@ -1428,7 +1509,7 @@ local function createMobModel(areaId, index, config)
 										if playerObj then
 											NetController.FireClient(playerObj, "Player.Stun", bounceDir)
 										end
-										
+
 										task.spawn(function()
 											local highlight = Instance.new("Highlight")
 											highlight.Name = "DamageFlash"
@@ -1439,7 +1520,7 @@ local function createMobModel(areaId, index, config)
 											highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 											highlight.Adornee = targetPlayer
 											highlight.Parent = targetPlayer
-											
+
 											task.wait(0.12)
 											if highlight and highlight.Parent then
 												highlight:Destroy()
@@ -1447,7 +1528,7 @@ local function createMobModel(areaId, index, config)
 										end)
 									end
 								end
-								
+
 								task.wait(1.0)
 							end
 						end
@@ -1460,11 +1541,11 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						-- 원거리 타겟팅 범위는 55스터드 설정
 						local RANGE_ATTACK_DIST = 55
 						local laserCooldown = config.attackCooldown or 1.5
-						
+
 						-- 플레이어를 향해 서서히 이동 또는 바라보기
 						-- 공중 몬스터이므로, 일정 거리 이상 떨어져있으면 다가감
 						if distToPlayer > 30 then
@@ -1472,33 +1553,33 @@ local function createMobModel(areaId, index, config)
 						else
 							humanoid:MoveTo(hrp.Position) -- 제자리 유지
 						end
-						
+
 						-- 플레이어 정면 응시
 						local lookDir = (targetPlayerPos - currentPos)
 						lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 						if lookDir.Magnitude > 0.1 then
 							hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 						end
-						
+
 						if distToPlayer <= RANGE_ATTACK_DIST and (now - lastAttackTick >= laserCooldown) then
 							lastAttackTick = now
-							
+
 							-- 공격 경고 범위표시 (선행 출력)
 							local telegraphDuration = 0.8 -- 경고 시간
 							local targetFloorPos = targetPlayerPos
-							
+
 							-- 지면 레이캐스트를 통해 바닥에 경고 표시 안착
 							local raycastParams = RaycastParams.new()
 							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-							
+
 							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -40, 0), raycastParams)
 							if rayResult then
 								targetFloorPos = rayResult.Position
 							else
 								targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2 + 0.1, 0)
 							end
-							
+
 							-- 검은색/보라색 계열 경고 장판 생성
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "CyclopsBatTelegraph"
@@ -1514,14 +1595,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(40, 0, 80) -- 딥 다크 퍼플
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
-							
+
 							-- 점멸 트윈
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 								Transparency = 0.3,
 								Color = Color3.fromRGB(10, 10, 10) -- 최종적으로 검은색에 가까워짐
 							}):Play()
-							
+
 							-- 눈 충전용 구체 이펙트 (검은색/자색 네온 기운)
 							local headPart = model:FindFirstChild("Head") or model:FindFirstChild("Eye") or hrp
 							local chargeSphere = Instance.new("Part")
@@ -1533,11 +1614,11 @@ local function createMobModel(areaId, index, config)
 							chargeSphere.CanCollide = false
 							chargeSphere.CFrame = headPart.CFrame * CFrame.new(0, 0, -1) -- 정면 눈 위치 즈음
 							chargeSphere.Parent = workspace
-							
+
 							ts:Create(chargeSphere, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Elastic), {
 								Size = Vector3.new(2.5, 2.5, 2.5)
 							}):Play()
-							
+
 							-- 충전 사운드 재생 시도
 							pcall(function()
 								local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -1551,7 +1632,7 @@ local function createMobModel(areaId, index, config)
 									s:Play()
 								end
 							end)
-							
+
 							-- 0.8초 동안 기 모으면서 정렬 회전
 							local castStartTime = os.clock()
 							while os.clock() - castStartTime < telegraphDuration and isAlive do
@@ -1565,19 +1646,19 @@ local function createMobModel(areaId, index, config)
 								end
 								task.wait(0.05)
 							end
-							
+
 							warnCircle:Destroy()
 							chargeSphere:Destroy()
-							
+
 							if isAlive and phrp and phrp.Parent then
 								-- 눈에서 검은 레이저 발사!
 								local startLaserPos = headPart.Position
 								local endLaserPos = targetFloorPos
-								
+
 								-- 레이저를 연결하는 원기둥 생성 (검은색 / 퍼플 아웃라인)
 								local laserModel = Instance.new("Model")
 								laserModel.Name = "EyeLaserModel"
-								
+
 								local laserCore = Instance.new("Part")
 								laserCore.Name = "LaserCore"
 								laserCore.Material = Enum.Material.Neon
@@ -1585,7 +1666,7 @@ local function createMobModel(areaId, index, config)
 								laserCore.CanCollide = false
 								laserCore.Anchored = true
 								laserCore.Parent = laserModel
-								
+
 								local laserAura = Instance.new("Part")
 								laserAura.Name = "LaserAura"
 								laserAura.Material = Enum.Material.Neon
@@ -1594,19 +1675,19 @@ local function createMobModel(areaId, index, config)
 								laserAura.Anchored = true
 								laserAura.Transparency = 0.4
 								laserAura.Parent = laserModel
-								
+
 								local function updateLaserVisual(p1, p2, width)
 									local distance = (p1 - p2).Magnitude
 									laserCore.Size = Vector3.new(width, distance, width)
 									laserCore.CFrame = CFrame.lookAt(p1, p2) * CFrame.new(0, 0, -distance / 2) * CFrame.Angles(math.rad(90), 0, 0)
-									
+
 									laserAura.Size = Vector3.new(width * 1.5, distance, width * 1.5)
 									laserAura.CFrame = laserCore.CFrame
 								end
-								
+
 								updateLaserVisual(startLaserPos, endLaserPos, 1.2)
 								laserModel.Parent = workspace
-								
+
 								-- 콰쾅! 폭발 연출
 								local exp = Instance.new("Explosion")
 								exp.BlastRadius = 9
@@ -1614,7 +1695,7 @@ local function createMobModel(areaId, index, config)
 								exp.Position = endLaserPos
 								exp.ExplosionType = Enum.ExplosionType.NoCraters
 								exp.Parent = workspace
-								
+
 								-- 타격 및 사운드
 								pcall(function()
 									local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -1628,7 +1709,7 @@ local function createMobModel(areaId, index, config)
 										s:Play()
 									end
 								end)
-								
+
 								-- 데미지 판정
 								for _, p in ipairs(Players:GetPlayers()) do
 									local char = p.Character
@@ -1638,13 +1719,13 @@ local function createMobModel(areaId, index, config)
 										local dist = (pRoot.Position - endLaserPos).Magnitude
 										if dist <= 9 then
 											dealDamageToHumanoid(phum, config.baseDamage or 35)
-											
+
 											local bounceDir = (pRoot.Position - endLaserPos)
 											bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
 											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
 											local NetController = require(Controllers:WaitForChild("NetController"))
 											NetController.FireClient(p, "Player.Stun", bounceDir * 1.5)
-											
+
 											task.spawn(function()
 												local highlight = Instance.new("Highlight")
 												highlight.Name = "DamageFlash"
@@ -1655,7 +1736,7 @@ local function createMobModel(areaId, index, config)
 												highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 												highlight.Adornee = char
 												highlight.Parent = char
-												
+
 												task.wait(0.12)
 												if highlight and highlight.Parent then
 													highlight:Destroy()
@@ -1664,7 +1745,7 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end
-								
+
 								-- 레이저를 0.3초간 점점 투명하고 얇게 만들면서 사라지게 트윈
 								local fadeStartTime = os.clock()
 								local fadeDuration = 0.3
@@ -1676,10 +1757,10 @@ local function createMobModel(areaId, index, config)
 									updateLaserVisual(startLaserPos, endLaserPos, currentWidth)
 									task.wait()
 								end
-								
+
 								laserModel:Destroy()
 							end
-							
+
 							task.wait(0.5)
 						end
 
@@ -1690,16 +1771,16 @@ local function createMobModel(areaId, index, config)
 						local currentPos = hrp.Position
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
-						
+
 						local now = os.clock()
 						local rockCooldown = config.attackCooldown or 5.0
 						local jumpCooldown = 8.0
-						
+
 						-- 우선순위 1: 대지 붕괴 점프 패턴 (보스 덩치가 매우 크므로 거리가 35 이하일 때 발동)
 						if distToPlayer <= 35 and (now - lastJumpTick >= jumpCooldown) then
 							lastJumpTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 1. 예고 장판 (반경 30스터드)
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "StumpKingJumpTelegraph"
@@ -1712,13 +1793,13 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 대지 경고
 							warnCircle.Transparency = 0.85
 							warnCircle.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 								Transparency = 0.4,
 								Color = Color3.fromRGB(255, 200, 100) -- 모래 황금빛으로 점멸
 							}):Play()
-							
+
 							-- 애니메이션 (Stump 에셋 기반이므로 Stump_Magic/Stump_Attack 시도)
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -1729,24 +1810,24 @@ local function createMobModel(areaId, index, config)
 									if track then track:Play() end
 								end
 							end)
-							
+
 							-- 공중으로 떠오르기
 							local jumpHeight = currentPos + Vector3.new(0, 20, 0)
 							ts:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = CFrame.new(jumpHeight)}):Play()
 							task.wait(0.5)
-							
+
 							-- 공중 체공
 							task.wait(0.2)
-							
+
 							-- 내려찍기
 							warnCircle:Destroy()
 							local landPos = currentPos
 							local fallTween = ts:Create(hrp, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {CFrame = CFrame.new(landPos)})
 							fallTween:Play()
 							fallTween.Completed:Wait()
-							
+
 							local groundPos = landPos - Vector3.new(0, humanoid.HipHeight + (hrp.Size.Y / 2), 0)
-							
+
 							-- 폭발 데미지 판정
 							local exp = Instance.new("Explosion")
 							exp.BlastRadius = 30
@@ -1755,10 +1836,10 @@ local function createMobModel(areaId, index, config)
 							exp.ExplosionType = Enum.ExplosionType.NoCraters
 							exp.Visible = false
 							exp.Parent = workspace
-							
+
 							-- 자연 나뭇잎 충격파 효과 실행
 							playWoodSmashEffect(groundPos, 35)
-							
+
 							for _, p in ipairs(Players:GetPlayers()) do
 								local char = p.Character
 								local phum = char and char:FindFirstChild("Humanoid")
@@ -1783,16 +1864,16 @@ local function createMobModel(areaId, index, config)
 								end
 							end
 							task.wait(1.0)
-							
+
 						-- 우선순위 2: 하늘 나무 둥치 낙하 패턴 (쿨타임이 찼을 때)
 						elseif now - lastAttackTick >= rockCooldown then
 							lastAttackTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 연속 둥치 소환 (1~4번 랜덤)
 							local dropCount = math.random(1, 4)
 							local ts = game:GetService("TweenService")
-							
+
 							-- 공격 애니메이션 1회 재생
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -1803,27 +1884,27 @@ local function createMobModel(areaId, index, config)
 									if track then track:Play() end
 								end
 							end)
-							
+
 							for i = 1, dropCount do
 								if not isAlive then break end
-								
+
 								-- 현재 플레이어 위치 기반으로 바닥 좌표 구하기 (계속 추적)
 								local currentTargetPos = targetPlayerPos
 								if phrp and phrp.Parent then currentTargetPos = phrp.Position end
-								
+
 								-- 보스가 플레이어를 바라보게 회전
 								local lookDir = Vector3.new(currentTargetPos.X - hrp.Position.X, 0, currentTargetPos.Z - hrp.Position.Z)
 								if lookDir.Magnitude > 0.1 then
 									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 								end
-								
+
 								local targetFloorPos = currentTargetPos
 								local raycastParams = RaycastParams.new()
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
 								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
 								if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
-								
+
 								-- 예고 장판 (반경 12스터드로 축소)
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "StumpKingTrunkTelegraph"
@@ -1836,14 +1917,14 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(230, 180, 100) -- 모래 황금빛 장판
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								ts:Create(warnCircle, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								-- 0.5초 대기 (회피 시간)
 								task.wait(0.5)
 								warnCircle:Destroy()
 								if not isAlive then break end
-								
+
 								-- 나무 둥치 모델 생성 (대형 통나무)
 								local trunk = Instance.new("Part")
 								trunk.Name = "FallingBoulder"
@@ -1853,19 +1934,19 @@ local function createMobModel(areaId, index, config)
 								trunk.Material = Enum.Material.Sandstone
 								trunk.CanCollide = false
 								trunk.Anchored = true
-								
+
 								-- 하늘에서 서서히 돌면서 떨어지는 CFrame 연출
 								local startPos = targetFloorPos + Vector3.new(0, 40, 0)
 								trunk.CFrame = CFrame.new(startPos) * CFrame.Angles(math.rad(45), math.rad(45), 0)
 								trunk.Parent = workspace
-								
+
 								local fallTween = ts:Create(trunk, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									CFrame = CFrame.new(targetFloorPos) * CFrame.Angles(math.rad(135), math.rad(90), math.rad(45))
 								})
 								fallTween:Play()
 								task.wait(0.3)
 								trunk:Destroy()
-								
+
 								if isAlive then
 									local exp = Instance.new("Explosion")
 									exp.BlastRadius = 12
@@ -1874,10 +1955,10 @@ local function createMobModel(areaId, index, config)
 									exp.ExplosionType = Enum.ExplosionType.NoCraters
 									exp.Visible = false
 									exp.Parent = workspace
-									
+
 									-- 자연 나무 파쇄 효과 실행
 									playWoodSmashEffect(targetFloorPos, 15)
-									
+
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
@@ -1889,7 +1970,7 @@ local function createMobModel(areaId, index, config)
 												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
 												local NetController = require(Controllers:WaitForChild("NetController"))
 												NetController.FireClient(p, "Player.Stun", bounceDir)
-												
+
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
 													highlight.Name = "DamageFlash"
@@ -1907,16 +1988,1284 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end
-								
+
 								-- 다음 통나무 떨어지기 전 약간의 간격
 								task.wait(0.2)
 							end
 							task.wait(1.0)
-							
+
 						-- 우선순위 3: 플레이어에게 다가가기 (보스 덩치가 크므로 25스터드 밖에서 멈춤)
 						else
 							if distToPlayer > 25 then
 								humanoid:MoveTo(targetPlayerPos)
+							else
+								humanoid:MoveTo(hrp.Position)
+							end
+						end
+					elseif config.mobModelName == "DesertGuardian" then
+						--========================================================================
+						-- [DesertGuardian 전용 FSM 분기]: 모래 흩날림(상시) + 3대 모래 기믹 마법
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						local now = os.clock()
+
+						local ts = game:GetService("TweenService")
+						local Debris = game:GetService("Debris")
+
+						local function setVfxCFrame(inst, cf)
+							if inst:IsA("Model") then
+								inst:PivotTo(cf)
+							elseif inst:IsA("BasePart") then
+								inst.CFrame = cf
+							end
+						end
+
+						local function getVfxCFrame(inst)
+							if inst:IsA("Model") then
+								return inst:GetPivot()
+							elseif inst:IsA("BasePart") then
+								return inst.CFrame
+							end
+							return CFrame.new()
+						end
+
+						local function getVfxPosition(inst)
+							if inst:IsA("Model") then
+								return inst:GetPivot().Position
+							elseif inst:IsA("BasePart") then
+								return inst.Position
+							end
+							return Vector3.zero
+						end
+
+						local function getEmitterHost(inst)
+							if inst:IsA("BasePart") then
+								return inst
+							end
+							if inst:IsA("Model") then
+								return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+							end
+							return nil
+						end
+
+						local function prepareVfxInstance(template, name, cf, hideParts)
+							local inst = template:Clone()
+							inst.Name = name
+							if inst:IsA("BasePart") then
+								inst.CanCollide = false
+								inst.Anchored = true
+								if hideParts then
+									inst.Transparency = 1
+								end
+							elseif inst:IsA("Model") then
+								for _, desc in ipairs(inst:GetDescendants()) do
+									if desc:IsA("BasePart") then
+										desc.CanCollide = false
+										desc.Anchored = true
+										if hideParts then
+											desc.Transparency = 1
+										end
+									end
+								end
+							end
+							setVfxCFrame(inst, cf)
+							inst.Parent = workspace
+							return inst
+						end
+
+						local function emitVfxParticles(inst, amount)
+							for _, emitter in ipairs(inst:GetDescendants()) do
+								if emitter:IsA("ParticleEmitter") then
+									emitter.Enabled = true
+									emitter:Emit(amount)
+								end
+							end
+						end
+
+						local function stopVfxParticles(inst)
+							for _, emitter in ipairs(inst:GetDescendants()) do
+								if emitter:IsA("ParticleEmitter") then
+									emitter.Enabled = false
+								end
+							end
+						end
+
+						local function addSandBurst(host, name, amount, speed, sizeScale)
+							if not host then return end
+							local burst = Instance.new("ParticleEmitter")
+							burst.Name = name
+							burst.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+							burst.Color = ColorSequence.new(Color3.fromRGB(255, 232, 175), Color3.fromRGB(185, 135, 80))
+							burst.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.25 * sizeScale),
+								NumberSequenceKeypoint.new(0.4, 0.85 * sizeScale),
+								NumberSequenceKeypoint.new(1, 0)
+							})
+							burst.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.05),
+								NumberSequenceKeypoint.new(0.7, 0.45),
+								NumberSequenceKeypoint.new(1, 1)
+							})
+							burst.Lifetime = NumberRange.new(0.45, 0.9)
+							burst.Rate = 0
+							burst.Speed = speed
+							burst.SpreadAngle = Vector2.new(180, 180)
+							burst.VelocitySpread = 180
+							burst.RotSpeed = NumberRange.new(-520, 520)
+							burst.LightInfluence = 0
+							burst.Parent = host
+							burst:Emit(amount)
+							Debris:AddItem(burst, 1.2)
+						end
+
+						local function createSandShockwave(pos, radius, color, duration)
+							local ring = Instance.new("Part")
+							ring.Name = "DesertGuardianSandShockwave"
+							ring.Shape = Enum.PartType.Cylinder
+							ring.Size = Vector3.new(0.25, 1, 1)
+							ring.CFrame = CFrame.new(pos + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90))
+							ring.Anchored = true
+							ring.CanCollide = false
+							ring.Material = Enum.Material.Neon
+							ring.Color = color
+							ring.Transparency = 0.35
+							ring.Parent = workspace
+							ts:Create(ring, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+								Size = Vector3.new(0.25, radius * 2, radius * 2),
+								Transparency = 1
+							}):Play()
+							Debris:AddItem(ring, duration + 0.2)
+						end
+
+						local function getRigNodeWorldCFrame(node)
+							if not node then
+								return nil
+							end
+							if node:IsA("Bone") or node:IsA("Attachment") then
+								return node.WorldCFrame
+							end
+							if node:IsA("BasePart") then
+								return node.CFrame
+							end
+							return nil
+						end
+
+						local function getDesertGuardianVisualBounds(forward)
+							local minV = Vector3.new(math.huge, math.huge, math.huge)
+							local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
+							local minForward = math.huge
+							local maxForward = -math.huge
+							local found = false
+
+							for _, part in ipairs(model:GetDescendants()) do
+								if part:IsA("BasePart") and part ~= hrp and part.Name ~= "CombatHitbox" and part.Transparency < 0.95 then
+									found = true
+									local halfSize = part.Size * 0.5
+									for _, x in ipairs({-1, 1}) do
+										for _, y in ipairs({-1, 1}) do
+											for _, z in ipairs({-1, 1}) do
+												local corner = (part.CFrame * CFrame.new(halfSize.X * x, halfSize.Y * y, halfSize.Z * z)).Position
+												minV = Vector3.new(
+													math.min(minV.X, corner.X),
+													math.min(minV.Y, corner.Y),
+													math.min(minV.Z, corner.Z)
+												)
+												maxV = Vector3.new(
+													math.max(maxV.X, corner.X),
+													math.max(maxV.Y, corner.Y),
+													math.max(maxV.Z, corner.Z)
+												)
+												local forwardProjection = corner:Dot(forward)
+												minForward = math.min(minForward, forwardProjection)
+												maxForward = math.max(maxForward, forwardProjection)
+											end
+										end
+									end
+								end
+							end
+
+							if found then
+								local center = (minV + maxV) * 0.5
+								local size = maxV - minV
+								return center, size, maxForward - center:Dot(forward)
+							end
+
+							local boundsCf, boundsSize = model:GetBoundingBox()
+							return boundsCf.Position, boundsSize, boundsSize.Z * 0.5
+						end
+
+						local function getDesertGuardianEyeCFrame()
+							local nameCandidates = {
+								"eye", "eyeball", "iris", "pupil", "oculus"
+							}
+
+							for _, descendant in ipairs(model:GetDescendants()) do
+								if descendant ~= hrp and descendant.Name ~= "CombatHitbox" then
+									local lowerName = string.lower(descendant.Name)
+									for _, keyword in ipairs(nameCandidates) do
+										if string.find(lowerName, keyword, 1, true) then
+											local candidateCFrame = getRigNodeWorldCFrame(descendant)
+											if candidateCFrame then
+												return candidateCFrame
+											end
+										end
+									end
+								end
+							end
+
+							local forward = hrp.CFrame.LookVector
+							local visualCenter, visualSize, frontOffset = getDesertGuardianVisualBounds(forward)
+							local eyePos = visualCenter
+								+ Vector3.new(0, visualSize.Y * 0.18, 0)
+								+ forward * math.max(frontOffset + 0.25, 2.5)
+							return CFrame.lookAt(eyePos, eyePos + forward)
+						end
+
+						-- 1. 상시 모래 휘날림 파티클 연출 (중복 생성 방지)
+						if hrp and not hrp:FindFirstChild("DesertSandParticle") then
+							local emitter = Instance.new("ParticleEmitter")
+							emitter.Name = "DesertSandParticle"
+							emitter.Texture = "rbxassetid://243577789"
+							emitter.Color = ColorSequence.new(Color3.fromRGB(210, 180, 140))
+							emitter.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.5),
+								NumberSequenceKeypoint.new(0.5, 3.0),
+								NumberSequenceKeypoint.new(1, 0)
+							})
+							emitter.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 1),
+								NumberSequenceKeypoint.new(0.2, 0.6),
+								NumberSequenceKeypoint.new(0.8, 0.6),
+								NumberSequenceKeypoint.new(1, 1)
+							})
+							emitter.Lifetime = NumberRange.new(1.5, 2.5)
+							emitter.Rate = 25
+							emitter.Speed = NumberRange.new(5, 12)
+							emitter.SpreadAngle = Vector2.new(180, 180)
+							emitter.VelocitySpread = 180
+							emitter.Parent = hrp
+
+							local grainEmitter = Instance.new("ParticleEmitter")
+							grainEmitter.Name = "DesertSandGrainParticle"
+							grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+							grainEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 230, 170), Color3.fromRGB(175, 125, 70))
+							grainEmitter.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.12),
+								NumberSequenceKeypoint.new(0.6, 0.35),
+								NumberSequenceKeypoint.new(1, 0)
+							})
+							grainEmitter.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.35),
+								NumberSequenceKeypoint.new(0.8, 0.65),
+								NumberSequenceKeypoint.new(1, 1)
+							})
+							grainEmitter.Lifetime = NumberRange.new(0.7, 1.4)
+							grainEmitter.Rate = 18
+							grainEmitter.Speed = NumberRange.new(3, 9)
+							grainEmitter.SpreadAngle = Vector2.new(180, 180)
+							grainEmitter.VelocitySpread = 180
+							grainEmitter.RotSpeed = NumberRange.new(-240, 240)
+							grainEmitter.LightInfluence = 0
+							grainEmitter.Parent = hrp
+
+							local coreLight = Instance.new("PointLight")
+							coreLight.Name = "DesertGuardianCoreLight"
+							coreLight.Color = Color3.fromRGB(255, 190, 95)
+							coreLight.Brightness = 0.8
+							coreLight.Range = 18
+							coreLight.Shadows = false
+							coreLight.Parent = hrp
+						end
+
+						-- 2. 상시 지면 모래 먼지 소용돌이 연출 (바닥 높이 실시간 매칭)
+						local groundRayParams = RaycastParams.new()
+						groundRayParams.FilterType = Enum.RaycastFilterType.Exclude
+						groundRayParams.FilterDescendantsInstances = {model}
+						local groundRay = workspace:Raycast(hrp.Position, Vector3.new(0, -50, 0), groundRayParams)
+						local groundY = hrp.Position.Y - (humanoid.HipHeight or 1.5) - (hrp.Size.Y / 2)
+						if groundRay then
+							groundY = groundRay.Position.Y
+						end
+
+						local groundPart = model:FindFirstChild("GroundSandStormPart")
+						if not groundPart then
+							groundPart = Instance.new("Part")
+							groundPart.Name = "GroundSandStormPart"
+							groundPart.Size = Vector3.new(1, 0.1, 1)
+							groundPart.Transparency = 1
+							groundPart.Anchored = true
+							groundPart.CanCollide = false
+							groundPart.Parent = model
+
+							local groundEmitter = Instance.new("ParticleEmitter")
+							groundEmitter.Name = "GroundEmitter"
+							groundEmitter.Texture = "rbxassetid://243577789"
+							groundEmitter.Color = ColorSequence.new(Color3.fromRGB(195, 160, 120))
+							groundEmitter.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 1.0),
+								NumberSequenceKeypoint.new(0.5, 5.0),
+								NumberSequenceKeypoint.new(1, 8.0)
+							})
+							groundEmitter.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 1),
+								NumberSequenceKeypoint.new(0.1, 0.75),
+								NumberSequenceKeypoint.new(0.8, 0.75),
+								NumberSequenceKeypoint.new(1, 1)
+							})
+							groundEmitter.Lifetime = NumberRange.new(1.0, 2.0)
+							groundEmitter.Rate = 35
+							groundEmitter.Speed = NumberRange.new(3, 8)
+							groundEmitter.SpreadAngle = Vector2.new(90, 90)
+							groundEmitter.VelocitySpread = 180
+							groundEmitter.Parent = groundPart
+						end
+						groundPart.CFrame = CFrame.new(hrp.Position.X, groundY + 0.1, hrp.Position.Z)
+
+						-- 스킬별 쿨타임 정의
+						local waveCooldown = 15.0
+						local quicksandCooldown = 18.0
+						local laserCooldown = config.attackCooldown or 1.5
+						local blastCooldown = 6.0
+
+						-- [패턴 1] 모래 해일 장벽 (Sand Wall Storm) - 전역 공격 & 안전 구멍 틈새 파훼 기믹
+						if distToPlayer <= 45 and (now - lastJumpTick >= waveCooldown) then
+							lastJumpTick = now
+							humanoid:MoveTo(hrp.Position) -- 제자리 캐스팅
+
+							-- 물리 흔들림을 막기 위해 시전 동안 고정
+							hrp.Anchored = true
+
+							-- 1~5 중 하나의 틈새 안전지대(Safe Zone) 인덱스 무작위 결정
+							local safeIndex1 = math.random(1, 5)
+
+							local forward = hrp.CFrame.LookVector
+							local right = hrp.CFrame.RightVector
+							local baseFloorPos = hrp.Position - Vector3.new(0, (humanoid.HipHeight or 1.5) + (hrp.Size.Y / 2), 0)
+
+							local telegraphParts = {}
+
+							-- 2초 동안 전조 가로 예고선 표시 (안전 영역 i == safeIndex1 를 비워둠)
+							for i = 1, 5 do
+								if i ~= safeIndex1 then
+									local offset = -40 + (i - 0.5) * 16
+									local startPos = baseFloorPos + right * offset + forward * 5
+									local centerPos = startPos + forward * 40
+
+									local warnPart = Instance.new("Part")
+									warnPart.Name = "SandWallTelegraph_" .. i
+									warnPart.Size = Vector3.new(16, 0.4, 80)
+									warnPart.CFrame = CFrame.new(centerPos) * hrp.CFrame.Rotation
+									warnPart.Anchored = true
+									warnPart.CanCollide = false
+									warnPart.Material = Enum.Material.Neon
+									warnPart.Color = Color3.fromRGB(255, 60, 60)
+									warnPart.Transparency = 0.85
+									warnPart.Parent = workspace
+									table.insert(telegraphParts, warnPart)
+
+									ts:Create(warnPart, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										Transparency = 0.45
+									}):Play()
+								end
+							end
+
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and (anims.Monster:FindFirstChild("DesertGuardian_Magic") or anims.Monster:FindFirstChild("Stump_Magic"))
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+
+							task.wait(2.0)
+
+							-- 예고 장판 제거
+							for _, p in ipairs(telegraphParts) do
+								p:Destroy()
+							end
+
+							hrp.Anchored = false
+
+							if isAlive then
+								-- 실제 모래 해일 장벽 생성 및 발사 (안전 영역 i == safeIndex1 를 비워둠)
+								task.spawn(function()
+									local waveParts = {}
+									local waveTornados = {}
+
+									local vfxBoss = ReplicatedStorage:FindFirstChild("Assets")
+										and ReplicatedStorage.Assets:FindFirstChild("VFX")
+										and ReplicatedStorage.Assets.VFX:FindFirstChild("Boss")
+									local tornadoModel = vfxBoss and vfxBoss:FindFirstChild("DesertGuardian_Tornado")
+
+									for i = 1, 5 do
+										if i ~= safeIndex1 then
+											local offset = -40 + (i - 0.5) * 16
+											-- 장벽 시작 위치 (보스 앞 5스터드)
+											local startPos = baseFloorPos + right * offset + forward * 5 + Vector3.new(0, 10, 0) -- 세로 두께 20의 중심 높이 10스터드
+
+											local wallPart = Instance.new("Part")
+											wallPart.Name = "SandWallPart_" .. i
+											wallPart.Size = Vector3.new(16, 20, 3)
+											wallPart.CFrame = CFrame.new(startPos) * hrp.CFrame.Rotation
+											wallPart.Anchored = true
+											wallPart.CanCollide = false
+											wallPart.Transparency = 1 -- 실제 충돌감지 파트는 투명
+											wallPart.Parent = workspace
+
+											table.insert(waveParts, wallPart)
+
+											-- 사용자가 제작한 회오리 에셋을 해일 장벽에 연동
+											if tornadoModel then
+												local tornado = prepareVfxInstance(tornadoModel, "SandWallTornado_" .. i, wallPart.CFrame, true)
+												emitVfxParticles(tornado, 45)
+												addSandBurst(getEmitterHost(tornado), "SandWallGoldGrain", 70, NumberRange.new(18, 34), 1.2)
+
+												table.insert(waveTornados, tornado)
+											else
+												-- 폴백: 기존 모래벽 파티클 이펙트
+												local wallEmitter = Instance.new("ParticleEmitter")
+												wallEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
+												wallEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 212, 155))
+												wallEmitter.Size = NumberSequence.new({
+													NumberSequenceKeypoint.new(0, 1.2),
+													NumberSequenceKeypoint.new(0.5, 2.5),
+													NumberSequenceKeypoint.new(1, 0)
+												})
+												wallEmitter.Transparency = NumberSequence.new({
+													NumberSequenceKeypoint.new(0, 0.15),
+													NumberSequenceKeypoint.new(0.8, 0.45),
+													NumberSequenceKeypoint.new(1, 1.0)
+												})
+												wallEmitter.Lifetime = NumberRange.new(0.4, 0.8)
+												wallEmitter.Rate = 280
+												wallEmitter.Speed = NumberRange.new(12, 26)
+												wallEmitter.SpreadAngle = Vector2.new(8, 8)
+												wallEmitter.VelocitySpread = 10
+												wallEmitter.RotSpeed = NumberRange.new(-360, 360)
+												wallEmitter.LightInfluence = 0
+												wallEmitter.Parent = wallPart
+												wallEmitter:Emit(40)
+											end
+										end
+									end
+
+									-- 2.5초간 보스 전방 80스터드 거리 트윈 전진
+									local travelTime = 2.5
+									local startTime = os.clock()
+
+									for i, wall in ipairs(waveParts) do
+										local targetCFrame = wall.CFrame + forward * 80
+										ts:Create(wall, TweenInfo.new(travelTime, Enum.EasingStyle.Linear), {
+											CFrame = targetCFrame
+										}):Play()
+
+										local tornado = waveTornados[i]
+										if tornado then
+											setVfxCFrame(tornado, wall.CFrame)
+										end
+									end
+
+									-- 트윈 중 회오리 개별 회전 및 종료 시 페이드아웃 제어
+									if #waveTornados > 0 then
+										task.spawn(function()
+											local rotY = 0
+											while os.clock() - startTime < travelTime and isAlive do
+												task.wait(0.02)
+												rotY = (rotY + 15) % 360
+												for idx, tornado in ipairs(waveTornados) do
+													if tornado and tornado.Parent then
+														local wall = waveParts[idx]
+														local followPos = (wall and wall.Parent) and wall.Position or getVfxPosition(tornado)
+														setVfxCFrame(tornado, CFrame.new(followPos) * CFrame.Angles(0, math.rad(rotY), 0))
+													end
+												end
+											end
+
+											-- 전진 종료 후 파티클 방출 중지
+											for _, tornado in ipairs(waveTornados) do
+												if tornado and tornado.Parent then
+													stopVfxParticles(tornado)
+												end
+											end
+
+											-- 1.2초 후 오브젝트 소멸
+											task.wait(1.2)
+											for _, tornado in ipairs(waveTornados) do
+												if tornado and tornado.Parent then
+													tornado:Destroy()
+												end
+											end
+										end)
+									end
+
+									-- 이동하는 모래 장벽의 플레이어 충돌 검사 (AABB 로컬 좌표계 판정)
+									local hitPlayers = {}
+									while os.clock() - startTime < travelTime and isAlive do
+										task.wait(0.05)
+										for _, wall in ipairs(waveParts) do
+											if not wall or not wall.Parent then continue end
+
+											for _, p in ipairs(Players:GetPlayers()) do
+												local char = p.Character
+												local phum = char and char:FindFirstChild("Humanoid")
+												local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+												if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
+													local localPos = wall.CFrame:Inverse() * pRoot.Position
+													local halfX = wall.Size.X / 2 + 1.5
+													local halfY = wall.Size.Y / 2 + 2.0
+													local halfZ = wall.Size.Z / 2 + 1.5
+
+													-- 장벽 충돌 박스 안으로 들어갔을 때
+													if math.abs(localPos.X) <= halfX and localPos.Y >= -halfY and localPos.Y <= halfY and math.abs(localPos.Z) <= halfZ then
+														hitPlayers[p.UserId] = true
+														dealDamageToHumanoid(phum, (config.baseDamage or 80) * 2.0)
+
+														local bounceDir = (pRoot.Position - wall.Position)
+														bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
+														local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+														local NetController = require(Controllers:WaitForChild("NetController"))
+														NetController.FireClient(p, "Player.Stun", bounceDir * 1.5)
+													end
+												end
+											end
+										end
+									end
+
+									-- 전진 종료 후 삭제
+									for _, wall in ipairs(waveParts) do
+										wall:Destroy()
+									end
+								end)
+							end
+
+							task.wait(1.0)
+
+						-- [패턴 2] 유사(流沙) 늪과 3연속 솟구침 (Quicksand & Spout Combo) - 늪 소용돌이 인지 & 3연속 무빙 회피 기믹
+						elseif distToPlayer <= 45 and (now - lastPoisonTick >= quicksandCooldown) then
+							lastPoisonTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and (anims.Monster:FindFirstChild("DesertGuardian_Attack") or anims.Monster:FindFirstChild("Stump_Magic"))
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+
+							local targetFloorPos = targetPlayerPos
+							local raycastParams = RaycastParams.new()
+							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+							if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
+
+							-- 1초 늪 영역 예고 장판 생성 (반경 14스터드)
+							local warnCircle = Instance.new("Part")
+							warnCircle.Name = "QuicksandTelegraph"
+							warnCircle.Shape = Enum.PartType.Cylinder
+							warnCircle.Size = Vector3.new(0.4, 28, 28)
+							warnCircle.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+							warnCircle.Anchored = true
+							warnCircle.CanCollide = false
+							warnCircle.Material = Enum.Material.Neon
+							warnCircle.Color = Color3.fromRGB(160, 120, 80)
+							warnCircle.Transparency = 0.85
+							warnCircle.Parent = workspace
+
+							ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+
+							task.wait(1.0)
+							warnCircle:Destroy()
+
+							if isAlive then
+								-- 실제 유사 늪 파트 생성
+								local quicksand = Instance.new("Part")
+								quicksand.Name = "QuicksandPrison"
+								quicksand.Shape = Enum.PartType.Cylinder
+								quicksand.Size = Vector3.new(0.2, 28, 28)
+								quicksand.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 0.05, 0)) * CFrame.Angles(0, 0, math.rad(90))
+								quicksand.Anchored = true
+								quicksand.CanCollide = false
+								quicksand.Material = Enum.Material.Sand
+								quicksand.Color = Color3.fromRGB(110, 85, 55)
+								quicksand.Parent = workspace
+
+								-- 늪 비주얼용 투명 파트 생성 (회전이 없어 파티클이 수직으로 이쁘게 상승함)
+								local particlePart = Instance.new("Part")
+								particlePart.Name = "QuicksandParticlePart"
+								particlePart.Size = Vector3.new(28, 0.1, 28)
+								particlePart.Position = targetFloorPos + Vector3.new(0, 0.1, 0)
+								particlePart.Transparency = 1
+								particlePart.Anchored = true
+								particlePart.CanCollide = false
+								particlePart.Parent = workspace
+
+								local vfxBoss = ReplicatedStorage:FindFirstChild("Assets")
+									and ReplicatedStorage.Assets:FindFirstChild("VFX")
+									and ReplicatedStorage.Assets.VFX:FindFirstChild("Boss")
+								local tornadoModel = vfxBoss and vfxBoss:FindFirstChild("DesertGuardian_Tornado")
+
+								local quicksandTornado = nil
+								if tornadoModel then
+									quicksandTornado = prepareVfxInstance(tornadoModel, "QuicksandTornado", CFrame.new(targetFloorPos), true)
+									emitVfxParticles(quicksandTornado, 55)
+									addSandBurst(getEmitterHost(quicksandTornado), "QuicksandGoldGrain", 110, NumberRange.new(10, 24), 1.5)
+									createSandShockwave(targetFloorPos, 16, Color3.fromRGB(210, 160, 95), 0.45)
+
+									-- 회오리 회전 루프 (늪 유지 시간 동안 실행)
+									task.spawn(function()
+										local rotY = 0
+										local sTime = os.clock()
+										while quicksandTornado and quicksandTornado.Parent and os.clock() - sTime < 5.0 and isAlive do
+											task.wait(0.02)
+											rotY = (rotY + 15) % 360
+											setVfxCFrame(quicksandTornado, CFrame.new(targetFloorPos) * CFrame.Angles(0, math.rad(rotY), 0))
+										end
+									end)
+								else
+									-- 폴백: 늪 회전 소용돌이 이펙트 이미터 장착 (100% 무조건 노출되는 로블록스 내장 텍스처 사용)
+									local quicksandEmitter = Instance.new("ParticleEmitter")
+									quicksandEmitter.Texture = "rbxasset://textures/particles/fire_main.dds" -- 소용돌이 갈래 형태
+									quicksandEmitter.Color = ColorSequence.new(Color3.fromRGB(235, 205, 150)) -- 밝고 화사한 모래 옐로우
+									quicksandEmitter.Size = NumberSequence.new({
+										NumberSequenceKeypoint.new(0, 0.8),
+										NumberSequenceKeypoint.new(0.5, 1.6),
+										NumberSequenceKeypoint.new(1, 0)
+									})
+									quicksandEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 0.9)})
+									quicksandEmitter.Lifetime = NumberRange.new(0.6, 1.2)
+									quicksandEmitter.Rate = 240
+									quicksandEmitter.Speed = NumberRange.new(6, 12)
+									quicksandEmitter.SpreadAngle = Vector2.new(180, 180)
+									quicksandEmitter.VelocitySpread = 180
+									quicksandEmitter.RotSpeed = NumberRange.new(-360, 360) -- 늪 속에서 빠르게 회용돌이치는 스핀
+									quicksandEmitter.LightInfluence = 0
+									quicksandEmitter.EmissionDirection = Enum.NormalId.Top
+									quicksandEmitter.Parent = particlePart
+									quicksandEmitter:Emit(60) -- 생성 즉시 방출로 늪 비주얼 즉각 인지 유도
+								end
+
+								-- 늪 유지(5초) 및 3연속 가시 솟구침 콤보 시작
+								task.spawn(function()
+									local duration = 5.0
+									local startTime = os.clock()
+									local nextSpikeTime = 0.5 -- 늪 생성 0.5초 후 첫 솟구침 예고
+									local spikeCount = 0
+
+									while os.clock() - startTime < duration and isAlive do
+										task.wait(0.1)
+
+										-- 늪 속 플레이어 감속 디버프 적용
+										for _, p in ipairs(Players:GetPlayers()) do
+											local char = p.Character
+											local phum = char and char:FindFirstChild("Humanoid")
+											local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+											if phum and phum.Health > 0 and pRoot then
+												local dist = Vector3.new(targetFloorPos.X - pRoot.Position.X, 0, targetFloorPos.Z - pRoot.Position.Z).Magnitude
+												if dist <= 14 then
+													if not phum:GetAttribute("OriginalSpeed") then
+														phum:SetAttribute("OriginalSpeed", phum.WalkSpeed)
+													end
+													phum.WalkSpeed = 6 -- 늪 안에서 감속 (화면 떨림 물리력 적용 완전 배제)
+													dealDamageToHumanoid(phum, (config.baseDamage or 80) * 0.03) -- 경미한 늪 틱 데미지
+												else
+													local origSpeed = phum:GetAttribute("OriginalSpeed")
+													if origSpeed then
+														phum.WalkSpeed = origSpeed
+														phum:SetAttribute("OriginalSpeed", nil)
+													end
+												end
+											end
+										end
+
+										-- 1.2초 간격 3연속 가시 솟구침 콤보
+										if os.clock() - startTime >= nextSpikeTime and spikeCount < 3 then
+											spikeCount = spikeCount + 1
+											nextSpikeTime = nextSpikeTime + 1.3
+
+											-- 현재 타겟 플레이어 발밑 좌표 따옴 (Character 직접 대입으로 crash 해결)
+											local currentTargetChar = targetPlayer
+											local currentTargetRoot = currentTargetChar and currentTargetChar:FindFirstChild("HumanoidRootPart")
+											if currentTargetRoot then
+												local spikeTargetPos = currentTargetRoot.Position
+												local raycastParams2 = RaycastParams.new()
+												raycastParams2.FilterType = Enum.RaycastFilterType.Exclude
+												raycastParams2.FilterDescendantsInstances = {model, targetPlayer}
+												local rayResult2 = workspace:Raycast(spikeTargetPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams2)
+												if rayResult2 then spikeTargetPos = rayResult2.Position else spikeTargetPos = spikeTargetPos - Vector3.new(0, currentTargetRoot.Size.Y / 2, 0) end
+
+												task.spawn(function()
+													-- 가시 솟구침 0.5초 경고 장판 (반경 4스터드)
+													local spikeTelegraph = Instance.new("Part")
+													spikeTelegraph.Name = "SpikeTelegraph"
+													spikeTelegraph.Shape = Enum.PartType.Cylinder
+													spikeTelegraph.Size = Vector3.new(0.4, 8, 8)
+													spikeTelegraph.CFrame = CFrame.new(spikeTargetPos + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
+													spikeTelegraph.Anchored = true
+													spikeTelegraph.CanCollide = false
+													spikeTelegraph.Material = Enum.Material.Neon
+													spikeTelegraph.Color = Color3.fromRGB(255, 0, 0)
+													spikeTelegraph.Transparency = 0.8
+													spikeTelegraph.Parent = workspace
+
+													ts:Create(spikeTelegraph, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.35}):Play()
+
+													task.wait(0.5)
+													spikeTelegraph:Destroy()
+
+													if isAlive then
+														-- 솟구침 돌 VFX 소환 및 솟구쳐오르는 연출 (DesertGuardian_RisingStone)
+														local vfxBoss = ReplicatedStorage:FindFirstChild("Assets")
+															and ReplicatedStorage.Assets:FindFirstChild("VFX")
+															and ReplicatedStorage.Assets.VFX:FindFirstChild("Boss")
+														local stoneModel = vfxBoss and vfxBoss:FindFirstChild("DesertGuardian_RisingStone")
+
+														local stonePart = nil
+														if stoneModel then
+															stonePart = prepareVfxInstance(stoneModel, "DesertGuardian_RisingStone", CFrame.new(spikeTargetPos), false)
+															-- 돌의 Y 크기를 구해와 지면 아래로 완전히 감춤 (크기 + 마진)
+															local stoneHeight
+															if stonePart:IsA("Model") then
+																local _, bounds = stonePart:GetBoundingBox()
+																stoneHeight = bounds.Y
+															else
+																stoneHeight = stonePart.Size.Y
+															end
+															setVfxCFrame(stonePart, CFrame.new(spikeTargetPos - Vector3.new(0, stoneHeight + 2, 0)) * hrp.CFrame.Rotation)
+
+															-- 0.15초 동안 지면 높이(spikeTargetPos)로 급속 솟구침 트윈
+															if stonePart:IsA("BasePart") then
+																ts:Create(stonePart, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+																	CFrame = CFrame.new(spikeTargetPos) * hrp.CFrame.Rotation
+																}):Play()
+															else
+																task.spawn(function()
+																	local startCf = getVfxCFrame(stonePart)
+																	local endCf = CFrame.new(spikeTargetPos) * hrp.CFrame.Rotation
+																	local startAt = os.clock()
+																	while stonePart and stonePart.Parent and os.clock() - startAt < 0.15 do
+																		local alpha = math.clamp((os.clock() - startAt) / 0.15, 0, 1)
+																		setVfxCFrame(stonePart, startCf:Lerp(endCf, alpha))
+																		task.wait()
+																	end
+																	if stonePart and stonePart.Parent then
+																		setVfxCFrame(stonePart, endCf)
+																	end
+																end)
+															end
+															createSandShockwave(spikeTargetPos, 9, Color3.fromRGB(235, 190, 115), 0.35)
+
+															-- 돌이 솟구친 후 다시 땅속으로 자연스레 들어가는 프리미엄 트윈
+															task.spawn(function()
+																task.wait(0.5)
+																if stonePart and stonePart.Parent then
+																	local sinkCf = CFrame.new(spikeTargetPos - Vector3.new(0, stoneHeight + 2, 0)) * hrp.CFrame.Rotation
+																	if stonePart:IsA("BasePart") then
+																		local sink = ts:Create(stonePart, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+																			CFrame = sinkCf
+																		})
+																		sink:Play()
+																		sink.Completed:Connect(function()
+																			stonePart:Destroy()
+																		end)
+																	else
+																		local startCf = getVfxCFrame(stonePart)
+																		local startAt = os.clock()
+																		while stonePart and stonePart.Parent and os.clock() - startAt < 0.3 do
+																			local alpha = math.clamp((os.clock() - startAt) / 0.3, 0, 1)
+																			setVfxCFrame(stonePart, startCf:Lerp(sinkCf, alpha))
+																			task.wait()
+																		end
+																		if stonePart and stonePart.Parent then
+																			stonePart:Destroy()
+																		end
+																	end
+																end
+															end)
+														else
+															-- 폴백: 기존 원기둥 앵커 파트 (수직 실린더 형태)
+															stonePart = Instance.new("Part")
+															stonePart.Name = "SandTornadoSpout"
+															stonePart.Shape = Enum.PartType.Cylinder
+															stonePart.Size = Vector3.new(16, 4, 4) -- X가 길이 방향
+															-- 수직으로 세우기 위해 Z축 90도 회전 각도 부여
+															stonePart.CFrame = CFrame.new(spikeTargetPos + Vector3.new(0, 8, 0)) * CFrame.Angles(0, 0, math.rad(90))
+															stonePart.Color = Color3.fromRGB(240, 215, 160)
+															stonePart.Material = Enum.Material.Glass
+															stonePart.Transparency = 0.85 -- 아주 희미하게 비치는 모래 원기둥 기둥
+															stonePart.CanCollide = false
+															stonePart.Anchored = true
+															stonePart.Parent = workspace
+
+															-- 스크립트로 회오리 기둥 고속 회전 및 트윈 상승 애니메이션 실행
+															task.spawn(function()
+																local rotY = 0
+																local spoutTime = 0.8
+																local start = os.clock()
+																while os.clock() - start < spoutTime and stonePart and stonePart.Parent do
+																	task.wait(0.02)
+																	rotY = (rotY + 25) % 360 -- 고속 회전 물리 비주얼 구현
+																	stonePart.CFrame = CFrame.new(spikeTargetPos + Vector3.new(0, 8, 0)) * CFrame.Angles(0, math.rad(rotY), math.rad(90))
+																end
+															end)
+
+															Debris:AddItem(stonePart, 1.0)
+														end
+
+														local stoneEmitterHost = getEmitterHost(stonePart)
+														-- 세찬 모래바람 돌풍 줄기 (원기둥 표면 또는 돌 표면에서 위로 고속 방출)
+														local spoutEmitter = Instance.new("ParticleEmitter")
+														spoutEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
+														spoutEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 215, 160)) -- 밝고 화사한 모래 베이지
+														spoutEmitter.Size = NumberSequence.new({
+															NumberSequenceKeypoint.new(0, 0.8),
+															NumberSequenceKeypoint.new(0.5, 2.0),
+															NumberSequenceKeypoint.new(1, 0)
+														})
+														spoutEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.95)})
+														spoutEmitter.Lifetime = NumberRange.new(0.35, 0.65)
+														spoutEmitter.Rate = 240
+														spoutEmitter.Speed = NumberRange.new(50, 90) -- 고속 수직 상승
+														spoutEmitter.SpreadAngle = Vector2.new(3, 3) -- 확산을 극도로 억제하여 수직 회오리 기둥 고정!
+														spoutEmitter.RotSpeed = NumberRange.new(400, 600) -- 고속 깔대기 회전 스핀
+														spoutEmitter.LightInfluence = 0
+														spoutEmitter.Shape = Enum.ParticleEmitterShape.Cylinder
+														spoutEmitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+														spoutEmitter.EmissionDirection = Enum.NormalId.Top -- 실린더 윗면 방향으로 방출
+														spoutEmitter.Parent = stoneEmitterHost
+														spoutEmitter:Emit(120)
+
+														-- 거친 모래가루 및 비산 알갱이 레이어 결합 (고운 황금가루 비산)
+														local grainEmitter = Instance.new("ParticleEmitter")
+														grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+														grainEmitter.Color = ColorSequence.new(Color3.fromRGB(245, 222, 179))
+														grainEmitter.Size = NumberSequence.new({
+															NumberSequenceKeypoint.new(0, 0.4),
+															NumberSequenceKeypoint.new(1, 0)
+														})
+														grainEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1.0)})
+														grainEmitter.Lifetime = NumberRange.new(0.5, 0.9)
+														grainEmitter.Rate = 160
+														grainEmitter.Speed = NumberRange.new(25, 60)
+														grainEmitter.SpreadAngle = Vector2.new(25, 25) -- 좁은 비산각
+														grainEmitter.VelocitySpread = 25
+														grainEmitter.LightInfluence = 0
+														grainEmitter.EmissionDirection = Enum.NormalId.Top
+														grainEmitter.Parent = stoneEmitterHost
+														grainEmitter:Emit(70)
+														addSandBurst(stoneEmitterHost, "RisingStoneDustHalo", 90, NumberRange.new(18, 42), 1.4)
+
+														-- 피해 및 부드러운 에어본 판정
+														for _, p in ipairs(Players:GetPlayers()) do
+															local char = p.Character
+															local phum = char and char:FindFirstChild("Humanoid")
+															local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+															if phum and phum.Health > 0 and pRoot then
+																local dist = Vector3.new(spikeTargetPos.X - pRoot.Position.X, 0, spikeTargetPos.Z - pRoot.Position.Z).Magnitude
+																if dist <= 4 then
+																	dealDamageToHumanoid(phum, (config.baseDamage or 80) * 0.6)
+
+																	-- 부드러운 에어본 속도 부여 (하늘로 45스터드)
+																	pRoot.AssemblyLinearVelocity = Vector3.new(0, 45, 0)
+
+																	local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+																	local NetController = require(Controllers:WaitForChild("NetController"))
+																	NetController.FireClient(p, "Player.Stun", Vector3.new(0, 0.5, 0))
+																end
+															end
+														end
+													end
+												end)
+											end
+										end
+									end
+
+									-- 디버프 복구
+									for _, p in ipairs(Players:GetPlayers()) do
+										local char = p.Character
+										local phum = char and char:FindFirstChild("Humanoid")
+										if phum then
+											local origSpeed = phum:GetAttribute("OriginalSpeed")
+											if origSpeed then
+												phum.WalkSpeed = origSpeed
+												phum:SetAttribute("OriginalSpeed", nil)
+											end
+										end
+									end
+
+									quicksand:Destroy()
+									particlePart:Destroy()
+
+									if quicksandTornado and quicksandTornado.Parent then
+										stopVfxParticles(quicksandTornado)
+
+										local tempTornado = quicksandTornado
+										task.spawn(function()
+											task.wait(1.2)
+											if tempTornado and tempTornado.Parent then
+												tempTornado:Destroy()
+											end
+										end)
+									end
+								end)
+							end
+
+							task.wait(1.0)
+
+						-- [패턴 3] 사안 레이저 (Eye Laser) - CyclopsBat 레이저 형식 그대로, 색상만 사막 테마 적용
+						elseif distToPlayer <= 55 and (now - lastThrustTick >= laserCooldown) then
+							lastThrustTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							local telegraphDuration = 0.8
+							local targetFloorPos = targetPlayerPos
+
+							local raycastParams = RaycastParams.new()
+							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
+
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -40, 0), raycastParams)
+							if rayResult then
+								targetFloorPos = rayResult.Position
+							else
+								targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2 + 0.1, 0)
+							end
+
+							local warnCircle = Instance.new("Part")
+							warnCircle.Name = "DesertGuardianLaserTelegraph"
+							warnCircle.Shape = Enum.PartType.Cylinder
+							warnCircle.Size = Vector3.new(0.4, 18, 18)
+							warnCircle.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+							warnCircle.Anchored = true
+							warnCircle.CanCollide = false
+							warnCircle.CanTouch = false
+							warnCircle.CanQuery = false
+							warnCircle.CastShadow = false
+							warnCircle.Material = Enum.Material.Neon
+							warnCircle.Color = Color3.fromRGB(255, 40, 25)
+							warnCircle.Transparency = 0.8
+							warnCircle.Parent = workspace
+
+							ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+								Transparency = 0.3,
+								Color = Color3.fromRGB(255, 0, 0)
+							}):Play()
+
+							local eyeCFrame = getDesertGuardianEyeCFrame()
+							local laserOriginCFrame = eyeCFrame * CFrame.new(0, 0, -1)
+							local chargeSphere = Instance.new("Part")
+							chargeSphere.Name = "DesertGuardianLaserCharge"
+							chargeSphere.Shape = Enum.PartType.Ball
+							chargeSphere.Size = Vector3.new(1.6, 1.6, 1.6)
+							chargeSphere.Color = Color3.fromRGB(255, 190, 80)
+							chargeSphere.Material = Enum.Material.Neon
+							chargeSphere.Anchored = true
+							chargeSphere.CanCollide = false
+							chargeSphere.CanTouch = false
+							chargeSphere.CanQuery = false
+							chargeSphere.CFrame = laserOriginCFrame
+							chargeSphere.Parent = workspace
+
+							ts:Create(chargeSphere, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Elastic), {
+								Size = Vector3.new(3.8, 3.8, 3.8)
+							}):Play()
+
+							local castStartTime = os.clock()
+							while os.clock() - castStartTime < telegraphDuration and isAlive do
+								if phrp and phrp.Parent then
+									local lookDir = (phrp.Position - hrp.Position)
+									lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
+									if lookDir.Magnitude > 0.1 then
+										hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
+									end
+									eyeCFrame = getDesertGuardianEyeCFrame()
+									laserOriginCFrame = eyeCFrame * CFrame.new(0, 0, -1)
+									chargeSphere.CFrame = laserOriginCFrame
+								end
+								task.wait(0.05)
+							end
+
+							if warnCircle and warnCircle.Parent then
+								warnCircle:Destroy()
+							end
+							if chargeSphere and chargeSphere.Parent then
+								chargeSphere:Destroy()
+							end
+
+							if isAlive and phrp and phrp.Parent then
+								eyeCFrame = getDesertGuardianEyeCFrame()
+								laserOriginCFrame = eyeCFrame * CFrame.new(0, 0, -1)
+								local startLaserPos = laserOriginCFrame.Position
+								local endLaserPos = targetFloorPos
+
+								local laserModel = Instance.new("Model")
+								laserModel.Name = "DesertGuardianEyeLaserModel"
+
+								local laserCore = Instance.new("Part")
+								laserCore.Name = "LaserCore"
+								laserCore.Material = Enum.Material.Neon
+								laserCore.Color = Color3.fromRGB(255, 235, 160)
+								laserCore.CanCollide = false
+								laserCore.CanTouch = false
+								laserCore.CanQuery = false
+								laserCore.Anchored = true
+								laserCore.Parent = laserModel
+
+								local laserAura = Instance.new("Part")
+								laserAura.Name = "LaserAura"
+								laserAura.Material = Enum.Material.Neon
+								laserAura.Color = Color3.fromRGB(205, 125, 35)
+								laserAura.CanCollide = false
+								laserAura.CanTouch = false
+								laserAura.CanQuery = false
+								laserAura.Anchored = true
+								laserAura.Transparency = 0.4
+								laserAura.Parent = laserModel
+
+								local function updateLaserVisual(p1, p2, width)
+									local distance = (p1 - p2).Magnitude
+									laserCore.Size = Vector3.new(width, distance, width)
+									laserCore.CFrame = CFrame.lookAt(p1, p2) * CFrame.new(0, 0, -distance / 2) * CFrame.Angles(math.rad(90), 0, 0)
+
+									laserAura.Size = Vector3.new(width * 1.5, distance, width * 1.5)
+									laserAura.CFrame = laserCore.CFrame
+								end
+
+								updateLaserVisual(startLaserPos, endLaserPos, 3.2)
+								laserModel.Parent = workspace
+
+								local exp = Instance.new("Explosion")
+								exp.BlastRadius = 9
+								exp.BlastPressure = 0
+								exp.Position = endLaserPos
+								exp.ExplosionType = Enum.ExplosionType.NoCraters
+								exp.Parent = workspace
+
+								for _, p in ipairs(Players:GetPlayers()) do
+									local char = p.Character
+									local phum = char and char:FindFirstChild("Humanoid")
+									local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+									if phum and phum.Health > 0 and pRoot then
+										local dist = (pRoot.Position - endLaserPos).Magnitude
+										if dist <= 9 then
+											dealDamageToHumanoid(phum, config.baseDamage or 80)
+
+											local bounceDir = (pRoot.Position - endLaserPos)
+											bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(p, "Player.Stun", bounceDir * 1.5)
+
+											task.spawn(function()
+												local highlight = Instance.new("Highlight")
+												highlight.Name = "DamageFlash"
+												highlight.FillColor = Color3.fromRGB(220, 150, 55)
+												highlight.OutlineColor = Color3.fromRGB(255, 235, 150)
+												highlight.FillTransparency = 0.45
+												highlight.OutlineTransparency = 0
+												highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+												highlight.Adornee = char
+												highlight.Parent = char
+												task.wait(0.12)
+												if highlight and highlight.Parent then highlight:Destroy() end
+											end)
+										end
+									end
+								end
+
+								local fadeStartTime = os.clock()
+								local fadeDuration = 0.3
+								while os.clock() - fadeStartTime < fadeDuration do
+									local progress = (os.clock() - fadeStartTime) / fadeDuration
+									local currentWidth = 1.2 * (1 - progress)
+									laserCore.Transparency = progress
+									laserAura.Transparency = 0.4 + 0.6 * progress
+									updateLaserVisual(startLaserPos, endLaserPos, currentWidth)
+									task.wait()
+								end
+								laserModel:Destroy()
+							end
+
+							task.wait(0.5)
+
+						-- [패턴 4] 모래 분출 (Sand Spout) - 즉발 견제기 & 무빙 회피 기믹
+						elseif distToPlayer <= 45 and (now - lastAttackTick >= blastCooldown) then
+							lastAttackTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							pcall(function()
+								local animator = humanoid:FindFirstChildOfClass("Animator")
+								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+								local attackAnim = anims and anims:FindFirstChild("Monster") and (anims.Monster:FindFirstChild("DesertGuardian_Attack") or anims.Monster:FindFirstChild("Stump_Magic"))
+								if animator and attackAnim then
+									local track = animator:LoadAnimation(attackAnim)
+									if track then track:Play() end
+								end
+							end)
+
+							local targetFloorPos = targetPlayerPos
+							local raycastParams = RaycastParams.new()
+							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+							if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
+
+							-- 0.6초 즉발성 좁은 예고 장판 (반경 7스터드)
+							local warnCircle = Instance.new("Part")
+							warnCircle.Name = "SandSpoutTelegraph"
+							warnCircle.Shape = Enum.PartType.Cylinder
+							warnCircle.Size = Vector3.new(0.4, 14, 14)
+							warnCircle.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+							warnCircle.Anchored = true
+							warnCircle.CanCollide = false
+							warnCircle.Material = Enum.Material.Neon
+							warnCircle.Color = Color3.fromRGB(230, 150, 80)
+							warnCircle.Transparency = 0.8
+							warnCircle.Parent = workspace
+
+							ts:Create(warnCircle, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.45}):Play()
+
+							task.wait(0.6)
+							warnCircle:Destroy()
+
+							if isAlive then
+								-- 디폴트 화염 폭발 비주얼 차단 (Visible = false)
+								local blastEffect = Instance.new("Explosion")
+								blastEffect.BlastRadius = 7
+								blastEffect.BlastPressure = 0
+								blastEffect.Position = targetFloorPos
+								blastEffect.ExplosionType = Enum.ExplosionType.NoCraters
+								blastEffect.Visible = false
+								blastEffect.Parent = workspace
+
+								-- 모래 분출 비주얼 파티클 기둥 생성 (DesertGuardian_Tornado)
+								local vfxBoss = ReplicatedStorage:FindFirstChild("Assets")
+									and ReplicatedStorage.Assets:FindFirstChild("VFX")
+									and ReplicatedStorage.Assets.VFX:FindFirstChild("Boss")
+								local tornadoModel = vfxBoss and vfxBoss:FindFirstChild("DesertGuardian_Tornado")
+
+								local spoutVisual = nil
+								if tornadoModel then
+									spoutVisual = prepareVfxInstance(tornadoModel, "SandSpoutTornado", CFrame.new(targetFloorPos), true)
+									emitVfxParticles(spoutVisual, 60)
+									addSandBurst(getEmitterHost(spoutVisual), "SandSpoutGoldGrain", 85, NumberRange.new(24, 48), 1.1)
+									createSandShockwave(targetFloorPos, 10, Color3.fromRGB(245, 180, 95), 0.3)
+								else
+									-- 폴백: 기존 수직 실린더 형태 생성
+									spoutVisual = Instance.new("Part")
+									spoutVisual.Name = "SandSpoutTornado"
+									spoutVisual.Shape = Enum.PartType.Cylinder
+									spoutVisual.Size = Vector3.new(12, 3, 3) -- X가 길이 방향
+									-- 수직으로 세우기 위해 Z축 90도 회전
+									spoutVisual.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 6, 0)) * CFrame.Angles(0, 0, math.rad(90))
+									spoutVisual.Color = Color3.fromRGB(240, 215, 160)
+									spoutVisual.Material = Enum.Material.Glass
+									spoutVisual.Transparency = 0.85
+									spoutVisual.CanCollide = false
+									spoutVisual.Anchored = true
+									spoutVisual.Parent = workspace
+
+									-- 모래바람 돌풍 줄기 (회오리 기둥 모양 형성)
+									local spoutEmitter = Instance.new("ParticleEmitter")
+									spoutEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
+									spoutEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 215, 160)) -- 밝고 화사한 모래 베이지
+									spoutEmitter.Size = NumberSequence.new({
+										NumberSequenceKeypoint.new(0, 0.6),
+										NumberSequenceKeypoint.new(0.2, 2.0),
+										NumberSequenceKeypoint.new(1, 0)
+									})
+									spoutEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 0.95)})
+									spoutEmitter.Lifetime = NumberRange.new(0.35, 0.65)
+									spoutEmitter.Rate = 220
+									spoutEmitter.Speed = NumberRange.new(45, 75) -- 고속 수직 상승
+									spoutEmitter.SpreadAngle = Vector2.new(4, 4) -- 확산을 극도로 억제하여 수직 회오리 기둥 고정!
+									spoutEmitter.RotSpeed = NumberRange.new(400, 600) -- 고속 깔대기 회전 스핀
+									spoutEmitter.LightInfluence = 0
+									spoutEmitter.Shape = Enum.ParticleEmitterShape.Cylinder
+									spoutEmitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+									spoutEmitter.EmissionDirection = Enum.NormalId.Top
+									spoutEmitter.Parent = spoutVisual
+									spoutEmitter:Emit(70)
+
+									-- 거친 모래알갱이 비산 레이어 결합
+									local grainEmitter = Instance.new("ParticleEmitter")
+									grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+									grainEmitter.Color = ColorSequence.new(Color3.fromRGB(245, 222, 179))
+									grainEmitter.Size = NumberSequence.new({
+										NumberSequenceKeypoint.new(0, 0.4),
+										NumberSequenceKeypoint.new(1, 0)
+									})
+									grainEmitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1.0)})
+									grainEmitter.Lifetime = NumberRange.new(0.4, 0.8)
+									grainEmitter.Rate = 140
+									grainEmitter.Speed = NumberRange.new(20, 45)
+									grainEmitter.SpreadAngle = Vector2.new(20, 20) -- 좁은 비산각
+									grainEmitter.VelocitySpread = 20
+									grainEmitter.LightInfluence = 0
+									grainEmitter.EmissionDirection = Enum.NormalId.Top
+									grainEmitter.Parent = spoutVisual
+									grainEmitter:Emit(40)
+								end
+
+								-- 스크립트로 회오리 기둥 고속 회전 및 잔여 이펙트 정리 제어
+								task.spawn(function()
+									local rotY = 0
+									local spoutTime = 0.7
+									local start = os.clock()
+									while os.clock() - start < spoutTime and spoutVisual and spoutVisual.Parent do
+										task.wait(0.02)
+										rotY = (rotY + 25) % 360
+										if tornadoModel then
+											setVfxCFrame(spoutVisual, CFrame.new(targetFloorPos) * CFrame.Angles(0, math.rad(rotY), 0))
+										else
+											spoutVisual.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 6, 0)) * CFrame.Angles(0, math.rad(rotY), math.rad(90))
+										end
+									end
+
+									-- 0.7초의 연출 완료 후, 새로운 파티클 생성을 끄고 부드러운 페이드 아웃을 대기
+									if spoutVisual and spoutVisual.Parent then
+										stopVfxParticles(spoutVisual)
+
+										-- 기존 방출된 파티클의 잔여 수명(약 1.0초)을 대기한 뒤 인스턴스 소멸
+										task.wait(1.2)
+										if spoutVisual and spoutVisual.Parent then
+											spoutVisual:Destroy()
+										end
+									end
+								end)
+
+								for _, p in ipairs(Players:GetPlayers()) do
+									local char = p.Character
+									local phum = char and char:FindFirstChild("Humanoid")
+									local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+									if phum and phum.Health > 0 and pRoot then
+										if (pRoot.Position - targetFloorPos).Magnitude <= 7 then
+											dealDamageToHumanoid(phum, (config.baseDamage or 80) * 0.8)
+											local bounceDir = Vector3.new(pRoot.Position.X - targetFloorPos.X, 0.5, pRoot.Position.Z - targetFloorPos.Z).Unit
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(p, "Player.Stun", bounceDir * 1.3)
+										end
+									end
+								end
+							end
+							task.wait(0.4)
+
+						-- 평상시 추격 (사막 보스는 15~22스터드 거리를 유지하며 기믹 시전을 준비)
+						else
+							if distToPlayer > 22 then
+								humanoid:MoveTo(targetPlayerPos)
+							elseif distToPlayer < 15 then
+								local retreatPos = hrp.Position - (targetPlayerPos - hrp.Position).Unit * 15
+								humanoid:MoveTo(retreatPos)
 							else
 								humanoid:MoveTo(hrp.Position)
 							end
@@ -1928,17 +3277,17 @@ local function createMobModel(areaId, index, config)
 						local currentPos = hrp.Position
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
-						
+
 						local now = os.clock()
 						local meleeCooldown = config.attackCooldown or 2.0
 						local poisonCooldown = 15.0
-						
+
 						local MELEE_RANGE = 10 -- [수정] 일반공격 사거리 넓힘 (기존 6 -> 10)
 						local POISON_RANGE = 30 -- [수정] 포이즌 발동 사거리 넓힘 (기존 20 -> 30)
-						
+
 						if distToPlayer <= POISON_RANGE and (now - lastPoisonTick >= poisonCooldown) then
 							lastPoisonTick = now
-							
+
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
 								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
@@ -1948,13 +3297,13 @@ local function createMobModel(areaId, index, config)
 									if track then track:Play() end
 								end
 							end)
-							
+
 							task.spawn(function()
 								local pDuration = 8.0
 								local pRadius = 22.0 -- [수정] 포이즌 장판 범위 넓힘 (기존 12 -> 22)
 								local pDamage = 20.0 -- [상향] 최종 구역에 맞게 독 틱 데미지 상향 (기존 5.0 -> 20.0)
 								local cloudFloorPos = currentPos - Vector3.new(0, humanoid.HipHeight + (hrp.Size.Y / 2) - 0.2, 0)
-								
+
 								local cloud = Instance.new("Part")
 								cloud.Name = "PoisonCloud"
 								cloud.Shape = Enum.PartType.Cylinder
@@ -1966,7 +3315,7 @@ local function createMobModel(areaId, index, config)
 								cloud.Color = Color3.fromRGB(150, 0, 200)
 								cloud.Transparency = 0.85 -- [수정] 피자판 같은 바닥은 거의 투명하게
 								cloud.Parent = workspace
-								
+
 								local pe = Instance.new("ParticleEmitter")
 								pe.Texture = "rbxasset://textures/particles/smoke_main.dds" -- [추가] 진짜 연기 텍스처 적용
 								pe.Color = ColorSequence.new(Color3.fromRGB(150, 0, 200), Color3.fromRGB(100, 255, 100))
@@ -1983,12 +3332,12 @@ local function createMobModel(areaId, index, config)
 								pe.Shape = Enum.ParticleEmitterShape.Cylinder
 								pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
 								pe.Parent = cloud
-								
+
 								local ticks = math.floor(pDuration)
 								for i = 1, ticks do
 									task.wait(1.0)
 									if not cloud or not cloud.Parent then break end
-									
+
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
@@ -2011,7 +3360,7 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end
-								
+
 								if cloud then
 									if pe then pe.Enabled = false end
 									local ts = game:GetService("TweenService")
@@ -2023,16 +3372,16 @@ local function createMobModel(areaId, index, config)
 							end)
 							task.wait(0.5)
 						end
-						
+
 						currentPos = hrp.Position
 						targetPlayerPos = phrp.Position
 						distToPlayer = (currentPos - targetPlayerPos).Magnitude
-						
+
 						if distToPlayer <= MELEE_RANGE then
 							humanoid:MoveTo(hrp.Position)
 							if now - lastAttackTick >= meleeCooldown then
 								lastAttackTick = now
-								
+
 								pcall(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
 									local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
@@ -2042,10 +3391,10 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								local telegraphDuration = 0.6
 								local mobRootPos = hrp.Position
-								
+
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "SpiderMeleeTelegraph"
 								warnCircle.Shape = Enum.PartType.Cylinder
@@ -2059,18 +3408,18 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(255, 0, 0)
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								local lookDir = Vector3.new(targetPlayerPos.X - hrp.Position.X, 0, targetPlayerPos.Z - hrp.Position.Z)
 								if lookDir.Magnitude > 0.1 then
 									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 								end
-								
+
 								task.wait(telegraphDuration)
 								warnCircle:Destroy()
-								
+
 								if isAlive and targetPlayer and targetPlayer.Parent and targetPlayer:FindFirstChild("HumanoidRootPart") then
 									local currentPhrp = targetPlayer.HumanoidRootPart
 									if (hrp.Position - currentPhrp.Position).Magnitude <= MELEE_RANGE + 1.5 then
@@ -2113,35 +3462,35 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						local scaleRatio = (config.modelScale or 1) / 2.5
-						
+
 						local MELEE_RANGE = 9 * scaleRatio
 						local CHARGE_RANGE_MIN = 16 * scaleRatio
 						local CHARGE_RANGE_MAX = 35 * scaleRatio
 						local chargeCooldown = 9.0 -- 9초마다 기습 질주
 						local meleeCooldown = config.attackCooldown or 2.2
 						local swordDropCooldown = 12.0 -- 12초마다 유령검 낙하
-						
+
 						-- 패턴 1: 영혼의 질주 돌진 (Phantom Charge) - 거리 벌어질 때
 						if distToPlayer >= CHARGE_RANGE_MIN and distToPlayer <= CHARGE_RANGE_MAX and (now - lastJumpTick >= chargeCooldown) then
 							lastJumpTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 타겟을 정면으로 정밀 바라보기
 							local lookDir = (targetPlayerPos - currentPos)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							-- 전방 직사각형 예고 장판 생성 (길이 22, 너비 8) - 스케일에 맞게 조절
 							local chargeLength = 22 * scaleRatio
 							local chargeWidth = 8 * scaleRatio
-							
+
 							local wcf = hrp.CFrame * CFrame.new(0, 0, -chargeLength/2)
 							local telegraphPos = wcf.Position
-							
+
 							-- [지형 판독 레이캐스트]: 스폰 고도가 달라지거나 울퉁불퉁한 지형에서도 장판이 완벽히 지면에 밀착하도록 동적 판독
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -2157,7 +3506,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							local warnLine = Instance.new("Part")
 							warnLine.Name = "GhostKnightChargeTelegraph"
 							warnLine.Size = Vector3.new(chargeWidth, 0.4, chargeLength)
@@ -2168,13 +3517,13 @@ local function createMobModel(areaId, index, config)
 							warnLine.Color = Color3.fromRGB(255, 0, 0) -- unified red telegraph
 							warnLine.Transparency = 0.8
 							warnLine.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnLine, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.35}):Play()
-							
+
 							-- 1. 경고장판이 먼저 나타나고 1.0초간 유지 (전조 단계)
 							task.wait(1.0)
-							
+
 							-- 2. 1.0초 뒤 애니메이션 및 사운드, VFX 발동
 							local peCharge = Instance.new("ParticleEmitter")
 							peCharge.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -2186,7 +3535,7 @@ local function createMobModel(areaId, index, config)
 							peCharge.Lifetime = NumberRange.new(0.5, 0.8)
 							peCharge.EmissionDirection = Enum.NormalId.Back
 							peCharge.Parent = hrp
-							
+
 							local animator = humanoid:FindFirstChildOfClass("Animator")
 							local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
 							local chargeAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("GhostKnight_Charge")
@@ -2194,27 +3543,27 @@ local function createMobModel(areaId, index, config)
 								local track = animator:LoadAnimation(chargeAnim)
 								track:Play()
 							end
-							
+
 							-- (사운드 재생 위치를 실제 돌진 시점으로 이동)
-							
+
 							-- 3. 애니메이션이 끝나고 타격 판정이 들어오는 시점까지 0.5초 추가 대기
 							task.wait(0.5)
-							
+
 							-- 4. 장판 삭제 및 돌진 시작
 							warnLine:Destroy()
-							
+
 							if isAlive then
 								-- 영혼의 쾌속 전진 돌진 (CF 트윈을 통해 거인의 육중한 질주 물리 재현)
 								local fwd = hrp.CFrame.LookVector
 								local targetLand = hrp.Position + fwd * chargeLength
-								
+
 								-- 0.25초 동안 번개처럼 빠른 참격 슬라이드 돌진
 								local slideTime = 0.25
 								local slideTween = ts:Create(hrp, TweenInfo.new(slideTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 									CFrame = CFrame.lookAt(targetLand, targetLand + fwd)
 								})
 								slideTween:Play()
-								
+
 								-- 돌진 시 타격(슬래시) 사운드 재생
 								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 								local chargeSound = sounds and sounds:FindFirstChild("Monster") and sounds.Monster:FindFirstChild("GhostKnight_SwordSwing")
@@ -2224,32 +3573,32 @@ local function createMobModel(areaId, index, config)
 									sfx:Play()
 									game.Debris:AddItem(sfx, 3)
 								end
-								
+
 								-- 돌진 경로상 데미지 다단 판정 방지 및 타격 처리
 								local elapsed = 0
 								local hitPlayers = {}
 								local startPos = hrp.Position
-								
+
 								while elapsed < slideTime and isAlive do
 									local dt = task.wait(0.04)
 									elapsed = elapsed + dt
-									
+
 									local currentHrpPos = hrp.Position
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
 											local pDir = pRoot.Position - startPos
 											local forwardDist = fwd:Dot(pDir)
 											local rightDist = hrp.CFrame.RightVector:Dot(pDir)
-											
+
 											-- 돌진 전방 경로 안에 있고, 좌우폭 내인 경우 적중
 											if forwardDist > 0 and forwardDist <= chargeLength + 3 and math.abs(rightDist) <= chargeWidth/2 + 1 and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 												hitPlayers[p.UserId] = true
 												dealDamageToHumanoid(phum, 80) -- 돌진 데미지 80
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -2260,22 +3609,22 @@ local function createMobModel(areaId, index, config)
 									end
 								end
 							end
-							
+
 							if peCharge then peCharge:Destroy() end
 							task.wait(1.0) -- [딜레이 증가] 0.5 -> 1.0초: 돌진 후 묵직한 경직 딜레이
-							
+
 						-- 패턴 3: 유령검 낙하 (Sword Rain) - 거인(중간보스) 한정 패턴
 						elseif scaleRatio >= 0.8 and (now - lastSwordDropTick >= swordDropCooldown) then
 							lastSwordDropTick = now
 							humanoid:MoveTo(hrp.Position)
-							
+
 							-- 타겟을 향해 즉시 회전
 							local lookDir = (targetPlayerPos - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							-- 캐스팅 애니메이션 재생 (Charge 모션을 캐스팅처럼 활용)
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -2286,16 +3635,16 @@ local function createMobModel(areaId, index, config)
 									if track then track:Play() end
 								end
 							end)
-							
+
 							local dropCount = math.random(1, 4)
 							for i = 1, dropCount do
 								if not isAlive then break end
-								
+
 								task.wait(0.5) -- 엇박자 캐스팅
-								
+
 								local currentTargetPos = targetPlayerPos
 								if phrp and phrp.Parent then currentTargetPos = phrp.Position end
-								
+
 								local targetFloorY = currentTargetPos.Y - 2.5
 								local rayParams = RaycastParams.new()
 								rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -2309,7 +3658,7 @@ local function createMobModel(areaId, index, config)
 								if rayResult then
 									targetFloorY = rayResult.Position.Y + 0.2
 								end
-								
+
 								-- 예고 장판 생성
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "GhostKnightSwordTelegraph"
@@ -2322,18 +3671,18 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(220, 230, 255) -- 유령빛 장판
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(warnCircle, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								task.wait(0.6)
 								warnCircle:Destroy()
 								if not isAlive then break end
-								
+
 								-- 유령검 모델 생성 (대검/클레이모어 형태)
 								local swordModel = Instance.new("Model")
 								swordModel.Name = "FallingSword"
-								
+
 								local blade = Instance.new("Part")
 								blade.Name = "Blade"
 								blade.Size = Vector3.new(0.4, 7, 2)
@@ -2343,7 +3692,7 @@ local function createMobModel(areaId, index, config)
 								blade.CanCollide = false
 								blade.CFrame = CFrame.new(currentTargetPos.X, targetFloorY + 40, currentTargetPos.Z)
 								blade.Parent = swordModel
-								
+
 								local tip = Instance.new("WedgePart")
 								tip.Name = "Tip"
 								tip.Size = Vector3.new(0.4, 2, 2)
@@ -2353,12 +3702,12 @@ local function createMobModel(areaId, index, config)
 								tip.CanCollide = false
 								tip.CFrame = blade.CFrame * CFrame.new(0, -4.5, 0) * CFrame.Angles(math.rad(180), 0, 0)
 								tip.Parent = swordModel
-								
+
 								local w1 = Instance.new("WeldConstraint")
 								w1.Part0 = blade
 								w1.Part1 = tip
 								w1.Parent = blade
-								
+
 								local guard = Instance.new("Part")
 								guard.Name = "Guard"
 								guard.Size = Vector3.new(1.2, 0.6, 3.5)
@@ -2368,12 +3717,12 @@ local function createMobModel(areaId, index, config)
 								guard.CanCollide = false
 								guard.CFrame = blade.CFrame * CFrame.new(0, 3.5, 0)
 								guard.Parent = swordModel
-								
+
 								local w2 = Instance.new("WeldConstraint")
 								w2.Part0 = blade
 								w2.Part1 = guard
 								w2.Parent = blade
-								
+
 								local handle = Instance.new("Part")
 								handle.Name = "Handle"
 								handle.Shape = Enum.PartType.Cylinder
@@ -2384,19 +3733,19 @@ local function createMobModel(areaId, index, config)
 								handle.CanCollide = false
 								handle.CFrame = blade.CFrame * CFrame.new(0, 4.75, 0) * CFrame.Angles(0, 0, math.rad(90))
 								handle.Parent = swordModel
-								
+
 								local w3 = Instance.new("WeldConstraint")
 								w3.Part0 = blade
 								w3.Part1 = handle
 								w3.Parent = blade
-								
+
 								swordModel.PrimaryPart = blade
 								swordModel.Parent = workspace
-								
+
 								local fallTween = ts:Create(blade, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = CFrame.new(currentTargetPos.X, targetFloorY + 4, currentTargetPos.Z)})
 								fallTween:Play()
 								task.wait(0.2)
-								
+
 								-- 타격음
 								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 								local impactSound = sounds and sounds:FindFirstChild("Monster") and sounds.Monster:FindFirstChild("GhostKnight_SwordSwing")
@@ -2406,7 +3755,7 @@ local function createMobModel(areaId, index, config)
 									sfx:Play()
 									game.Debris:AddItem(sfx, 3)
 								end
-								
+
 								-- 데미지 판정
 								if isAlive then
 									for _, p in ipairs(Players:GetPlayers()) do
@@ -2424,7 +3773,7 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end
-								
+
 								task.spawn(function()
 									for _, v in ipairs(swordModel:GetChildren()) do
 										if v:IsA("BasePart") then
@@ -2436,24 +3785,24 @@ local function createMobModel(areaId, index, config)
 								end)
 							end
 							task.wait(1.0)
-							
+
 						-- 패턴 2: 묵직한 참격 (Melee Slam) - 사거리 이내
 						elseif distToPlayer <= MELEE_RANGE then
 							humanoid:MoveTo(hrp.Position)
 							if now - lastAttackTick >= meleeCooldown then
 								lastAttackTick = now
-								
+
 								-- 타겟을 향해 즉시 회전
 								local lookDir = (targetPlayerPos - hrp.Position)
 								lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 								if lookDir.Magnitude > 0.1 then
 									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 								end
-								
+
 								-- 원형 타격 예고 장판 생성
 								local atkRadius = MELEE_RANGE
 								local hitCenter = hrp.Position + (hrp.CFrame.LookVector * (atkRadius/3))
-								
+
 								-- [지형 판독 레이캐스트]: 스폰 고도가 달라지거나 울퉁불퉁한 지형에서도 장판이 완벽히 지면에 밀착하도록 동적 판독
 								local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 								local rayParams = RaycastParams.new()
@@ -2469,7 +3818,7 @@ local function createMobModel(areaId, index, config)
 								if rayResult then
 									floorY = rayResult.Position.Y + 0.2
 								end
-								
+
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "GhostKnightAtkTelegraph"
 								warnCircle.Shape = Enum.PartType.Cylinder
@@ -2481,13 +3830,13 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(255, 0, 0)
 								warnCircle.Transparency = 0.8
 								warnCircle.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(warnCircle, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								-- 1. 경고장판이 먼저 나타나고 0.8초간 유지 (전조 단계)
 								task.wait(0.8)
-								
+
 								-- 2. 0.8초 뒤 애니메이션 및 사운드, VFX 발동
 								local peMelee = Instance.new("ParticleEmitter")
 								peMelee.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -2499,7 +3848,7 @@ local function createMobModel(areaId, index, config)
 								peMelee.Lifetime = NumberRange.new(0.4, 0.7)
 								peMelee.EmissionDirection = Enum.NormalId.Top
 								peMelee.Parent = hrp
-								
+
 								local animator = humanoid:FindFirstChildOfClass("Animator")
 								local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
 								local attackAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("GhostKnight_Attack")
@@ -2507,7 +3856,7 @@ local function createMobModel(areaId, index, config)
 									local track = animator:LoadAnimation(attackAnim)
 									track:Play()
 								end
-								
+
 								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 								local attackSound = sounds and sounds:FindFirstChild("Monster") and sounds.Monster:FindFirstChild("GhostKnight_SwordSwing")
 								if attackSound then
@@ -2516,14 +3865,14 @@ local function createMobModel(areaId, index, config)
 									sfx:Play()
 									game.Debris:AddItem(sfx, 3)
 								end
-								
+
 								-- 3. 애니메이션이 끝나는 시점(타격 판정 순간)까지 0.5초 추가 대기
-								task.wait(0.5) 
-								
+								task.wait(0.5)
+
 								-- 4. 장판 삭제 및 데미지 적용
 								warnCircle:Destroy()
 								if peMelee then peMelee:Destroy() end
-								
+
 								if isAlive then
 									-- 실제 참격 데미지 판정
 									for _, p in ipairs(Players:GetPlayers()) do
@@ -2534,7 +3883,7 @@ local function createMobModel(areaId, index, config)
 											local dXZ = Vector3.new(pRoot.Position.X - hitCenter.X, 0, pRoot.Position.Z - hitCenter.Z).Magnitude
 											if dXZ <= atkRadius and math.abs(pRoot.Position.Y - hitCenter.Y) < 12 then
 												dealDamageToHumanoid(phum, 45) -- 평타 데미지 45
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -2560,10 +3909,10 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						-- 스크린샷 4개 꼭짓점 기준 산출한 정확한 보스방 중심 좌표
 						local centerPos = Vector3.new(1389.5, 500.0, 63.2)
-						
+
 						-- 천장 높이 실시간 감지 (보스방 천장으로 인한 끼임/충돌 방지 동적 예외 처리)
 						local maxCeilingHeight = 30
 						local ceilingRayParams = RaycastParams.new()
@@ -2574,13 +3923,13 @@ local function createMobModel(areaId, index, config)
 						if ceilingRay then
 							availableHeight = math.max(5, (ceilingRay.Position.Y - centerPos.Y) - 3)
 						end
-						
+
 						-- [대형 기믹 패턴 판단]: 평상시 30초, 체력 1만 이하의 Phase 2 돌입 시 15초 쿨타임으로 회폭 증가!
 						local gimmickCooldown = bfkPhase2Active and 15.0 or 30.0
 						if now - lastGimmickTick >= gimmickCooldown then
 							lastGimmickTick = now
 							humanoid:MoveTo(hrp.Position) -- 이동 정지
-							
+
 							-- [기믹 빈도 조율]: Phase 2(체력 1만 이하)일 경우 레이저(50%)와 파동(50%)을 동등한 빈도로 번갈아 출현시켜 긴장감 극대화!
 							local selectedGimmick = currentGimmickMode
 							if bfkPhase2Active then
@@ -2594,11 +3943,11 @@ local function createMobModel(areaId, index, config)
 							if selectedGimmick == 1 then
 								-- 기믹 1: 심연의 파동 (줄넘기 파동 기믹) - 정밀 밸런스 패치
 								currentGimmickMode = 2 -- 다음 기믹 번갈아가기
-								
+
 								-- 보스방 중심으로 즉시 텔레포트 및 정렬
 								hrp.CFrame = CFrame.new(centerPos + Vector3.new(0, 1.5, 0))
 								task.wait(0.3)
-								
+
 								-- [프리미엄 2초 전조 예고 장판] 거대한 레드 서클 생성하여 플레이어에게 회피 준비 유도!
 								local gWarnCircle = Instance.new("Part")
 								gWarnCircle.Name = "BFKWavePreTelegraph"
@@ -2612,10 +3961,10 @@ local function createMobModel(areaId, index, config)
 								gWarnCircle.Color = Color3.fromRGB(255, 0, 0) -- 위험 경고 RED
 								gWarnCircle.Transparency = 0.85
 								gWarnCircle.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(gWarnCircle, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.4}):Play()
-								
+
 								-- 1. 애니메이션 로드 및 재생 (전조 캐스팅 돌림)
 								pcall(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -2626,7 +3975,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 2. 사운드 재생 연동 (Pillar/Wave 전조 충격음)
 								pcall(function()
 									local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -2639,11 +3988,11 @@ local function createMobModel(areaId, index, config)
 										game:GetService("Debris"):AddItem(s, 5)
 									end
 								end)
-								
+
 								-- 2초 동안 충분히 예고하여 플레이어가 장판 인지 및 더블점프 준비를 완료하도록 함
 								task.wait(2.0)
 								gWarnCircle:Destroy()
-								
+
 								-- 3. 3단계 줄넘기 링 생성 및 확장 검사
 								task.spawn(function()
 									local waveColors = {
@@ -2651,14 +4000,14 @@ local function createMobModel(areaId, index, config)
 										Color3.fromRGB(0, 180, 255),
 										Color3.fromRGB(80, 220, 255)
 									}
-									
+
 									for step = 1, 3 do
 										if not isAlive then break end
-										
+
 										-- 엇박자 지연 전조 연출 (다음 링 준비 시간 확보)
 										task.wait(1.5)
 										if not isAlive then break end
-										
+
 										-- 지면 안착 링(고무줄 모양) 생성
 										local ringFloorPos = centerPos
 										local wavePart = Instance.new("Part")
@@ -2673,7 +4022,7 @@ local function createMobModel(areaId, index, config)
 										wavePart.CanCollide = false
 										wavePart.CanTouch = false
 										wavePart.Parent = workspace
-										
+
 										-- [VFX 비주얼 업그레이드]: 링 테두리 전체를 감싸고 확장되는 웅장한 푸른 불꽃 이미터 추가
 										local peRing = Instance.new("ParticleEmitter")
 										peRing.Name = "FlameRingEmitter"
@@ -2695,13 +4044,13 @@ local function createMobModel(areaId, index, config)
 										peRing.SpreadAngle = Vector2.new(10, 10) -- 링 형태 보존을 위해 확산각 억제
 										peRing.Rotation = NumberRange.new(0, 360)
 										peRing.RotSpeed = NumberRange.new(-120, 120)
-										
+
 										-- 실린더의 둘레 표면(Surface)에서만 뿜어나오도록 특수 형상 제어!
 										peRing.Shape = Enum.ParticleEmitterShape.Cylinder
 										peRing.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
 										peRing.EmissionDirection = Enum.NormalId.Top
 										peRing.Parent = wavePart
-										
+
 										-- [수정] 오리지널 원형(Cylinder) 로직으로 롤백하되, 속을 비우기 위해 Adornment 사용
 										local adornment = Instance.new("CylinderHandleAdornment")
 										adornment.Radius = 1
@@ -2714,50 +4063,50 @@ local function createMobModel(areaId, index, config)
 										-- [버그 수정] 실린더 베이스 파트의 원형 면(Y-Z)에 맞추기 위해 Adornment(Z축 연장)를 Y축 기준 90도 회전!
 										adornment.CFrame = CFrame.Angles(0, math.rad(90), 0)
 										adornment.Parent = wavePart
-										
+
 										-- 링 확장 및 데미지 검증 루프 (2.2초 동안 서서히 확장하여 직관적인 피하기 제공)
 										task.spawn(function()
 											local expTime = 2.2
 											local expStart = os.clock()
 											local hitPlayers = {} -- 이번 파동에 이미 맞은 플레이어 목록
-											
+
 											local ts = game:GetService("TweenService")
-											
+
 											-- 기존의 완벽한 원형 스케일링 로직 그대로 복구 (지름 60)
 											ts:Create(wavePart, TweenInfo.new(expTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
 												Size = Vector3.new(0.6, 60, 60)
 											}):Play()
-											
+
 											-- 테두리 링(고무줄)도 똑같이 확장
 											ts:Create(adornment, TweenInfo.new(expTime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
 												Radius = 30,
 												InnerRadius = 29.2, -- 0.8 두께의 얇은 링
 												Transparency = 1
 											}):Play()
-											
+
 											while os.clock() - expStart < expTime do
 												task.wait(0.04)
 												if not wavePart or not wavePart.Parent then break end
-												
+
 												-- 다시 원래의 원형 사이즈 기반 판정으로 복구
 												local currentRadius = (wavePart.Size.Y) / 2
-												
+
 												for _, p in ipairs(Players:GetPlayers()) do
 													local char = p.Character
 													local phum = char and char:FindFirstChild("Humanoid")
 													local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-													
+
 													if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
 														local dXZ = math.sqrt(math.pow(pRoot.Position.X - ringFloorPos.X, 2) + math.pow(pRoot.Position.Z - ringFloorPos.Z, 2))
 														-- 플레이어가 점프하지 않고 지면에 가깝게 붙어 있을 때 충격파 강타 (Y축 높이가 3 스터드 이내일 때)
 														local dY = pRoot.Position.Y - ringFloorPos.Y
-														
+
 														-- 정밀 마찰 판정 (오차 2.0 스터드 내로 좁히고 시인성 일치)
 														if dXZ >= (currentRadius - 2.5) and dXZ <= (currentRadius + 1.0) and dY < 3.2 then
 															hitPlayers[p.UserId] = true
 															dealDamageToHumanoid(phum, 180) -- 즉사급 데미지로 대폭 상향 (기믹 1)
 															print(string.format("[Gimmick 1 DEBUG] Player %s hit by WaveRing! Damage: 180", p.Name))
-															
+
 															-- 넉백 처리
 															local bounceDir = (pRoot.Position - ringFloorPos)
 															bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -2767,28 +4116,28 @@ local function createMobModel(areaId, index, config)
 													end
 												end
 											end
-											
+
 											wavePart:Destroy()
 										end)
 									end
 								end)
-								
+
 								-- 줄넘기 기믹 시전 동안 충분히 대기
 								task.wait(7.5)
-								
+
 							else
 								-- 기믹 2: 연소의 광선 (360도 지면 회전 레이저 기믹) - 정밀 밸런스 패치
 								currentGimmickMode = 1 -- 다음 기믹 번갈아가기
-								
+
 								-- 보스방 지면에 고정 (공중 부상 전면 제거)
 								hrp.CFrame = CFrame.new(centerPos + Vector3.new(0, 1.5, 0))
 								task.wait(0.3)
-								
+
 								-- [프리미엄 2.0초 레이저 시작점 예고선 생성] 빨간색 일직선 레일로 시전 방향 미리 경고!
 								local startAngle = 0
 								local startAngleRad = math.rad(startAngle)
 								local startDirection = Vector3.new(math.cos(startAngleRad), 0, math.sin(startAngleRad)).Unit
-								
+
 								local gWarnLine = Instance.new("Part")
 								gWarnLine.Name = "BFKLaserPreTelegraph"
 								gWarnLine.Size = Vector3.new(3, 0.3, 35)
@@ -2801,10 +4150,10 @@ local function createMobModel(areaId, index, config)
 								gWarnLine.Color = Color3.fromRGB(255, 0, 0) -- 경고 RED
 								gWarnLine.Transparency = 0.85
 								gWarnLine.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(gWarnLine, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.4}):Play()
-								
+
 								-- 1. 애니메이션 로드 및 재생
 								pcall(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -2815,7 +4164,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- [전조 단계] 2초 캐스팅 대기하는 동안 웅장하게 차징되는 기 모으기 사운드 재생
 								pcall(function()
 									local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -2828,11 +4177,11 @@ local function createMobModel(areaId, index, config)
 										game:GetService("Debris"):AddItem(s, 4)
 									end
 								end)
-								
+
 								-- 2.0초 충분히 대기하여 플레이어가 피할 시간 보장
 								task.wait(2.0)
 								gWarnLine:Destroy()
-								
+
 								-- [본 방출 단계] 레이저가 생성되어 회전을 개시하는 순간에 맞춰 지속 광선 방출 루프음 재생
 								pcall(function()
 									local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -2845,7 +4194,7 @@ local function createMobModel(areaId, index, config)
 										game:GetService("Debris"):AddItem(s, 6)
 									end
 								end)
-								
+
 								-- 3. 레이저 회전 빔 생성 및 360도 휩쓸기 검사
 								-- [비주얼 업그레이드]: 형광 사각 박스 제거 -> 이중 코어 플라즈마 원기둥 빔 + 일렉트릭 스파크 연출!
 								local laserPart = Instance.new("Part")
@@ -2885,40 +4234,40 @@ local function createMobModel(areaId, index, config)
 								peLaser.Lifetime = NumberRange.new(0.4, 0.8)
 								peLaser.ZOffset = 1
 								peLaser.Parent = laserPart
-								
+
 								local angle = 0
 								local laserDuration = 2.9 -- [속도 미세 조율] 조금 더 빠른 긴장감을 위해 지속시간 최적화 (1바퀴 회전)
 								local laserStart = os.clock()
 								local lastLaserHitTick = {} -- 플레이어 다단히트 방지
-								
+
 								while os.clock() - laserStart < laserDuration and isAlive do
 									-- [속도 미세 조율] 너무 느리지 않고 회피 쾌감을 주는 적절한 회전 속도(5.0도)로 상향 조정
-									angle = angle + 5.0 
+									angle = angle + 5.0
 									local angleRad = math.rad(angle)
-									
+
 									-- 지면에서 35스터드 사거리로 수평 레이저 조준
 									local laserDirection = Vector3.new(math.cos(angleRad), 0, math.sin(angleRad)).Unit
 									local beamLength = 35
-									
+
 									-- [버그수정] 로블록스 실린더는 X축 방향으로 연장되므로 X를 길이(beamLength)로 세팅하고 Y,Z를 구경으로 설정
 									laserPart.Size = Vector3.new(beamLength, 1.8, 1.8)
 									laserCore.Size = Vector3.new(beamLength, 0.7, 0.7)
-									
+
 									-- 지면 근처(높이 2.0스터드)에서 수평으로 레이저 휩쓸기 (점프로 회피 가능하도록 배치)
 									local startPoint = hrp.Position + Vector3.new(0, 0.5, 0)
 									local endPoint = startPoint + laserDirection * beamLength
-									
+
 									-- [중요] 실린더의 축방향(X)을 발사방향으로 일치시키기 위해 Y축으로 90도 강제 회전 각도 결합!
 									local lookCF = CFrame.lookAt(startPoint, endPoint) * CFrame.new(0, 0, -beamLength/2)
 									laserPart.CFrame = lookCF * CFrame.Angles(0, math.rad(90), 0)
 									laserCore.CFrame = laserPart.CFrame
-									
+
 									-- 레이저 궤적 접촉 검사
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot then
 											-- 1) height 검사 (점프하지 않은 지면 상태 판정)
 											local dY = pRoot.Position.Y - centerPos.Y
@@ -2927,7 +4276,7 @@ local function createMobModel(areaId, index, config)
 												local playerDir = (pRoot.Position - centerPos)
 												local playerDirXZ = Vector3.new(playerDir.X, 0, playerDir.Z)
 												local angleDiff = math.acos(math.clamp(playerDirXZ.Unit:Dot(laserDirection), -1, 1))
-												
+
 												-- 좁은 마찰 범위(약 12도 이내)이고 레이저 사거리 안일 때
 												if math.deg(angleDiff) < 12 and playerDirXZ.Magnitude <= 37 then
 													local uId = p.UserId
@@ -2937,7 +4286,7 @@ local function createMobModel(areaId, index, config)
 														lastLaserHitTick[uId] = nowHit
 														dealDamageToHumanoid(phum, 350) -- [데미지 즉사급 상향] 레이저 데미지 350
 														print(string.format("[Gimmick 2 DEBUG] Player %s hit by Laser! Damage: 350", p.Name))
-														
+
 														-- 경미한 Stun
 														local bounceDir = playerDirXZ.Unit
 														local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -2947,13 +4296,13 @@ local function createMobModel(areaId, index, config)
 											end
 										end
 									end
-									
+
 									task.wait(0.04)
 								end
-								
+
 								laserPart:Destroy()
 								if laserCore then laserCore:Destroy() end
-								
+
 								-- 보스를 정위치 대기
 								local ts = game:GetService("TweenService")
 								ts:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -2961,31 +4310,31 @@ local function createMobModel(areaId, index, config)
 								}):Play()
 								task.wait(0.6)
 							end
-							
+
 						else
 							--========================================================================
 							-- [일반 전투 패턴]: 찌르기, 도약 베기, 360도 회오리 베기, 기본 대검 참격
 							--========================================================================
-							
+
 							-- 우선순위 1: 3연속 투사체 회오리 (Whirlwind Tornado) (거리 <= 25, 쿨 12초)
 							if distToPlayer <= 25 and (now - lastWhirlwindTick >= 12.0) then
 								lastWhirlwindTick = now
 								humanoid:MoveTo(hrp.Position) -- 정지
-								
+
 								-- [버그 수정] 보스방 바닥 500.2 고정
 								local floorY = 500.2
-								
+
 								-- 3회 연속 발사 루프
 								for i = 1, 3 do
 									if not isAlive then break end
-									
+
 									-- 1. 타겟 방향으로 즉시 회전
 									local lookDir = (phrp.Position - hrp.Position)
 									lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 									if lookDir.Magnitude > 0.1 then
 										hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 									end
-									
+
 									-- 2. 전조 장판 생성 (길이 60, 너비 8 직사각형)
 									local tornadoLength = 60
 									local tornadoWidth = 8
@@ -3000,15 +4349,15 @@ local function createMobModel(areaId, index, config)
 									warnLine.Color = Color3.fromRGB(255, 0, 0)
 									warnLine.Transparency = 0.85
 									warnLine.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									ts:Create(warnLine, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-									
+
 									-- 0.8초 대기
 									task.wait(0.8)
 									if warnLine then warnLine:Destroy() end
 									if not isAlive then break end
-									
+
 									-- 3. 애니메이션 및 신규 회오리 사운드 재생
 									pcall(function()
 										local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -3016,13 +4365,13 @@ local function createMobModel(areaId, index, config)
 										local spinAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BlueFlameKnight_Whirlwind")
 										if animator and spinAnim then
 											local track = animator:LoadAnimation(spinAnim)
-											if track then 
+											if track then
 												track.Looped = false
-												track:Play() 
+												track:Play()
 											end
 										end
 									end)
-									
+
 									pcall(function()
 										local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 										local monsterSounds = soundRoot and soundRoot:FindFirstChild("Monster")
@@ -3034,7 +4383,7 @@ local function createMobModel(areaId, index, config)
 											game:GetService("Debris"):AddItem(s, 2)
 										end
 									end)
-									
+
 									-- 4. 실제 회오리 투사체 파트 생성 (가시적인 기둥 제거 + 이중 폭풍/스파크 파티클 연출)
 									-- [비주얼 업그레이드]: 딱딱한 푸른색 실린더는 Transparency = 1로 감춰서 완전히 투명화!
 									local tornadoHeight = 12
@@ -3051,7 +4400,7 @@ local function createMobModel(areaId, index, config)
 									tornado.Color = Color3.fromRGB(0, 150, 255)
 									tornado.Transparency = 1.0 -- [비주얼 교정] 실린더 지우고 파티클만 보이게 강제!
 									tornado.Parent = workspace
-									
+
 									-- 1층 레이어: 휘몰아치는 가스 폭풍
 									local pe = Instance.new("ParticleEmitter")
 									pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -3098,38 +4447,38 @@ local function createMobModel(areaId, index, config)
 									peSparks.ZOffset = 1.5
 									peSparks.EmissionDirection = Enum.NormalId.Right
 									peSparks.Parent = tornado
-									
+
 									-- 5. 회오리 전진시키기 (Tween)
 									local endPos = hrp.Position + (hrp.CFrame.LookVector * tornadoLength)
 									local endCFrame = CFrame.new(endPos.X, floorY + (tornadoHeight/2), endPos.Z) * CFrame.Angles(0, 0, math.rad(90))
-									
+
 									local tornadoMove = ts:Create(tornado, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {CFrame = endCFrame})
 									tornadoMove:Play()
-									
+
 									-- 6. 이동 중 데미지 판정 (1.5초 동안 지속)
 									local moveTime = 1.5
 									local fwdDir = hrp.CFrame.LookVector
-									
+
 									task.spawn(function()
 										local elapsed = 0
 										local hitPlayers = {} -- 중복 타격 방지 기록
-										
+
 										while elapsed < moveTime and isAlive and tornado and tornado.Parent do
 											local dt = task.wait(0.1)
 											elapsed = elapsed + dt
-											
+
 											local tPos = tornado.Position
 											for _, p in ipairs(Players:GetPlayers()) do
 												local char = p.Character
 												local phum = char and char:FindFirstChild("Humanoid")
 												local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-												
+
 												if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
 													local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(tPos.X, 0, tPos.Z)).Magnitude
 													if dist <= (tornadoWidth/2 + 2) and math.abs(pRoot.Position.Y - tPos.Y) < 15 then
 														hitPlayers[p.UserId] = true
 														dealDamageToHumanoid(phum, 250) -- 회오리 데미지 대폭 상향
-														
+
 														local hitPlayer = Players:GetPlayerFromCharacter(char)
 														if hitPlayer then
 															local NetController = require(ServerScriptService.Server.Controllers.NetController)
@@ -3141,16 +4490,16 @@ local function createMobModel(areaId, index, config)
 										end
 										if tornado then tornado:Destroy() end
 									end)
-									
+
 									-- 다음 투사체 발사까지 애니메이션 모션 대기 (0.7초)
 									task.wait(0.7)
 								end
-								
+
 							-- 우선순위 2: 심연의 약진 (Leap Slam) - 플레이어가 너무 멀 때 진형 파괴 접근 (거리 >= 18, 쿨 12초) [Phase 2에서는 미사용]
 							elseif not bfkPhase2Active and distToPlayer >= 18 and (now - lastLeapSlamTick >= 12.0) then
 								lastLeapSlamTick = now
 								humanoid:MoveTo(hrp.Position)
-								
+
 								-- 1. 도약베기 애니메이션 로드 및 재생
 								pcall(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -3158,38 +4507,38 @@ local function createMobModel(areaId, index, config)
 									local leapAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BlueFlameKnight_LeapSlam")
 									if animator and leapAnim then
 										local track = animator:LoadAnimation(leapAnim)
-										if track then 
+										if track then
 											track.Looped = false
-											track:Play() 
+											track:Play()
 										end
 									end
 								end)
-								
+
 								local targetLandPos = phrp.Position
 								local telegraphRadius = 14
 								local ts = game:GetService("TweenService")
-								
+
 								-- 도약 (하늘로 솟구침)
 								local leapUpHeight = math.min(20, availableHeight)
 								hrp.Anchored = true -- [버그 수정] 중력에 밀려 떨어지지 않도록 공중에서 완전히 고정시킴
-								
+
 								local leapUp = ts:Create(hrp, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 									CFrame = CFrame.new(hrp.Position + Vector3.new(0, leapUpHeight, 0))
 								})
 								leapUp:Play()
 								task.wait(0.4)
-								
-								if not isAlive then 
-									hrp.Anchored = false 
-									break 
+
+								if not isAlive then
+									hrp.Anchored = false
+									break
 								end
-								
+
 								-- 공중에 체공한 상태에서 플레이어 낙하지점 바닥에 경고 장판 생성
 								targetLandPos = (phrp and phrp.Parent) and phrp.Position or targetLandPos
-								
+
 								-- [버그 수정] 보스방 지면은 정확히 500.0이므로 장판을 500.2에 밀착 생성!
 								local floorY = 500.2
-								
+
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "BFKLeapTelegraph"
 								warnCircle.Shape = Enum.PartType.Cylinder
@@ -3202,27 +4551,27 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(255, 0, 0)
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								-- 1.0초 체공 대기 (회피 시간 제공)
 								task.wait(1.0)
 								if warnCircle then warnCircle:Destroy() end
-								
-								if not isAlive then 
-									hrp.Anchored = false 
-									break 
+
+								if not isAlive then
+									hrp.Anchored = false
+									break
 								end
-								
+
 								-- 경고 장판 위치로 급강하 내리치기
 								local leapDown = ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									CFrame = CFrame.new(targetLandPos.X, 500.0 + groundOffset, targetLandPos.Z)
 								})
 								leapDown:Play()
 								task.wait(0.2)
-								
+
 								hrp.Anchored = false -- 착지 완료 후 다시 물리 활성화
-								
+
 								-- [추가] 지면 강타 이펙트 (돌 파편 튕김)
 								local impactFloorPos = Vector3.new(targetLandPos.X, 500.0, targetLandPos.Z)
 								for i = 1, 12 do
@@ -3236,7 +4585,7 @@ local function createMobModel(areaId, index, config)
 									rock.CanCollide = true -- 바닥에 튕기도록
 									rock.Parent = workspace
 									game:GetService("Debris"):AddItem(rock, math.random(15, 25) / 10) -- 1.5 ~ 2.5초 후 제거
-								end								
+								end
 								-- 착지 강타 대폭발 (지름 14스터드)
 								if isAlive then
 									-- 도약 대폭발 강타 데미지 사운드 재생
@@ -3251,7 +4600,7 @@ local function createMobModel(areaId, index, config)
 											game:GetService("Debris"):AddItem(s, 2)
 										end
 									end)
-									
+
 									local exp = Instance.new("Explosion")
 									exp.BlastRadius = telegraphRadius
 									exp.BlastPressure = 0
@@ -3259,7 +4608,7 @@ local function createMobModel(areaId, index, config)
 									exp.ExplosionType = Enum.ExplosionType.NoCraters
 									exp.Visible = false
 									exp.Parent = workspace
-									
+
 									-- 데미지 판정
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
@@ -3270,7 +4619,7 @@ local function createMobModel(areaId, index, config)
 											local dXZ = Vector3.new(pRoot.Position.X - targetLandPos.X, 0, pRoot.Position.Z - targetLandPos.Z).Magnitude
 											if dXZ <= telegraphRadius and math.abs(pRoot.Position.Y - targetLandPos.Y) < 15 then
 												dealDamageToHumanoid(phum, 350) -- 도약 강타 즉사급 데미지로 상향
-												
+
 												-- 넉백
 												local bounceDir = (pRoot.Position - targetLandPos)
 												bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -3283,19 +4632,19 @@ local function createMobModel(areaId, index, config)
 								-- [버그 수정] 넘어진 상태에서 즉시 다른 패턴(찌르기 등)을 이어서 쓰는 현상 방지
 								-- 착지 후 일어나는 애니메이션(약 3.5초) 동안 완전히 대기하여 유저에게 프리딜 타임(Free DPS) 부여!
 								task.wait(3.5)
-								
+
 							-- 우선순위 3: 염화의 찌르기 (Fiery Thrust) - 미드 레인지 카이팅 플레이어 예리한 찌르기 (거리 10~18, 쿨 6초)
 							elseif distToPlayer >= 10 and distToPlayer <= 18 and (now - lastThrustTick >= 6.0) then
 								lastThrustTick = now
 								humanoid:MoveTo(hrp.Position)
-								
+
 								-- 타겟을 향해 즉시 회전 정렬
 								local lookDir = (phrp.Position - hrp.Position)
 								lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 								if lookDir.Magnitude > 0.1 then
 									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 								end
-								
+
 								-- [추가] 찌르기 전방 직사각형 장판 생성 (길이 18, 너비 6)
 								local thrustLength = 18
 								local thrustWidth = 6
@@ -3312,16 +4661,16 @@ local function createMobModel(areaId, index, config)
 								warnLine.Color = Color3.fromRGB(255, 0, 0)
 								warnLine.Transparency = 0.85
 								warnLine.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(warnLine, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								-- 1.0초 대기 (회피 시간 제공)
 								task.wait(1.0)
 								if warnLine then warnLine:Destroy() end
-								
+
 								if not isAlive then break end
-								
+
 								-- 1. 애니메이션 재생
 								local animDuration = 1.0
 								pcall(function()
@@ -3330,14 +4679,14 @@ local function createMobModel(areaId, index, config)
 									local thrustAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BlueFlameKnight_Thrust")
 									if animator and thrustAnim then
 										local track = animator:LoadAnimation(thrustAnim)
-										if track then 
+										if track then
 											track.Looped = false
-											track:Play() 
+											track:Play()
 											if track.Length > 0 then animDuration = track.Length end
 										end
 									end
 								end)
-								
+
 								-- 2. 신규 참격 효과음 재생
 								pcall(function()
 									local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -3350,10 +4699,10 @@ local function createMobModel(areaId, index, config)
 										game:GetService("Debris"):AddItem(s, 2)
 									end
 								end)
-								
+
 								-- [버그수정] 찌르기는 타격점이 애니메이션 중간(0.5초)이므로 애니메이션 전체 길이가 아닌 하드코딩 타이밍 사용
 								task.wait(0.5)
-								
+
 								if isAlive then
 									local fwd = hrp.CFrame.LookVector
 									local startPos = hrp.Position
@@ -3365,7 +4714,7 @@ local function createMobModel(areaId, index, config)
 											local pDir = pRoot.Position - startPos
 											local forwardDist = fwd:Dot(pDir)
 											local rightDist = hrp.CFrame.RightVector:Dot(pDir)
-											
+
 											-- 전방 0~18 스터드 안쪽, 좌우폭 3스터드(총 너비 6) 안쪽일 경우 적중
 											if forwardDist > 0 and forwardDist <= thrustLength and math.abs(rightDist) <= thrustWidth/2 and math.abs(pRoot.Position.Y - hrp.Position.Y) < 10 then
 												dealDamageToHumanoid(phum, 300) -- 찌르기 데미지 대폭 상향
@@ -3379,27 +4728,27 @@ local function createMobModel(areaId, index, config)
 									end
 								end
 								task.wait(0.2) -- 짧은 후딜레이
-								
+
 							-- 우선순위 4: 기본 대검 단일 공격 (Attack) - 근접 평타 베기 (거리 <= 8, 쿨 2.0초)
 							elseif distToPlayer <= 8 then
 								humanoid:MoveTo(hrp.Position) -- 정지
-								
+
 								local meleeCooldown = config.attackCooldown or 2.0
 								if now - lastAttackTick >= meleeCooldown then
 									lastAttackTick = now
-									
+
 									-- 플레이어 방향으로 즉시 회전 정렬
 									local lookDir = (phrp.Position - hrp.Position)
 									lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 									if lookDir.Magnitude > 0.1 then
 										hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 									end
-									
+
 									-- [추가] 기본 평타 전방 원형 장판 (반경 11스터드) 생성
 									local atkRadius = 11
 									-- [버그 수정] 보스방 바닥 500.2 고정
 									local floorY = 500.2
-									
+
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "BFKAtkTelegraph"
 									warnCircle.Shape = Enum.PartType.Cylinder
@@ -3413,16 +4762,16 @@ local function createMobModel(areaId, index, config)
 									warnCircle.Color = Color3.fromRGB(255, 0, 0)
 									warnCircle.Transparency = 0.85
 									warnCircle.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									ts:Create(warnCircle, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-									
+
 									-- 0.8초 대기 (회피 시간 부여)
 									task.wait(0.8)
 									if warnCircle then warnCircle:Destroy() end
-									
+
 									if not isAlive then break end
-									
+
 									-- 1. 애니메이션 재생
 									local animDuration = 1.0
 									pcall(function()
@@ -3431,14 +4780,14 @@ local function createMobModel(areaId, index, config)
 										local atkAnim = anims and anims:FindFirstChild("Monster") and anims.Monster:FindFirstChild("BlueFlameKnight_Attack")
 										if animator and atkAnim then
 											local track = animator:LoadAnimation(atkAnim)
-											if track then 
+											if track then
 												track.Looped = false
-												track:Play() 
+												track:Play()
 												if track.Length > 0 then animDuration = track.Length end
 											end
 										end
 									end)
-									
+
 									-- 2. 신규 참격 효과음 재생
 									pcall(function()
 										local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -3451,10 +4800,10 @@ local function createMobModel(areaId, index, config)
 											game:GetService("Debris"):AddItem(s, 2)
 										end
 									end)
-									
+
 									-- [버그수정] 평타는 타격점이 애니메이션 중간(0.35초)이므로 하드코딩 타이밍 사용
 									task.wait(0.35)
-									
+
 									if isAlive then
 										for _, p in ipairs(Players:GetPlayers()) do
 											local char = p.Character
@@ -3478,7 +4827,7 @@ local function createMobModel(areaId, index, config)
 									end
 									task.wait(0.2) -- 짧은 후딜레이
 								end
-								
+
 							-- 추격 상태
 							else
 								humanoid:MoveTo(targetPlayerPos)
@@ -3493,14 +4842,14 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						local CAST_RANGE_MAX = 50
 						local castCooldown = config.attackCooldown or 3.0
-						
+
 						if distToPlayer <= CAST_RANGE_MAX and (now - (model:GetAttribute("LastCastTick") or 0) >= castCooldown) then
 							model:SetAttribute("LastCastTick", now)
 							humanoid:MoveTo(currentPos)
-							
+
 							-- 타겟을 향해 즉시 회전
 							local lookDir = (targetPlayerPos - currentPos)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
@@ -3527,7 +4876,7 @@ local function createMobModel(areaId, index, config)
 								sfx:Play()
 								game.Debris:AddItem(sfx, 3)
 							end
-							
+
 							-- 캐스팅 애니메이션 재생 (속성별 애니메이션)
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -3538,14 +4887,14 @@ local function createMobModel(areaId, index, config)
 									if track then track:Play() end
 								end
 							end)
-							
+
 							task.wait(0.5) -- 캐스팅 딜레이
 							if not isAlive then return end
-							
+
 							-- 타겟 바닥 찾기
 							local currentTargetPos = targetPlayerPos
 							if phrp and phrp.Parent then currentTargetPos = phrp.Position end
-							
+
 							local targetFloorY = currentTargetPos.Y - 2.5
 							local rayParams = RaycastParams.new()
 							rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -3559,7 +4908,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								targetFloorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							if elementType == 1 then
 								-- [불 속성]: 메테오 낙하 (불도마뱀 스타일 리팩터링)
 								local warnCircle = Instance.new("Part")
@@ -3573,12 +4922,12 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = elementColor
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								local castStartTime = os.clock()
 								local telegraphDuration = 0.8
 								local ts = game:GetService("TweenService")
 								ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-								
+
 								-- 캐스팅 동안 플레이어 방향으로 실시간 회전 정렬 (불도마뱀 방식)
 								while os.clock() - castStartTime < telegraphDuration and isAlive do
 									if phrp and phrp.Parent then
@@ -3590,9 +4939,9 @@ local function createMobModel(areaId, index, config)
 									end
 									task.wait(0.05)
 								end
-								
+
 								warnCircle:Destroy()
-								
+
 								if isAlive then
 									-- 단일 원형 운석(Meteor) 생성 (불도마뱀 이펙트 동일)
 									local meteor = Instance.new("Part")
@@ -3605,7 +4954,7 @@ local function createMobModel(areaId, index, config)
 									meteor.CanCollide = false
 									meteor.Position = Vector3.new(currentTargetPos.X, targetFloorY + 25, currentTargetPos.Z)
 									meteor.Parent = workspace
-									
+
 									local attackPos = Vector3.new(currentTargetPos.X, targetFloorY, currentTargetPos.Z)
 									local fallTime = 0.35
 									local fallTween = ts:Create(meteor, TweenInfo.new(fallTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -3613,9 +4962,9 @@ local function createMobModel(areaId, index, config)
 									})
 									fallTween:Play()
 									task.wait(fallTime)
-									
+
 									meteor:Destroy()
-									
+
 									-- 타격음
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 									local impactSound = sounds and sounds:FindFirstChild("Monster") and sounds.Monster:FindFirstChild("GhostWizard_MeteorImpact")
@@ -3626,13 +4975,13 @@ local function createMobModel(areaId, index, config)
 										soundPart.Transparency = 1
 										soundPart.CFrame = CFrame.new(attackPos)
 										soundPart.Parent = workspace
-										
+
 										local sfx = impactSound:Clone()
 										sfx.Parent = soundPart
 										sfx:Play()
 										game.Debris:AddItem(soundPart, 3)
 									end
-									
+
 									if isAlive then
 										-- Explosion 오브젝트 생성 (기본 폭발 이펙트 보이게 함)
 										local exp = Instance.new("Explosion")
@@ -3641,23 +4990,23 @@ local function createMobModel(areaId, index, config)
 										exp.Position = attackPos
 										exp.ExplosionType = Enum.ExplosionType.NoCraters
 										exp.Parent = workspace
-										
+
 										-- 데미지 판정 및 플래시
 										for _, p in ipairs(Players:GetPlayers()) do
 											local char = p.Character
 											local phum = char and char:FindFirstChild("Humanoid")
 											local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-											
+
 											if phum and phum.Health > 0 and pRoot then
 												local dist = (pRoot.Position - attackPos).Magnitude
 												if dist <= 8 then
 													dealDamageToHumanoid(phum, config.baseDamage)
-													
+
 													local bounceDir = (pRoot.Position - attackPos)
 													bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
 													local NetController = require(ServerScriptService.Server.Controllers.NetController)
 													NetController.FireClient(p, "Player.Stun", bounceDir * 1.3)
-													
+
 													task.spawn(function()
 														local highlight = Instance.new("Highlight")
 														highlight.Name = "DamageFlash"
@@ -3681,7 +5030,7 @@ local function createMobModel(areaId, index, config)
 								local pDuration = 6.0
 								local pRadius = 10.0
 								local pDamage = config.baseDamage * 0.5 -- 틱당 데미지
-								
+
 								-- 장판(Telegraph) 생성
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "WizardFogTelegraph"
@@ -3694,15 +5043,15 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = elementColor
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
-								
+
 								local ts = game:GetService("TweenService")
 								ts:Create(warnCircle, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
 								task.wait(0.6)
 								warnCircle:Destroy()
-								
+
 								if isAlive then
 									local cloudFloorPos = Vector3.new(currentTargetPos.X, targetFloorY, currentTargetPos.Z)
-									
+
 									local cloud = Instance.new("Part")
 									cloud.Name = "DarkFogCloud"
 									cloud.Shape = Enum.PartType.Cylinder
@@ -3714,7 +5063,7 @@ local function createMobModel(areaId, index, config)
 									cloud.Color = elementColor
 									cloud.Transparency = 0.85
 									cloud.Parent = workspace
-									
+
 									local pe = Instance.new("ParticleEmitter")
 									pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
 									pe.Color = ColorSequence.new(elementColor, Color3.fromRGB(80, 0, 150))
@@ -3731,12 +5080,12 @@ local function createMobModel(areaId, index, config)
 									pe.Shape = Enum.ParticleEmitterShape.Cylinder
 									pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
 									pe.Parent = cloud
-									
+
 									task.spawn(function()
 										local ticks = math.floor(pDuration)
 										for i = 1, ticks do
 											if not cloud or not cloud.Parent then break end
-											
+
 											for _, p in ipairs(Players:GetPlayers()) do
 												local char = p.Character
 												local phum = char and char:FindFirstChild("Humanoid")
@@ -3758,10 +5107,10 @@ local function createMobModel(areaId, index, config)
 													end
 												end
 											end
-											
+
 											task.wait(1.0)
 										end
-										
+
 									end)
 								end
 							end
@@ -3776,25 +5125,25 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						-- 1. 발도 돌진 참격 (Iaido Dash Cut): 거리 15 ~ 35, 쿨타임 8.0초
 						if distToPlayer >= 15 and distToPlayer <= 35 and (now - lastThrustTick >= 8.0) then
 							lastThrustTick = now
 							humanoid:MoveTo(hrp.Position) -- 이동 정지
-							
+
 							-- 타겟 방향으로 회전
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							-- 전방 직사각형 예고 장판 생성 (길이 25, 너비 8)
 							local chargeLength = 25
 							local chargeWidth = 8
 							local wcf = hrp.CFrame * CFrame.new(0, 0, -chargeLength/2)
 							local telegraphPos = wcf.Position
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -3809,7 +5158,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							local warnLine = Instance.new("Part")
 							warnLine.Name = "SamuraiDashTelegraph"
 							warnLine.Size = Vector3.new(chargeWidth, 0.4, chargeLength)
@@ -3820,14 +5169,14 @@ local function createMobModel(areaId, index, config)
 							warnLine.Color = Color3.fromRGB(255, 0, 0)
 							warnLine.Transparency = 0.8
 							warnLine.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnLine, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.35}):Play()
-							
+
 							-- 1.0초간 경고 장판 유지
 							task.wait(1.0)
 							warnLine:Destroy()
-							
+
 							if isAlive then
 								-- 돌진 애니메이션
 								pcall(function()
@@ -3839,7 +5188,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 돌진 사운드
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -3852,7 +5201,7 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								-- [대쉬 이펙트] 고속 잔상 및 적/흑 참격 기류 트레일
 								local peDash = Instance.new("ParticleEmitter")
 								peDash.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -3872,7 +5221,7 @@ local function createMobModel(areaId, index, config)
 								peDash.Lifetime = NumberRange.new(0.3, 0.5)
 								peDash.EmissionDirection = Enum.NormalId.Back
 								peDash.Parent = hrp
-								
+
 								-- 0.25초 동안 대상 위치로 빠르게 슬라이드 돌진 (Tween)
 								local fwd = hrp.CFrame.LookVector
 								local targetLand = hrp.Position + fwd * chargeLength
@@ -3881,31 +5230,31 @@ local function createMobModel(areaId, index, config)
 									CFrame = CFrame.lookAt(targetLand, targetLand + fwd)
 								})
 								slideTween:Play()
-								
+
 								-- 돌진 경로 상 플레이어 타격
 								local elapsed = 0
 								local hitPlayers = {}
 								local startPos = hrp.Position
-								
+
 								while elapsed < slideTime and isAlive do
 									local dt = task.wait(0.04)
 									elapsed = elapsed + dt
-									
+
 									local currentHrpPos = hrp.Position
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
 											local pDir = pRoot.Position - startPos
 											local forwardDist = fwd:Dot(pDir)
 											local rightDist = hrp.CFrame.RightVector:Dot(pDir)
-											
+
 											if forwardDist > 0 and forwardDist <= chargeLength + 3 and math.abs(rightDist) <= chargeWidth/2 + 1 and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 												hitPlayers[p.UserId] = true
 												dealDamageToHumanoid(phum, 80) -- Iaido Dash Cut: 80 damage
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -3918,22 +5267,22 @@ local function createMobModel(areaId, index, config)
 								if peDash then peDash:Destroy() end
 							end
 							task.wait(0.5) -- 돌진 후 딜레이
-							
+
 						-- 2. 벚꽃 회오리 광역 참격 (Cherry Blossom Whirlwind Slash): 거리 18 이하, 쿨타임 12.0초
 						elseif distToPlayer <= 18 and (now - lastWhirlwindTick >= 12.0) then
 							lastWhirlwindTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 회전 정렬
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							local telegraphRadius = 20
 							local hitCenter = hrp.Position
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -3948,7 +5297,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							-- 빨간색 원형 예고 장판 생성 (매우 얇은 경고선 형태)
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "SamuraiSpecialTelegraph"
@@ -3961,14 +5310,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(255, 0, 0)
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-							
+
 							-- 1.2초 대기
 							task.wait(1.2)
 							warnCircle:Destroy()
-							
+
 							if isAlive then
 								-- 애니메이션 재생
 								pcall(function()
@@ -3980,7 +5329,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 벚꽃 스페셜 사운드
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -3993,12 +5342,12 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								-- 적/흑 참격 폭풍 비주얼 (네모난 종이 형태 제거 ➔ 가느다란 검기 선들이 끊임없이 플래시하며 난도질 연출)
 								local whirlwindModel = Instance.new("Model")
 								whirlwindModel.Name = "SamuraiWhirlwind"
 								whirlwindModel.Parent = workspace
-								
+
 								-- 고속 회전 적/흑 참격 바람 파티클 (시전자 중심)
 								local peWind = Instance.new("ParticleEmitter")
 								peWind.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -4022,7 +5371,7 @@ local function createMobModel(areaId, index, config)
 								peWind.RotSpeed = NumberRange.new(900, 1400)
 								peWind.EmissionDirection = Enum.NormalId.Top
 								peWind.Parent = hrp
-								
+
 								-- 흩날리는 어두운 적색 불꽃 스파크
 								local peBlossom = Instance.new("ParticleEmitter")
 								peBlossom.Texture = "rbxasset://textures/particles/sparkles_main.dds"
@@ -4036,11 +5385,11 @@ local function createMobModel(areaId, index, config)
 								peBlossom.SpreadAngle = Vector2.new(360, 360)
 								peBlossom.Lifetime = NumberRange.new(0.6, 1.0)
 								peBlossom.Parent = hrp
-								
+
 								-- 1.5초 동안 비주얼 스레드 실행
 								local duration = 1.5
 								local startVal = os.clock()
-								
+
 								task.spawn(function()
 									while os.clock() - startVal < duration and isAlive do
 										-- 프레임마다 여러 개의 가느다란 참격 선(Line) 생성
@@ -4056,23 +5405,23 @@ local function createMobModel(areaId, index, config)
 											blade.Anchored = true
 											blade.CanCollide = false
 											blade.Parent = whirlwindModel
-											
+
 											-- 시전자 주변 반경 20 studs 내 무작위 위치 및 임의의 3D 방향 설정
 											local radius = math.random(2, 20)
 											local angle = math.random() * math.pi * 2
 											local offsetX = math.cos(angle) * radius
 											local offsetZ = math.sin(angle) * radius
 											local randomY = floorY + math.random(1, 8)
-											
+
 											local centerPos = hrp.Position + Vector3.new(offsetX, randomY - hrp.Position.Y, offsetZ)
-											
+
 											-- 임의의 3D 회전 적용
 											blade.CFrame = CFrame.new(centerPos) * CFrame.Angles(
 												math.random() * math.pi,
 												math.random() * math.pi,
 												math.random() * math.pi
 											)
-											
+
 											-- 빠르게 페이드 아웃시키고 삭제
 											task.spawn(function()
 												local tInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -4087,29 +5436,29 @@ local function createMobModel(areaId, index, config)
 										end
 										task.wait(0.05) -- 매우 빠르게 생성 주기 반복 (영화의 난도질 기법 연출)
 									end
-									
+
 									if peWind then peWind:Destroy() end
 									if peBlossom then peBlossom:Destroy() end
 									whirlwindModel:Destroy()
 								end)
-								
+
 								-- 다단 참격 데미지 판정 (0.3초 간격 총 4회 타격, 각 20 데미지 = 총 80 데미지)
 								task.spawn(function()
 									for tick = 1, 4 do
 										task.wait(0.3)
 										if not isAlive then break end
-										
+
 										local currentHrpPos = hrp.Position
 										for _, p in ipairs(Players:GetPlayers()) do
 											local char = p.Character
 											local phum = char and char:FindFirstChild("Humanoid")
 											local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-											
+
 											if phum and phum.Health > 0 and pRoot then
 												local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(currentHrpPos.X, 0, currentHrpPos.Z)).Magnitude
 												if dist <= telegraphRadius and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 													dealDamageToHumanoid(phum, 20)
-													
+
 													local hitPlayer = Players:GetPlayerFromCharacter(char)
 													if hitPlayer then
 														local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -4124,22 +5473,22 @@ local function createMobModel(areaId, index, config)
 								end)
 							end
 							task.wait(1.5) -- 후딜레이
-							
+
 						-- 3. 기본 참격 평타 (Standard Melee Attack): 사거리 9 이내, 쿨타임 2.0초
 						elseif distToPlayer <= 9 and (now - lastAttackTick >= 2.0) then
 							lastAttackTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 회전 정렬
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							local atkRadius = 9
 							local hitCenter = hrp.Position + (hrp.CFrame.LookVector * (atkRadius/3))
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -4154,7 +5503,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "SamuraiAtkTelegraph"
 							warnCircle.Shape = Enum.PartType.Cylinder
@@ -4166,14 +5515,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(255, 0, 0)
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-							
+
 							-- 0.8초 대기
 							task.wait(0.8)
 							warnCircle:Destroy()
-							
+
 							if isAlive then
 								-- 애니메이션 재생
 								pcall(function()
@@ -4185,7 +5534,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 평타 사운드 재생
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -4198,9 +5547,9 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								task.wait(0.3) -- 베는 연출 대기
-								
+
 								if isAlive then
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
@@ -4210,7 +5559,7 @@ local function createMobModel(areaId, index, config)
 											local dXZ = Vector3.new(pRoot.Position.X - hitCenter.X, 0, pRoot.Position.Z - hitCenter.Z).Magnitude
 											if dXZ <= atkRadius and math.abs(pRoot.Position.Y - hitCenter.Y) < 12 then
 												dealDamageToHumanoid(phum, 50) -- Standard Attack: 50 damage
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -4224,7 +5573,7 @@ local function createMobModel(areaId, index, config)
 								end
 							end
 							task.wait(0.4)
-							
+
 						-- 4. 추격 상태
 						else
 							humanoid:MoveTo(targetPlayerPos)
@@ -4238,7 +5587,7 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						-- Helper function to spawn a beautiful rising ice spike
 						local function spawnIceSpike(pos, floorY)
 							local spike = Instance.new("Part")
@@ -4249,25 +5598,25 @@ local function createMobModel(areaId, index, config)
 							spike.Transparency = 0.5
 							spike.Anchored = true
 							spike.CanCollide = false
-							
+
 							spike.CFrame = CFrame.new(pos.X, floorY, pos.Z) * CFrame.Angles(
 								math.rad(math.random(-20, 20)),
 								math.rad(math.random(0, 360)),
 								math.rad(math.random(-20, 20))
 							)
 							spike.Parent = workspace
-							
+
 							local targetHeight = math.random(5, 10)
 							local targetSize = Vector3.new(1.8, targetHeight, 1.8)
 							local targetCF = spike.CFrame * CFrame.new(0, targetHeight/2, 0)
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(spike, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 								Size = targetSize,
 								CFrame = targetCF,
 								Transparency = 0.2
 							}):Play()
-							
+
 							task.spawn(function()
 								task.wait(0.8)
 								local fade = ts:Create(spike, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -4284,20 +5633,20 @@ local function createMobModel(areaId, index, config)
 						if distToPlayer >= 15 and distToPlayer <= 30 and (now - lastThrustTick >= 9.0) then
 							lastThrustTick = now
 							humanoid:MoveTo(hrp.Position) -- 이동 정지
-							
+
 							-- 타겟 방향으로 회전
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							-- 전방 직사각형 예고 장판 생성 (길이 25, 너비 8)
 							local chargeLength = 25
 							local chargeWidth = 8
 							local wcf = hrp.CFrame * CFrame.new(0, 0, -chargeLength/2)
 							local telegraphPos = wcf.Position
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -4313,7 +5662,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							local warnLine = Instance.new("Part")
 							warnLine.Name = "IceKnightDashTelegraph"
 							warnLine.Size = Vector3.new(chargeWidth, 0.4, chargeLength)
@@ -4324,14 +5673,14 @@ local function createMobModel(areaId, index, config)
 							warnLine.Color = Color3.fromRGB(0, 160, 255) -- 청록색/얼음색 장판
 							warnLine.Transparency = 0.8
 							warnLine.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnLine, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.35}):Play()
-							
+
 							-- 1.0초간 경고 장판 유지
 							task.wait(1.0)
 							warnLine:Destroy()
-							
+
 							if isAlive then
 								-- 돌진 애니메이션
 								pcall(function()
@@ -4343,7 +5692,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 돌진 사운드 (디폴트)
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -4356,7 +5705,7 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								-- 0.25초 동안 대상 위치로 빠르게 슬라이드 돌진 (Tween)
 								local fwd = hrp.CFrame.LookVector
 								local targetLand = hrp.Position + fwd * chargeLength
@@ -4365,38 +5714,38 @@ local function createMobModel(areaId, index, config)
 									CFrame = CFrame.lookAt(targetLand, targetLand + fwd)
 								})
 								slideTween:Play()
-								
+
 								-- 돌진 경로 상 플레이어 타격 및 얼음 가시 스폰
 								local elapsed = 0
 								local hitPlayers = {}
 								local startPos = hrp.Position
 								local lastSpikeTime = 0
-								
+
 								while elapsed < slideTime and isAlive do
 									local dt = task.wait(0.03)
 									elapsed = elapsed + dt
-									
+
 									-- 실시간 가시 생성
 									if elapsed - lastSpikeTime >= 0.05 then
 										lastSpikeTime = elapsed
 										spawnIceSpike(hrp.Position, floorY)
 									end
-									
+
 									local currentHrpPos = hrp.Position
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
 											local pDir = pRoot.Position - startPos
 											local forwardDist = fwd:Dot(pDir)
 											local rightDist = hrp.CFrame.RightVector:Dot(pDir)
-											
+
 											if forwardDist > 0 and forwardDist <= chargeLength + 3 and math.abs(rightDist) <= chargeWidth/2 + 1 and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 												hitPlayers[p.UserId] = true
 												dealDamageToHumanoid(phum, 90) -- 90 Damage
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -4408,22 +5757,22 @@ local function createMobModel(areaId, index, config)
 								end
 							end
 							task.wait(0.5) -- 돌진 후 딜레이
-							
+
 						-- 2. 빙결 폭풍 광역기 (Glacial Nova): 거리 15 이하, 쿨타임 14.0초
 						elseif distToPlayer <= 15 and (now - lastWhirlwindTick >= 14.0) then
 							lastWhirlwindTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 회전 정렬
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							local telegraphRadius = 16
 							local hitCenter = hrp.Position
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -4439,7 +5788,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							-- 하늘색 원형 예고 장판 생성
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "IceKnightSpecialTelegraph"
@@ -4452,14 +5801,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(0, 160, 255)
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-							
+
 							-- 1.2초 대기
 							task.wait(1.2)
 							warnCircle:Destroy()
-							
+
 							if isAlive then
 								-- 애니메이션 재생
 								pcall(function()
@@ -4471,7 +5820,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 빙결 마법 사운드 (디폴트)
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -4484,7 +5833,7 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								-- 주변 얼음 폭풍 가시 연타 스폰
 								task.spawn(function()
 									-- 1단계: 가까운 원 (8개)
@@ -4502,19 +5851,19 @@ local function createMobModel(areaId, index, config)
 										task.wait(0.03)
 									end
 								end)
-								
+
 								-- 광역 타격 데미지 판정
 								local currentHrpPos = hrp.Position
 								for _, p in ipairs(Players:GetPlayers()) do
 									local char = p.Character
 									local phum = char and char:FindFirstChild("Humanoid")
 									local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-									
+
 									if phum and phum.Health > 0 and pRoot then
 										local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(currentHrpPos.X, 0, currentHrpPos.Z)).Magnitude
 										if dist <= telegraphRadius and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 12 then
 											dealDamageToHumanoid(phum, 120) -- 120 Damage
-											
+
 											local hitPlayer = Players:GetPlayerFromCharacter(char)
 											if hitPlayer then
 												local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -4527,22 +5876,22 @@ local function createMobModel(areaId, index, config)
 								end
 							end
 							task.wait(1.5) -- 후딜레이
-							
+
 						-- 3. 냉기 참격 평타 (Frost Slash): 사거리 8 이내, 쿨타임 2.2초
 						elseif distToPlayer <= 8 and (now - lastAttackTick >= 2.2) then
 							lastAttackTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							-- 회전 정렬
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							local atkRadius = 8
 							local hitCenter = hrp.Position + (hrp.CFrame.LookVector * (atkRadius/3))
-							
+
 							-- 지형 판독 레이캐스트
 							local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 							local rayParams = RaycastParams.new()
@@ -4558,7 +5907,7 @@ local function createMobModel(areaId, index, config)
 							if rayResult then
 								floorY = rayResult.Position.Y + 0.2
 							end
-							
+
 							local warnCircle = Instance.new("Part")
 							warnCircle.Name = "IceKnightAtkTelegraph"
 							warnCircle.Shape = Enum.PartType.Cylinder
@@ -4570,14 +5919,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(0, 160, 255)
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
-							
+
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
-							
+
 							-- 0.8초 대기
 							task.wait(0.8)
 							warnCircle:Destroy()
-							
+
 							if isAlive then
 								-- 애니메이션 재생
 								pcall(function()
@@ -4589,7 +5938,7 @@ local function createMobModel(areaId, index, config)
 										if track then track:Play() end
 									end
 								end)
-								
+
 								-- 평타 사운드 재생 (디폴트)
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -4602,9 +5951,9 @@ local function createMobModel(areaId, index, config)
 										game.Debris:AddItem(sfx, 3)
 									end
 								end)
-								
+
 								task.wait(0.3) -- 베는 연출 대기
-								
+
 								if isAlive then
 									-- 짧은 냉기 이펙트 (한 번 뿜어짐)
 									local peSlash = Instance.new("ParticleEmitter")
@@ -4619,7 +5968,7 @@ local function createMobModel(areaId, index, config)
 									peSlash.Speed = NumberRange.new(10, 20)
 									peSlash.Parent = hrp
 									game.Debris:AddItem(peSlash, 0.4)
-									
+
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
@@ -4628,7 +5977,7 @@ local function createMobModel(areaId, index, config)
 											local dXZ = Vector3.new(pRoot.Position.X - hitCenter.X, 0, pRoot.Position.Z - hitCenter.Z).Magnitude
 											if dXZ <= atkRadius and math.abs(pRoot.Position.Y - hitCenter.Y) < 12 then
 												dealDamageToHumanoid(phum, 60) -- 60 Damage
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													-- 임시 냉기 감속 (3초간 WalkSpeed 8로 디버프)
@@ -4640,7 +5989,7 @@ local function createMobModel(areaId, index, config)
 															phum.WalkSpeed = originalSpeed
 														end
 													end)
-													
+
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
 													local bounceDir = (pRoot.Position - hitCenter)
 													bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -4652,7 +6001,7 @@ local function createMobModel(areaId, index, config)
 								end
 							end
 							task.wait(0.4)
-							
+
 						-- 4. 추격 상태
 						else
 							humanoid:MoveTo(targetPlayerPos)
@@ -4666,18 +6015,18 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						local breathRange = 35
 						local stormRange = 25
 						local attackCooldown = config.attackCooldown or 2.2
-						
+
 						local ts = game:GetService("TweenService")
-						
+
 						-- 고품질 다중 유리 얼음 가시 모델 생성 함수
 						local function spawnIceDragonSpike(pos, floorY)
 							local spikeModel = Instance.new("Model")
 							spikeModel.Name = "IceDragonSpikeModel"
-							
+
 							-- A. 메인 날카로운 얼음 가시 (WedgePart 사용)
 							local mainSpire = Instance.new("WedgePart")
 							mainSpire.Name = "MainSpire"
@@ -4687,7 +6036,7 @@ local function createMobModel(areaId, index, config)
 							mainSpire.CanCollide = false
 							mainSpire.Anchored = true
 							mainSpire.Parent = spikeModel
-							
+
 							-- B. 보조 사선 가시 1
 							local sideShard1 = Instance.new("WedgePart")
 							sideShard1.Name = "SideShard1"
@@ -4697,7 +6046,7 @@ local function createMobModel(areaId, index, config)
 							sideShard1.CanCollide = false
 							sideShard1.Anchored = true
 							sideShard1.Parent = spikeModel
-							
+
 							-- C. 보조 사선 가시 2
 							local sideShard2 = Instance.new("WedgePart")
 							sideShard2.Name = "SideShard2"
@@ -4707,30 +6056,30 @@ local function createMobModel(areaId, index, config)
 							sideShard2.CanCollide = false
 							sideShard2.Anchored = true
 							sideShard2.Parent = spikeModel
-							
+
 							local rotationAngles = CFrame.Angles(
 								math.rad(math.random(-15, 15)),
 								math.rad(math.random(0, 360)),
 								math.rad(math.random(-15, 15))
 							)
-							
+
 							local function updateSpikeCF(centerPos, verticalHeight)
 								local baseCF = CFrame.new(centerPos.X, floorY - 6 + verticalHeight/2, centerPos.Z) * rotationAngles
 								mainSpire.Size = Vector3.new(mainSpire.Size.X, verticalHeight, mainSpire.Size.Z)
 								mainSpire.CFrame = baseCF
-								
+
 								sideShard1.Size = Vector3.new(sideShard1.Size.X, verticalHeight * 0.6, sideShard1.Size.Z)
 								sideShard1.CFrame = baseCF * CFrame.new(-0.8, -verticalHeight * 0.1, 0.6) * CFrame.Angles(math.rad(15), 0, math.rad(15))
-								
+
 								sideShard2.Size = Vector3.new(sideShard2.Size.X, verticalHeight * 0.4, sideShard2.Size.Z)
 								sideShard2.CFrame = baseCF * CFrame.new(0.8, -verticalHeight * 0.2, -0.6) * CFrame.Angles(math.rad(-15), 0, math.rad(-15))
 							end
-							
+
 							updateSpikeCF(pos, 0.1)
 							spikeModel.Parent = workspace
-							
+
 							local targetHeight = math.random(8, 14)
-							
+
 							-- 지면 위로 강력하게 솟구침
 							local popStartTime = os.clock()
 							local popDuration = 0.2
@@ -4742,7 +6091,7 @@ local function createMobModel(areaId, index, config)
 								task.wait()
 							end
 							updateSpikeCF(pos, targetHeight)
-							
+
 							-- 일정 대기 후 스무스하게 수축하며 투명하게 제거
 							task.spawn(function()
 								task.wait(1.2)
@@ -4769,19 +6118,19 @@ local function createMobModel(areaId, index, config)
 							-- 즉시 쿨타임 차단하여 중복 시전 방지 (최종 타격 종료 후 실시간으로 os.clock() 갱신하여 2.2초 갭 보정 예정)
 							lastAttackTick = now
 							humanoid:MoveTo(hrp.Position) -- 정지
-							
+
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 							if lookDir.Magnitude > 0.1 then
 								hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 							end
-							
+
 							-- 타겟이 25 스터드 이내인 경우 50% 확률로 빙결 낙하(스톰), 아니면 빙결 브레스
 							local useStorm = false
 							if distToPlayer <= stormRange then
 								useStorm = (math.random() > 0.5)
 							end
-							
+
 							if useStorm then
 								--========================================================================
 								-- 1. 빙결 낙하 (Ice Storm) 시전
@@ -4797,7 +6146,7 @@ local function createMobModel(areaId, index, config)
 									targetFloorPos = rayResult.Position
 									floorY = rayResult.Position.Y + 0.2
 								end
-								
+
 								local telegraphRadius = 14
 								local warnCircle = Instance.new("Part")
 								warnCircle.Name = "IceDragonStormTelegraph"
@@ -4810,15 +6159,15 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Color = Color3.fromRGB(30, 144, 255) -- 로얄 블루 네온
 								warnCircle.Transparency = 0.8
 								warnCircle.Parent = workspace
-								
+
 								ts:Create(warnCircle, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									Transparency = 0.4,
 									Color = Color3.fromRGB(175, 238, 238)
 								}):Play()
-								
+
 								task.wait(0.8)
 								warnCircle:Destroy()
-								
+
 								if isAlive then
 									pcall(function()
 										local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -4829,25 +6178,25 @@ local function createMobModel(areaId, index, config)
 											if track then track:Play() end
 										end
 									end)
-									
+
 									-- 하늘에서 떨어지는 거대한 네온 얼음 송곳 3개 소환
 									task.spawn(function()
 										for i = 1, 3 do
 											if not isAlive then break end
 											local offset = Vector3.new(math.random(-6, 6), 0, math.random(-6, 6))
 											local dropCenter = targetFloorPos + offset
-											
+
 											-- 정확한 지면 Y 구하기
 											local stepFloorY = floorY
 											local rayResultDrop = workspace:Raycast(dropCenter + Vector3.new(0, 15, 0), Vector3.new(0, -40, 0), rayParams)
 											if rayResultDrop then
 												stepFloorY = rayResultDrop.Position.Y
 											end
-											
+
 											-- 입체감 있는 거대 고드름 모델 (Wedge 조합)
 											local shardModel = Instance.new("Model")
 											shardModel.Name = "GiantIcicle"
-											
+
 											local shardPart = Instance.new("WedgePart")
 											shardPart.Size = Vector3.new(3.5, 10, 3.5)
 											shardPart.Color = Color3.fromRGB(175, 238, 238) -- 연한 하늘색
@@ -4855,7 +6204,7 @@ local function createMobModel(areaId, index, config)
 											shardPart.CanCollide = false
 											shardPart.Anchored = true
 											shardPart.Parent = shardModel
-											
+
 											local shardCore = Instance.new("Part")
 											shardCore.Size = Vector3.new(1.8, 8, 1.8)
 											shardCore.Color = Color3.fromRGB(0, 206, 209)
@@ -4863,18 +6212,18 @@ local function createMobModel(areaId, index, config)
 											shardCore.CanCollide = false
 											shardCore.Anchored = true
 											shardCore.Parent = shardModel
-											
+
 											local startPos = dropCenter + Vector3.new(0, 45, 0)
 											local dropAngle = CFrame.Angles(math.rad(180 + math.random(-10, 10)), math.rad(math.random(0, 360)), 0)
-											
+
 											local function updateShardCF(currentCF)
 												shardPart.CFrame = currentCF
 												shardCore.CFrame = currentCF * CFrame.new(0, -1, 0)
 											end
-											
+
 											updateShardCF(CFrame.new(startPos) * dropAngle)
 											shardModel.Parent = workspace
-											
+
 											-- 낙하 트윈
 											local dropStartTime = os.clock()
 											local dropDuration = 0.3
@@ -4885,9 +6234,9 @@ local function createMobModel(areaId, index, config)
 												task.wait()
 											end
 											updateShardCF(CFrame.new(dropCenter) * dropAngle)
-											
+
 											shardModel:Destroy()
-											
+
 											-- 지면 서리 팽창 링 생성
 											local frostRing = Instance.new("Part")
 											frostRing.Shape = Enum.PartType.Cylinder
@@ -4899,13 +6248,13 @@ local function createMobModel(areaId, index, config)
 											frostRing.Anchored = true
 											frostRing.CFrame = CFrame.new(dropCenter.X, stepFloorY + 0.1, dropCenter.Z) * CFrame.Angles(0, 0, math.rad(90))
 											frostRing.Parent = workspace
-											
+
 											ts:Create(frostRing, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 												Size = Vector3.new(0.2, 18, 18),
 												Transparency = 1
 											}):Play()
 											game.Debris:AddItem(frostRing, 0.45)
-											
+
 											-- 쾅! 사운드 및 가시 분출
 											pcall(function()
 												local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
@@ -4921,24 +6270,24 @@ local function createMobModel(areaId, index, config)
 													game.Debris:AddItem(sfx, 3)
 												end
 											end)
-											
+
 											spawnIceDragonSpike(dropCenter, stepFloorY)
 											task.wait(0.2)
 										end
 									end)
-									
+
 									-- 타격 판정
 									task.wait(0.45)
 									for _, p in ipairs(Players:GetPlayers()) do
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot then
 											local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(targetFloorPos.X, 0, targetFloorPos.Z)).Magnitude
 											if dist <= telegraphRadius and math.abs(pRoot.Position.Y - targetFloorPos.Y) < 15 then
 												dealDamageToHumanoid(phum, 80) -- 폭풍 피해 80
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
@@ -4959,7 +6308,7 @@ local function createMobModel(areaId, index, config)
 								local chargeWidth = 12
 								local wcf = hrp.CFrame * CFrame.new(0, 0, -chargeLength/2)
 								local telegraphPos = wcf.Position
-								
+
 								local floorY = hrp.Position.Y - humanoid.HipHeight - (hrp.Size.Y / 2) + 0.2
 								local rayParams = RaycastParams.new()
 								rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -4974,7 +6323,7 @@ local function createMobModel(areaId, index, config)
 								if rayResult then
 									floorY = rayResult.Position.Y + 0.2
 								end
-								
+
 								-- 강력한 네온 가시성 경고 장판 생성
 								local warnLine = Instance.new("Part")
 								warnLine.Name = "IceDragonBreathTelegraph"
@@ -4986,15 +6335,15 @@ local function createMobModel(areaId, index, config)
 								warnLine.Color = Color3.fromRGB(0, 206, 209) -- 청록빛 네온
 								warnLine.Transparency = 0.85
 								warnLine.Parent = workspace
-								
+
 								ts:Create(warnLine, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									Transparency = 0.35,
 									Color = Color3.fromRGB(175, 238, 238)
 								}):Play()
-								
+
 								task.wait(1.0)
 								warnLine:Destroy()
-								
+
 								if isAlive then
 									pcall(function()
 										local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -5005,7 +6354,7 @@ local function createMobModel(areaId, index, config)
 											if track then track:Play() end
 										end
 									end)
-									
+
 									pcall(function()
 										local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 										local monsterSounds = sounds and sounds:FindFirstChild("Monster")
@@ -5017,15 +6366,15 @@ local function createMobModel(areaId, index, config)
 											game.Debris:AddItem(sfx, 3.5)
 										end
 									end)
-									
+
 									-- 극적 효과: 네온 빙결 빔 실린더 생성 및 굵기 성장 트윈
 									local headPart = model:FindFirstChild("Head") or hrp
 									local startBeamPos = headPart.Position
 									local endBeamPos = hrp.Position + hrp.CFrame.LookVector * chargeLength
-									
+
 									local beamModel = Instance.new("Model")
 									beamModel.Name = "IceDragonBreathBeamModel"
-									
+
 									local beamCore = Instance.new("Part")
 									beamCore.Shape = Enum.PartType.Cylinder
 									beamCore.Material = Enum.Material.Neon
@@ -5033,7 +6382,7 @@ local function createMobModel(areaId, index, config)
 									beamCore.CanCollide = false
 									beamCore.Anchored = true
 									beamCore.Parent = beamModel
-									
+
 									local beamAura = Instance.new("Part")
 									beamAura.Shape = Enum.PartType.Cylinder
 									beamAura.Material = Enum.Material.Glass
@@ -5042,18 +6391,18 @@ local function createMobModel(areaId, index, config)
 									beamAura.Anchored = true
 									beamAura.Transparency = 0.4
 									beamAura.Parent = beamModel
-									
+
 									local function updateBeamVisual(p1, p2, width)
 										local distance = (p1 - p2).Magnitude
 										beamCore.Size = Vector3.new(distance, width, width)
 										beamCore.CFrame = CFrame.lookAt(p1, p2) * CFrame.new(0, 0, -distance/2) * CFrame.Angles(0, math.rad(90), 0)
-										
+
 										beamAura.Size = Vector3.new(distance, width * 1.6, width * 1.6)
 										beamAura.CFrame = beamCore.CFrame
 									end
-									
+
 									beamModel.Parent = workspace
-									
+
 									-- 파티클 분사 병행
 									local peBreath = Instance.new("ParticleEmitter")
 									peBreath.Texture = "rbxasset://textures/particles/smoke_main.dds"
@@ -5069,7 +6418,7 @@ local function createMobModel(areaId, index, config)
 									peBreath.EmissionDirection = Enum.NormalId.Front
 									peBreath.Parent = headPart
 									game.Debris:AddItem(peBreath, 0.8)
-									
+
 									-- 빔 성장 및 경로 얼음 가시 폭발 동시 실행
 									task.spawn(function()
 										local stepCount = 6
@@ -5082,7 +6431,7 @@ local function createMobModel(areaId, index, config)
 												stepFloorY = rayResult.Position.Y
 											end
 											spawnIceDragonSpike(stepPos, stepFloorY)
-											
+
 											-- 발동 지점에 작은 얼음 폭발 흔적
 											pcall(function()
 												local exp = Instance.new("Explosion")
@@ -5093,29 +6442,29 @@ local function createMobModel(areaId, index, config)
 												exp.Visible = false
 												exp.Parent = workspace
 											end)
-											
+
 											task.wait(0.08)
 										end
 									end)
-									
+
 									-- 0.6초간 브레스 빔 두께 증가 및 페이드 아웃 트윈
 									local beamStartTime = os.clock()
 									local beamDuration = 0.6
 									while os.clock() - beamStartTime < beamDuration and isAlive do
 										local progress = (os.clock() - beamStartTime) / beamDuration
 										local currentWidth = 1.5 + (chargeWidth - 1.5) * progress
-										
+
 										if progress > 0.5 then
 											beamCore.Transparency = (progress - 0.5) * 2
 											beamAura.Transparency = 0.4 + 0.6 * ((progress - 0.5) * 2)
 										end
-										
+
 										updateBeamVisual(headPart.Position, hrp.Position + hrp.CFrame.LookVector * chargeLength, currentWidth)
 										task.wait()
 									end
-									
+
 									beamModel:Destroy()
-									
+
 									-- 데미지 계산 및 슬로우/스턴 적용
 									local fwd = hrp.CFrame.LookVector
 									local currentHrpPos = hrp.Position
@@ -5123,15 +6472,15 @@ local function createMobModel(areaId, index, config)
 										local char = p.Character
 										local phum = char and char:FindFirstChild("Humanoid")
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
-										
+
 										if phum and phum.Health > 0 and pRoot then
 											local pDir = pRoot.Position - currentHrpPos
 											local forwardDist = fwd:Dot(pDir)
 											local rightDist = hrp.CFrame.RightVector:Dot(pDir)
-											
+
 											if forwardDist > 0 and forwardDist <= chargeLength + 4 and math.abs(rightDist) <= chargeWidth/2 + 2 and math.abs(pRoot.Position.Y - currentHrpPos.Y) < 15 then
 												dealDamageToHumanoid(phum, 70) -- 브레스 피해 70
-												
+
 												local hitPlayer = Players:GetPlayerFromCharacter(char)
 												if hitPlayer then
 													task.spawn(pcall, function()
@@ -5142,7 +6491,7 @@ local function createMobModel(areaId, index, config)
 															phum.WalkSpeed = originalSpeed
 														end
 													end)
-													
+
 													local NetController = require(ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers"):WaitForChild("NetController"))
 													NetController.FireClient(hitPlayer, "Player.Stun", fwd * 0.4)
 												end
@@ -5152,7 +6501,7 @@ local function createMobModel(areaId, index, config)
 								end
 								task.wait(0.2)
 							end
-							
+
 							-- 공격 시전 종료 시점에 lastAttackTick을 다시 갱신하여 완전히 대기 타임(2.2초) 보정!
 							lastAttackTick = os.clock()
 						-- 3. 추격 상태 및 호버링 유지
@@ -5162,7 +6511,7 @@ local function createMobModel(areaId, index, config)
 							else
 								humanoid:MoveTo(hrp.Position) -- 제자리 호버링 유지
 							end
-							
+
 							-- 플레이어 정면 주시
 							local lookDir = (phrp.Position - hrp.Position)
 							lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
@@ -5179,25 +6528,25 @@ local function createMobModel(areaId, index, config)
 						local targetPlayerPos = phrp.Position
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
-						
+
 						local G_ATTACK_RANGE = 18
 						local attackCooldown = config.attackCooldown or 2.5
 						local telegraphDuration = 1.2
-						
+
 						if distToPlayer <= G_ATTACK_RANGE then
 							-- 사거리 내라면 정지하고 즉시 공격 준비
 							humanoid:MoveTo(hrp.Position) -- 멈춤
-							
+
 							if now - lastAttackTick >= attackCooldown then
 								lastAttackTick = now
-								
+
 								-- 플레이어 정면 주시
 								local lookDir = (phrp.Position - hrp.Position)
 								lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
 								if lookDir.Magnitude > 0.1 then
 									hrp.CFrame = CFrame.lookAt(hrp.Position, hrp.Position + lookDir.Unit)
 								end
-								
+
 								-- 몬스터 공격 애니메이션 재생 시도
 								task.spawn(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -5206,7 +6555,7 @@ local function createMobModel(areaId, index, config)
 										local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
 										local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
 										local attackAnim = monsterAnims and (monsterAnims:FindFirstChild("SmallGolem_Attack") or monsterAnims:FindFirstChild("Golem_Attack") or monsterAnims:FindFirstChild("Slime_Attack"))
-										
+
 										if attackAnim then
 											local success, attackTrack = pcall(function() return animator:LoadAnimation(attackAnim) end)
 											if success and attackTrack then
@@ -5216,20 +6565,20 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end)
-								
+
 								-- 전방 찌르기/강타 전조 장판 생성 (네온 레드 원반)
 								task.spawn(function()
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "GolemAtkTelegraph"
 									warnCircle.Shape = Enum.PartType.Cylinder
 									warnCircle.Size = Vector3.new(0.4, G_ATTACK_RANGE * 2, G_ATTACK_RANGE * 2)
-									
+
 									-- 레이캐스트로 몬스터 바로 아래 실제 바닥 고도 측정
 									local rayParams = RaycastParams.new()
 									rayParams.FilterType = Enum.RaycastFilterType.Exclude
 									rayParams.FilterDescendantsInstances = {model}
 									local rayResult = workspace:Raycast(currentPos, Vector3.new(0, -50, 0), rayParams)
-									
+
 									local floorPos
 									if rayResult then
 										floorPos = rayResult.Position + Vector3.new(0, 0.1, 0)
@@ -5237,7 +6586,7 @@ local function createMobModel(areaId, index, config)
 										local groundOffset = humanoid.HipHeight + (hrp.Size.Y / 2)
 										floorPos = currentPos - Vector3.new(0, groundOffset - 0.2, 0)
 									end
-									
+
 									warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) -- 눕히기
 									warnCircle.Anchored = true
 									warnCircle.CanCollide = false
@@ -5248,33 +6597,33 @@ local function createMobModel(areaId, index, config)
 									warnCircle.Color = Color3.fromRGB(255, 0, 0)
 									warnCircle.Transparency = 0.85
 									warnCircle.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									local flashTween = ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 										Transparency = 0.5
 									})
 									flashTween:Play()
-									
+
 									task.wait(telegraphDuration)
 									warnCircle:Destroy()
-									
+
 									-- 최종 판정 및 데미지/이펙트 적용
 									if isAlive and targetPlayer and targetPlayer.Parent and targetPlayer:FindFirstChild("HumanoidRootPart") then
 										local currentPhrp = targetPlayer.HumanoidRootPart
 										local currentDist = (hrp.Position - currentPhrp.Position).Magnitude
-										
+
 										-- 강타 이펙트는 무조건 시전됨 (바닥 파편 등 연출)
 										local smashPos = currentPos + hrp.CFrame.LookVector * (G_ATTACK_RANGE / 2)
 										local smashRayResult = workspace:Raycast(smashPos + Vector3.new(0, 15, 0), Vector3.new(0, -30, 0), rayParams)
 										local finalSmashPos = smashRayResult and smashRayResult.Position or Vector3.new(smashPos.X, floorPos.Y, smashPos.Z)
 										playRockSmashEffect(finalSmashPos, G_ATTACK_RANGE * 0.8)
-										
+
 										if currentDist <= G_ATTACK_RANGE + 2 then
 											local dmg = config.baseDamage or 22
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
 												dealDamageToHumanoid(currentPhum, dmg)
-												
+
 												-- 넉백 기절 적용
 												local bounceDir = (currentPhrp.Position - hrp.Position)
 												bounceDir = Vector3.new(bounceDir.X, 0.3, bounceDir.Z).Unit
@@ -5284,7 +6633,7 @@ local function createMobModel(areaId, index, config)
 													local NetController = require(Controllers:WaitForChild("NetController"))
 													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir * 1.2)
 												end
-												
+
 												-- 데미지 피격 플래시
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
@@ -5296,7 +6645,7 @@ local function createMobModel(areaId, index, config)
 													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 													highlight.Adornee = targetPlayer
 													highlight.Parent = targetPlayer
-													
+
 													task.wait(0.12)
 													if highlight and highlight.Parent then
 														highlight:Destroy()
@@ -5306,7 +6655,7 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end)
-								
+
 								task.wait(1.5) -- 공격 후 딜레이
 							end
 						else
@@ -5321,27 +6670,27 @@ local function createMobModel(areaId, index, config)
 							humanoid:MoveTo(hrp.Position) -- 멈춤
 							local now = os.clock()
 							local cooldown = config.attackCooldown or 2.5
-							
+
 							if now - lastAttackTick >= cooldown then
 								lastAttackTick = now
-								
+
 								-- [일반 공격] 연두빛 몸통 박치기 (히트박스 경고 범위 및 실제 판정 100% 일치화)
 								local targetHrpPos = phrp.Position
 								local lungeDir = (targetHrpPos - hrp.Position)
 								lungeDir = Vector3.new(lungeDir.X, 0, lungeDir.Z).Unit
-								
+
 								-- 돌진할 대상 지점 및 경고 장판 반경 정의
 								local lungeTargetPos = hrp.Position + lungeDir * 6
 								local telegraphRadius = 7
 								local telegraphDuration = 0.7
-								
+
 								-- 1. 연두색 팽창 링 전조 생성
 								task.spawn(function()
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "SlimeAtkTelegraph"
 									warnCircle.Shape = Enum.PartType.Cylinder
 									warnCircle.Size = Vector3.new(0.4, 0.1, 0.1)
-									
+
 									local rayParams = RaycastParams.new()
 									rayParams.FilterType = Enum.RaycastFilterType.Exclude
 									local ignoreList = {model}
@@ -5351,7 +6700,7 @@ local function createMobModel(areaId, index, config)
 									rayParams.FilterDescendantsInstances = ignoreList
 									local rayResult = workspace:Raycast(lungeTargetPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), rayParams)
 									local floorPos = rayResult and rayResult.Position or (lungeTargetPos - Vector3.new(0, 2, 0))
-									
+
 									warnCircle.CFrame = CFrame.new(floorPos + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
 									warnCircle.Anchored = true
 									warnCircle.CanCollide = false
@@ -5359,34 +6708,34 @@ local function createMobModel(areaId, index, config)
 									warnCircle.Color = Color3.fromRGB(50, 255, 50)
 									warnCircle.Transparency = 0.85
 									warnCircle.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 										Size = Vector3.new(0.4, telegraphRadius * 2, telegraphRadius * 2),
 										Transparency = 0.6
 									}):Play()
-									
+
 									task.wait(telegraphDuration)
 									warnCircle:Destroy()
 								end)
-								
+
 								-- 2. 몸통 박치기 동작 트윈 연출 (웅크림 -> 튕겨 나감)
 								deformSlime(model, 1.4, 0.4, 1.4, 0.2)
 								task.wait(0.25)
-								
+
 								if isAlive then
 									deformSlime(model, 0.7, 1.5, 0.7, 0.15)
-									
+
 									-- 앞으로 살짝 돌진
 									local origCF = hrp.CFrame
 									local ts = game:GetService("TweenService")
 									ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 										CFrame = CFrame.new(lungeTargetPos) * origCF.Rotation
 									}):Play()
-									
+
 									task.wait(0.2)
 									deformSlime(model, 1.0, 1.0, 1.0, 0.2)
-									
+
 									-- 3. 최종 판정 및 데미지 (예고된 원반의 중심/반경과 100% 일치 판정)
 									local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
 									if currentPhrp then
@@ -5396,7 +6745,7 @@ local function createMobModel(areaId, index, config)
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
 												dealDamageToHumanoid(currentPhum, dmg)
-												
+
 												local bounceDir = (currentPhrp.Position - lungeTargetPos)
 												bounceDir = Vector3.new(bounceDir.X, 0.2, bounceDir.Z).Unit
 												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
@@ -5421,27 +6770,27 @@ local function createMobModel(areaId, index, config)
 							humanoid:MoveTo(hrp.Position) -- 멈춤
 							local now = os.clock()
 							local cooldown = config.attackCooldown or 2.5
-							
+
 							if now - lastAttackTick >= cooldown then
 								lastAttackTick = now
-								
+
 								-- [일반 공격] 뿔 크레센트 스윕 (Horn Crescent Sweep)
 								local sweepWidth = 14
 								local sweepDuration = 0.6
 								local sweepTelegraphCF = hrp.CFrame * CFrame.new(0, 0, -4)
-								
+
 								-- 1. 초승달 전방 전조 생성
 								task.spawn(function()
 									local warnArc = Instance.new("Part")
 									warnArc.Name = "LarvaAtkTelegraph"
 									warnArc.Size = Vector3.new(sweepWidth, 0.4, 6)
-									
+
 									local rayParams = RaycastParams.new()
 									rayParams.FilterType = Enum.RaycastFilterType.Exclude
 									rayParams.FilterDescendantsInstances = {model}
 									local rayResult = workspace:Raycast(sweepTelegraphCF.Position, Vector3.new(0, -50, 0), rayParams)
 									local floorY = rayResult and rayResult.Position.Y or (sweepTelegraphCF.Position.Y - 2)
-									
+
 									warnArc.CFrame = CFrame.new(sweepTelegraphCF.Position.X, floorY + 0.1, sweepTelegraphCF.Position.Z) * hrp.CFrame.Rotation
 									warnArc.Anchored = true
 									warnArc.CanCollide = false
@@ -5449,40 +6798,40 @@ local function createMobModel(areaId, index, config)
 									warnArc.Color = Color3.fromRGB(255, 140, 0) -- 주황색
 									warnArc.Transparency = 0.8
 									warnArc.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									ts:Create(warnArc, TweenInfo.new(sweepDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 										Transparency = 0.5,
 										Size = Vector3.new(sweepWidth + 2, 0.4, 7)
 									}):Play()
-									
+
 									task.wait(sweepDuration)
 									warnArc:Destroy()
 								end)
-								
+
 								-- 2. 머리 젖히기 좌우 스윕 회전 물리 모션 연출
 								local origCF = hrp.CFrame
 								local ts = game:GetService("TweenService")
 								ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 									CFrame = origCF * CFrame.Angles(0, math.rad(-25), 0)
 								}):Play()
-								
+
 								task.wait(0.25)
-								
+
 								if isAlive then
 									ts:Create(hrp, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 										CFrame = origCF * CFrame.Angles(0, math.rad(25), 0)
 									}):Play()
-									
+
 									task.wait(0.15)
 									ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 										CFrame = origCF
 									}):Play()
-									
+
 									-- 날카로운 주황색 스파크 파티클 뿜어내기
 									local att = Instance.new("Attachment", hrp)
 									att.Position = Vector3.new(0, 0, -2)
-									
+
 									local pe = Instance.new("ParticleEmitter")
 									pe.Texture = "rbxasset://textures/particles/spark.dds"
 									pe.Color = ColorSequence.new(Color3.fromRGB(255, 140, 0), Color3.fromRGB(255, 255, 255))
@@ -5493,7 +6842,7 @@ local function createMobModel(areaId, index, config)
 									pe.SpreadAngle = Vector2.new(45, 45)
 									pe.Parent = att
 									game.Debris:AddItem(att, 0.4)
-									
+
 									-- 3. 최종 판정 및 데미지 (전방 장판 범위와 100% 정합)
 									local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
 									if currentPhrp then
@@ -5503,7 +6852,7 @@ local function createMobModel(areaId, index, config)
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
 												dealDamageToHumanoid(currentPhum, dmg)
-												
+
 												local bounceDir = (currentPhrp.Position - hrp.Position)
 												bounceDir = Vector3.new(bounceDir.X, 0.1, bounceDir.Z).Unit
 												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
@@ -5529,10 +6878,10 @@ local function createMobModel(areaId, index, config)
 							humanoid:MoveTo(hrp.Position) -- 멈춤
 							local now = os.clock()
 							local cooldown = config.attackCooldown or 1.5
-							
+
 							if now - lastAttackTick >= cooldown then
 								lastAttackTick = now
-								
+
 								-- 몬스터 공격 애니메이션 동적 감지 및 재생 (서버 동기화)
 								task.spawn(function()
 									local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -5541,7 +6890,7 @@ local function createMobModel(areaId, index, config)
 										local animsFolder = assetsFolder and assetsFolder:FindFirstChild("Animations")
 										local monsterAnims = animsFolder and animsFolder:FindFirstChild("Monster")
 										local attackAnim = monsterAnims and monsterAnims:FindFirstChild(config.mobModelName .. "_Attack")
-										
+
 										if attackAnim then
 											local success, attackTrack = pcall(function() return animator:LoadAnimation(attackAnim) end)
 											if success and attackTrack then
@@ -5552,24 +6901,24 @@ local function createMobModel(areaId, index, config)
 										end
 									end
 								end)
-								
+
 								-- 공격 전 텔레그래프(Telegraph) 히트박스 경고 장치!
 								local telegraphDuration = config.telegraphDuration or 1.1 -- 1.1초 대기 후 공격판정 (회피 시간 확보)
 								local mobRootPos = hrp.Position
-								
+
 								task.spawn(function()
 									-- 1. 바닥 경고 이펙트 생성 (네온 레드 원반)
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "SlimeAtkTelegraph"
 									warnCircle.Shape = Enum.PartType.Cylinder
 									warnCircle.Size = Vector3.new(0.4, ATTACK_RANGE * 2, ATTACK_RANGE * 2)
-									
+
 									-- [정밀 지면 밀착] 레이캐스트로 몬스터 바로 아래 실제 바닥 고도 측정!
 									local rayParams = RaycastParams.new()
 									rayParams.FilterType = Enum.RaycastFilterType.Exclude
 									rayParams.FilterDescendantsInstances = {model}
 									local rayResult = workspace:Raycast(mobRootPos, Vector3.new(0, -50, 0), rayParams)
-									
+
 									local floorPos
 									if rayResult then
 										floorPos = rayResult.Position + Vector3.new(0, 0.1, 0)
@@ -5577,7 +6926,7 @@ local function createMobModel(areaId, index, config)
 										local groundOffset = humanoid.HipHeight + (hrp.Size.Y / 2)
 										floorPos = mobRootPos - Vector3.new(0, groundOffset - 0.2, 0)
 									end
-									
+
 									warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90)) -- 눕히기
 									warnCircle.Anchored = true
 									warnCircle.CanCollide = false
@@ -5588,7 +6937,7 @@ local function createMobModel(areaId, index, config)
 									warnCircle.Color = Color3.fromRGB(255, 0, 0)
 									warnCircle.Transparency = 0.85
 									warnCircle.Parent = workspace
-									
+
 									local ts = game:GetService("TweenService")
 									local flashTween = ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 										Transparency = 0.5
@@ -5597,18 +6946,18 @@ local function createMobModel(areaId, index, config)
 
 									-- 2. 선행 딜레이 대기
 									task.wait(telegraphDuration)
-									
+
 									-- 3. 최종 판정 및 데미지 적용
 									if isAlive and targetPlayer and targetPlayer.Parent and targetPlayer:FindFirstChild("HumanoidRootPart") then
 										local currentPhrp = targetPlayer.HumanoidRootPart
 										local currentDist = (mobRootPos - currentPhrp.Position).Magnitude
-										
+
 										if currentDist <= ATTACK_RANGE + 1.5 then
 											local dmg = config.baseDamage or 5
 											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
 											if currentPhum and currentPhum.Health > 0 then
 												dealDamageToHumanoid(currentPhum, dmg)
-												
+
 												-- [Knockback Stun]
 												local bounceDir = (currentPhrp.Position - mobRootPos)
 												bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -5618,7 +6967,7 @@ local function createMobModel(areaId, index, config)
 													local NetController = require(Controllers:WaitForChild("NetController"))
 													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir)
 												end
-												
+
 												task.spawn(function()
 													local highlight = Instance.new("Highlight")
 													highlight.Name = "DamageFlash"
@@ -5629,7 +6978,7 @@ local function createMobModel(areaId, index, config)
 													highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 													highlight.Adornee = targetPlayer
 													highlight.Parent = targetPlayer
-													
+
 													task.wait(0.12)
 													if highlight and highlight.Parent then
 														highlight:Destroy()
@@ -5638,7 +6987,7 @@ local function createMobModel(areaId, index, config)
 											end
 										end
 									end
-									
+
 									warnCircle:Destroy()
 								end)
 							end
@@ -5650,11 +6999,11 @@ local function createMobModel(areaId, index, config)
 			else
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter) 기준 랜덤 오프셋 영역으로 자연스럽게 배회합니다.
 				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon")
-				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing") and 35 or 20
-				
+				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian") and 35 or 20
+
 				local wanderOffset = Vector3.new(math.random(-wanderRadius, wanderRadius), 0, math.random(-wanderRadius, wanderRadius))
 				local nextDest = spawnCenter + wanderOffset
-				
+
 				if not isFlying then
 					-- 지면 고도 레이캐스트 투영
 					local rayParams = RaycastParams.new()
@@ -5668,7 +7017,7 @@ local function createMobModel(areaId, index, config)
 					-- 공중 몬스터 비행 높이 무작위성 추가
 					nextDest = Vector3.new(nextDest.X, spawnCenter.Y + math.random(-4, 4), nextDest.Z)
 				end
-				
+
 				-- [건물/장애물 충돌 회피 위스커(Whisker) 로직]
 				local dir = nextDest - hrp.Position
 				local dist = math.min(dir.Magnitude, 20)
@@ -5685,17 +7034,17 @@ local function createMobModel(areaId, index, config)
 						nextDest = hrp.Position + detourRight
 					end
 				end
-				
+
 				humanoid:MoveTo(nextDest)
-				
+
 				local arrived = false
 				local c = humanoid.MoveToFinished:Connect(function() arrived = true end)
-				
+
 				local startWait = os.clock()
 				local stuckFrames = 0
 				while not arrived and os.clock() - startWait < 6 and isAlive do
 					task.wait(TICK_RATE)
-					
+
 					-- [벽 걸림 실시간 감지 탈출 AI]
 					local speed = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z).Magnitude
 					if speed < 0.6 and humanoid.MoveDirection.Magnitude > 0.1 then
@@ -5710,7 +7059,7 @@ local function createMobModel(areaId, index, config)
 					else
 						stuckFrames = 0
 					end
-					
+
 					local enemySpotted = false
 					for _, p in ipairs(Players:GetPlayers()) do
 						if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -5723,7 +7072,7 @@ local function createMobModel(areaId, index, config)
 					if enemySpotted then break end
 				end
 				if c then c:Disconnect() end
-				
+
 				if isAlive then
 					task.wait(math.random(2, 5)) -- 대기 시간 다각화하여 동시에 스파이럴되는 것 방지
 				end
@@ -5733,7 +7082,11 @@ local function createMobModel(areaId, index, config)
 
 		humanoid.Died:Connect(function()
 			isAlive = false
-			
+			local key = areaId .. "_" .. index
+			if activeMobs[key] == model then
+				activeMobs[key] = nil
+			end
+
 			-- 기사 보스 사망 시 웅장한 사망 소멸 사운드 재생 연동
 			if config.mobModelName == "BlueFlameKnight" then
 				pcall(function()
@@ -5748,7 +7101,7 @@ local function createMobModel(areaId, index, config)
 					end
 				end)
 			end
-			
+
 			-- 1. 체력바 UI 빌보드 가시성 즉각 종료
 			local bb = hrp and hrp:FindFirstChildOfClass("BillboardGui")
 			if bb then
@@ -5768,7 +7121,7 @@ local function createMobModel(areaId, index, config)
 				local fadeDuration = 1.2
 				local steps = 24
 				local interval = fadeDuration / steps
-				
+
 				-- 페이드 대상 실물 파트들과 원본 투명도 캐싱
 				local fadeParts = {}
 				for _, p in ipairs(model:GetDescendants()) do
@@ -5776,7 +7129,7 @@ local function createMobModel(areaId, index, config)
 						fadeParts[p] = p.Transparency
 					end
 				end
-				
+
 				for step = 1, steps do
 					local ratio = step / steps
 					for part, origTrans in pairs(fadeParts) do
@@ -5807,19 +7160,33 @@ local function createMobModel(areaId, index, config)
 			-- ★ 사망 시 아이템 드롭 처리
 			local deathPos = model:GetPivot().Position
 			spawnLoot(config.dropTableId or config.mobModelName or "Slime", deathPos, killer)
-			
+
 			-- 페이드 아웃 시간(1.5초) 후 시체 모델 완전히 삭제 (보이지 않는 물리 충돌/길막 버그 원천 차단)
 			task.delay(1.5, function()
 				if model then model:Destroy() end
 			end)
-			
+
 			-- 시체가 파괴된 상태로 설정된 리스폰 시간 대기
 			local respawnDelay = math.max(config.respawnDelay or 15.0, 1.5)
 			task.wait(respawnDelay)
-			
-			local key = areaId .. "_" .. index
-			-- 재스폰 시 다시 createMobModel을 호출하여 '새로운 랜덤 위치'를 추출하게 함!
-			activeMobs[key] = createMobModel(areaId, index, resolveSpawnConfig(config, index))
+
+			-- 재스폰 시 원본 MobSpawnData를 다시 읽어 같은 슬롯을 정확히 복구합니다.
+			local respawned = false
+			for attempt = 1, 3 do
+				local ok, newMob = pcall(function()
+					return createMobModel(areaId, index, getSpawnConfigForSlot(areaId, index, config))
+				end)
+				if ok and newMob then
+					activeMobs[key] = newMob
+					respawned = true
+					break
+				end
+				warn(string.format("[MobSpawnService] Respawn failed for %s_%d (attempt %d): %s", areaId, index, attempt, tostring(newMob)))
+				task.wait(3.0)
+			end
+			if not respawned then
+				activeMobs[key] = nil
+			end
 		end)
 	end
 
@@ -5831,9 +7198,9 @@ local function createMobModel(areaId, index, config)
 			local finalCF = model:GetPivot()
 			local hrp = model:FindFirstChild("HumanoidRootPart")
 			local hum = model:FindFirstChildOfClass("Humanoid")
-			print(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) Final World Pos: %s, HipHeight: %s, HRP Size: %s, Active: %s", 
-				model.Name, areaId, index, tostring(finalCF.Position), 
-				tostring(hum and hum.HipHeight or "NoHum"), 
+			print(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) Final World Pos: %s, HipHeight: %s, HRP Size: %s, Active: %s",
+				model.Name, areaId, index, tostring(finalCF.Position),
+				tostring(hum and hum.HipHeight or "NoHum"),
 				tostring(hrp and hrp.Size or "NoHRP"),
 				tostring(hum and hum.Health > 0)))
 		else
@@ -5865,19 +7232,19 @@ function MobSpawnService.Init()
 
 	task.spawn(function()
 		task.wait(3.0) -- 에셋 로드 완료를 위해 여유 대기
-		
+
 		local spawnDataList = DataService.get("MobSpawnData")
 		if not spawnDataList then return end
 
 		for areaId, config in pairs(spawnDataList) do
 			-- 루프 횟수 결정: spawnEntries가 있으면 그것을 우선 사용, 없으면 spawnCount/positions 사용
 			local spawnLoopCount = (config.spawnEntries and #config.spawnEntries) or config.spawnCount or (config.spawnPositions and #config.spawnPositions) or 0
-			
+
 			for idx = 1, spawnLoopCount do
 				local key = areaId .. "_" .. idx
 				activeMobs[key] = createMobModel(areaId, idx, resolveSpawnConfig(config, idx))
 			end
-			
+
 			-- print(string.format("[MobSpawnService] Successfully auto-spawned %d Mobs for Area: %s!", spawnLoopCount, areaId))
 		end
 	end)

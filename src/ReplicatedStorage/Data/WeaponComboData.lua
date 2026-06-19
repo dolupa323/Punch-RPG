@@ -21,7 +21,7 @@ local WeaponComboData = {
 	},
 	["WOODEN_STAFF"] = {
 		id = "WOODEN_STAFF",
-		baseDamage = 15, -- [기획 동기화] ItemData.lua 공격력(15)과 100% 일치화!
+		baseDamage = 10, -- [기획 동기화] ItemData.lua 공격력(10)과 100% 일치화!
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38, -- [기획 동기화] ItemData.lua 공격속도(0.38)와 100% 일치화!
@@ -38,7 +38,7 @@ local WeaponComboData = {
 	},
 	["SoftClub"] = {
 		id = "SoftClub",
-		baseDamage = 30, -- [기획 동기화] ItemData.lua 공격력(30)과 100% 일치화!
+		baseDamage = 54, -- [기획 동기화] ItemData.lua 공격력(54)과 100% 일치화!
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38, -- [기획 동기화] 나무봉과 동일한 기획 쿨다운 표준인 0.38초 고정!
@@ -55,7 +55,7 @@ local WeaponComboData = {
 	},
 	["Gakchang"] = {
 		id = "Gakchang",
-		baseDamage = 45, -- [기획 동기화] ItemData.lua 공격력(45)과 100% 일치화!
+		baseDamage = 107, -- [기획 동기화] ItemData.lua 공격력(107)과 100% 일치화!
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -72,7 +72,7 @@ local WeaponComboData = {
 	},
 	["Mogwoldo"] = {
 		id = "Mogwoldo",
-		baseDamage = 60,
+		baseDamage = 170,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -106,7 +106,7 @@ local WeaponComboData = {
 	},
 	["FangSpear"] = {
 		id = "FangSpear",
-		baseDamage = 170, -- [기획 동기화] ItemData.lua 공격력(170)과 일치화!
+		baseDamage = 577, -- [기획 동기화] ItemData.lua 공격력(577)과 일치화!
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -123,7 +123,7 @@ local WeaponComboData = {
 	},
 	["IronStaff"] = {
 		id = "IronStaff",
-		baseDamage = 100,
+		baseDamage = 337,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -140,7 +140,7 @@ local WeaponComboData = {
 	},
 	["POISON_HORN_SPEAR"] = {
 		id = "POISON_HORN_SPEAR",
-		baseDamage = 80,
+		baseDamage = 246,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -157,7 +157,7 @@ local WeaponComboData = {
 	},
 	["KNIGHT_SWORD"] = {
 		id = "KNIGHT_SWORD",
-		baseDamage = 280,
+		baseDamage = 923,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -174,7 +174,7 @@ local WeaponComboData = {
 	},
 	["SOUL_SWORD"] = {
 		id = "SOUL_SWORD",
-		baseDamage = 350,
+		baseDamage = 1150,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -191,7 +191,7 @@ local WeaponComboData = {
 	},
 	["SWORD_OF_JUSTICE"] = {
 		id = "SWORD_OF_JUSTICE",
-		baseDamage = 450,
+		baseDamage = 1422,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -208,7 +208,7 @@ local WeaponComboData = {
 	},
 	["BLUE_FLAME_SWORD"] = {
 		id = "BLUE_FLAME_SWORD",
-		baseDamage = 600,
+		baseDamage = 1748,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -225,7 +225,7 @@ local WeaponComboData = {
 	},
 	["KATANA"] = {
 		id = "KATANA",
-		baseDamage = 130,
+		baseDamage = 446,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,
@@ -242,7 +242,7 @@ local WeaponComboData = {
 	},
 	["ICE_SWORD"] = {
 		id = "ICE_SWORD",
-		baseDamage = 220,
+		baseDamage = 734,
 		maxCombo = 3,
 		comboWindow = 0.8,
 		cooldown = 0.38,

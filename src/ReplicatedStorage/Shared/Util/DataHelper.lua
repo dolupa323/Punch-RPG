@@ -192,15 +192,62 @@ function DataHelper.GetData(tableName: string, id: string)
 end
 
 function DataHelper.GetEnhanceBonusRate(rarity)
-	local rates = {
-		COMMON = 0.10,
-		UNCOMMON = 0.15,
-		RARE = 0.22,
-		EPIC = 0.45,
-		UNIQUE = 0.50,
-		LEGENDARY = 0.55
-	}
-	return rates[rarity] or 0.15
+	-- 강화 보너스율 평탄화를 위해 전 등급에 동일한 보너스율(0.15)을 적용하여 기댓값 일관성을 유지합니다.
+	return 0.15
+end
+
+local WEAPON_TIERS = {
+	"WOODEN_STAFF",
+	"SoftClub",
+	"Gakchang",
+	"Mogwoldo",
+	"POISON_HORN_SPEAR",
+	"IronStaff",
+	"KATANA",
+	"FangSpear",
+	"ICE_SWORD",
+	"KNIGHT_SWORD",
+	"SOUL_SWORD",
+	"SWORD_OF_JUSTICE",
+	"BLUE_FLAME_SWORD"
+}
+
+function DataHelper.GetQualityAdjustedWeaponDamage(itemId: string, quality: number): number
+	local itemData = DataHelper.GetData("ItemData", itemId)
+	if not itemData then
+		return 0
+	end
+
+	local maxDmg = itemData.damage or 0
+	local minDmg = 0
+
+	-- 이전 티어 무기 찾기
+	local tierIndex = nil
+	for i, id in ipairs(WEAPON_TIERS) do
+		if id == itemId then
+			tierIndex = i
+			break
+		end
+	end
+
+	if tierIndex then
+		if tierIndex == 1 then
+			-- 첫 번째 무기(나무봉)는 본래 공격력의 50%를 최소 보정값으로 적용
+			minDmg = math.floor(maxDmg * 0.5)
+		else
+			-- 이전 티어 무기의 품100 기준 공격력에서 10% 낮은 공격력
+			local prevId = WEAPON_TIERS[tierIndex - 1]
+			local prevItem = DataHelper.GetData("ItemData", prevId)
+			local prevMaxDmg = prevItem and prevItem.damage or 0
+			minDmg = math.floor(prevMaxDmg * 0.9)
+		end
+		-- 선형 보간 (Linear Interpolation)
+		local adjustedDmg = minDmg + (maxDmg - minDmg) * (quality / 100)
+		return math.floor(adjustedDmg)
+	else
+		-- 활성 13종 이외의 아이템(도구 등)은 기존의 0 ~ 원래 공격력 비례 방식 유지
+		return math.floor(maxDmg * (quality / 100))
+	end
 end
 
 function DataHelper.GetEnhanceCostMultiplier(rarity)

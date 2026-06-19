@@ -130,6 +130,7 @@ local DropTableData = {
 		{ itemId = "BLUE_FIRE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "BLUE_FIRE_RING", chance = 0.01, min = 1, max = 1 },
 	},
+	["DESERTGUARDIAN"] = {},
 }
 
 return DropTableData

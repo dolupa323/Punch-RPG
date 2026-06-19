@@ -347,11 +347,22 @@ local assetsFolder = game.ReplicatedStorage:WaitForChild("Assets", 30)
 
 local preloadList = {}
 if assetsFolder then
-	-- 에셋 폴더 하위 탐색 (클론되는 투사체, VFX, 사운드, 아이콘 등 렉의 핵심 원인)
-	for _, desc in ipairs(assetsFolder:GetDescendants()) do
-		if desc:IsA("MeshPart") or desc:IsA("SpecialMesh") or desc:IsA("Decal") or desc:IsA("Texture") 
-			or desc:IsA("Sound") or desc:IsA("Animation") or desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam") then
-			table.insert(preloadList, desc)
+	-- Only preload critical UI assets (icons, layouts) and animations to prevent long loading times
+	local uiFolder = assetsFolder:FindFirstChild("UI")
+	if uiFolder then
+		for _, desc in ipairs(uiFolder:GetDescendants()) do
+			if desc:IsA("Decal") or desc:IsA("Texture") or desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
+				table.insert(preloadList, desc)
+			end
+		end
+	end
+
+	local animsFolder = assetsFolder:FindFirstChild("Animations")
+	if animsFolder then
+		for _, desc in ipairs(animsFolder:GetDescendants()) do
+			if desc:IsA("Animation") then
+				table.insert(preloadList, desc)
+			end
 		end
 	end
 end
@@ -390,9 +401,9 @@ if totalAssets > 0 then
 		loadingFinished = true
 	end)
 	
-	-- 최대 8초간 프리로드 완료 대기 (무한 대기 방지 타임아웃)
+	-- 최대 3초간 프리로드 완료 대기 (무한 대기 방지 타임아웃)
 	local preloadStartTime = os.clock()
-	while not loadingFinished and (os.clock() - preloadStartTime) < 8 do
+	while not loadingFinished and (os.clock() - preloadStartTime) < 3 do
 		task.wait(0.1)
 	end
 	
@@ -408,7 +419,7 @@ end
 -- 4단계: 플레이어 데이터 및 서비스 연동 대기
 statusText.Text = "게임 정보를 동기화 중입니다..."
 local waitStartTime = os.clock()
-while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) do
+while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) and (os.clock() - waitStartTime) < 5 do
 	task.wait(0.2)
 	-- 데이터 로드 진행상황에 따라 85% ~ 95% 구간으로 완만히 증가
 	local elapsed = os.clock() - waitStartTime

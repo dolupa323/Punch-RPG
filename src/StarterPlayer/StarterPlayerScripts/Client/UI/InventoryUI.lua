@@ -1141,7 +1141,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 					end
 				end
 				
-				local baseDmg = math.floor((itemData.damage or 0) * qMult)
+				local baseDmg = DataHelper.GetQualityAdjustedWeaponDamage(displayItemId, quality)
 				local enhanceLevel = (data.attributes and data.attributes.enhanceLevel) or 0
 				local enhanceDamage = (data.attributes and data.attributes.enhanceDamage) or 0
 				
