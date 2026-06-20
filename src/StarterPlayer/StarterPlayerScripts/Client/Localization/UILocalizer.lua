@@ -123,6 +123,7 @@ local KO_TO_EN = {
 	["이 위치에는 건설할 수 없습니다."] = "You cannot build at this location.",
 	["건설 실패"] = "Build failed",
 	["강화 포인트가 부족합니다."] = "Not enough stat points.",
+	["마나가 부족합니다."] = "Not enough mana.",
 	["빈 슬롯이 없습니다."] = "No empty slot available.",
 	["시설에 접근했습니다. (제작은 인벤토리[I]에서 가능합니다)"] = "Facility opened. (Crafting is available in Inventory [I])",
 	["기술 해금이 필요합니다."] = "Tech unlock required.",
@@ -525,6 +526,8 @@ local KO_TO_EN = {
 	["아니오"] = "No",
 	["스폰지점이 텐트로 설정되었습니다."] = "Respawn point set to tent.",
 	["스폰지점 설정에 실패했습니다."] = "Failed to set respawn point.",
+	["캠프"] = "Camp",
+	["해당 캠프에서 스폰"] = "Spawn at this Camp",
 
 	-- Tech UI
 	["기초 생존 및 건축"] = "Basic Survival & Build",

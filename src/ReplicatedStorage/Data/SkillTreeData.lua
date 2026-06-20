@@ -627,6 +627,17 @@ SkillTreeData.RUNES = {
 		cooldown = 35.0,
 		description = "플레이어 주변에 그림자를 생성해, 범위 안의 적에게 지속 피해를 줍니다.",
 		effects = {},
+	},
+	{
+		id = "SKILL_SLASH",
+		name = "슬래시",
+		type = "ACTIVE",
+		icon = "Icon_Skill_Slash",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 4.0,
+		description = "검기를 크고 빠르게 전방으로 발사하여 적을 베어버립니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.0 } },
 	}
 }
 

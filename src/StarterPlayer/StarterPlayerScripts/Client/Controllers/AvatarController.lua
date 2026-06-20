@@ -1019,6 +1019,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		local skillAnimFolder = weaponsAnimFolder and weaponsAnimFolder:FindFirstChild("Skill")
 		
 		local targetAnim = skillAnimFolder and skillAnimFolder:FindFirstChild(assetKey .. "_Cast")
+		if not targetAnim and assetKey == "SLASH" then
+			targetAnim = skillAnimFolder and (skillAnimFolder:FindFirstChild("EMBER_Cast") or skillAnimFolder:FindFirstChild("DROPLET_Cast") or skillAnimFolder:FindFirstChild("NIGHT_Cast"))
+		end
 		if targetAnim then
 			local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
 			local track = animator:LoadAnimation(targetAnim)
@@ -1033,6 +1036,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		local castSoundFolder = getCombatSoundFolder("Cast")
 		if castSoundFolder then
 			local soundTemplate = castSoundFolder:FindFirstChild(assetKey .. "_Cast")
+			if not soundTemplate and assetKey == "SLASH" then
+				soundTemplate = castSoundFolder:FindFirstChild("Default_Attack_Cast_1") or castSoundFolder:FindFirstChild("Base_Attack_Cast_1")
+			end
 			if soundTemplate then
 				playCombatSound(soundTemplate, hrp)
 			else
@@ -1046,6 +1052,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then
 			local vfxTemplate = castVFXFolder:FindFirstChild(assetKey .. "_Cast")
+			if not vfxTemplate and assetKey == "SLASH" then
+				vfxTemplate = castVFXFolder:FindFirstChild("Default_Attack_Cast_1") or castVFXFolder:FindFirstChild("Base_Attack_Cast_1")
+			end
 			if vfxTemplate then
 				local scale = 1.0
 				local moveDist = 20.0
@@ -1054,10 +1063,13 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 				if assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" then
 					scale = 1.0
 					moveDist = nil -- 투사체 비행 제외
+				elseif assetKey == "SLASH" then
+					scale = 2.5
+					moveDist = nil -- 투사체 비행 제외 (한번 휘두르고 끝)
 				end
 				
 				local spawned = spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, scale, moveDist)
-				if spawned and (assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT") then
+				if spawned and (assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" or assetKey == "SLASH") then
 					task.delay(0.25, function()
 						if spawned and spawned.Parent then
 							for _, desc in ipairs(spawned:GetDescendants()) do
@@ -1115,9 +1127,13 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
 				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
 		else
-			vfxTemplate = hitVFXFolder:FindFirstChild(assetKey .. "_Hit")
-				or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
-				or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+			if assetKey == "SLASH" then
+				vfxTemplate = hitVFXFolder:FindFirstChild("Default_Attack_Hit") or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+			else
+				vfxTemplate = hitVFXFolder:FindFirstChild(assetKey .. "_Hit")
+					or hitVFXFolder:FindFirstChild("Default_Attack_Hit")
+					or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+			end
 		end
 		if vfxTemplate then
 			-- 타격 이펙트가 캐릭터의 발 밑이나 너무 낮게 생성되지 않도록 Y축 보정(예: +3 스터드 위로)

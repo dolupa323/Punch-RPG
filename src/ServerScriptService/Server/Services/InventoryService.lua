@@ -1452,6 +1452,8 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 					skillId = "SKILL_RUNE_WAVE_ACTIVE"
 				elseif itemId == "BOOK_SHADOW" then
 					skillId = "SKILL_RUNE_SHADOW_ACTIVE"
+				elseif itemId == "BOOK_SLASH" then
+					skillId = "SKILL_SLASH"
 				end
 
 				local isAlreadyOwned = false

@@ -143,6 +143,7 @@ local function createDropModel(dropData)
 	local isChest = false
 	local isRune = false
 	local isSkillBook = false
+	local isCoin = (dropData.itemId == "COIN")
 	local itemData = DataHelper.GetData("ItemData", (dropData.itemId or ""):upper())
 	
 	if dropData.dropType ~= "gold" then
@@ -243,11 +244,11 @@ local function createDropModel(dropData)
 		
 		-- [크기 정화 및 롤백]: 에셋 제작자가 만든 오리지널 예쁜 크기를 100% 최우선 존중! (DNA 등 지나치게 큰 모델만 1.5스터드로 제한 축소)
 		-- [수정] 희귀 아이템용 보물상자(Chest) 및 룬(RUNE)은 일반 아이템보다 훨씬 크게(3.5스터드) 표시하여 만족도를 높임
-		local DROP_TARGET = isDna and 1.0 or (isSkillBook and 9.0 or (isRune and 6.5 or (isChest and 3.5 or (Balance.DROP_TARGET_SIZE or 1.5))))
+		local DROP_TARGET = isDna and 1.0 or (isSkillBook and 9.0 or (isRune and 6.5 or (isChest and 3.5 or (isCoin and 2.8 or (Balance.DROP_TARGET_SIZE or 1.5)))))
 		if mainObject:IsA("Model") then
 			local _, mSize = mainObject:GetBoundingBox()
 			local maxDim = math.max(mSize.X, mSize.Y, mSize.Z)
-			if maxDim > 0 and (isSkillBook or isRune) then
+			if maxDim > 0 and (isSkillBook or isRune or isCoin) then
 				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
 			elseif maxDim > 0 and maxDim > DROP_TARGET then
 				scaleModelPhysically(mainObject, DROP_TARGET / maxDim)
@@ -268,7 +269,7 @@ local function createDropModel(dropData)
 			
 			if targetPart and targetPart:IsA("BasePart") then
 				local maxDim = math.max(targetPart.Size.X, targetPart.Size.Y, targetPart.Size.Z)
-				if maxDim > 0 and (isSkillBook or isRune) then
+				if maxDim > 0 and (isSkillBook or isRune or isCoin) then
 					local s = DROP_TARGET / maxDim
 					targetPart.Size = targetPart.Size * s
 				elseif maxDim > 0 and maxDim > DROP_TARGET then
@@ -391,8 +392,13 @@ local function createDropModel(dropData)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "PickupPrompt"
 	prompt.ActionText = UILocalizer.Localize("줍기")
+	local displayName = getItemDisplayName(dropData.itemId or "GOLD", dropData.dropType)
 	local amountText = dropData.dropType == "gold" and (tostring(dropData.goldAmount or dropData.count) .. " G") or ("x" .. tostring(dropData.count))
-	prompt.ObjectText = getItemDisplayName(dropData.itemId or "GOLD", dropData.dropType) .. " (" .. amountText .. ")"
+	if dropData.itemId == "COIN" then
+		displayName = "골드"
+		amountText = "100"
+	end
+	prompt.ObjectText = displayName .. " (" .. amountText .. ")"
 	prompt.MaxActivationDistance = Balance.DROP_PROMPT_RANGE
 	prompt.HoldDuration = 0
 	prompt.KeyboardKeyCode = Enum.KeyCode.Z
@@ -445,8 +451,13 @@ local function updateDropModel(dropId, newCount)
 	if prompt then
 		local drop = dropsCache[dropId]
 		local itemId = drop and drop.itemId or "Unknown"
+		local displayName = getItemDisplayName(itemId, drop and drop.dropType)
 		local displayCount = (drop and drop.dropType == "gold") and ((tostring(drop.goldAmount or newCount)) .. " G") or ("x" .. tostring(newCount))
-		prompt.ObjectText = getItemDisplayName(itemId, drop and drop.dropType) .. " (" .. displayCount .. ")"
+		if itemId == "COIN" then
+			displayName = "골드"
+			displayCount = "100"
+		end
+		prompt.ObjectText = displayName .. " (" .. displayCount .. ")"
 	end
 end
 

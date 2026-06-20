@@ -25,8 +25,8 @@ local ZONE_SOUND_NAMES = {
 	CHEONGUN = "TOWN_BGM",                 -- 청운촌 (스타팅 마을)
 	SLIME_HABITAT = "FOREST_BGM",          -- 슬라임 서식지
 	HORNEDLARVAZONE = "FOREST_BGM",        -- 애벌레의 숲 (대문자 변환 대응)
-	STUMP_ZONE = "FOREST_BGM",             -- 스텀프의 땅
-	STUMP_KING_ZONE = "FOREST_BGM",        -- 스텀프 킹의 안식처
+	STUMP_ZONE = "DESERT_BGM",             -- 스텀프의 땅
+	STUMP_KING_ZONE = "DESERT_BGM",        -- 스텀프 킹의 안식처
 	CYCLOPS_BAT_ZONE = "FOREST_BGM",       -- 박쥐의 언덕
 	SMALL_GOLEM_ZONE = "CAVE_BGM",         -- 스산한 동굴
 	EERIE_CAVE = "CAVE_BGM",               -- 스산한 동굴
@@ -36,7 +36,7 @@ local ZONE_SOUND_NAMES = {
 	DEATH_SNOW_MOUNTAIN = "SNOW_BGM",      -- 죽음의 설산
 	SKY_ISLAND = "SKY_BGM",                -- 하늘섬
 	BLUE_FLAME_KNIGHT_ZONE = "SAMURAI_BGM",-- 푸른 신념 (최종 보스)
-	DESERTGUARDIANZONE = "DESERT_BGM",     -- 사막의 수호자 구역 (데저트 BGM과 동일)
+	DESERTGUARDIANZONE = "BOSS_BGM",     -- 사막의 수호자 구역 (BOSS_BGM)
 
 	-- Legacy Zones
 	GRASSLAND = "FOREST_BGM",
@@ -149,7 +149,26 @@ local function refreshZoneBGM()
 		return
 	end
 
-	local nextZone = SpawnConfig.GetZoneAtPosition(hrp.Position) or "CHEONGUN"
+	local nextZone = SpawnConfig.GetZoneAtPosition(hrp.Position)
+	if not nextZone then
+		local minDistance = math.huge
+		local nearestZone = "CHEONGUN"
+		local px, pz = hrp.Position.X, hrp.Position.Z
+		for _, zoneName in ipairs(SpawnConfig.GetAllZoneNames()) do
+			local zone = SpawnConfig.GetZoneInfo(zoneName)
+			if zone and zone.min and zone.max then
+				local dx = math.max(zone.min.X - px, 0, px - zone.max.X)
+				local dz = math.max(zone.min.Y - pz, 0, pz - zone.max.Y)
+				local dist = math.sqrt(dx * dx + dz * dz)
+				if dist < minDistance then
+					minDistance = dist
+					nearestZone = zoneName
+				end
+			end
+		end
+		nextZone = nearestZone
+	end
+
 	if nextZone == currentZoneName then
 		return
 	end

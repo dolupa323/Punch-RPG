@@ -790,7 +790,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -816,6 +816,10 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			vfxName = "NightSpike"
 			dmgAmount = 35
 			skillColor = Color3.fromRGB(138, 43, 226)
+		elseif baseItemId == "SLASH" then
+			vfxName = "Default_Attack_Cast_1"
+			dmgAmount = 30
+			skillColor = Color3.fromRGB(255, 255, 255)
 		end
 		
 		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
@@ -863,13 +867,14 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local baseSkillDamage = finalDamage * attackMult * 2.0
 		
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
-		local hitPos = hrp.Position + look * 15
+		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or 15)
 		
 		-- Damage logic (4타 멀티 히트)
 		task.spawn(function()
 			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
-			for hitIndex = 1, 4 do
-				local radius = 15 -- 넓은 광역 폭발
+			local maxHits = 4
+			for hitIndex = 1, maxHits do
+				local radius = (baseItemId == "SLASH") and 20 or 15 -- 슬래시 범위 대폭 확대 (VFX 스케일 반영)
 				
 				local params = OverlapParams.new()
 				params.FilterType = Enum.RaycastFilterType.Exclude
@@ -896,7 +901,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							hitAny = true
 							
 							-- [타겟별 개별 데미지/치명타 연산]
-							local hitDmg = baseSkillDamage
+							local hitDmg = (baseItemId == "SLASH") and (baseSkillDamage / 4) or baseSkillDamage
 							local variance = 0.15
 							hitDmg = hitDmg * (1 + (math.random() * 2 - 1) * variance)
 							
@@ -1207,6 +1212,8 @@ local function handleLearnBook(player: Player, payload: any)
 		skillId = "SKILL_RUNE_WAVE_ACTIVE"
 	elseif bookItemId == "BOOK_SHADOW" then
 		skillId = "SKILL_RUNE_SHADOW_ACTIVE"
+	elseif bookItemId == "BOOK_SLASH" then
+		skillId = "SKILL_SLASH"
 	end
 
 	if not skillId then

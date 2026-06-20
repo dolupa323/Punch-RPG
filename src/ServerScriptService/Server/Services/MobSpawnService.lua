@@ -14,6 +14,31 @@ local Enums = require(Shared:WaitForChild("Enums"):WaitForChild("Enums"))
 local MobSpawnService = {}
 local activeMobs = {} -- areaId_index -> Model Instance
 
+local Debris = game:GetService("Debris")
+
+local function playBossSound(soundName, host, volume)
+	local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+	local monsterSounds = soundRoot and soundRoot:FindFirstChild("Monster") and soundRoot.Monster:FindFirstChild("DesertGuardian")
+	if not monsterSounds or not host then return end
+	local template = monsterSounds:FindFirstChild(soundName)
+	if template and template:IsA("Sound") then
+		local sound = template:Clone()
+		local finalVolume = volume
+		if not finalVolume then
+			local lowerName = string.lower(soundName)
+			if string.find(lowerName, "charge") or string.find(lowerName, "telegraph") then
+				finalVolume = 0.2
+			else
+				finalVolume = 0.5
+			end
+		end
+		sound.Volume = finalVolume
+		sound.Parent = host
+		sound:Play()
+		Debris:AddItem(sound, math.max(sound.TimeLength + 0.5, 3.0))
+	end
+end
+
 local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number)
 	if not phum or phum.Health <= 0 then return end
 	local char = phum.Parent
@@ -1614,6 +1639,7 @@ local function createMobModel(areaId, index, config)
 							chargeSphere.CanCollide = false
 							chargeSphere.CFrame = headPart.CFrame * CFrame.new(0, 0, -1) -- 정면 눈 위치 즈음
 							chargeSphere.Parent = workspace
+							playBossSound("Laser_Charge", chargeSphere)
 
 							ts:Create(chargeSphere, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Elastic), {
 								Size = Vector3.new(2.5, 2.5, 2.5)
@@ -1687,6 +1713,7 @@ local function createMobModel(areaId, index, config)
 
 								updateLaserVisual(startLaserPos, endLaserPos, 1.2)
 								laserModel.Parent = workspace
+								playBossSound("Laser_Shoot", laserCore)
 
 								-- 콰쾅! 폭발 연출
 								local exp = Instance.new("Explosion")
@@ -2323,6 +2350,8 @@ local function createMobModel(areaId, index, config)
 						end
 						groundPart.CFrame = CFrame.new(hrp.Position.X, groundY + 0.1, hrp.Position.Z)
 
+
+
 						-- 스킬별 쿨타임 정의
 						local waveCooldown = 15.0
 						local quicksandCooldown = 18.0
@@ -2333,6 +2362,7 @@ local function createMobModel(areaId, index, config)
 						if distToPlayer <= 45 and (now - lastJumpTick >= waveCooldown) then
 							lastJumpTick = now
 							humanoid:MoveTo(hrp.Position) -- 제자리 캐스팅
+							playBossSound("SandWall_Charge", hrp)
 
 							-- 물리 흔들림을 막기 위해 시전 동안 고정
 							hrp.Anchored = true
@@ -2390,6 +2420,7 @@ local function createMobModel(areaId, index, config)
 
 							hrp.Anchored = false
 
+							playBossSound("SandWall_Cast", hrp)
 							if isAlive then
 								-- 실제 모래 해일 장벽 생성 및 발사 (안전 영역 i == safeIndex1 를 비워둠)
 								task.spawn(function()
@@ -2549,6 +2580,7 @@ local function createMobModel(areaId, index, config)
 						elseif distToPlayer <= 45 and (now - lastPoisonTick >= quicksandCooldown) then
 							lastPoisonTick = now
 							humanoid:MoveTo(hrp.Position)
+							playBossSound("Quicksand_Cast", hrp)
 
 							pcall(function()
 								local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -2715,6 +2747,7 @@ local function createMobModel(areaId, index, config)
 													spikeTelegraph.Color = Color3.fromRGB(255, 0, 0)
 													spikeTelegraph.Transparency = 0.8
 													spikeTelegraph.Parent = workspace
+													playBossSound("Spike_Telegraph", spikeTelegraph)
 
 													ts:Create(spikeTelegraph, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.35}):Play()
 
@@ -2731,6 +2764,7 @@ local function createMobModel(areaId, index, config)
 														local stonePart = nil
 														if stoneModel then
 															stonePart = prepareVfxInstance(stoneModel, "DesertGuardian_RisingStone", CFrame.new(spikeTargetPos), false)
+															playBossSound("Spike_Burst", stonePart)
 															-- 돌의 Y 크기를 구해와 지면 아래로 완전히 감춤 (크기 + 마진)
 															local stoneHeight
 															if stonePart:IsA("Model") then
@@ -2804,6 +2838,7 @@ local function createMobModel(areaId, index, config)
 															stonePart.CanCollide = false
 															stonePart.Anchored = true
 															stonePart.Parent = workspace
+															playBossSound("Spike_Burst", stonePart)
 
 															-- 스크립트로 회오리 기둥 고속 회전 및 트윈 상승 애니메이션 실행
 															task.spawn(function()
@@ -2973,6 +3008,7 @@ local function createMobModel(areaId, index, config)
 							chargeSphere.CanQuery = false
 							chargeSphere.CFrame = laserOriginCFrame
 							chargeSphere.Parent = workspace
+							playBossSound("Laser_Charge", chargeSphere)
 
 							ts:Create(chargeSphere, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Elastic), {
 								Size = Vector3.new(3.8, 3.8, 3.8)
@@ -3041,6 +3077,7 @@ local function createMobModel(areaId, index, config)
 
 								updateLaserVisual(startLaserPos, endLaserPos, 3.2)
 								laserModel.Parent = workspace
+								playBossSound("Laser_Shoot", laserCore)
 
 								local exp = Instance.new("Explosion")
 								exp.BlastRadius = 9
@@ -3130,6 +3167,7 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Color = Color3.fromRGB(230, 150, 80)
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
+							playBossSound("Spout_Telegraph", warnCircle)
 
 							ts:Create(warnCircle, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.45}):Play()
 
@@ -3155,6 +3193,7 @@ local function createMobModel(areaId, index, config)
 								local spoutVisual = nil
 								if tornadoModel then
 									spoutVisual = prepareVfxInstance(tornadoModel, "SandSpoutTornado", CFrame.new(targetFloorPos), true)
+									playBossSound("Spout_Burst", spoutVisual)
 									emitVfxParticles(spoutVisual, 60)
 									addSandBurst(getEmitterHost(spoutVisual), "SandSpoutGoldGrain", 85, NumberRange.new(24, 48), 1.1)
 									createSandShockwave(targetFloorPos, 10, Color3.fromRGB(245, 180, 95), 0.3)
@@ -3172,6 +3211,7 @@ local function createMobModel(areaId, index, config)
 									spoutVisual.CanCollide = false
 									spoutVisual.Anchored = true
 									spoutVisual.Parent = workspace
+									playBossSound("Spout_Burst", spoutVisual)
 
 									-- 모래바람 돌풍 줄기 (회오리 기둥 모양 형성)
 									local spoutEmitter = Instance.new("ParticleEmitter")
@@ -7160,6 +7200,20 @@ local function createMobModel(areaId, index, config)
 			-- ★ 사망 시 아이템 드롭 처리
 			local deathPos = model:GetPivot().Position
 			spawnLoot(config.dropTableId or config.mobModelName or "Slime", deathPos, killer)
+
+			-- [사막 수호자 보스 전용 보상]: 5개의 물리 코인 드롭 생성
+			if config.mobModelName == "DesertGuardian" then
+				task.spawn(function()
+					for i = 1, 5 do
+						local angle = (i / 5) * math.pi * 2
+						local distance = math.random(30, 100) / 10
+						local offset = Vector3.new(math.cos(angle) * distance, 1, math.sin(angle) * distance)
+						local spawnPos = deathPos + offset
+						WorldDropService.spawnDrop(spawnPos, "COIN", 1, nil, nil, "LOOT")
+						task.wait(0.05)
+					end
+				end)
+			end
 
 			-- 페이드 아웃 시간(1.5초) 후 시체 모델 완전히 삭제 (보이지 않는 물리 충돌/길막 버그 원천 차단)
 			task.delay(1.5, function()

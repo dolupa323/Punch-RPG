@@ -13,6 +13,27 @@ local NetController = nil
 local initialized = false
 local lastInteractedTent = {}
 
+local function _attachNpcLabel(root: BasePart, name: string, role: string)
+	if not root or root:FindFirstChild("NpcLabel") then return end
+	local label = Instance.new("BillboardGui")
+	label.Name = "NpcLabel"
+	label.Size = UDim2.new(0, 200, 0, 50)
+	label.StudsOffset = Vector3.new(0, 0.5, 0)
+	label.AlwaysOnTop = true
+	label.MaxDistance = 80
+	label.Parent = root
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.new(1, 0, 1, 0)
+	text.BackgroundTransparency = 1
+	text.TextScaled = true
+	text.Font = Enum.Font.SourceSansBold
+	text.TextColor3 = Color3.fromRGB(255, 233, 184)
+	text.TextStrokeTransparency = 0.35
+	text.Text = string.format("%s\n%s", name, role)
+	text.Parent = label
+end
+
 local function setupTent(tent)
 	if tent:FindFirstChild("TentSpawnPrompt", true) then return end
 
@@ -29,13 +50,14 @@ local function setupTent(tent)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "TentSpawnPrompt"
-	prompt.ActionText = "스폰지점 설정"
-	prompt.ObjectText = "텐트"
+	prompt.ActionText = "해당 캠프에서 스폰"
+	prompt.ObjectText = "캠프"
 	prompt.HoldDuration = 0.5
 	prompt.RequiresLineOfSight = false
 	prompt.MaxActivationDistance = 15
 	
 	prompt.Parent = promptPart
+	_attachNpcLabel(promptPart, "Tent", "해당 캠프에서 스폰")
 	print(string.format("[TentService] 텐트 발견 및 프롬프트 생성 완료: %s | Hitbox 좌표: (%.1f, %.1f, %.1f)", tent.Name, promptPart.Position.X, promptPart.Position.Y, promptPart.Position.Z))
 	
 	prompt.Triggered:Connect(function(player)

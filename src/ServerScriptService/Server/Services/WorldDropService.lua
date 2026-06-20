@@ -538,6 +538,30 @@ function WorldDropService.loot(player: Player, dropId: string): (boolean, string
 		return false, Enums.ErrorCode.OUT_OF_RANGE, nil
 	end
 
+	if drop.itemId == "COIN" then
+		local goldService = _getGoldService()
+		if goldService then
+			local currentGold = goldService.getGold(userId)
+			if currentGold >= Balance.GOLD_CAP then
+				return false, Enums.ErrorCode.GOLD_CAP_REACHED, nil
+			end
+			local goldAmount = math.min(100, Balance.GOLD_CAP - currentGold)
+			local ok, err = goldService.addGold(userId, goldAmount)
+			if not ok then
+				return false, err, nil
+			end
+			emitDespawned(dropId, "LOOTED_OUT")
+			unindexDropForMerge(drop)
+			drops[dropId] = nil
+			dropCount = dropCount - 1
+			return true, nil, {
+				dropId = dropId,
+				itemId = "COIN",
+				goldAmount = goldAmount,
+			}
+		end
+	end
+
 	if drop.dropType == "gold" then
 		local availableGold = math.max(0, math.floor(tonumber(drop.goldAmount or drop.count) or 0))
 		if availableGold <= 0 then

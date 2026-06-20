@@ -47,6 +47,11 @@ local function getNPCRole(npc: Instance): (string?, string?)
 		return "일일보상", "Daily Reward"
 	end
 
+	-- 7. 텐트 (스폰지점 설정)
+	if name == "Tent" or npcId == "Tent" then
+		return "캠프", "Camp"
+	end
+
 	return nil, nil
 end
 
@@ -60,7 +65,7 @@ local function localizeBillboard(billboard: BillboardGui)
 	-- adornee부터 시작해 상위 NPC 모델을 찾습니다.
 	local npc = adornee
 	while npc and npc ~= Workspace do
-		if npc:IsA("Model") and (npc.Parent.Name == "NPC" or npc.Parent.Name == "NPCs" or npc.Name == "Con_Doctor" or npc.Name == "RuneStone") then
+		if npc:IsA("Model") and (npc.Parent.Name == "NPC" or npc.Parent.Name == "NPCs" or npc.Name == "Con_Doctor" or npc.Name == "RuneStone" or npc.Name == "Tent") then
 			break
 		end
 		npc = npc.Parent
@@ -101,6 +106,8 @@ local function localizeBillboard(billboard: BillboardGui)
 		displayName = isKorean and "잡화상" or "General Merchant"
 	elseif displayName == "RuneStone" then
 		displayName = isKorean and "룬스톤" or "Rune Stone"
+	elseif displayName == "Tent" then
+		displayName = isKorean and "해당 캠프에서 스폰" or "Spawn at this Camp"
 	end
 
 	-- 고급 텍스트 스타일링 적용 (RichText 활성화)

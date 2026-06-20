@@ -279,7 +279,7 @@ function SkillController.useSkill(slotName: string)
 				local msg = "스킬을 사용할 수 없습니다."
 				if errorCode == "COOLDOWN" then msg = "재사용 대기 중입니다."
 				elseif errorCode == "NOT_EQUIPPED" then msg = "룬이 장착되어 있지 않습니다."
-				elseif errorCode == "NOT_ENOUGH_STAMINA" then msg = "기력이 부족합니다."
+				elseif errorCode == "NOT_ENOUGH_STAMINA" then msg = "마나가 부족합니다."
 				end
 				UIManager.notify(msg, Color3.fromRGB(255, 140, 140))
 			end
