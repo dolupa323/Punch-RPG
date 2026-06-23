@@ -35,7 +35,7 @@ local ZONE_SOUND_NAMES = {
 	SAMURAI_ZONE = "SAMURAI_BGM",          -- 멸망한 동쪽의 나라
 	DEATH_SNOW_MOUNTAIN = "SNOW_BGM",      -- 죽음의 설산
 	SKY_ISLAND = "SKY_BGM",                -- 하늘섬
-	BLUE_FLAME_KNIGHT_ZONE = "SAMURAI_BGM",-- 푸른 신념 (최종 보스)
+	BLUE_FLAME_KNIGHT_ZONE = "BOSS_BGM",-- 푸른 신념 (최종 보스)
 	DESERTGUARDIANZONE = "BOSS_BGM",     -- 사막의 수호자 구역 (BOSS_BGM)
 
 	-- Legacy Zones
