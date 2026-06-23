@@ -13,7 +13,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 3,
 		techLevel = 1,
-		inputs = { { itemId = "SLIME_MUCUS", count = 10 } },
+		inputs = { { itemId = "SLIME_MUCUS", count = 5 } },
 		outputs = { { itemId = "SoftClub", count = 1 } },
 	},
 	{
@@ -23,7 +23,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 5,
 		techLevel = 1,
-		inputs = { { itemId = "HORNED_LARVA_HORN", count = 15 } },
+		inputs = { { itemId = "HORNED_LARVA_HORN", count = 5 } },
 		outputs = { { itemId = "Gakchang", count = 1 } },
 	},
 	{
@@ -33,7 +33,7 @@ local RecipeData = {
 		requiredFacility = nil,
 		craftTime = 8,
 		techLevel = 1,
-		inputs = { { itemId = "STUMP_BARK", count = 30 } },
+		inputs = { { itemId = "STUMP_BARK", count = 10 } },
 		outputs = { { itemId = "Mogwoldo", count = 1 } },
 	},
 	{
