@@ -2198,20 +2198,20 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			local activeBossData = nil
 			local bossKey = nil
 			
+			local closestDist = 999999
 			for key, data in pairs(RaidBossData) do
-				local foundModel = nil
-				for _, child in ipairs(workspace:GetChildren()) do
-					if child.Name == data.mobModelName and child:FindFirstChildOfClass("Humanoid") then
-						foundModel = child
-						break
+				local foundModel = workspace:FindFirstChild(data.mobModelName)
+				if foundModel and foundModel:FindFirstChildOfClass("Humanoid") then
+					local bHrp = foundModel:FindFirstChild("HumanoidRootPart") or foundModel.PrimaryPart
+					if bHrp and hrp then
+						local dist = (hrp.Position - bHrp.Position).Magnitude
+						if dist < closestDist then
+							activeBossModel = foundModel
+							activeBossData = data
+							bossKey = key
+							closestDist = dist
+						end
 					end
-				end
-				
-				if foundModel then
-					activeBossModel = foundModel
-					activeBossData = data
-					bossKey = key
-					break
 				end
 			end
 			
