@@ -129,27 +129,27 @@ local MobSpawnData = {
 		spawnAreaId = "CyclopsBatZone",
 		mobModelName = "CyclopsBat",
 		mobDisplayName = "사이클롭스 박쥐",
-		maxHealth = 2400,
-		baseDamage = 32,
+		maxHealth = 5500,
+		baseDamage = 35,
 		attackCooldown = 0.8,
 		respawnDelay = 3.0,
 		modelScale = 0.09, -- 박쥐 고유 에셋 규격 조율 (0.09로 적당하게 축소)
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 비행 방향을 정면 수직으로 보정
 		customHipHeight = 15.0, -- 공중 비행(Hovering) 높이 15.0 스터드로 강제 보정
 		walkSpeed = 10,
-		xpReward = 260,
-		level = 28,
+		xpReward = 480,
+		level = 29,
 
 		spawnAsPolygon = true,
-		spawnCount = 4, -- 4마리 배치
+		spawnCount = 10, -- 스폰수 상향
 		isIndoor = true,
 		skipTerrainScan = true,
 
 		spawnPositions = {
-			{x = -585.736, y = -341.991, z = 2412.599},
-			{x = -785.001, y = -339.711, z = 2346.044},
-			{x = -918.129, y = -345.004, z = 2623.978},
-			{x = -687.244, y = -342.859, z = 2729.772}
+			{x = -2124.501, y = -99.48, z = 3348.27},
+			{x = -1890.865, y = -97.335, z = 3217.623},
+			{x = -1919.388, y = -96.467, z = 3101.845},
+			{x = -2133.603, y = -94.187, z = 3165.156}
 		}
 	},
 
@@ -157,14 +157,14 @@ local MobSpawnData = {
 		spawnAreaId = "SmallGolemZone",
 		mobModelName = "SmallGolem",
 		mobDisplayName = "작은 골렘",
-		maxHealth = 2100,
-		baseDamage = 22,
+		maxHealth = 4200,
+		baseDamage = 32,
 		attackCooldown = 2.5, -- 공격 속도는 다소 느림
 		respawnDelay = 5.0,
 		modelScale = 9.0,    -- 스텀프 킹 다음 티어가 확실히 느껴지도록 추가 확대
 		walkSpeed = 5,       -- 느릿하고 묵직한 이동
-		xpReward = 180,
-		level = 18,
+		xpReward = 430,
+		level = 26,
 
 		spawnAsPolygon = true,
 		spawnCount = 6,
@@ -173,10 +173,10 @@ local MobSpawnData = {
 		skipTerrainScan = false, -- [수정] 천장 고려는 유지하되, 바닥 정확도 보정을 위해 레이캐스트를 다시 사용
 
 		spawnPositions = {
-			{x = -622.158, y = -370.514, z = 1939.376},
-			{x = -375.183, y = -370.514, z = 2052.879},
-			{x = -466.153, y = -370.514, z = 2204.655},
-			{x = -670.563, y = -370.514, z = 2114.954}
+			{x = -1767.035, y = -110.795, z = 3248.651},
+			{x = -1663.194, y = -110.795, z = 3231.649},
+			{x = -1675.115, y = -110.875, z = 3066.311},
+			{x = -1788.530, y = -110.795, z = 3110.427}
 		}
 	},
 
@@ -429,10 +429,10 @@ local MobSpawnData = {
 
 		-- 유저 제공 Properties MeshPart "Realistic Stone" 4개 꼭짓점 좌표 반영
 		spawnPositions = {
-			{x = -41.777, y = -52.658, z = 3218.926},
-			{x = -241.641, y = -78.034, z = 2938.122},
-			{x = -488.123, y = -77.877, z = 3056.269},
-			{x = -248.026, y = -39.658, z = 3329.409}
+			{x = -2880.468, y = 26.472, z = 3991.859},
+			{x = -2775.425, y = 10.400, z = 4084.017},
+			{x = -2615.280, y = 22.575, z = 3824.414},
+			{x = -2746.301, y = 45.085, z = 3776.767}
 		}
 	},
 
@@ -451,18 +451,13 @@ local MobSpawnData = {
 		xpReward = 750,
 
 		spawnAsPolygon = true,
-		spawnCount = 4, -- 추가 구역 스폰 마리수 4마리
+		spawnCount = 0,
 		isIndoor = true,
 		raycastStartOffsetY = 100,
 		raycastDepth = -200,
 
 		-- 두 번째 스폰지역 좌표 반영
-		spawnPositions = {
-			{x = -450.573, y = -34.651, z = 2979.76},
-			{x = -343.85, y = -47.651, z = 2937.212},
-			{x = -529.822, y = -73.027, z = 2611.048},
-			{x = -621.871, y = -72.87, z = 2684.114}
-		}
+		spawnPositions = {}
 	},
 
 	["IceDragonZone"] = {
@@ -481,17 +476,17 @@ local MobSpawnData = {
 		xpReward = 520,
 
 		spawnAsPolygon = true,
-		spawnCount = 4,
+		spawnCount = 8, -- 스폰수 상향
 		isIndoor = true,
 		raycastStartOffsetY = 100,
 		raycastDepth = -200,
 
 		-- 얼음 기사 1구역과 동일한 좌표 반영
 		spawnPositions = {
-			{x = -41.777, y = -52.658, z = 3218.926},
-			{x = -241.641, y = -78.034, z = 2938.122},
-			{x = -488.123, y = -77.877, z = 3056.269},
-			{x = -248.026, y = -39.658, z = 3329.409}
+			{x = -2379.259, y = -28.094, z = 3479.736},
+			{x = -2412.203, y = -26.792, z = 3327.836},
+			{x = -2794.129, y = -24.491, z = 3396.280},
+			{x = -2773.708, y = -15.094, z = 3549.527}
 		}
 	},
 
@@ -511,18 +506,13 @@ local MobSpawnData = {
 		xpReward = 520,
 
 		spawnAsPolygon = true,
-		spawnCount = 4,
+		spawnCount = 0,
 		isIndoor = true,
 		raycastStartOffsetY = 100,
 		raycastDepth = -200,
 
 		-- 얼음 기사 2구역과 동일한 좌표 반영
-		spawnPositions = {
-			{x = -450.573, y = -34.651, z = 2979.76},
-			{x = -343.85, y = -47.651, z = 2937.212},
-			{x = -529.822, y = -73.027, z = 2611.048},
-			{x = -621.871, y = -72.87, z = 2684.114}
-		}
+		spawnPositions = {}
 	}
 }
 
