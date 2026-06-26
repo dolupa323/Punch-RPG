@@ -23,7 +23,7 @@ local playerConnections = {} -- [userId] = { RBXScriptConnection, ... }
 
 local QUEST_ID = "RPG_TUTORIAL"
 local QUEST_TITLE = "튜토리얼 퀘스트"
-local TOTAL_STEPS = 11
+local TOTAL_STEPS = 12
 local QUEST_VERSION = 7
 local QUEST_SCHEMA_VERSION = 1
 local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260612_V4"
@@ -166,6 +166,28 @@ local STEP_DEFS = {
 		stepCount = 1,
 		rewardGold = 200,
 	},
+	[12] = {
+		id = "EQUIP_DASH",
+		currentStepText = "스킬 장착하기",
+		stepCommand = "스킬 탭(K)을 열어 스킬북을 배우고 패시브 슬롯에 대쉬를 장착하세요.",
+		stepKind = "ITEM_ANY",
+		stepCount = 1,
+		rewardGold = 300,
+		sync = function(userId, state, progress)
+			local saveState = SaveService and SaveService.getPlayerState(userId)
+			local equippedPassives = saveState and saveState.equippedPassives or {}
+			local hasDashEquipped = false
+			for k, v in pairs(equippedPassives) do
+				if v == "SKILL_RUNE_DASH" then
+					hasDashEquipped = true
+					break
+				end
+			end
+			if hasDashEquipped then
+				progress.count = 1
+			end
+		end,
+	},
 }
 
 local function _getDefaultState()
@@ -193,7 +215,16 @@ local function _ensureState(userId: number)
 	end
 
 	local state = saveState[QUEST_SAVE_KEY]
-	if type(state) ~= "table" or tonumber(state.version) ~= QUEST_VERSION or tonumber(state.schemaVersion) ~= QUEST_SCHEMA_VERSION or tostring(state.resetMarker or "") ~= QUEST_RESET_MARKER then
+	local isValid = false
+	if type(state) == "table" then
+		local v = tonumber(state.version) or 0
+		local m = tostring(state.resetMarker or "")
+		if (v == 7 or v == 8) and (m == "RPG_TUTORIAL_RESET_20260612_V4" or m == "RPG_TUTORIAL_RESET_20260626_V1") then
+			isValid = true
+		end
+	end
+
+	if not isValid then
 		state = _getDefaultState()
 		saveState[QUEST_SAVE_KEY] = state
 	end
@@ -202,6 +233,14 @@ local function _ensureState(userId: number)
 	state.active = state.completed ~= true
 	state.completed = state.completed == true
 	state.stepIndex = math.clamp(math.floor(tonumber(state.stepIndex) or 1), 1, TOTAL_STEPS)
+	
+	-- 만약 예전에 모든 퀘스트를 완료(completed=true)했었으나, 새로운 퀘스트 단계가 추가되었다면 다시 활성화합니다.
+	if state.completed and state.stepIndex < TOTAL_STEPS then
+		state.completed = false
+		state.active = true
+		state.stepIndex = state.stepIndex + 1
+	end
+	
 	if state.completed then
 		state.active = false
 		state.stepIndex = TOTAL_STEPS
@@ -470,6 +509,10 @@ local function _grantCurrentStepReward(userId: number, stepIndex: number)
 				PlayerStatService.addXP(userId, 100, "TUTORIAL")
 			end
 		end
+	elseif stepDef.id == "CRAFT_MOGWOLDO" then
+		if InventoryService and InventoryService.addItem then
+			InventoryService.addItem(userId, "BOOK_DASH", 1)
+		end
 	end
 end
 
@@ -602,9 +645,8 @@ function TutorialQuestService.OnEquipmentChanged(userId: number)
 		return
 	end
 
-	if state.stepIndex == 4 then
+	if state.stepIndex == 4 or state.stepIndex == 12 then
 		_updateProgressAndSync(userId)
-		_tryCompleteStep(userId)
 	end
 end
 
@@ -789,6 +831,13 @@ function TutorialQuestService.Init(_NetController, _SaveService, _InventoryServi
 	if InventoryService and InventoryService.SetQuestItemCallback then
 		InventoryService.SetQuestItemCallback(function(userId, itemId, added)
 			TutorialQuestService.OnItemAdded(userId, itemId, added)
+		end)
+	end
+	
+	local skillService = require(game:GetService("ServerScriptService").Server.Services.SkillService)
+	if skillService and skillService.SetQuestEquipCallback then
+		skillService.SetQuestEquipCallback(function(userId)
+			TutorialQuestService.OnEquipmentChanged(userId)
 		end)
 	end
 

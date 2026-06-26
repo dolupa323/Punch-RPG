@@ -1454,6 +1454,8 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 					skillId = "SKILL_RUNE_SHADOW_ACTIVE"
 				elseif itemId == "BOOK_SLASH" then
 					skillId = "SKILL_SLASH"
+				elseif itemId == "BOOK_DASH" then
+					skillId = "SKILL_RUNE_DASH"
 				end
 
 				local isAlreadyOwned = false
@@ -2677,6 +2679,12 @@ function InventoryService.GetHandlers()
 					if SaveService.markPlayerDirty then
 						SaveService.markPlayerDirty(userId)
 					end
+					
+					local tqs = ServiceRegistry.get("TutorialQuestService")
+					if tqs and tqs.OnQuickslotSaved then
+						tqs.OnQuickslotSaved(userId, state.quickslots)
+					end
+					
 					return { success = true }
 				end
 			end

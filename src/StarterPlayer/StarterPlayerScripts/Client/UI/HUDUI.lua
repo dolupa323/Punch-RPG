@@ -1027,7 +1027,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		HUDUI.Refs.tutorialReward.Visible = false
 		HUDUI.Refs.tutorialProgress.Visible = false
 		if HUDUI.Refs.tutorialCompleteBtn then HUDUI.Refs.tutorialCompleteBtn.Visible = false end
-		if HUDUI.Refs.tutorialReadyHint then HUDUI.Refs.tutorialReadyHint.Visible = false end
+		if HUDUI.Refs.tutorialReadyHint and not tutorialReady then 
+			HUDUI.Refs.tutorialReadyHint.Visible = false 
+		end
 	end
 	
 	tutorialRelayoutFn = relayoutTutorialPanel

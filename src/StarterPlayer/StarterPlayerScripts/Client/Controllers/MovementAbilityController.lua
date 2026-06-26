@@ -15,6 +15,7 @@ local InputManager = require(Client:WaitForChild("InputManager"))
 local NetClient = require(Client:WaitForChild("NetClient"))
 local AnimationManager = require(Client:WaitForChild("Utils"):WaitForChild("AnimationManager"))
 local PlatformerInput = require(script.Parent:WaitForChild("PlatformerInput"))
+local SkillController = require(script.Parent:WaitForChild("SkillController"))
 
 local MovementAbilityController = {}
 
@@ -307,12 +308,18 @@ function MovementAbilityController.requestDash()
 	dashVelocity.Attachment0 = rootAttachment
 	dashVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
 	dashVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-	dashVelocity.MaxForce = Balance.MOVEMENT_DASH_SPEED * root.AssemblyMass * 40
+	
+	local dashSpeed = Balance.MOVEMENT_DASH_SPEED
+	if SkillController.hasPassiveRuneEquipped("SKILL_RUNE_DASH") then
+		dashSpeed = dashSpeed * 1.5
+	end
+	
+	dashVelocity.MaxForce = dashSpeed * root.AssemblyMass * 40
 	local direction = getWorldDirection()
 	if direction.Magnitude < 0.01 then
 		direction = root.CFrame.LookVector
 	end
-	dashVelocity.VectorVelocity = Vector3.new(direction.X, 0, direction.Z).Unit * Balance.MOVEMENT_DASH_SPEED
+	dashVelocity.VectorVelocity = Vector3.new(direction.X, 0, direction.Z).Unit * dashSpeed
 	dashVelocity.Parent = root
 
 	playAnimation("Dash")
@@ -359,7 +366,7 @@ local function bindInputs()
 
 	InputManager.bindAction("MovementDashAction", function()
 		MovementAbilityController.requestDash()
-	end, false, nil, Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift, Enum.KeyCode.ButtonL1)
+	end, false, nil, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
 end
 
 local function onCharacterAdded(character: Model)

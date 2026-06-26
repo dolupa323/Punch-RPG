@@ -841,11 +841,19 @@ function SkillTreeUI.Refresh()
 end
 
 function SkillTreeUI.SetController(controller)
-	-- Keep placeholder compatibility
+	SkillController = controller
 end
 
 function SkillTreeUI.GetSlots()
 	return SkillTreeUI.Refs.Slots
+end
+
+function SkillTreeUI.GetSelectedBookId()
+	return selectedBookId
+end
+
+function SkillTreeUI.GetSelectedSkillId()
+	return selectedSkillId
 end
 
 return SkillTreeUI

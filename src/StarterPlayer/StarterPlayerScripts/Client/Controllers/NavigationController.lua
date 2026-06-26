@@ -199,12 +199,6 @@ local function groundProject(position: Vector3, char: Model?): Vector3
 end
 
 local STEP_TARGETS = {
-	SELECT_ELEMENT = {
-		kind = "monster",
-		zoneName = "SLIME_HABITAT",
-		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-753.46, -32.0, 1404.68),
-	},
 	KILL_SLIME = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
@@ -238,12 +232,7 @@ local STEP_TARGETS = {
 		aliases = { "EnhanceMaster", "강화스승", "무기 강화", "Weapon Enhance" },
 		fallback = Vector3.new(-677.292, 35.511, 822.341),
 	},
-	BUY_POTION = {
-		kind = "npc",
-		aliases = { "Merchant", "잡화상", "General Merchant" },
-		fallback = Vector3.new(-419.315, 32.774, 936.809),
-	},
-	KILL_STUMP = {
+	COLLECT_STUMP_BARK = {
 		kind = "monster",
 		zoneName = "STUMP_ZONE",
 		spawnDataKey = "StumpZone",
@@ -262,16 +251,17 @@ local function resolveTargetPosition(stepKey: string?, stepIndex: number?): Vect
 
 	if not target and stepIndex then
 		local fallbackKeyByIndex = {
-			[1] = "SELECT_ELEMENT",
-			[2] = "KILL_SLIME",
-			[3] = "COLLECT_SLIME_MUCUS",
-			[4] = "CRAFT_SOFTCLUB",
-			[5] = "KILL_HORNED_LARVA",
-			[6] = "CRAFT_GAKCHANG",
-			[7] = "ENHANCE_GAKCHANG",
-			[8] = "BUY_POTION",
-			[9] = "KILL_STUMP",
-			[10] = "CRAFT_MOGWOLDO",
+			[1] = "KILL_SLIME",
+			[2] = "COLLECT_SLIME_MUCUS",
+			[3] = "CRAFT_SOFTCLUB",
+			[4] = "EQUIP_SOFTCLUB",
+			[5] = "DISTRIBUTE_STAT",
+			[6] = "KILL_HORNED_LARVA",
+			[7] = "CRAFT_GAKCHANG",
+			[8] = "ENHANCE_GAKCHANG",
+			[9] = "REGISTER_POTION",
+			[10] = "COLLECT_STUMP_BARK",
+			[11] = "CRAFT_MOGWOLDO",
 		}
 		target = STEP_TARGETS[fallbackKeyByIndex[stepIndex]]
 	end
@@ -420,6 +410,7 @@ local function updateArrow(dt: number)
 
 	-- 파트 배치 (Shaft는 뒤쪽, Wedge 두 개는 대칭으로 앞쪽에 맞물려 결합하여 완벽한 화살촉 생성)
 	arrowShaft.CFrame = lookCF * CFrame.new(0, 0, 0.6)
+	-- 원래의 정상적인 화살촉 각도로 완벽 복구
 	arrowTipLeft.CFrame = lookCF * CFrame.new(-0.25, 0, -0.7) * CFrame.Angles(0, 0, math.rad(90))
 	arrowTipRight.CFrame = lookCF * CFrame.new(0.25, 0, -0.7) * CFrame.Angles(0, 0, math.rad(-90))
 end
@@ -437,16 +428,17 @@ function NavigationController.UpdateTutorialStatus(status)
 	local target = STEP_TARGETS[key]
 	if not target and status.stepIndex then
 		local fallbackKeyByIndex = {
-			[1] = "SELECT_ELEMENT",
-			[2] = "KILL_SLIME",
-			[3] = "COLLECT_SLIME_MUCUS",
-			[4] = "CRAFT_SOFTCLUB",
-			[5] = "KILL_HORNED_LARVA",
-			[6] = "CRAFT_GAKCHANG",
-			[7] = "ENHANCE_GAKCHANG",
-			[8] = "BUY_POTION",
-			[9] = "KILL_STUMP",
-			[10] = "CRAFT_MOGWOLDO",
+			[1] = "KILL_SLIME",
+			[2] = "COLLECT_SLIME_MUCUS",
+			[3] = "CRAFT_SOFTCLUB",
+			[4] = "EQUIP_SOFTCLUB",
+			[5] = "DISTRIBUTE_STAT",
+			[6] = "KILL_HORNED_LARVA",
+			[7] = "CRAFT_GAKCHANG",
+			[8] = "ENHANCE_GAKCHANG",
+			[9] = "REGISTER_POTION",
+			[10] = "COLLECT_STUMP_BARK",
+			[11] = "CRAFT_MOGWOLDO",
 		}
 		target = STEP_TARGETS[fallbackKeyByIndex[status.stepIndex]]
 	end

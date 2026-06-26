@@ -501,6 +501,166 @@ function WorldDropService.spawnGoldDrop(pos: Vector3, amount: number): (boolean,
 	return true, nil, { merged = false, dropId = drop.dropId, count = goldAmount }
 end
 
+function WorldDropService.spawnXpOrbs(pos: Vector3, killer: Player, totalXpAmount: number, mobName: string)
+	if not killer or totalXpAmount <= 0 then return end
+	
+	local orbCount = math.clamp(math.ceil(totalXpAmount / 10), 1, 15)
+	local xpPerOrb = math.ceil(totalXpAmount / orbCount)
+	
+	local xpFolder = workspace:FindFirstChild("XPOrbs")
+	if not xpFolder then
+		xpFolder = Instance.new("Folder")
+		xpFolder.Name = "XPOrbs"
+		xpFolder.Parent = workspace
+	end
+
+	local RunService = game:GetService("RunService")
+
+	for i = 1, orbCount do
+		local orbXp = (i == orbCount) and (totalXpAmount - xpPerOrb * (orbCount - 1)) or xpPerOrb
+		if orbXp <= 0 then continue end
+		
+		local orb = Instance.new("Part")
+		orb.Name = "XPOrb"
+		orb.Shape = Enum.PartType.Ball
+		orb.Size = Vector3.new(0.6, 0.6, 0.6)
+		orb.Material = Enum.Material.Neon
+		orb.Color = Color3.fromRGB(200, 255, 255)
+		orb.CanCollide = true
+		orb.Massless = true
+		orb.Anchored = false
+		orb.CustomPhysicalProperties = PhysicalProperties.new(0.4, 0.5, 0.2, 1, 1) -- 통통 튀고 구르도록
+		
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(150, 255, 255)
+		light.Range = 8
+		light.Brightness = 1.5
+		light.Parent = orb
+		
+		-- 꼬리(Trail) 추가
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 0.3, 0)
+		a0.Parent = orb
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -0.3, 0)
+		a1.Parent = orb
+		
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Lifetime = 0.35
+		trail.LightEmission = 1
+		trail.Color = ColorSequence.new(Color3.fromRGB(150, 255, 255))
+		trail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.2),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+		trail.WidthScale = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(1, 0)
+		})
+		trail.Enabled = false -- 튕겨 나갈 땐 끄고, 흡수될 때 켬
+		trail.Parent = orb
+		
+		-- 몬스터 몸체 중심 쯤에서 팡 터지도록 위치 설정
+		orb.Position = pos + Vector3.new(math.random(-5, 5)/10, 1.5, math.random(-5, 5)/10)
+		orb.Parent = xpFolder
+		
+		-- 펑 터지는 물리력 적용 (랜덤하게 사방으로)
+		orb.AssemblyLinearVelocity = Vector3.new(math.random(-15, 15), math.random(20, 35), math.random(-15, 15))
+		
+		local debounce = false
+		local connection = nil
+		local absorbRange = 25
+		local spawnTime = tick()
+		local suctionDelay = math.random(8, 18) / 10 -- 0.8초 ~ 1.8초 제각각 딜레이
+		local baseSpeed = math.random(4, 10) -- 구슬마다 시작 흡수 속도를 다르게 (대폭 낮춤)
+		
+		local isSucking = false
+		local suctionStartTime = 0
+		
+		connection = RunService.Heartbeat:Connect(function(dt)
+			if not orb or not orb.Parent then
+				if connection then connection:Disconnect() end
+				return
+			end
+			
+			local elapsedTime = tick() - spawnTime
+			if elapsedTime < suctionDelay then return end
+			
+			local char = killer.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local dist = (hrp.Position - orb.Position).Magnitude
+				
+				-- 범위 안에 들어오거나 이미 빨려가기 시작했다면 끝까지 추적
+				if dist < absorbRange or isSucking then
+					if not isSucking then
+						isSucking = true
+						suctionStartTime = tick()
+						
+						-- 흡수 시작 시 물리 충돌 끄고 꼬리 이펙트 켬
+						if not orb.Anchored then
+							orb.Anchored = true
+							orb.CanCollide = false
+							trail.Enabled = true
+						end
+					end
+					
+					-- 흡수가 시작된 지점으로부터의 시간으로 속도를 계산 (나중에 와서 먹어도 동일한 속도)
+					local suctionTime = tick() - suctionStartTime
+					-- 속도 증가폭을 기존 35에서 12로 대폭 낮추어 천천히 날아가게 함
+					local currentSpeed = baseSpeed + (suctionTime * 12)
+					local dir = (hrp.Position - orb.Position).Unit
+					orb.CFrame = orb.CFrame + dir * (currentSpeed * dt)
+					
+					if dist < 2.5 and not debounce then
+						debounce = true
+						if connection then connection:Disconnect() end
+						orb:Destroy()
+						
+						if PlayerStatService and PlayerStatService.addXP then
+							PlayerStatService.addXP(killer.UserId, orbXp, "Hunt_" .. (mobName or "Mob"))
+						end
+						
+						local hum = char:FindFirstChild("Humanoid")
+						if hum then
+							local originalSpeed = char:GetAttribute("OriginalWalkSpeed")
+							if not originalSpeed then
+								originalSpeed = hum.WalkSpeed
+								char:SetAttribute("OriginalWalkSpeed", originalSpeed)
+							end
+							
+							hum.WalkSpeed = originalSpeed + 5
+							char:SetAttribute("SpeedBuffEndTime", tick() + 1.0)
+							
+							if not char:GetAttribute("SpeedBuffActive") then
+								char:SetAttribute("SpeedBuffActive", true)
+								task.spawn(function()
+									while char and char.Parent do
+										task.wait(0.1)
+										local endTime = char:GetAttribute("SpeedBuffEndTime") or 0
+										if tick() >= endTime then
+											if hum then
+												hum.WalkSpeed = char:GetAttribute("OriginalWalkSpeed") or 16
+											end
+											char:SetAttribute("SpeedBuffActive", nil)
+											char:SetAttribute("OriginalWalkSpeed", nil)
+											break
+										end
+									end
+								end)
+							end
+						end
+					end
+				end
+			end
+		end)
+		
+		game:GetService("Debris"):AddItem(orb, 30)
+	end
+end
+
 --- Loot (아이템 줍기)
 --- 반환: (success, errorCode?, data?)
 function WorldDropService.loot(player: Player, dropId: string): (boolean, string?, any?)

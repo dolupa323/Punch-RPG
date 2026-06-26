@@ -354,11 +354,24 @@ local blinkThread = nil
 
 function UIManager.updateTutorialBlinking(status)
 	local stepKey = status and status.stepKey
-	local isDistributeStat = (stepKey == "DISTRIBUTE_STAT")
-	local isEquipSoftClub = (stepKey == "EQUIP_SOFTCLUB")
 	
-	if not isDistributeStat and not isEquipSoftClub then
+	local isProgressDone = false
+	if status and status.progress then
+		local count = status.progress.count or 0
+		local stepCount = status.stepCount or 1
+		isProgressDone = status.progress.done or (count >= stepCount)
+	end
+	
+	local isDistributeStat = (stepKey == "DISTRIBUTE_STAT") and not isProgressDone
+	local isEquipSoftClub = (stepKey == "EQUIP_SOFTCLUB") and not isProgressDone
+	local isEquipDash = (stepKey == "EQUIP_DASH") and not isProgressDone
+	
+	if not isDistributeStat and not isEquipSoftClub and not isEquipDash then
 		blinkingActive = false
+		if blinkThread then
+			task.cancel(blinkThread)
+			blinkThread = nil
+		end
 		local eqTab = HUDUI.Refs.EquipTabButton
 		if eqTab then
 			eqTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
@@ -368,6 +381,11 @@ function UIManager.updateTutorialBlinking(status)
 		if invTab then
 			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 			invTab.BackgroundTransparency = 0.3
+		end
+		local skillTab = HUDUI.Refs.SkillTabButton
+		if skillTab then
+			skillTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			skillTab.BackgroundTransparency = 0.3
 		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then
@@ -384,13 +402,14 @@ function UIManager.updateTutorialBlinking(status)
 				end
 			end
 		end
-		blinkThread = nil
 		return
 	end
 	
-	if blinkingActive then
-		return
+	if blinkThread then
+		task.cancel(blinkThread)
+		blinkThread = nil
 	end
+	
 	blinkingActive = true
 	
 	blinkThread = task.spawn(function()
@@ -492,6 +511,84 @@ function UIManager.updateTutorialBlinking(status)
 						invTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
 					end
 				end
+			elseif isEquipDash then
+				local isSkillOpen = WindowManager.isOpen("SKILL")
+				local skillTab = HUDUI.Refs.SkillTabButton
+				
+				if isSkillOpen then
+					if skillTab then
+						skillTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+						skillTab.BackgroundTransparency = 0.3
+					end
+					
+					local hasDashUnlocked = false
+					if SkillController and SkillController.getUnlockedSkills then
+						hasDashUnlocked = SkillController.getUnlockedSkills()["SKILL_RUNE_DASH"] == true
+					end
+					
+					local uiBookTabBtn = SkillTreeUI.Refs.BookTabBtn
+					local uiSkillTabBtn = SkillTreeUI.Refs.SkillTabBtn
+					local bookTabContent = SkillTreeUI.Refs.BookTabContent
+					local skillTabContent = SkillTreeUI.Refs.SkillTabContent
+					
+					-- Reset all highlights first
+					if uiBookTabBtn then uiBookTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
+					if uiSkillTabBtn then uiSkillTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
+					
+					if not hasDashUnlocked then
+						-- Highlight BookTabBtn if they are not in the book tab
+						if bookTabContent and not bookTabContent.Visible then
+							if uiBookTabBtn then
+								uiBookTabBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(45, 50, 60)
+							end
+						else
+							-- In book tab, highlight the book list item if it exists, or the learn button if selected
+							local bookList = SkillTreeUI.Refs.BookList
+							local learnBtn = SkillTreeUI.Refs.BookDetail and SkillTreeUI.Refs.BookDetail:FindFirstChild("LearnBtn")
+							local isSelected = SkillTreeUI.GetSelectedBookId and SkillTreeUI.GetSelectedBookId() == "BOOK_DASH"
+							
+							if isSelected then
+								if learnBtn and learnBtn.Visible then
+									learnBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+								end
+							else
+								if bookList then
+									local dashBookUI = bookList:FindFirstChild("BOOK_DASH")
+									if dashBookUI then
+										dashBookUI.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(25, 30, 45)
+									end
+								end
+							end
+						end
+					else
+						-- Dash is unlocked, they need to equip it
+						if skillTabContent and not skillTabContent.Visible then
+							if uiSkillTabBtn then
+								uiSkillTabBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(45, 50, 60)
+							end
+						else
+							-- In skill tab, highlight the passive skill and equip button
+							local passiveList = SkillTreeUI.Refs.PassiveList
+							if passiveList then
+								local dashPassiveUI = passiveList:FindFirstChild("SKILL_RUNE_DASH")
+								if dashPassiveUI then
+									local btnContainer = dashPassiveUI:FindFirstChild("BtnContainer")
+									local equipBtn = btnContainer and btnContainer:FindFirstChild("EquipBtn")
+									if equipBtn and equipBtn.Visible then
+										equipBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+									else
+										dashPassiveUI.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(25, 30, 45)
+									end
+								end
+							end
+						end
+					end
+				else
+					if skillTab then
+						skillTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+						skillTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
+					end
+				end
 			end
 			
 			isHighlight = not isHighlight
@@ -508,6 +605,36 @@ function UIManager.updateTutorialBlinking(status)
 		if invTab then
 			invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 			invTab.BackgroundTransparency = 0.3
+		end
+		local skillTab = HUDUI.Refs.SkillTabButton
+		if skillTab then
+			skillTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+			skillTab.BackgroundTransparency = 0.3
+		end
+		if SkillTreeUI and SkillTreeUI.Refs then
+			local uiBookTabBtn = SkillTreeUI.Refs.BookTabBtn
+			local uiSkillTabBtn = SkillTreeUI.Refs.SkillTabBtn
+			if uiBookTabBtn then uiBookTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
+			if uiSkillTabBtn then uiSkillTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
+			
+			local bookList = SkillTreeUI.Refs.BookList
+			if bookList then
+				local dashBookUI = bookList:FindFirstChild("BOOK_DASH")
+				if dashBookUI then dashBookUI.BackgroundColor3 = Color3.fromRGB(25, 30, 45) end
+			end
+			local learnBtn = SkillTreeUI.Refs.BookDetail and SkillTreeUI.Refs.BookDetail:FindFirstChild("LearnBtn")
+			if learnBtn then learnBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90) end
+			
+			local passiveList = SkillTreeUI.Refs.PassiveList
+			if passiveList then
+				local dashPassiveUI = passiveList:FindFirstChild("SKILL_RUNE_DASH")
+				if dashPassiveUI then
+					dashPassiveUI.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
+					local btnContainer = dashPassiveUI:FindFirstChild("BtnContainer")
+					local equipBtn = btnContainer and btnContainer:FindFirstChild("EquipBtn")
+					if equipBtn then equipBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90) end
+				end
+			end
 		end
 		local atkBtn = EquipmentUI.Refs.StatLines and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK] and EquipmentUI.Refs.StatLines[Enums.StatId.ATTACK].btn
 		if atkBtn then

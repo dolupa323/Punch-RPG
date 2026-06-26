@@ -800,25 +800,24 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		if look.Magnitude < 0.1 then look = hrp.CFrame.LookVector end
 		
 		local vfxName = "Fireball"
-		local dmgAmount = 25
+		local dmgAmount = 40
+		local skillMult = 1.5
 		local skillColor = Color3.fromRGB(255, 100, 50)
 		
 		if baseItemId == "DROPLET" then
 			vfxName = "WaterWave"
-			dmgAmount = 20
+			dmgAmount = 200
+			skillMult = 3.5
 			skillColor = Color3.fromRGB(50, 150, 255)
-			-- 힐 로직
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			if hum then
-				hum.Health = math.min(hum.MaxHealth, hum.Health + hum.MaxHealth * 0.1)
-			end
 		elseif baseItemId == "NIGHT" then
 			vfxName = "NightSpike"
-			dmgAmount = 35
+			dmgAmount = 80
+			skillMult = 2.0
 			skillColor = Color3.fromRGB(138, 43, 226)
 		elseif baseItemId == "SLASH" then
 			vfxName = "Default_Attack_Cast_1"
-			dmgAmount = 30
+			dmgAmount = 140
+			skillMult = 2.5
 			skillColor = Color3.fromRGB(255, 255, 255)
 		end
 		
@@ -863,8 +862,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			critDamageMult = calc.critDamageMult or 0
 		end
 		
-		-- 기본 스킬 데미지 (무기 데미지에 2.0배 배율 적용)
-		local baseSkillDamage = finalDamage * attackMult * 2.0
+		-- 기본 스킬 데미지 (무기 데미지에 스킬 고유 배율 적용)
+		local baseSkillDamage = finalDamage * attackMult * skillMult
 		
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
 		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or 15)
@@ -901,7 +900,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							hitAny = true
 							
 							-- [타겟별 개별 데미지/치명타 연산]
-							local hitDmg = (baseItemId == "SLASH") and (baseSkillDamage / 4) or baseSkillDamage
+							local hitDmg = baseSkillDamage
 							local variance = 0.15
 							hitDmg = hitDmg * (1 + (math.random() * 2 - 1) * variance)
 							
@@ -1117,6 +1116,10 @@ local function handleEquipPassive(player: Player, payload: any)
 	if PlayerStatService and PlayerStatService.applyStats then
 		PlayerStatService.applyStats(userId)
 	end
+	
+	if questEquipCallback then
+		questEquipCallback(userId)
+	end
 
 	local data = _getClientSkillData(userId)
 	NetController.FireClient(player, "Skill.Data.Updated", data)
@@ -1214,6 +1217,8 @@ local function handleLearnBook(player: Player, payload: any)
 		skillId = "SKILL_RUNE_SHADOW_ACTIVE"
 	elseif bookItemId == "BOOK_SLASH" then
 		skillId = "SKILL_SLASH"
+	elseif bookItemId == "BOOK_DASH" then
+		skillId = "SKILL_RUNE_DASH"
 	end
 
 	if not skillId then
@@ -1295,6 +1300,11 @@ end
 function SkillService.onPlayerRemoving(userId: number)
 	playerSkillCache[userId] = nil
 	activeRuneAuras[userId] = nil
+end
+
+local questEquipCallback = nil
+function SkillService.SetQuestEquipCallback(cb: (number) -> ())
+	questEquipCallback = cb
 end
 
 return SkillService

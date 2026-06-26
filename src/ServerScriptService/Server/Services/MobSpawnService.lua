@@ -703,7 +703,18 @@ local function createMobModel(areaId, index, config)
 		local bb = Instance.new("BillboardGui")
 		bb.Name = "MobUI"
 		bb.Size = UDim2.new(0, 90, 0, 30) -- 폭과 높이 전체적으로 다이어트! (120x45 -> 90x30)
-		bb.StudsOffset = Vector3.new(0, humanoid.HipHeight + hrp.Size.Y/2 + 0.5, 0) -- 캐릭터 머리에 더 바짝 붙임
+		
+		local extents = model:GetExtentsSize()
+		local head = model:FindFirstChild("Head")
+		if head then
+			bb.Adornee = head
+			bb.StudsOffset = Vector3.new(0, head.Size.Y/2 + 1.5, 0)
+		else
+			bb.Adornee = hrp
+			-- HRP가 보통 하단에 있으므로 모델 전체 높이(extents.Y)만큼 띄움
+			bb.StudsOffset = Vector3.new(0, extents.Y + 1.0, 0) 
+		end
+		
 		bb.AlwaysOnTop = true
 		bb.MaxDistance = 60 -- 너무 멀리있는건 안보여서 화면 깔끔하게 유지
 
@@ -934,7 +945,7 @@ local function createMobModel(areaId, index, config)
 			-- [반응속도 및 감지혁신]: 스텀프/박쥐의 유저 인식 반경 상승, FSM 주기를 단축하여 극적인 초고속 즉시 타격 실현!
 			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or (isBoss and 40 or 30))
 			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or 6)
-			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or (isBoss and 0.3 or 0.5))
+			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or (isBoss and 0.15 or 0.2))
 
 			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
 			local function playRockSmashEffect(pos, radius)
@@ -1118,6 +1129,8 @@ local function createMobModel(areaId, index, config)
 				game:GetService("Debris"):AddItem(shockwave, 0.5)
 			end
 
+			local lastTarget = nil
+
 			while isAlive and humanoid and humanoid.Parent and model:FindFirstChild("HumanoidRootPart") do
 				local hrp = model.HumanoidRootPart
 
@@ -1172,26 +1185,100 @@ local function createMobModel(areaId, index, config)
 					end
 				end
 
-				-- 1단계: 주변에 가장 가까운 생존한 플레이어 탐색
+				-- 1단계: 주변에 가장 가까운 생존한 플레이어 탐색 (추격 유지 거리 별도 적용)
 				local targetPlayer = nil
 				local minDist = AGGRO_RADIUS
+				local chaseRadius = AGGRO_RADIUS * 1.5 -- 기존 2.5배에서 1.5배로 축소 (너무 멀리 쫓아오지 않도록)
 
-				for _, p in ipairs(Players:GetPlayers()) do
-					local char = p.Character
-					local phum = char and char:FindFirstChild("Humanoid")
-					local phrp = char and char:FindFirstChild("HumanoidRootPart")
-
-					if phum and phum.Health > 0 and phrp then
-						local d = (hrp.Position - phrp.Position).Magnitude
-						if d < minDist then
+				-- 먼저 기존 타겟이 추격 반경 내에 있는지 확인합니다.
+				if lastTarget and lastTarget.Parent then
+					local lHum = lastTarget:FindFirstChild("Humanoid")
+					local lHrp = lastTarget:FindFirstChild("HumanoidRootPart")
+					if lHum and lHum.Health > 0 and lHrp then
+						local d = (hrp.Position - lHrp.Position).Magnitude
+						if d <= chaseRadius then
+							targetPlayer = lastTarget
 							minDist = d
-							targetPlayer = char
+						end
+					end
+				end
+
+				-- 기존 타겟이 없거나 멀리 도망갔다면, 기본 인식 거리 내의 새로운 타겟을 찾습니다.
+				if not targetPlayer then
+					for _, p in ipairs(Players:GetPlayers()) do
+						local char = p.Character
+						local phum = char and char:FindFirstChild("Humanoid")
+						local phrp = char and char:FindFirstChild("HumanoidRootPart")
+
+						if phum and phum.Health > 0 and phrp then
+							local d = (hrp.Position - phrp.Position).Magnitude
+							if d < minDist then
+								minDist = d
+								targetPlayer = char
+							end
 						end
 					end
 				end
 
 				-- 2단계: 타겟 존재 여부에 따른 행동 분기
 				if targetPlayer then
+					if lastTarget ~= targetPlayer then
+						lastTarget = targetPlayer
+						
+						-- 어그로 느낌표 시각 효과 (어그로가 유지되는 동안 계속 떠 있음)
+						task.spawn(function()
+							pcall(function()
+								local head = model:FindFirstChild("Head")
+								local adorneePart = head or hrp
+								
+								-- 기존에 떠있던 ! 나 ? 가 있다면 제거
+								local oldAlert = model:FindFirstChild("AggroAlert", true) or adorneePart:FindFirstChild("AggroAlert")
+								if oldAlert then oldAlert:Destroy() end
+								local oldLost = model:FindFirstChild("AggroLost", true) or adorneePart:FindFirstChild("AggroLost")
+								if oldLost then oldLost:Destroy() end
+								
+								local billboard = Instance.new("BillboardGui")
+								billboard.Name = "AggroAlert"
+								billboard.Adornee = adorneePart
+								billboard.Size = UDim2.new(2, 0, 2, 0)
+								
+								local extents = model:GetExtentsSize()
+								local yOffset = head and (head.Size.Y/2 + 1.0) or (extents.Y + 2.0)
+								billboard.StudsOffset = Vector3.new(0, yOffset, 0)
+								billboard.AlwaysOnTop = true
+								
+								local textLabel = Instance.new("TextLabel")
+								textLabel.Size = UDim2.new(1, 0, 1, 0)
+								textLabel.BackgroundTransparency = 1
+								textLabel.Text = "!"
+								textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+								textLabel.TextScaled = true
+								textLabel.Font = Enum.Font.FredokaOne
+								textLabel.TextStrokeTransparency = 0
+								textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+								textLabel.Parent = billboard
+								
+								billboard.Parent = hrp
+								
+								local ts = game:GetService("TweenService")
+								local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+								ts:Create(billboard, tweenInfo, {StudsOffset = Vector3.new(0, yOffset + 2.0, 0)}):Play()
+								
+								-- 경고음 재생
+								local soundRoot = game.ReplicatedStorage:FindFirstChild("Assets") and game.ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local alertSound = soundRoot and (soundRoot:FindFirstChild("AggroAlert") or soundRoot:FindFirstChild("UI_Click"))
+								if alertSound then
+									local s = alertSound:Clone()
+									s.Parent = hrp
+									s:Play()
+									game:GetService("Debris"):AddItem(s, 2)
+								end
+								
+								-- 이제 느낌표는 어그로가 풀릴 때까지(포기할 때까지) 계속 떠 있습니다.
+							end)
+						end)
+					end
+
 					-- [A. 전투 모드] 플레이어 추격 및 공격
 					local phrp = targetPlayer.HumanoidRootPart
 					local phum = targetPlayer.Humanoid
@@ -7037,6 +7124,54 @@ local function createMobModel(areaId, index, config)
 					end
 					task.wait(TICK_RATE)
 			else
+				if lastTarget ~= nil then
+					-- 어그로가 풀렸을 때(포기) 물음표 시각 효과
+					task.spawn(function()
+						pcall(function()
+							local head = model:FindFirstChild("Head")
+							local adorneePart = head or hrp
+							
+							-- 기존 느낌표(!) 제거
+							local oldAlert = model:FindFirstChild("AggroAlert", true) or adorneePart:FindFirstChild("AggroAlert")
+							if oldAlert then oldAlert:Destroy() end
+							
+							local billboard = Instance.new("BillboardGui")
+							billboard.Name = "AggroLost"
+							billboard.Adornee = adorneePart
+							billboard.Size = UDim2.new(2, 0, 2, 0)
+							
+							local extents = model:GetExtentsSize()
+							local yOffset = head and (head.Size.Y/2 + 1.0) or (extents.Y + 2.0)
+							billboard.StudsOffset = Vector3.new(0, yOffset, 0)
+							billboard.AlwaysOnTop = true
+							
+							local textLabel = Instance.new("TextLabel")
+							textLabel.Size = UDim2.new(1, 0, 1, 0)
+							textLabel.BackgroundTransparency = 1
+							textLabel.Text = "?"
+							textLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+							textLabel.TextScaled = true
+							textLabel.Font = Enum.Font.FredokaOne
+							textLabel.TextStrokeTransparency = 0
+							textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+							textLabel.Parent = billboard
+							
+							billboard.Parent = hrp
+							
+							local ts = game:GetService("TweenService")
+							ts:Create(billboard, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {StudsOffset = Vector3.new(0, yOffset + 2.0, 0)}):Play()
+							
+							task.wait(1.0)
+							if textLabel and textLabel.Parent then
+								ts:Create(textLabel, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+							end
+							task.wait(0.5)
+							if billboard then billboard:Destroy() end
+						end)
+					end)
+				end
+				lastTarget = nil
+
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter) 기준 랜덤 오프셋 영역으로 자연스럽게 배회합니다.
 				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon")
 				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian") and 35 or 20
@@ -7184,21 +7319,24 @@ local function createMobModel(areaId, index, config)
 			-- ★ 사망 시 경험치 지급 처리
 			local tag = humanoid:FindFirstChild("creator")
 			local killer = tag and tag.Value
+			local deathPos = model:GetPivot().Position
+			
 			if killer and killer:IsA("Player") then
 				local xpReward = config.xpReward or 10
 				if PlayerStatService then
-					if PlayerStatService.addXP then
-						PlayerStatService.addXP(killer.UserId, xpReward, "Hunt_" .. (config.mobDisplayName or "Mob"))
+					-- 기존 즉시 지급 대신 WorldDropService를 통해 물리 구체 소환
+					if WorldDropService and WorldDropService.spawnXpOrbs then
+						WorldDropService.spawnXpOrbs(deathPos, killer, xpReward, config.mobDisplayName or "Mob")
 					end
+					
 					if PlayerStatService.incrementKill then
 						PlayerStatService.incrementKill(killer.UserId, config.mobDisplayName or "Mob")
 					end
-					print(string.format("[MobSpawnService] Awarded %d XP and updated kills for %s killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
+					print(string.format("[MobSpawnService] Spawned XP Orbs (%d XP) and updated kills for %s killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
 				end
 			end
 
 			-- ★ 사망 시 아이템 드롭 처리
-			local deathPos = model:GetPivot().Position
 			spawnLoot(config.dropTableId or config.mobModelName or "Slime", deathPos, killer)
 
 			-- [사막 수호자 보스 전용 보상]: 5개의 물리 코인 드롭 생성
