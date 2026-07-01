@@ -12,17 +12,17 @@ local ZONES = {
 	-- [NEW RPG WORLD] 신규 구역 설정
 	--========================================
 	CHEONGUN = {
-		min = Vector2.new(-660, 540),
-		max = Vector2.new(-260, 910),
-		spawnPoint = Vector3.new(-327.3, 25, 626.4),
+		min = Vector2.new(-164.695, 74.801),
+		max = Vector2.new(162.5, 543.238),
+		spawnPoint = Vector3.new(0, 245, 309),
 		displayName = "청운촌",
 		subName = "CHEONGUN VILLAGE",
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
 	},
 	SLIME_HABITAT = {
-		min = Vector2.new(-951.85, 1269.169), -- MobSpawnData.lua에 명시된 최신 슬라임 스폰 구역 범위 반영
-		max = Vector2.new(-555.075, 1540.193),
-		spawnPoint = Vector3.new(-753.46, -32.0, 1404.68),
+		min = Vector2.new(-434.738, 102.266),
+		max = Vector2.new(-277.952, 240.502),
+		spawnPoint = Vector3.new(-356.345, 261.55, 171.384),
 		displayName = "슬라임 서식지",
 		subName = "SLIME HABITAT",
 		priority = 10,
@@ -30,9 +30,9 @@ local ZONES = {
 		maxLevel = 5,
 	},
 	HornedLarvaZone = {
-		min = Vector2.new(-1006.012, 1544.864), -- MobSpawnData.lua에 명시된 최신 뿔 애벌레 스폰 구역 범위 반영
-		max = Vector2.new(-710.737, 1814.448),
-		spawnPoint = Vector3.new(-858.37, -92.0, 1679.66),
+		min = Vector2.new(-396.7, -206.382),
+		max = Vector2.new(-248.838, 31.497),
+		spawnPoint = Vector3.new(-322.769, 212.05, -87.4425),
 		displayName = "애벌레의 숲",
 		subName = "HORNED LARVA FOREST",
 		priority = 10,
@@ -40,9 +40,9 @@ local ZONES = {
 		maxLevel = 9,
 	},
 	CYCLOPS_BAT_ZONE = {
-		min = Vector2.new(-2133.603, 3101.845),
-		max = Vector2.new(-1890.865, 3348.27),
-		spawnPoint = Vector3.new(-2012.234, -97, 3225.057),
+		min = Vector2.new(279.44, -1550.957),
+		max = Vector2.new(471.762, -1390.943),
+		spawnPoint = Vector3.new(375.601, 349.27875, -1470.95),
 		displayName = "박쥐의 언덕",
 		subName = "BAT'S RIDGE",
 		priority = 20,
@@ -50,9 +50,9 @@ local ZONES = {
 		maxLevel = 32,
 	},
 	SAMURAI_ZONE = {
-		min = Vector2.new(-1937.312, 2110.797),
-		max = Vector2.new(-1708.144, 2395.068),
-		spawnPoint = Vector3.new(-1816.28, 33.0, 2252.93),
+		min = Vector2.new(-375.734, -1332.117),
+		max = Vector2.new(-93.685, -1026.644),
+		spawnPoint = Vector3.new(-234.7095, 414.773, -1179.3805),
 		displayName = "멸망한 동쪽의 나라",
 		subName = "FALLEN EASTERN KINGDOM",
 		priority = 20,
@@ -60,27 +60,19 @@ local ZONES = {
 		maxLevel = 25,
 	},
 	DEATH_SNOW_MOUNTAIN = {
-		min = Vector2.new(-2880.468, 3327.836),
-		max = Vector2.new(-2379.259, 4084.017),
-		spawnPoint = Vector3.new(-2629.8, -25, 3705.9),
+		min = Vector2.new(776.506, -1575.19),
+		max = Vector2.new(1139.045, -1329.664),
+		spawnPoint = Vector3.new(862.027, 372.14825, -1452.29175),
 		displayName = "죽음의 설산",
 		subName = "MOUNTAIN OF DEATH",
 		priority = 20,
 		minLevel = 31,
 		maxLevel = 40,
 	},
-	EERIE_CAVE = {
-		min = Vector2.new(-280, -310),
-		max = Vector2.new(-120, -70),
-		spawnPoint = Vector3.new(-144, -5, -100),
-		displayName = "스산한 동굴",
-		subName = "EERIE CAVE",
-		priority = 10,
-	},
 	STUMP_ZONE = {
-		min = Vector2.new(-1652.929, 1405.311),
-		max = Vector2.new(-1391.265, 1605.406),
-		spawnPoint = Vector3.new(-1519.42, -71.69, 1498.07),
+		min = Vector2.new(-380.47, -443.279),
+		max = Vector2.new(-215.001, -237.11),
+		spawnPoint = Vector3.new(-297.7355, 239.73, -340.1945),
 		displayName = "스텀프의 땅",
 		subName = "STUMP LANDS",
 		priority = 20,
@@ -88,9 +80,9 @@ local ZONES = {
 		maxLevel = 14,
 	},
 	STUMP_KING_ZONE = {
-		min = Vector2.new(-2037.874, 1425.677),
-		max = Vector2.new(-1860.809, 1607.719),
-		spawnPoint = Vector3.new(-1953.09, -43.28, 1505.67),
+		min = Vector2.new(-371.0, -630.97),
+		max = Vector2.new(-181.61, -459.477),
+		spawnPoint = Vector3.new(-276.305, 213.52, -545.2235),
 		displayName = "스텀프 킹의 안식처",
 		subName = "STUMP KING'S SANCTUARY",
 		priority = 20, -- 높은 우선순위로 다른 구역(초원섬 등)보다 먼저 인식되도록
@@ -98,9 +90,9 @@ local ZONES = {
 		maxLevel = 20,
 	},
 	SMALL_GOLEM_ZONE = {
-		min = Vector2.new(-1788.530, 3066.311),
-		max = Vector2.new(-1663.194, 3248.651),
-		spawnPoint = Vector3.new(-1725.862, -110.8, 3157.481),
+		min = Vector2.new(289.603, -1191.427),
+		max = Vector2.new(412.594, -1089.959),
+		spawnPoint = Vector3.new(351.0985, 284.78, -1140.693),
 		displayName = "스산한 동굴",
 		subName = "EERIE CAVE",
 		priority = 10,
@@ -238,10 +230,6 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	DEATH_SNOW_MOUNTAIN = {
-		Creatures = {},
-		Harvests = {},
-	},
-	EERIE_CAVE = {
 		Creatures = {},
 		Harvests = {},
 	},

@@ -61,11 +61,8 @@ local function setupNPC(npc)
 	_attachNpcLabel(targetPart, "WeaponCrafter", "대장간")
 
 	prompt.Triggered:Connect(function(player)
-		-- 상호작용 시 클라이언트에게 UI 오픈 요청
 		if NetController then
-			NetController.FireClient(player, "WeaponCrafter.OpenUI", {
-				npcName = "WeaponCrafter"
-			})
+			NetController.FireClient(player, "WeaponCrafter.OpenDialogue", {})
 		end
 	end)
 end

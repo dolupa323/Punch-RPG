@@ -865,6 +865,19 @@ end
 -- Event Handlers
 --========================================
 
+local function verifyTentPresence(position: Vector3): boolean
+	local maxDistance = 35 -- 35 studs detection radius
+	for _, desc in ipairs(workspace:GetDescendants()) do
+		if desc.Name == "Tent" and (desc:IsA("Model") or desc:IsA("BasePart")) then
+			local tentPos = desc:IsA("Model") and desc:GetPivot().Position or desc.Position
+			if (tentPos - position).Magnitude <= maxDistance then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- 데이터 로드 성공 후 스폰 위치 결정 + LoadCharacter (공통 함수)
 local function _spawnAfterDataLoad(player: Player, userId: number)
 	local state = playerStates[userId]
@@ -907,8 +920,13 @@ local function _spawnAfterDataLoad(player: Player, userId: number)
 		if #coords == 3 then
 			local cx, cy, cz = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
 			if cx and cy and cz then
-				spawnPos = Vector3.new(cx, cy + 12, cz)
-				print(string.format("[SaveService] Spawn from StaticTent: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+				local targetPos = Vector3.new(cx, cy, cz)
+				if verifyTentPresence(targetPos) then
+					spawnPos = Vector3.new(cx, cy + 12, cz)
+					print(string.format("[SaveService] Spawn from Valid StaticTent: %.1f, %.1f, %.1f", spawnPos.X, spawnPos.Y, spawnPos.Z))
+				else
+					warn(string.format("[SaveService] StaticTent at %.1f, %.1f, %.1f no longer exists in Workspace! Ignoring for initial spawn.", cx, cy, cz))
+				end
 			end
 		end
 	end

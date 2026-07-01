@@ -238,6 +238,27 @@ local TrainingDummyService = require(Services.TrainingDummyService)
 TrainingDummyService.Init(NetController)
 ServiceRegistry.Register("TrainingDummyService", TrainingDummyService)
 
+local TrainerQuestService = require(Services.TrainerQuestService)
+TrainerQuestService.Init(NetController, SaveService, PlayerStatService)
+for command, handler in pairs(TrainerQuestService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("TrainerQuestService", TrainerQuestService)
+
+local WorldPortalService = require(Services.WorldPortalService)
+WorldPortalService.Init(NetController, SaveService)
+for command, handler in pairs(WorldPortalService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("WorldPortalService", WorldPortalService)
+
+local MagicianQuestService = require(Services.MagicianQuestService)
+MagicianQuestService.Init(NetController, SaveService, PlayerStatService)
+for command, handler in pairs(MagicianQuestService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("MagicianQuestService", MagicianQuestService)
+
 local LevelTriggerService = require(Services.LevelTriggerService)
 LevelTriggerService.Init()
 ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)
@@ -277,7 +298,7 @@ TentService.Init(NetController)
 ServiceRegistry.Register("TentService", TentService)
 
 local SkyIslandTransportService = require(Services.SkyIslandTransportService)
-SkyIslandTransportService.Init(NetController)
+SkyIslandTransportService.Init(NetController, PlayerStatService)
 for command, handler in pairs(SkyIslandTransportService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end

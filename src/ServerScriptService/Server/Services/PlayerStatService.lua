@@ -513,6 +513,13 @@ function PlayerStatService.applyStats(userId: number)
 	-- 2. 스태미나 적용 (StaminaService 연동)
 	if StaminaService then
 		StaminaService.setMaxStamina(userId, calc.maxStamina)
+		local sprinting = false
+		if StaminaService.isSprinting then
+			sprinting = StaminaService.isSprinting(userId)
+		end
+		if StaminaService._updatePlayerSpeed then
+			StaminaService._updatePlayerSpeed(player, sprinting)
+		end
 	end
 	
 	-- 3. 기타 속성 적용 (인벤토리 칸, 공격력 등은 관련 서비스에서 GetCalculatedStats 호출하여 참조)
@@ -520,6 +527,8 @@ function PlayerStatService.applyStats(userId: number)
 		character:SetAttribute("MaxSlots", calc.maxSlots)
 		character:SetAttribute("AttackMult", calc.attackMult)
 		character:SetAttribute("Defense", calc.defense)
+		character:SetAttribute("SpeedMult", calc.speedMult or 0)
+		character:SetAttribute("Level", calc.level or 1)
 	end
 	
 	-- 4. 클라이언트에 최종 스탯 전송

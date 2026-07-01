@@ -15,35 +15,33 @@ local NetController
 local DataService
 local InventoryService
 local BuildService
+local ServiceRegistry = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Utils"):WaitForChild("ServiceRegistry"))
 
 -- Constants
 local ITEM_LOSS_PERCENT = 0.3 -- 사망 시 인벤토리 아이템 30% 손실
 local RESPAWN_DELAY = 5 -- 리스폰까지 대기 시간(초)
 
---- 기본 리스폰 위치: SpawnLocation 모델 → SpawnConfig 초원 스폰 → 폴백
+-- 마을 리스폰 위치 (텐트 시스템 제거 → 항상 마을 포탈 앞으로 리스폰)
+local VILLAGE_RESPAWN_POS = Vector3.new(-35.721, 230, 253.348)
+
+--- 마을 기준점: Workspace.NewWorldMap.Potal.Portal 모델 위치 → 폴백 고정값
 local function getDefaultRespawnPos(): Vector3
-	local spawnModel = workspace:FindFirstChildOfClass("SpawnLocation") or workspace:FindFirstChild("SpawnLocation", true)
-	if not spawnModel then
-		for _, descendant in ipairs(workspace:GetDescendants()) do
-			if descendant:IsA("SpawnLocation") then
-				spawnModel = descendant
-				break
+	local ok, pos = pcall(function()
+		local newWorldMap = workspace:WaitForChild("NewWorldMap", 5)
+		local potalFolder = newWorldMap:FindFirstChild("Potal") or newWorldMap:FindFirstChild("Portal")
+		if potalFolder then
+			local portalModel = potalFolder:FindFirstChild("Portal")
+			if portalModel and portalModel:IsA("Model") then
+				local cf = portalModel:GetPivot()
+				return cf.Position + Vector3.new(0, 5, 0)
 			end
 		end
-	end
-	if spawnModel and spawnModel:IsA("Model") then
-		local cf, size = spawnModel:GetBoundingBox()
-		return cf.Position + Vector3.new(0, size.Y / 2 + 5, 0)
-	elseif spawnModel and spawnModel:IsA("BasePart") then
-		return spawnModel.Position + Vector3.new(0, 5, 0)
-	end
-	local ok, SpawnConfig = pcall(function()
-		return require(ReplicatedStorage:WaitForChild("Shared").Config.SpawnConfig)
+		return nil
 	end)
-	if ok and SpawnConfig and SpawnConfig.DEFAULT_START_SPAWN then
-		return SpawnConfig.DEFAULT_START_SPAWN + Vector3.new(0, 5, 0)
+	if ok and pos then
+		return pos
 	end
-	return Vector3.new(0, 50, 0)
+	return VILLAGE_RESPAWN_POS
 end
 
 -- Player State
@@ -86,6 +84,19 @@ local function loadRespawnPreferenceFromSave(userId: number)
 	end
 end
 
+local function verifyTentPresence(position: Vector3): boolean
+	local maxDistance = 35 -- 35 studs detection radius
+	for _, desc in ipairs(workspace:GetDescendants()) do
+		if desc.Name == "Tent" and (desc:IsA("Model") or desc:IsA("BasePart")) then
+			local tentPos = desc:IsA("Model") and desc:GetPivot().Position or desc.Position
+			if (tentPos - position).Magnitude <= maxDistance then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 --- 침대/침낭 리스폰 위치 찾기
 local function findBedRespawnPoint(userId: number): Vector3?
 	print(string.format("[PlayerLifeService] findBedRespawnPoint START (userId=%d)", userId))
@@ -109,8 +120,13 @@ local function findBedRespawnPoint(userId: number): Vector3?
 		if #coords == 3 then
 			local cx, cy, cz = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
 			if cx and cy and cz then
-				print(string.format("[PlayerLifeService] => StaticTent found at %.1f, %.1f, %.1f", cx, cy, cz))
-				return Vector3.new(cx, cy + 12, cz)
+				local targetPos = Vector3.new(cx, cy, cz)
+				if verifyTentPresence(targetPos) then
+					print(string.format("[PlayerLifeService] => Valid StaticTent found in Workspace near %.1f, %.1f, %.1f", cx, cy, cz))
+					return Vector3.new(cx, cy + 12, cz)
+				else
+					warn(string.format("[PlayerLifeService] => StaticTent at %.1f, %.1f, %.1f no longer exists in Workspace! Falling back to default spawn.", cx, cy, cz))
+				end
 			end
 		end
 	end
@@ -268,6 +284,55 @@ end
 -- Public API
 --========================================
 
+-- 플레이어 접속 시 SpawnPos를 마을 포탈로 강제 설정 + 오염된 텐트 저장 데이터 정리
+local function _initPlayerSpawn(player: Player)
+	-- 즉시 폴백 마을 위치 설정 (SaveService 로드 전에 캐릭터가 생성될 경우 대비)
+	local immediatePos = VILLAGE_RESPAWN_POS + Vector3.new(0, 3, 0)
+	player:SetAttribute("SpawnPosX", immediatePos.X)
+	player:SetAttribute("SpawnPosY", immediatePos.Y)
+	player:SetAttribute("SpawnPosZ", immediatePos.Z)
+
+	task.spawn(function()
+		-- SaveService 로드 대기 (최대 10초)
+		local SaveService
+		for _ = 1, 20 do
+			local ok, svc = pcall(function()
+				return require(game:GetService("ServerScriptService").Server.Services.SaveService)
+			end)
+			if ok and svc and svc.getPlayerState then
+				SaveService = svc
+				break
+			end
+			task.wait(0.5)
+		end
+
+		-- 저장된 respawnStructureId 무효화 (텐트 시스템 폐기)
+		if SaveService then
+			local state = SaveService.getPlayerState(player.UserId)
+			if state and state.respawnStructureId then
+				SaveService.updatePlayerState(player.UserId, function(s)
+					s.respawnStructureId = nil
+					return s
+				end)
+				print(string.format("[PlayerLifeService] Cleared stale respawnStructureId for %s", player.Name))
+			end
+		end
+
+		-- 포탈 모델 기반 정확한 마을 위치로 업데이트
+		-- (CharacterSetupService가 이 attribute를 읽어 PivotTo 처리)
+		local villagePos = getDefaultRespawnPos()
+		local spawnPos = villagePos + Vector3.new(0, 3, 0)
+		-- PendingDeathRespawn이 없을 때만 덮어씀 (사망 리스폰 중이면 그 위치 유지)
+		if not player:GetAttribute("PendingDeathRespawn") then
+			player:SetAttribute("SpawnPosX", spawnPos.X)
+			player:SetAttribute("SpawnPosY", spawnPos.Y)
+			player:SetAttribute("SpawnPosZ", spawnPos.Z)
+		end
+		print(string.format("[PlayerLifeService] Spawn pos confirmed for %s → (%.1f, %.1f, %.1f)",
+			player.Name, spawnPos.X, spawnPos.Y, spawnPos.Z))
+	end)
+end
+
 function PlayerLifeService.Init(_NetController, _DataService, _InventoryService, _BuildService)
 	NetController = _NetController
 	DataService = _DataService
@@ -275,14 +340,14 @@ function PlayerLifeService.Init(_NetController, _DataService, _InventoryService,
 	BuildService = _BuildService
 
 	Players.PlayerAdded:Connect(function(player)
-		task.spawn(loadRespawnPreferenceFromSave, player.UserId)
+		_initPlayerSpawn(player)
 		player.CharacterAdded:Connect(function(character)
 			onCharacterAddedForLife(player, character)
 		end)
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		task.spawn(loadRespawnPreferenceFromSave, player.UserId)
+		_initPlayerSpawn(player)
 		player.CharacterAdded:Connect(function(character)
 			onCharacterAddedForLife(player, character)
 		end)
@@ -339,14 +404,9 @@ function PlayerLifeService._onPlayerDied(player: Player)
 
 	print(string.format("[PlayerLifeService] Player %s (%d) died!", player.Name, userId))
 
-	-- [MODIFIED] 사망 시 아이템 유실 비활성화 요청 반영
-	-- applyItemLoss(userId)
-
-	local respawnTarget = findBedRespawnPoint(userId)
-	if not respawnTarget then
-		respawnTarget = getDefaultRespawnPos()
-	end
-	print(string.format("[PlayerLifeService] _onPlayerDied: respawnTarget=%s", tostring(respawnTarget)))
+	-- [텐트 시스템 제거] 사망 시 항상 마을로 리스폰
+	local respawnTarget = getDefaultRespawnPos()
+	print(string.format("[PlayerLifeService] _onPlayerDied: respawnTarget(village)=%s", tostring(respawnTarget)))
 
 	-- CharacterSetupService가 사망 리스폰을 구분할 수 있도록 플래그 설정
 	player:SetAttribute("PendingDeathRespawn", true)
@@ -455,25 +515,27 @@ local function handleRecallRequest(player, payload)
 		return { success = false, errorCode = "COOLDOWN" }
 	end
 
-	-- 취침 위치 찾기 (findBedRespawnPoint 재활용)
-	local recallPos = findBedRespawnPoint(userId)
-	if not recallPos then
-		return { success = false, errorCode = "NO_SLEEP_LOCATION" }
-	end
-
-	-- 텔레포트 실행
+	-- 항상 마을 포탈로 귀환 (텐트 시스템 폐기)
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not character or not hrp then
 		return { success = false, errorCode = "INTERNAL_ERROR" }
 	end
 
-	local targetPos = recallPos + Vector3.new(0, 3, 0)
+	local targetPos = getDefaultRespawnPos() + Vector3.new(0, 3, 0)
 	character:PivotTo(CFrame.new(targetPos))
 	recallCooldowns[userId] = now
 
 	print(string.format("[PlayerLifeService] Recall: %s teleported to (%.1f, %.1f, %.1f)",
 		player.Name, targetPos.X, targetPos.Y, targetPos.Z))
+
+	-- Magician 퀘스트 연동 (마을귀환 완료 이벤트)
+	task.defer(function()
+		local mqs = ServiceRegistry.Get("MagicianQuestService")
+		if mqs and mqs.OnVillageReturn then
+			mqs.OnVillageReturn(player)
+		end
+	end)
 
 	return { success = true, data = { position = { X = targetPos.X, Y = targetPos.Y, Z = targetPos.Z } } }
 end

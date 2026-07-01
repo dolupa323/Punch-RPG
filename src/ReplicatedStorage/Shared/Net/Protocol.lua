@@ -207,7 +207,26 @@ Protocol.Commands = {
 	["Portal.Deposit.Request"] = true,
 	["Portal.Teleport.Request"] = true,
 	["Portal.Interact.Request"] = true,
+
+	-- WorldPortal 명령어 (탐험 포탈 등록/이동 시스템)
+	["WorldPortal.Register.Request"] = true,
+	["WorldPortal.GetList.Request"] = true,
+	["WorldPortal.Teleport.Request"] = true,
+	["WorldPortal.OpenUI"] = true,         -- S→C: 마을 포탈 UI 오픈
+	["WorldPortal.Registered"] = true,     -- S→C: 등록 성공 알림
 	["SkyIsland.Teleport.Request"] = true,
+	["Trainer.QuestAction.Request"] = true,
+	["Trainer.GetIndicator.Request"] = true,
+	["Trainer.QuestTracker"] = true,
+	["Trainer.Quest.Reset.Request"] = true,
+
+	-- Magician NPC 퀘스트 명령어 (포탈 교육)
+	["Magician.QuestAction.Request"] = true,
+	["Magician.VillageReturn.Event"] = true,
+	["Magician.Quest.Reset.Request"] = true,  -- 어드민 전용 초기화
+	["Magician.SetIndicator"] = true,     -- S→C: 느낌표 상태
+	["Magician.OpenDialogue"] = true,     -- S→C: 대화 열기
+	["Magician.QuestTracker"] = true,     -- S→C: 퀘스트 트래커
 
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,

@@ -1153,6 +1153,11 @@ local function handleUnequipPassive(player: Player, payload: any)
 	end
 	state.equippedPassives = equipped
 	state.equippedPassives[slotStr] = nil
+	for k, v in pairs(state.equippedPassives) do
+		if k == slotStr or v == slotStr then
+			state.equippedPassives[k] = nil
+		end
+	end
 	_syncToSave(userId)
 
 	if PlayerStatService and PlayerStatService.applyStats then
@@ -1219,6 +1224,8 @@ local function handleLearnBook(player: Player, payload: any)
 		skillId = "SKILL_SLASH"
 	elseif bookItemId == "BOOK_DASH" then
 		skillId = "SKILL_RUNE_DASH"
+	elseif bookItemId == "BOOK_HEAVEN" then
+		skillId = "SKILL_RUNE_HEAVEN"
 	end
 
 	if not skillId then

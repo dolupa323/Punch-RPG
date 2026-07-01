@@ -84,10 +84,10 @@ local T = Theme.Transp
 local WEAPON_CRAFTER_RECIPE_ORDER = {
 	"CraftSoftClub",          -- 슬라임검
 	"CraftGakchang",          -- 단단한 검
-	"CraftMogwoldo",          -- 사막의 검
-	"CraftPoisonHornSpear",   -- 사막의 밤
-	"CraftIronStaff",         -- 철검
+	"CraftMogwoldo",          -- 숲의 검
+	"CraftPoisonHornSpear",   -- 숲의 밤
 	"CraftKatana",            -- 카타나
+	"CraftIronStaff",         -- 철검
 	"CraftFangSpear",         -- 뱀파이어 소드
 	"CraftIceSword",          -- 아이스 소드
 	-- 하늘섬 티어
@@ -195,6 +195,19 @@ end
 
 function UIManager.requestQuestStepComplete()
 	UIManager.requestTutorialStepComplete()
+end
+
+-- 사이드퀘스트 통합 패널 (HUDUI에 위임)
+function UIManager.updateSideQuest(id, data)
+	if HUDUI and HUDUI.UpdateSideQuest then
+		HUDUI.UpdateSideQuest(id, data)
+	end
+end
+
+function UIManager.removeSideQuest(id)
+	if HUDUI and HUDUI.RemoveSideQuest then
+		HUDUI.RemoveSideQuest(id)
+	end
 end
 
 function UIManager._onOpenDismantle()
@@ -1318,38 +1331,35 @@ local CraftingLoopActive = false
 local function StartCraftingMonitorLoop()
 	if CraftingLoopActive then return end
 	CraftingLoopActive = true
-	
+
 	task.spawn(function()
 		while CraftingLoopActive and WindowManager.isOpen("CRAFTING") do
 			local ok, response = NetClient.Request("Craft.GetQueue.Request", {})
 			if ok and response and response.queue then
 				ActiveCraftQueue = response.queue
-				
-				-- 화면 실시간 갱신
-				UIManager.RefreshWeaponCrafting()
-				
-				-- [NEW] 실시간 진행 모달 실시간 수치 동기화 바인딩
+				-- 슬롯 인라인 진행도 실시간 업데이트
+				CraftingUI.UpdateAllSlots(ActiveCraftQueue, UIManager)
+				-- 상세 패널도 갱신
 				if SelectedCraftRecipe then
-					local matchedQueueEntry = nil
+					local playerItemCounts = {}
+					local invCache = InventoryController.getInventoryCache()
+					for _, slot in pairs(invCache) do
+						playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
+					end
+					local matched = nil
 					for _, q in ipairs(ActiveCraftQueue) do
-						if q.recipeId == SelectedCraftRecipe.id then
-							matchedQueueEntry = q
-							break
-						end
+						if q.recipeId == SelectedCraftRecipe.id then matched = q; break end
 					end
-					
-					if matchedQueueEntry then
-						CraftingUI.ShowProgressModal(
-							SelectedCraftRecipe,
-							matchedQueueEntry.progressRatio,
-							matchedQueueEntry.state,
-							UIManager,
-							matchedQueueEntry.craftId
-						)
-					end
+					local canMake = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
+					CraftingUI.UpdateDetail(
+						SelectedCraftRecipe, SelectedCraftMode, false, canMake,
+						playerItemCounts, DataHelper, UIManager.getItemIcon,
+						matched and matched.progressRatio or 0,
+						matched and matched.state or nil
+					)
 				end
 			end
-			task.wait(0.5) -- 0.5초 간격으로 동기화하여 초고정밀도 실시간성 보장
+			task.wait(0.5)
 		end
 		CraftingLoopActive = false
 	end)
@@ -1379,8 +1389,7 @@ function UIManager._OnOpenCrafting(recipes)
 end
 
 function UIManager._OnCloseCrafting()
-	CraftingLoopActive = false -- 루프 중단
-	CraftingUI.HideProgressModal() -- 모달 강제 닫기
+	CraftingLoopActive = false
 	CraftingUI.SetVisible(false)
 	updateUIMode()
 end
@@ -1406,111 +1415,62 @@ function UIManager._OnCraftSlotClick(item, mode)
 		end
 	end
 	
-	if matchedQueueEntry then
-		CraftingUI.UpdateDetail(
-			item, 
-			mode, 
-			false, -- isLocked
-			canMake, 
-			playerItemCounts, 
-			DataHelper, 
-			UIManager.getItemIcon,
-			matchedQueueEntry.progressRatio,
-			matchedQueueEntry.state
-		)
-		
-		-- [NEW] 이미 제작 진행 중인 경우, 슬롯 클릭 시 실시간 팝업 모달을 즉시 복구/출력해 줌
-		CraftingUI.ShowProgressModal(
-			item,
-			matchedQueueEntry.progressRatio,
-			matchedQueueEntry.state,
-			UIManager,
-			matchedQueueEntry.craftId
-		)
-	else
-		CraftingUI.UpdateDetail(
-			item, 
-			mode, 
-			false, -- isLocked
-			canMake, 
-			playerItemCounts, 
-			DataHelper, 
-			UIManager.getItemIcon,
-			0,
-			nil
-		)
-	end
+	CraftingUI.UpdateDetail(
+		item, mode, false, canMake, playerItemCounts, DataHelper, UIManager.getItemIcon,
+		matchedQueueEntry and matchedQueueEntry.progressRatio or 0,
+		matchedQueueEntry and matchedQueueEntry.state or nil
+	)
 end
 
-function UIManager._DoCraft()
-	if not SelectedCraftRecipe then return end
-	
-	-- 캐시된 큐에서 현재 레시피 진행 상황 탐색
-	local matchedQueueEntry = nil
+-- 레시피를 받아 제작 요청하는 공통 내부 함수
+local function _startCraftRequest(recipe)
+	if not recipe then return end
+
 	for _, q in ipairs(ActiveCraftQueue) do
-		if q.recipeId == SelectedCraftRecipe.id then
-			matchedQueueEntry = q
-			break
+		if q.recipeId == recipe.id then
+			if q.state == "PENDING_COLLECT" or q.state == "COMPLETED" or q.progressRatio >= 1 then
+				UIManager._DoCollect(q.craftId)
+			end
+			-- 이미 제작 중이면 무시
+			return
 		end
 	end
-	
-	-- 1. 수령 가능한 상태인 경우 바로 수령 요청
-	if matchedQueueEntry and (matchedQueueEntry.state == "PENDING_COLLECT" or matchedQueueEntry.state == "COMPLETED" or matchedQueueEntry.progressRatio >= 1) then
-		UIManager._DoCollect(matchedQueueEntry.craftId)
-		return
-	end
-	
-	-- 2. 이미 제작 중인 경우는 중복 요청 무시
-	if matchedQueueEntry and matchedQueueEntry.state == "CRAFTING" then
-		return
-	end
-	
-	-- 3. 신규 제작 요청
+
 	local playerItemCounts = {}
 	local invCache = InventoryController.getInventoryCache()
 	for _, slot in pairs(invCache) do
 		playerItemCounts[slot.itemId] = (playerItemCounts[slot.itemId] or 0) + slot.count
 	end
-	
-	local canMake, msg = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
+
+	local canMake, msg = UIManager.checkMaterials(recipe, playerItemCounts)
 	if not canMake then
 		UIManager.notify(msg, Color3.fromRGB(255, 75, 50))
 		return
 	end
-	
+
 	task.spawn(function()
-		local resultOk, response = NetClient.Request("Craft.Start.Request", {
-			recipeId = SelectedCraftRecipe.id
-		})
-		
+		local resultOk, _ = NetClient.Request("Craft.Start.Request", { recipeId = recipe.id })
 		if resultOk then
-			UIManager.notify("제작 등록 완료! (소요 시간 1분)", Color3.fromRGB(140, 220, 100))
-			-- 즉시 큐 한 번 긁어오기
+			UIManager.notify("제작 등록 완료!", Color3.fromRGB(140, 220, 100))
 			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
 			if ok and qRes and qRes.queue then
 				ActiveCraftQueue = qRes.queue
-				UIManager.RefreshWeaponCrafting()
-				
-				-- [NEW] 제작 성공 즉시 큐를 확인하여 별도 제작 진행 모달을 웅장하게 팝업!
-				if SelectedCraftRecipe then
-					for _, q in ipairs(ActiveCraftQueue) do
-						if q.recipeId == SelectedCraftRecipe.id then
-							CraftingUI.ShowProgressModal(
-								SelectedCraftRecipe,
-								q.progressRatio,
-								q.state,
-								UIManager,
-								q.craftId
-							)
-							break
-						end
-					end
-				end
+				CraftingUI.UpdateAllSlots(ActiveCraftQueue, UIManager)
 			end
 		else
 			UIManager.notify("제작 요청 실패!", Color3.fromRGB(255, 75, 50))
 		end
 	end)
+end
+
+-- 상세 패널 "제작 시작" 버튼에서 호출
+function UIManager._DoCraft()
+	_startCraftRequest(SelectedCraftRecipe)
+end
+
+-- 슬롯 인라인 "제작 시작" 버튼에서 호출 (레시피 직접 전달)
+function UIManager._DoCraftDirect(recipe)
+	_startCraftRequest(recipe)
 end
 
 function UIManager._DoCollect(craftId)
@@ -1522,19 +1482,11 @@ function UIManager._DoCollect(craftId)
 		})
 		
 		if resultOk and response and response.success ~= false then
-			UIManager.notify("말랑봉 제작 완료 및 수령 성공!", Color3.fromRGB(140, 220, 100))
+			UIManager.notify("제작 완료! 아이템을 수령했습니다.", Color3.fromRGB(140, 220, 100))
 			UIManager.refreshInventory()
-			
-			-- 모달 숨기기
-			CraftingUI.HideProgressModal()
-			
-			-- 큐 리셋 및 강제 리프레시
 			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
-			if ok and qRes and qRes.queue then
-				ActiveCraftQueue = qRes.queue
-			else
-				ActiveCraftQueue = {}
-			end
+			ActiveCraftQueue = (ok and qRes and qRes.queue) or {}
+			CraftingUI.UpdateAllSlots(ActiveCraftQueue, UIManager)
 			UIManager.RefreshWeaponCrafting()
 		else
 			UIManager.notify("수령 실패: 인벤토리 공간이 가득 찼습니다", Color3.fromRGB(255, 75, 50))
@@ -1553,15 +1505,9 @@ function UIManager._DoCancel(craftId)
 		if resultOk and response and response.success ~= false then
 			UIManager.notify("제작이 취소되었습니다. 재료가 반환되었습니다.", Color3.fromRGB(255, 150, 50))
 			UIManager.refreshInventory()
-			
-			CraftingUI.HideProgressModal()
-			
 			local ok, qRes = NetClient.Request("Craft.GetQueue.Request", {})
-			if ok and qRes and qRes.queue then
-				ActiveCraftQueue = qRes.queue
-			else
-				ActiveCraftQueue = {}
-			end
+			ActiveCraftQueue = (ok and qRes and qRes.queue) or {}
+			CraftingUI.UpdateAllSlots(ActiveCraftQueue, UIManager)
 			UIManager.RefreshWeaponCrafting()
 		else
 			UIManager.notify("제작 취소 실패", Color3.fromRGB(255, 75, 50))
@@ -1602,45 +1548,21 @@ function UIManager.RefreshWeaponCrafting()
 	end
 	
 	CraftingUI.Refresh(weaponRecipes, playerItemCounts, UIManager.getItemIcon, "CRAFTING", UIManager)
-	
-	-- 상세창도 갱신
+	-- Refresh로 슬롯이 재생성됐으므로 큐 상태 즉시 반영
+	CraftingUI.UpdateAllSlots(ActiveCraftQueue, UIManager)
+
 	if SelectedCraftRecipe then
-		-- 캐시된 큐 중에서 선택된 레시피 ID에 대응하는 큐 엔트리 조회
-		local matchedQueueEntry = nil
+		local matched = nil
 		for _, q in ipairs(ActiveCraftQueue) do
-			if q.recipeId == SelectedCraftRecipe.id then
-				matchedQueueEntry = q
-				break
-			end
+			if q.recipeId == SelectedCraftRecipe.id then matched = q; break end
 		end
-		
-		local canMake, _ = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
-		
-		if matchedQueueEntry then
-			CraftingUI.UpdateDetail(
-				SelectedCraftRecipe, 
-				SelectedCraftMode, 
-				false, 
-				canMake, 
-				playerItemCounts, 
-				DataHelper, 
-				UIManager.getItemIcon,
-				matchedQueueEntry.progressRatio,
-				matchedQueueEntry.state
-			)
-		else
-			CraftingUI.UpdateDetail(
-				SelectedCraftRecipe, 
-				SelectedCraftMode, 
-				false, 
-				canMake, 
-				playerItemCounts, 
-				DataHelper, 
-				UIManager.getItemIcon,
-				0,
-				nil
-			)
-		end
+		local canMake = UIManager.checkMaterials(SelectedCraftRecipe, playerItemCounts)
+		CraftingUI.UpdateDetail(
+			SelectedCraftRecipe, SelectedCraftMode, false, canMake, playerItemCounts,
+			DataHelper, UIManager.getItemIcon,
+			matched and matched.progressRatio or 0,
+			matched and matched.state or nil
+		)
 	end
 end
 
@@ -2163,7 +2085,7 @@ local function getStarterPackConfig()
 	return ProductConfig.PRODUCTS and ProductConfig.PRODUCTS[STARTER_PACK_PRODUCT_ID] or nil
 end
 
-local function getCurrentPlayerLevel()
+function UIManager.getCurrentPlayerLevel()
 	local lvl = cachedStats and cachedStats.level
 	if type(lvl) == "number" then
 		return lvl
@@ -2171,6 +2093,10 @@ local function getCurrentPlayerLevel()
 
 	lvl = player and player:GetAttribute("Level")
 	return tonumber(lvl) or 0
+end
+
+local function getCurrentPlayerLevel()
+	return UIManager.getCurrentPlayerLevel()
 end
 
 function UIManager.canShowStarterPackButton()
@@ -2314,8 +2240,8 @@ local function setupEventListeners()
 				for k, v in pairs(d) do cachedStats[k] = v end
 				if d.level then UIManager.updateLevel(d.level) end
 				if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
-				if d.leveledUp then 
-					UIManager.notify(" 레벨업! Lv. "..d.level, C.WHITE)
+				if d.leveledUp then
+					UIManager.showLevelUpEffect(d.level)
 				end
 				if d.upgradedStat then
 					UIManager.notify(" 💪 능력치 강화 성공!", C.GREEN)
@@ -2445,126 +2371,230 @@ local function setupEventListeners()
 
 	-- Portal Events (고대 포탈 시스템)
 	if NetClient.On then
-		NetClient.On("SkyIsland.OpenUI", function(data)
+		NetClient.On("SkyIsland.OpenDialogue", function(data)
 			local isReturn = data and data.isReturn == true
-			
-			-- 1. Create confirmation overlay
-			local overlay = Utils.mkFrame({
-				name = "SkyIslandConfirmationOverlay",
-				size = UDim2.new(1, 0, 1, 0),
-				bg = Color3.fromRGB(0, 0, 0),
-				bgT = 0.6,
-				z = 999,
-				parent = mainGui
-			})
-			
-			local winWidth = isMobile and 0.85 or 0.4
-			local winHeight = isMobile and 0.4 or 0.3
-			local maxW = isMobile and 500 or 400
-			local maxH = isMobile and 300 or 220
-			
-			local win = Utils.mkWindow({
-				name = "SkyIslandConfirmationWindow",
-				size = UDim2.new(winWidth, 0, winHeight, 0),
-				maxSize = Vector2.new(maxW, maxH),
-				pos = UDim2.new(0.5, 0, 0.5, 0),
-				anchor = Vector2.new(0.5, 0.5),
-				bg = Color3.fromRGB(10, 15, 25),
-				stroke = 2,
-				strokeC = Color3.fromRGB(60, 85, 130),
-				r = 10,
-				parent = overlay
-			})
-			
-			-- Close button on overlay click
-			local bgBtn = Instance.new("TextButton")
-			bgBtn.Size = UDim2.new(1, 0, 1, 0)
-			bgBtn.BackgroundTransparency = 1
-			bgBtn.Text = ""
-			bgBtn.ZIndex = 1
-			bgBtn.Parent = overlay
-			bgBtn.MouseButton1Click:Connect(function()
-				overlay:Destroy()
-			end)
-			
-			win.ZIndex = 2
-			
-			-- Title
-			Utils.mkLabel({
-				text = isReturn and "지상 귀환" or "하늘섬 이동",
-				size = UDim2.new(1, 0, 0, 40),
-				pos = UDim2.new(0, 0, 0, 15),
-				ts = 20,
-				font = F.TITLE,
-				color = Color3.fromRGB(255, 215, 0),
-				ax = Enum.TextXAlignment.Center,
-				parent = win
-			})
-			
-			-- Message
-			local messageText = isReturn and "지상(청운촌으)로 귀환하시겠습니까?" or "하늘섬으로 이동하시겠습니까?\n(미개척된 신비로운 하늘 위 영역입니다.)"
-			Utils.mkLabel({
-				text = messageText,
-				size = UDim2.new(0.9, 0, 0, 60),
-				pos = UDim2.new(0.05, 0, 0, 55),
-				ts = 15,
-				font = F.NORMAL,
-				color = Color3.fromRGB(220, 220, 220),
-				ax = Enum.TextXAlignment.Center,
-				wrap = true,
-				rich = true,
-				parent = win
-			})
-			
-			-- Button container
-			local btnContainer = Utils.mkFrame({
-				name = "BtnContainer",
-				size = UDim2.new(0.9, 0, 0, 45),
-				pos = UDim2.new(0.05, 0, 1, -60),
-				bgT = 1,
-				r = false,
-				stroke = false,
-				parent = win
-			})
-			
-			-- 'Yes' button
-			local yesBtn = Utils.mkBtn({
-				name = "YesBtn",
-				text = "예",
-				size = UDim2.new(0.45, 0, 1, 0),
-				pos = UDim2.new(0, 0, 0, 0),
-				bg = Color3.fromRGB(40, 100, 200),
-				color = Color3.fromRGB(255, 255, 255),
-				ts = 16,
-				font = F.TITLE,
-				fn = function()
-					overlay:Destroy()
-					task.spawn(function()
-						local success, err = NetClient.Request("SkyIsland.Teleport.Request", { isReturn = isReturn })
-						if not success then
-							UIManager.notify("이동 실패: " .. friendlyError(err), C.RED)
+			local canTravel = data and data.canTravel == true
+			local npcName = (data and data.npcName) or "인도자"
+			local dialogueText = (data and data.dialogue) or ""
+			local confirmText = data and data.confirmText
+			local declineText = (data and data.declineText) or "알겠습니다."
+
+			-- 기존 대화창 제거
+			if mainGui:FindFirstChild("SkyDialogueRoot") then
+				mainGui.SkyDialogueRoot:Destroy()
+			end
+
+			-- 루트 (클릭 차단용)
+			local root = Instance.new("Frame")
+			root.Name = "SkyDialogueRoot"
+			root.Size = UDim2.new(1, 0, 1, 0)
+			root.BackgroundTransparency = 1
+			root.ZIndex = 950
+			root.Parent = mainGui
+
+			-- 하단 대화 박스 (화면 하단 고정, RPG 스타일)
+			local BOX_H = isMobile and 0.32 or 0.28
+			local dialogueBox = Instance.new("Frame")
+			dialogueBox.Name = "DialogueBox"
+			dialogueBox.Size = UDim2.new(1, 0, BOX_H, 0)
+			dialogueBox.Position = UDim2.new(0, 0, 1 - BOX_H, 0)
+			dialogueBox.BackgroundColor3 = Color3.fromRGB(8, 12, 22)
+			dialogueBox.BackgroundTransparency = 0.08
+			dialogueBox.BorderSizePixel = 0
+			dialogueBox.ZIndex = 951
+			dialogueBox.Parent = root
+
+			-- 상단 테두리 라인
+			local topLine = Instance.new("Frame")
+			topLine.Size = UDim2.new(1, 0, 0, 2)
+			topLine.Position = UDim2.new(0, 0, 0, 0)
+			topLine.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+			topLine.BorderSizePixel = 0
+			topLine.ZIndex = 952
+			topLine.Parent = dialogueBox
+
+			-- NPC 이름 플레이트
+			local namePlate = Instance.new("Frame")
+			namePlate.Name = "NamePlate"
+			namePlate.Size = UDim2.new(0, 0, 0, 32)
+			namePlate.Position = UDim2.new(0, 20, 0, -18)
+			namePlate.BackgroundColor3 = Color3.fromRGB(20, 40, 90)
+			namePlate.BorderSizePixel = 0
+			namePlate.AutomaticSize = Enum.AutomaticSize.X
+			namePlate.ZIndex = 953
+			namePlate.Parent = dialogueBox
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size = UDim2.new(0, 0, 1, 0)
+			nameLabel.AutomaticSize = Enum.AutomaticSize.X
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text = " " .. npcName .. " "
+			nameLabel.Font = F.TITLE
+			nameLabel.TextSize = 15
+			nameLabel.TextColor3 = Color3.fromRGB(180, 210, 255)
+			nameLabel.ZIndex = 954
+			nameLabel.Parent = namePlate
+
+			local nameStroke = Instance.new("UIStroke")
+			nameStroke.Color = Color3.fromRGB(100, 150, 255)
+			nameStroke.Thickness = 1.5
+			nameStroke.Parent = namePlate
+
+			local nameCorner = Instance.new("UICorner")
+			nameCorner.CornerRadius = UDim.new(0, 4)
+			nameCorner.Parent = namePlate
+
+			-- 대화 텍스트 영역
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Name = "DialogueText"
+			textLabel.Size = UDim2.new(1, -40, 0.6, 0)
+			textLabel.Position = UDim2.new(0, 20, 0, 22)
+			textLabel.BackgroundTransparency = 1
+			textLabel.Text = ""
+			textLabel.Font = F.NORMAL
+			textLabel.TextSize = isMobile and 14 or 16
+			textLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+			textLabel.TextXAlignment = Enum.TextXAlignment.Left
+			textLabel.TextYAlignment = Enum.TextYAlignment.Top
+			textLabel.TextWrapped = true
+			textLabel.RichText = true
+			textLabel.ZIndex = 952
+			textLabel.Parent = dialogueBox
+
+			-- 선택지 영역 (대화 박스 하단)
+			local choiceFrame = Instance.new("Frame")
+			choiceFrame.Name = "ChoiceFrame"
+			choiceFrame.Size = UDim2.new(1, -40, 0, 0)
+			choiceFrame.Position = UDim2.new(0, 20, 1, -10)
+			choiceFrame.AnchorPoint = Vector2.new(0, 1)
+			choiceFrame.BackgroundTransparency = 1
+			choiceFrame.AutomaticSize = Enum.AutomaticSize.Y
+			choiceFrame.ZIndex = 952
+			choiceFrame.Parent = dialogueBox
+
+			local choiceLayout = Instance.new("UIListLayout")
+			choiceLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			choiceLayout.Padding = UDim.new(0, 6)
+			choiceLayout.Parent = choiceFrame
+
+			local function makeChoiceBtn(text, layoutOrder, color, fn)
+				local btn = Instance.new("TextButton")
+				btn.Size = UDim2.new(1, 0, 0, isMobile and 36 or 32)
+				btn.BackgroundColor3 = Color3.fromRGB(18, 28, 55)
+				btn.BorderSizePixel = 0
+				btn.Text = "▶  " .. text
+				btn.Font = F.NORMAL
+				btn.TextSize = isMobile and 13 or 14
+				btn.TextColor3 = color or Color3.fromRGB(200, 220, 255)
+				btn.TextXAlignment = Enum.TextXAlignment.Left
+				btn.RichText = false
+				btn.LayoutOrder = layoutOrder
+				btn.ZIndex = 953
+				btn.Parent = choiceFrame
+
+				local corner = Instance.new("UICorner")
+				corner.CornerRadius = UDim.new(0, 4)
+				corner.Parent = btn
+
+				local pad = Instance.new("UIPadding")
+				pad.PaddingLeft = UDim.new(0, 10)
+				pad.Parent = btn
+
+				btn.MouseEnter:Connect(function()
+					btn.BackgroundColor3 = Color3.fromRGB(30, 50, 100)
+				end)
+				btn.MouseLeave:Connect(function()
+					btn.BackgroundColor3 = Color3.fromRGB(18, 28, 55)
+				end)
+				btn.MouseButton1Click:Connect(fn)
+				return btn
+			end
+
+			local function closeDialogue()
+				root:Destroy()
+			end
+
+			-- 타이프라이터 효과
+			local typingDone = false
+			local fullText = dialogueText
+			task.spawn(function()
+				local displayed = ""
+				-- RichText를 보존하면서 문자 단위로 표시
+				local plainChars = {}
+				local i = 1
+				while i <= #fullText do
+					-- <b> 태그 등은 통째로 처리
+					if fullText:sub(i, i) == "<" then
+						local tagEnd = fullText:find(">", i)
+						if tagEnd then
+							local tag = fullText:sub(i, tagEnd)
+							displayed = displayed .. tag
+							i = tagEnd + 1
+						else
+							displayed = displayed .. fullText:sub(i, i)
+							i = i + 1
 						end
+					else
+						displayed = displayed .. fullText:sub(i, i)
+						i = i + 1
+						textLabel.Text = displayed
+						task.wait(0.012)
+					end
+				end
+				textLabel.Text = fullText
+				typingDone = true
+			end)
+
+			-- 선택지 버튼 생성 (타이핑 완료 후 또는 클릭 즉시 건너뛰기)
+			local choicesAdded = false
+			local function addChoices()
+				if choicesAdded then return end
+				choicesAdded = true
+				textLabel.Text = fullText
+
+				if confirmText then
+					makeChoiceBtn(confirmText, 1, Color3.fromRGB(150, 210, 255), function()
+						closeDialogue()
+						task.spawn(function()
+							local success, err = NetClient.Request("SkyIsland.Teleport.Request", { isReturn = isReturn })
+							if not success then
+								UIManager.notify("이동 실패: " .. friendlyError(err), C.RED)
+							end
+						end)
 					end)
-				end,
-				parent = btnContainer
-			})
-			
-			-- 'No' button
-			local noBtn = Utils.mkBtn({
-				name = "NoBtn",
-				text = "아니오",
-				size = UDim2.new(0.45, 0, 1, 0),
-				pos = UDim2.new(1, 0, 0, 0),
-				anchor = Vector2.new(1, 0),
-				bg = Color3.fromRGB(80, 80, 80),
-				color = Color3.fromRGB(255, 255, 255),
-				ts = 16,
-				font = F.TITLE,
-				fn = function()
-					overlay:Destroy()
-				end,
-				parent = btnContainer
-			})
+				end
+
+				makeChoiceBtn(declineText, 2, Color3.fromRGB(180, 180, 180), function()
+					closeDialogue()
+				end)
+			end
+
+			-- 대화창 클릭 시 타이핑 스킵 or 선택지 표시
+			local boxBtn = Instance.new("TextButton")
+			boxBtn.Size = UDim2.new(1, 0, 1, 0)
+			boxBtn.BackgroundTransparency = 1
+			boxBtn.Text = ""
+			boxBtn.ZIndex = 951
+			boxBtn.Parent = dialogueBox
+			boxBtn.MouseButton1Click:Connect(function()
+				if not typingDone then
+					typingDone = true
+					textLabel.Text = fullText
+					task.wait(0.05)
+					addChoices()
+				else
+					addChoices()
+				end
+			end)
+
+			-- 타이핑 완료 후 자동으로 선택지 추가
+			task.spawn(function()
+				while not typingDone do
+					task.wait(0.05)
+				end
+				task.wait(0.1)
+				addChoices()
+			end)
 		end)
 
 		NetClient.On("Portal.UI.Open", function(data)
@@ -2836,13 +2866,206 @@ local function setupEventListeners()
 			end
 		end)
 
-		-- [NEW] 무기 장인 UI 오픈 이벤트
-		NetClient.On("WeaponCrafter.OpenUI", function(data)
-			local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
-			local weaponRecipes = collectWeaponCrafterRecipes(RecipeData)
-			
-			-- 제작창 열기
-			UIManager.openWeaponCrafting(weaponRecipes)
+		-- 무기 장인 대화창 (TrainerController/MagicianController와 동일 컨벤션)
+		NetClient.On("WeaponCrafter.OpenDialogue", function(_data)
+			local playerGui = player:WaitForChild("PlayerGui")
+			local existing = playerGui:FindFirstChild("WeaponCrafterDialogueSG")
+			if existing then existing:Destroy() end
+
+			local sg = Instance.new("ScreenGui")
+			sg.Name           = "WeaponCrafterDialogueSG"
+			sg.ResetOnSpawn   = false
+			sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			sg.DisplayOrder   = 200
+			sg.IgnoreGuiInset = true
+			sg.Parent         = playerGui
+
+			-- 가로 폭 제한, 하단 중앙, 세로 자동 확장
+			local BOX_W = isMobile and UDim2.new(0.96, 0, 0, 0) or UDim2.new(0, 740, 0, 0)
+			local dialogueBox = Instance.new("Frame")
+			dialogueBox.Name                  = "DialogueBox"
+			dialogueBox.Size                  = BOX_W
+			dialogueBox.AnchorPoint           = Vector2.new(0.5, 1)
+			dialogueBox.Position              = UDim2.new(0.5, 0, 1, -8)
+			dialogueBox.AutomaticSize         = Enum.AutomaticSize.Y
+			dialogueBox.BackgroundColor3      = Color3.fromRGB(8, 12, 22)
+			dialogueBox.BackgroundTransparency = 0.08
+			dialogueBox.BorderSizePixel       = 0
+			dialogueBox.Parent                = sg
+			Instance.new("UICorner", dialogueBox).CornerRadius = UDim.new(0, 6)
+
+			local topLine = Instance.new("Frame")
+			topLine.Size             = UDim2.new(1, 0, 0, 2)
+			topLine.BackgroundColor3 = Color3.fromRGB(200, 140, 60)  -- 무기 장인 테마: 황금/주황
+			topLine.BorderSizePixel  = 0
+			topLine.Parent           = dialogueBox
+			Instance.new("UICorner", topLine).CornerRadius = UDim.new(0, 2)
+
+			local namePlate = Instance.new("Frame")
+			namePlate.Size             = UDim2.new(0, 0, 0, 30)
+			namePlate.Position         = UDim2.new(0, 18, 0, -16)
+			namePlate.AutomaticSize    = Enum.AutomaticSize.X
+			namePlate.BackgroundColor3 = Color3.fromRGB(55, 35, 10)
+			namePlate.BorderSizePixel  = 0
+			namePlate.ZIndex           = 2
+			namePlate.Parent           = dialogueBox
+			Instance.new("UICorner", namePlate).CornerRadius = UDim.new(0, 4)
+			local npStroke = Instance.new("UIStroke", namePlate)
+			npStroke.Color = Color3.fromRGB(200, 140, 60); npStroke.Thickness = 1.5
+
+			local nameLabel = Instance.new("TextLabel")
+			nameLabel.Size                   = UDim2.new(0, 0, 1, 0)
+			nameLabel.AutomaticSize          = Enum.AutomaticSize.X
+			nameLabel.BackgroundTransparency = 1
+			nameLabel.Text                   = "  무기 장인  "
+			nameLabel.Font                   = F.TITLE
+			nameLabel.TextSize               = 14
+			nameLabel.TextColor3             = Color3.fromRGB(255, 210, 140)
+			nameLabel.ZIndex                 = 3
+			nameLabel.Parent                 = namePlate
+
+			-- 내부 레이아웃: 텍스트 → 구분선 → 선택지 세로 적층
+			local content = Instance.new("Frame")
+			content.Size                  = UDim2.new(1, -32, 0, 0)
+			content.Position              = UDim2.new(0, 16, 0, 14)
+			content.AutomaticSize         = Enum.AutomaticSize.Y
+			content.BackgroundTransparency = 1
+			content.Parent                = dialogueBox
+			local contentLayout = Instance.new("UIListLayout", content)
+			contentLayout.SortOrder          = Enum.SortOrder.LayoutOrder
+			contentLayout.Padding            = UDim.new(0, 0)
+			contentLayout.FillDirection      = Enum.FillDirection.Vertical
+			contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Name                 = "DialogueText"
+			textLabel.Size                 = UDim2.new(1, 0, 0, 0)
+			textLabel.AutomaticSize        = Enum.AutomaticSize.Y
+			textLabel.BackgroundTransparency = 1
+			textLabel.Text                 = ""
+			textLabel.Font                 = F.NORMAL
+			textLabel.TextSize             = isMobile and 14 or 16
+			textLabel.TextColor3           = Color3.fromRGB(230, 230, 230)
+			textLabel.TextXAlignment       = Enum.TextXAlignment.Left
+			textLabel.TextYAlignment       = Enum.TextYAlignment.Top
+			textLabel.TextWrapped          = true
+			textLabel.RichText             = true
+			textLabel.LayoutOrder          = 1
+			textLabel.Parent               = content
+			local textPad = Instance.new("UIPadding", textLabel)
+			textPad.PaddingTop = UDim.new(0, 10); textPad.PaddingBottom = UDim.new(0, 10)
+
+			local divider = Instance.new("Frame")
+			divider.Size             = UDim2.new(1, 0, 0, 1)
+			divider.BackgroundColor3 = Color3.fromRGB(80, 55, 20)
+			divider.BorderSizePixel  = 0
+			divider.LayoutOrder      = 2
+			divider.Visible          = false
+			divider.Parent           = content
+
+			local choiceFrame = Instance.new("Frame")
+			choiceFrame.Size                  = UDim2.new(1, 0, 0, 0)
+			choiceFrame.AutomaticSize         = Enum.AutomaticSize.Y
+			choiceFrame.BackgroundTransparency = 1
+			choiceFrame.LayoutOrder           = 3
+			choiceFrame.Parent                = content
+			local choiceLayout = Instance.new("UIListLayout", choiceFrame)
+			choiceLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			choiceLayout.Padding   = UDim.new(0, 4)
+			local choicePad = Instance.new("UIPadding", choiceFrame)
+			choicePad.PaddingTop = UDim.new(0, 8); choicePad.PaddingBottom = UDim.new(0, 10)
+
+			local function closeDialogue() sg:Destroy() end
+
+			local function makeChoiceBtn(text, layoutOrder, color, fn)
+				local btn = Instance.new("TextButton")
+				btn.Size             = UDim2.new(1, 0, 0, isMobile and 36 or 30)
+				btn.BackgroundColor3 = Color3.fromRGB(45, 28, 8)
+				btn.BorderSizePixel  = 0
+				btn.Text             = "▶  " .. text
+				btn.Font             = F.NORMAL
+				btn.TextSize         = isMobile and 13 or 14
+				btn.TextColor3       = color or Color3.fromRGB(255, 210, 140)
+				btn.TextXAlignment   = Enum.TextXAlignment.Left
+				btn.RichText         = false
+				btn.LayoutOrder      = layoutOrder
+				btn.ZIndex           = 2
+				btn.Parent           = choiceFrame
+				Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+				local pad = Instance.new("UIPadding", btn); pad.PaddingLeft = UDim.new(0, 10)
+				btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(80, 52, 15) end)
+				btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(45, 28, 8) end)
+				btn.MouseButton1Click:Connect(fn)
+				return btn
+			end
+
+			local fullText = "어서 오십시오, 모험가님!\n저는 이 마을의 무기 장인입니다.\n좋은 무기 하나가 전장에서 목숨을 구하지요.\n무엇을 도와드릴까요?"
+			local typingDone = false
+
+			task.spawn(function()
+				local displayed = ""
+				local i = 1
+				while i <= #fullText do
+					if fullText:sub(i, i) == "<" then
+						local tagEnd = fullText:find(">", i)
+						if tagEnd then
+							displayed = displayed .. fullText:sub(i, tagEnd)
+							i = tagEnd + 1
+						else
+							displayed = displayed .. fullText:sub(i, i)
+							i = i + 1
+						end
+					else
+						displayed = displayed .. fullText:sub(i, i)
+						i = i + 1
+						textLabel.Text = displayed
+						task.wait(0.012)
+					end
+				end
+				textLabel.Text = fullText
+				typingDone = true
+			end)
+
+			local choicesAdded = false
+			local function addChoices()
+				if choicesAdded then return end
+				choicesAdded = true
+				textLabel.Text = fullText
+				divider.Visible = true
+
+				makeChoiceBtn("무기를 제작하고 싶습니다.", 1, Color3.fromRGB(255, 200, 100), function()
+					closeDialogue()
+					local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
+					local weaponRecipes = collectWeaponCrafterRecipes(RecipeData)
+					UIManager.openWeaponCrafting(weaponRecipes)
+				end)
+				makeChoiceBtn("아무것도 필요 없습니다.", 2, Color3.fromRGB(160, 160, 160), function()
+					closeDialogue()
+				end)
+			end
+
+			local boxBtn = Instance.new("TextButton")
+			boxBtn.Size                 = UDim2.new(1, 0, 0, 80)
+			boxBtn.BackgroundTransparency = 1
+			boxBtn.Text                 = ""
+			boxBtn.ZIndex               = 5
+			boxBtn.Parent               = textLabel
+			boxBtn.MouseButton1Click:Connect(function()
+				if not typingDone then
+					typingDone = true
+					textLabel.Text = fullText
+					task.wait(0.05)
+					addChoices()
+				else
+					addChoices()
+				end
+			end)
+
+			task.spawn(function()
+				while not typingDone do task.wait(0.05) end
+				task.wait(0.1)
+				addChoices()
+			end)
 		end)
 	end
 
@@ -4059,6 +4282,147 @@ function UIManager.showDropConfirm(params)
 		end,
 		parent = btnWrap
 	})
+end
+
+--========================================
+-- 레벨업 이펙트 (캐릭터 몸 빛 + 머리 위 BillboardGui)
+--========================================
+do
+	local levelUpPlaying = false
+
+	function UIManager.showLevelUpEffect(newLevel)
+		if levelUpPlaying then return end
+		local char = player.Character
+		local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+		local head = char and char:FindFirstChild("Head")
+		if not hrp or not head then return end
+		levelUpPlaying = true
+
+		-- ── 1) Highlight: 몸 전체 흰색 빛 ──
+		local highlight = Instance.new("Highlight")
+		highlight.Adornee             = char
+		highlight.FillColor           = Color3.fromRGB(255, 255, 255)
+		highlight.OutlineColor        = Color3.fromRGB(220, 235, 255)
+		highlight.FillTransparency    = 0.2
+		highlight.OutlineTransparency = 0
+		highlight.Parent              = char
+
+		-- ── 2) PointLight: 흰 발광 ──
+		local light = Instance.new("PointLight")
+		light.Color      = Color3.fromRGB(210, 230, 255)
+		light.Brightness = 10
+		light.Range      = 22
+		light.Parent     = hrp
+
+		-- ── 3) ParticleEmitter: 흰 빛 입자 ──
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Color          = ColorSequence.new({
+			ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 220, 255)),
+			ColorSequenceKeypoint.new(1,   Color3.fromRGB(180, 200, 255)),
+		})
+		emitter.LightEmission  = 1
+		emitter.LightInfluence = 0
+		emitter.Size           = NumberSequence.new({
+			NumberSequenceKeypoint.new(0,   0.18),
+			NumberSequenceKeypoint.new(0.5, 0.22),
+			NumberSequenceKeypoint.new(1,   0),
+		})
+		emitter.Transparency   = NumberSequence.new({
+			NumberSequenceKeypoint.new(0,   0.05),
+			NumberSequenceKeypoint.new(0.7, 0.5),
+			NumberSequenceKeypoint.new(1,   1),
+		})
+		emitter.Speed       = NumberRange.new(5, 12)
+		emitter.SpreadAngle = Vector2.new(180, 180)
+		emitter.Lifetime    = NumberRange.new(0.4, 0.8)
+		emitter.Rate        = 80
+		emitter.RotSpeed    = NumberRange.new(-180, 180)
+		emitter.Rotation    = NumberRange.new(0, 360)
+		emitter.Parent      = hrp
+
+		-- ── 4) BillboardGui: 머리 위 텍스트 ──
+		local billboard = Instance.new("BillboardGui")
+		billboard.Adornee      = head
+		billboard.Size         = UDim2.new(0, 220, 0, 80)
+		billboard.StudsOffset  = Vector3.new(0, 2.5, 0)
+		billboard.AlwaysOnTop  = true
+		billboard.ResetOnSpawn = false
+		billboard.Parent       = head
+
+		local levelUpLbl = Instance.new("TextLabel")
+		levelUpLbl.Size                   = UDim2.new(1, 0, 0.5, 0)
+		levelUpLbl.Position               = UDim2.new(0, 0, 0, 0)
+		levelUpLbl.BackgroundTransparency = 1
+		levelUpLbl.Text                   = "LEVEL UP"
+		levelUpLbl.Font                   = Enum.Font.GothamBold
+		levelUpLbl.TextSize               = 22
+		levelUpLbl.TextColor3             = Color3.fromRGB(255, 255, 255)
+		levelUpLbl.TextStrokeTransparency = 0.3
+		levelUpLbl.TextStrokeColor3       = Color3.fromRGB(80, 110, 180)
+		levelUpLbl.TextTransparency       = 1
+		levelUpLbl.Parent                 = billboard
+
+		local lvNumLbl = Instance.new("TextLabel")
+		lvNumLbl.Size                   = UDim2.new(1, 0, 0.5, 0)
+		lvNumLbl.Position               = UDim2.new(0, 0, 0.5, 0)
+		lvNumLbl.BackgroundTransparency = 1
+		lvNumLbl.Text                   = "Lv. " .. tostring(newLevel)
+		lvNumLbl.Font                   = Enum.Font.GothamBold
+		lvNumLbl.TextSize               = 26
+		lvNumLbl.TextColor3             = Color3.fromRGB(220, 235, 255)
+		lvNumLbl.TextStrokeTransparency = 0.3
+		lvNumLbl.TextStrokeColor3       = Color3.fromRGB(60, 90, 160)
+		lvNumLbl.TextTransparency       = 1
+		lvNumLbl.Parent                 = billboard
+
+		-- ── 5) 애니메이션 (총 ~2초) ──
+		task.spawn(function()
+			-- 텍스트 페이드인
+			TweenService:Create(levelUpLbl, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+			TweenService:Create(lvNumLbl,   TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+
+			-- 위로 서서히 상승
+			local elapsed = 0
+			local riseDur = 1.6
+			local startY, endY = 2.5, 5.0
+			task.spawn(function()
+				while elapsed < riseDur do
+					local dt = task.wait()
+					elapsed += dt
+					local t = math.min(elapsed / riseDur, 1)
+					billboard.StudsOffset = Vector3.new(0, startY + (endY - startY) * t, 0)
+				end
+			end)
+
+			-- Highlight 2회 깜빡임
+			for _ = 1, 2 do
+				TweenService:Create(highlight, TweenInfo.new(0.15), { FillTransparency = 0.75 }):Play()
+				task.wait(0.15)
+				TweenService:Create(highlight, TweenInfo.new(0.15), { FillTransparency = 0.15 }):Play()
+				task.wait(0.15)
+			end
+
+			-- 유지 (짧게)
+			task.wait(0.7)
+
+			-- 파티클 중지
+			emitter.Enabled = false
+
+			-- 페이드아웃
+			TweenService:Create(levelUpLbl, TweenInfo.new(0.35), { TextTransparency = 1 }):Play()
+			TweenService:Create(lvNumLbl,   TweenInfo.new(0.35), { TextTransparency = 1 }):Play()
+			TweenService:Create(highlight,  TweenInfo.new(0.35), { FillTransparency = 1, OutlineTransparency = 1 }):Play()
+			TweenService:Create(light,      TweenInfo.new(0.35), { Brightness = 0 }):Play()
+			task.wait(0.4)
+
+			highlight:Destroy()
+			light:Destroy()
+			emitter:Destroy()
+			billboard:Destroy()
+			levelUpPlaying = false
+		end)
+	end
 end
 
 return UIManager

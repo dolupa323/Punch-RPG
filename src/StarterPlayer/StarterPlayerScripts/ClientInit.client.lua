@@ -155,8 +155,50 @@ local function createAdminPanel()
 	end)
 
 
-	mkBtn("레벨 50 설정", Color3.fromRGB(100, 120, 180), function()
-		NetClient.Request("Admin.SetLevel.Request", { level = 50 })
+	-- 레벨 조정 입력 컨테이너
+	local lvlContainer = Instance.new("Frame")
+	lvlContainer.Name = "LvlContainer"
+	lvlContainer.Size = UDim2.new(1, 0, 0, 32)
+	lvlContainer.BackgroundTransparency = 1
+	lvlContainer.Parent = frame
+
+	local lvlInput = Instance.new("TextBox")
+	lvlInput.Name = "LvlInput"
+	lvlInput.Size = UDim2.new(0.6, -4, 1, 0)
+	lvlInput.Position = UDim2.new(0, 0, 0, 0)
+	lvlInput.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+	lvlInput.Text = "41" -- 기본 추천 입력값
+	lvlInput.PlaceholderText = "레벨"
+	lvlInput.TextColor3 = Color3.new(1, 1, 1)
+	lvlInput.Font = Enum.Font.GothamBold
+	lvlInput.TextSize = 13
+	lvlInput.ClearTextOnFocus = false
+	lvlInput.Parent = lvlContainer
+	Instance.new("UICorner", lvlInput).CornerRadius = UDim.new(0, 6)
+	local lvlStroke = Instance.new("UIStroke", lvlInput)
+	lvlStroke.Color = Color3.fromRGB(80, 80, 85)
+	lvlStroke.Thickness = 1
+
+	local applyLvlBtn = Instance.new("TextButton")
+	applyLvlBtn.Name = "ApplyLvlBtn"
+	applyLvlBtn.Size = UDim2.new(0.4, 0, 1, 0)
+	applyLvlBtn.Position = UDim2.new(0.6, 0, 0, 0)
+	applyLvlBtn.BackgroundColor3 = Color3.fromRGB(100, 120, 180)
+	applyLvlBtn.Text = "레벨 설정"
+	applyLvlBtn.TextColor3 = Color3.new(1, 1, 1)
+	applyLvlBtn.Font = Enum.Font.GothamBold
+	applyLvlBtn.TextSize = 12
+	applyLvlBtn.Parent = lvlContainer
+	Instance.new("UICorner", applyLvlBtn).CornerRadius = UDim.new(0, 6)
+
+	applyLvlBtn.MouseButton1Click:Connect(function()
+		local lvl = tonumber(lvlInput.Text)
+		if lvl then
+			NetClient.Request("Admin.SetLevel.Request", { level = lvl })
+			UIManager.notify("레벨 " .. lvl .. "(으)로 변경 요청", Color3.fromRGB(150, 200, 255))
+		else
+			UIManager.notify("올바른 숫자를 입력하세요.", Color3.fromRGB(255, 100, 100))
+		end
 	end)
 	
 	mkBtn("속성: 불(Fire)", Color3.fromRGB(200, 80, 80), function()
@@ -180,6 +222,18 @@ local function createAdminPanel()
 			UIManager.notify("보유 스킬을 모두 초기화했습니다.", Color3.fromRGB(150, 190, 255))
 		else
 			UIManager.notify("스킬 초기화에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
+
+	mkBtn("퀘스트 전체 초기화", Color3.fromRGB(60, 140, 100), function()
+		local ok1 = NetClient.Request("Trainer.Quest.Reset.Request", {})
+		local ok2 = NetClient.Request("Magician.Quest.Reset.Request", {})
+		if ok1 or ok2 then
+			UIManager.notify("수련·마법사 퀘스트를 초기화했습니다.", Color3.fromRGB(120, 220, 150))
+			UIManager.updateSideQuest(100, { active = false })
+			UIManager.updateSideQuest(101, { active = false })
+		else
+			UIManager.notify("퀘스트 초기화에 실패했습니다.", Color3.fromRGB(255, 120, 120))
 		end
 	end)
 end

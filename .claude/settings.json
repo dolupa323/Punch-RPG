@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(find / -maxdepth 4 -iname \".claude.json\" 2>/dev/null)",
+      "Read(//c//**)"
+    ]
+  }
+}

@@ -203,45 +203,45 @@ local STEP_TARGETS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-753.46, -32.0, 1404.68),
+		fallback = Vector3.new(-356.345, 261.55, 171.384),
 	},
 	COLLECT_SLIME_MUCUS = {
 		kind = "monster",
 		zoneName = "SLIME_HABITAT",
 		spawnDataKey = "StartingZone_Slime",
-		fallback = Vector3.new(-753.46, -32.0, 1404.68),
+		fallback = Vector3.new(-356.345, 261.55, 171.384),
 	},
 	CRAFT_SOFTCLUB = {
 		kind = "npc",
 		aliases = { "WeaponCrafter", "무기제작", "무기 장인", "Weapon Crafter" },
-		fallback = Vector3.new(-662.486, 32.939, 791.484),
+		fallback = Vector3.new(0, 245, 309),
 	},
 	KILL_HORNED_LARVA = {
 		kind = "monster",
 		zoneName = "HornedLarvaZone",
 		spawnDataKey = "HornedLarvaZone",
-		fallback = Vector3.new(-858.37, -92.0, 1679.66),
+		fallback = Vector3.new(-322.769, 212.05, -87.4425),
 	},
 	CRAFT_GAKCHANG = {
 		kind = "npc",
 		aliases = { "WeaponCrafter", "무기제작", "무기 장인", "Weapon Crafter" },
-		fallback = Vector3.new(-662.486, 32.939, 791.484),
+		fallback = Vector3.new(0, 245, 309),
 	},
 	ENHANCE_GAKCHANG = {
 		kind = "npc",
 		aliases = { "EnhanceMaster", "강화스승", "무기 강화", "Weapon Enhance" },
-		fallback = Vector3.new(-677.292, 35.511, 822.341),
+		fallback = Vector3.new(0, 245, 309),
 	},
 	COLLECT_STUMP_BARK = {
 		kind = "monster",
 		zoneName = "STUMP_ZONE",
 		spawnDataKey = "StumpZone",
-		fallback = Vector3.new(-1519.42, -71.69, 1498.07),
+		fallback = Vector3.new(-297.7355, 239.73, -340.1945),
 	},
 	CRAFT_MOGWOLDO = {
 		kind = "npc",
 		aliases = { "WeaponCrafter", "무기제작", "무기 장인", "Weapon Crafter" },
-		fallback = Vector3.new(-662.486, 32.939, 791.484),
+		fallback = Vector3.new(0, 245, 309),
 	},
 }
 

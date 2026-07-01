@@ -194,7 +194,9 @@ function SkillTreeUI.SetVisible(visible)
 			end)
 		else
 			local HUDUI = require(UI:WaitForChild("HUDUI"))
-			HUDUI.HideTooltip()
+			if HUDUI.HideTooltip then
+				HUDUI.HideTooltip()
+			end
 		end
 	end
 end
@@ -539,16 +541,14 @@ function SkillTreeUI.Refresh()
 				})
 
 				local isAssigned = false
-				local assignedSlotIdx = nil
-				for slotKey, sid in pairs(equippedPassives) do
+				for _, sid in pairs(equippedPassives) do
 					if sid == skill.id then
 						isAssigned = true
-						assignedSlotIdx = tonumber(slotKey) or slotKey
 						break
 					end
 				end
 
-				if isAssigned and assignedSlotIdx then
+				if isAssigned then
 					Utils.mkBtn({
 						name = "EquippedBtn",
 						text = UILocalizer.Localize("해제"),
@@ -562,8 +562,8 @@ function SkillTreeUI.Refresh()
 						hbg = C.BTN_GRAY_H,
 						color = C.INK,
 						fn = function()
-							print("[SkillTreeUI] Unequip clicked for slot:", assignedSlotIdx)
-							SkillController.requestUnequipPassive(assignedSlotIdx, function(success, err)
+							print("[SkillTreeUI] Unequip clicked for passive:", skill.id)
+							SkillController.requestUnequipPassive(skill.id, function(success, err)
 								if not success then
 									warn("[SkillTreeUI] Unequip failed:", err)
 									_UIManager.notify("해제 실패: " .. tostring(err or "Unknown"), Color3.fromRGB(255, 100, 100))
@@ -575,15 +575,6 @@ function SkillTreeUI.Refresh()
 						parent = btnContainer
 					})
 				else
-					-- Find first empty slot or default to slot 1
-					local targetSlot = 1
-					for i = 1, 3 do
-						if not equippedPassives[tostring(i)] and not equippedPassives[i] then
-							targetSlot = i
-							break
-						end
-					end
-
 					Utils.mkBtn({
 						name = "EquipBtn",
 						text = UILocalizer.Localize("장착"),
@@ -596,8 +587,8 @@ function SkillTreeUI.Refresh()
 						hbg = C.BORDER_SEL,
 						color = C.WHITE,
 						fn = function()
-							print("[SkillTreeUI] Equip clicked for skill:", skill.id, "targetSlot:", targetSlot)
-							SkillController.requestEquipPassive(skill.id, targetSlot, function(success, err)
+							print("[SkillTreeUI] Equip clicked for passive:", skill.id)
+							SkillController.requestEquipPassive(skill.id, skill.id, function(success, err)
 								if not success then
 									warn("[SkillTreeUI] Equip failed:", err)
 									_UIManager.notify("장착 실패: " .. tostring(err or "Unknown"), Color3.fromRGB(255, 100, 100))

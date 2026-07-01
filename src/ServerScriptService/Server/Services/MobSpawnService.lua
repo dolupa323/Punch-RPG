@@ -855,8 +855,8 @@ local function createMobModel(areaId, index, config)
 					task.spawn(function()
 						while model and model.Parent and humanoid and humanoid.Health > 0 do
 							local isMoving = humanoid.MoveDirection.Magnitude > 0.05 or (hrp and hrp.AssemblyLinearVelocity.Magnitude > 0.5)
-							if config.mobModelName == "IceDragon" then
-								isMoving = true -- 아이스 드래곤은 Idle이 없고 항상 날갯짓(Walk) 애니메이션 상태를 유지합니다.
+							if config.mobModelName == "IceDragon" or config.mobModelName == "CyclopsBat" then
+								isMoving = true -- 아이스 드래곤과 사이클롭스 배트는 항상 날갯짓(Walk) 애니메이션 상태를 유지합니다.
 							end
 
 							if isMoving then
@@ -993,7 +993,7 @@ local function createMobModel(areaId, index, config)
 					rock.Position = pos + Vector3.new(math.random(-2,2), 2, math.random(-2,2))
 					rock.Material = Enum.Material.Slate
 					rock.Color = Color3.fromRGB(100, 100, 100)
-					rock.CanCollide = true
+					rock.CanCollide = false
 					rock.Anchored = false
 					rock.Parent = workspace
 
@@ -1053,29 +1053,22 @@ local function createMobModel(areaId, index, config)
 				crater.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
 				crater.Anchored = true
 				crater.CanCollide = false
-				crater.Material = Enum.Material.Sand
-				crater.Color = Color3.fromRGB(210, 180, 140) -- 모래색
+				crater.Material = Enum.Material.Grass
+				crater.Color = Color3.fromRGB(34, 139, 34) -- 깊은 숲의 초록색
 				crater.Parent = workspace
 				ts:Create(crater, TweenInfo.new(2.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
 				game:GetService("Debris"):AddItem(crater, 3.5)
 
-				-- 2. 타격음
-				local sfx = Instance.new("Sound")
-				sfx.SoundId = "rbxassetid://142070127" -- 묵직한 폭발음 베이스
-				sfx.PlaybackSpeed = 0.55 -- 더 무겁고 낮은 톤
-				sfx.Volume = 2.2
-				sfx.RollOffMaxDistance = 150
-				sfx.Parent = crater
-				sfx:Play()
+				-- 2. 타격음 삭제
 
 				-- 3. 나무 파편(Wood Debris) 튀기기
 				for i = 1, 12 do
 					local wood = Instance.new("Part")
 					wood.Size = Vector3.new(math.random(2, 4), math.random(2, 4), math.random(2, 4))
 					wood.Position = pos + Vector3.new(math.random(-3, 3), 2, math.random(-3, 3))
-					wood.Material = Enum.Material.Sandstone
-					wood.Color = Color3.fromRGB(195, 145, 95) -- 사암 모래색
-					wood.CanCollide = true
+					wood.Material = Enum.Material.Wood
+					wood.Color = Color3.fromRGB(120, 85, 45)
+					wood.CanCollide = false
 					wood.Anchored = false
 					wood.Parent = workspace
 
@@ -1099,7 +1092,7 @@ local function createMobModel(areaId, index, config)
 
 				local pe = Instance.new("ParticleEmitter")
 				pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
-				pe.Color = ColorSequence.new(Color3.fromRGB(225, 190, 130), Color3.fromRGB(190, 150, 95)) -- 사막 모래 먼지색
+				pe.Color = ColorSequence.new(Color3.fromRGB(50, 205, 50), Color3.fromRGB(34, 139, 34)) -- 싱그러운 나뭇잎 초록빛 먼지색
 				pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 0)})
 				pe.Transparency = NumberSequence.new(0.4, 1)
 				pe.Lifetime = NumberRange.new(0.8, 1.5)
@@ -1120,7 +1113,7 @@ local function createMobModel(areaId, index, config)
 				shockwave.Anchored = true
 				shockwave.CanCollide = false
 				shockwave.Material = Enum.Material.Neon
-				shockwave.Color = Color3.fromRGB(230, 180, 100) -- 모래 황금빛 충격파
+				shockwave.Color = Color3.fromRGB(46, 204, 113) -- 신성한 숲의 비취색(에메랄드) 충격파
 				shockwave.Parent = workspace
 				ts:Create(shockwave, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 					Size = Vector3.new(0.5, radius * 2, radius * 2),
@@ -1367,7 +1360,7 @@ local function createMobModel(areaId, index, config)
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
 
-								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 3, 0), Vector3.new(0, -30, 0), raycastParams)
 								if rayResult then
 									targetFloorPos = rayResult.Position
 								else
@@ -1386,7 +1379,7 @@ local function createMobModel(areaId, index, config)
 								warnCircle.CanQuery = false
 								warnCircle.CastShadow = false
 								warnCircle.Material = Enum.Material.Neon
-								warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 예고 이펙트
+								warnCircle.Color = Color3.fromRGB(0, 180, 80) -- 숲의 수호자 느낌의 초록빛 예고
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
 
@@ -1413,7 +1406,7 @@ local function createMobModel(areaId, index, config)
 								local ts = game:GetService("TweenService")
 								local flashTween = ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 									Transparency = 0.4,
-									Color = Color3.fromRGB(255, 200, 100) -- 모래/지진 느낌에 맞춘 황금빛 점멸
+									Color = Color3.fromRGB(100, 255, 150) -- 영롱한 에메랄드빛 점멸
 								})
 								flashTween:Play()
 
@@ -1438,35 +1431,46 @@ local function createMobModel(areaId, index, config)
 								local magicSpikeModel = Instance.new("Model")
 								magicSpikeModel.Name = "MagicTreeSpike"
 
-								-- A. 중앙 메인 사암 가시 (WedgePart로 뾰족한 형상 구현)
+								-- A. 중앙 메인 나무 기둥 (WedgePart로 뾰족한 형상 구현)
 								local mainSpire = Instance.new("WedgePart")
 								mainSpire.Name = "MainSpire"
 								mainSpire.Size = Vector3.new(3.5, 12, 3.5)
-								mainSpire.Color = Color3.fromRGB(195, 145, 95) -- 사암색
-								mainSpire.Material = Enum.Material.Sandstone
+								mainSpire.Color = Color3.fromRGB(120, 85, 45) -- 나무 갈색
+								mainSpire.Material = Enum.Material.Wood
 								mainSpire.CanCollide = false
 								mainSpire.Anchored = true
 								mainSpire.Parent = magicSpikeModel
 
-								-- B. 주변 보조 사암 파편 1 (좌측 경사 쐐기)
+								-- B. 주변 보조 나뭇가지 파편 1
 								local sideShard1 = Instance.new("WedgePart")
 								sideShard1.Name = "SideShard1"
 								sideShard1.Size = Vector3.new(2, 6, 2)
-								sideShard1.Color = Color3.fromRGB(180, 130, 80) -- 약간 어두운 사암
-								sideShard1.Material = Enum.Material.Sandstone
+								sideShard1.Color = Color3.fromRGB(100, 70, 35) -- 약간 어두운 나무 갈색
+								sideShard1.Material = Enum.Material.Wood
 								sideShard1.CanCollide = false
 								sideShard1.Anchored = true
 								sideShard1.Parent = magicSpikeModel
 
-								-- C. 주변 보조 사암 파편 2 (우측 경사 쐐기)
+								-- C. 주변 보조 나뭇가지 파편 2
 								local sideShard2 = Instance.new("WedgePart")
 								sideShard2.Name = "SideShard2"
 								sideShard2.Size = Vector3.new(1.8, 4, 1.8)
-								sideShard2.Color = Color3.fromRGB(210, 160, 110) -- 약간 밝은 사암
-								sideShard2.Material = Enum.Material.Sandstone
+								sideShard2.Color = Color3.fromRGB(140, 100, 55) -- 약간 밝은 나무 갈색
+								sideShard2.Material = Enum.Material.Wood
 								sideShard2.CanCollide = false
 								sideShard2.Anchored = true
 								sideShard2.Parent = magicSpikeModel
+
+								-- D. 상단 무성한 나뭇잎 구체
+								local leaves = Instance.new("Part")
+								leaves.Name = "Leaves"
+								leaves.Shape = Enum.PartType.Ball
+								leaves.Size = Vector3.new(5.5, 5.5, 5.5)
+								leaves.Color = Color3.fromRGB(34, 139, 34) -- 깊은 숲의 나뭇잎 초록색
+								leaves.Material = Enum.Material.Grass
+								leaves.CanCollide = false
+								leaves.Anchored = true
+								leaves.Parent = magicSpikeModel
 
 								-- 일관적인 위치 보정 함수 (트윈/수학적 루프 연산용)
 								local function updateSpikeCF(centerPos, verticalOffset)
@@ -1474,6 +1478,7 @@ local function createMobModel(areaId, index, config)
 									mainSpire.CFrame = baseCF * CFrame.Angles(0, 0, 0)
 									sideShard1.CFrame = baseCF * CFrame.new(-1.2, -3, 0.8) * CFrame.Angles(math.rad(15), 0, math.rad(15))
 									sideShard2.CFrame = baseCF * CFrame.new(1.2, -4, -0.8) * CFrame.Angles(math.rad(-15), 0, math.rad(-15))
+									leaves.CFrame = baseCF * CFrame.new(0, 5.5, 0)
 								end
 
 								updateSpikeCF(attackPos, -7)
@@ -1559,7 +1564,7 @@ local function createMobModel(areaId, index, config)
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
 
-								local rayResult = workspace:Raycast(meleeTelegraphPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+								local rayResult = workspace:Raycast(meleeTelegraphPos + Vector3.new(0, 3, 0), Vector3.new(0, -30, 0), raycastParams)
 								if rayResult then
 									meleeTelegraphPos = rayResult.Position
 								else
@@ -1685,7 +1690,7 @@ local function createMobModel(areaId, index, config)
 							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
 
-							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -40, 0), raycastParams)
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), raycastParams)
 							if rayResult then
 								targetFloorPos = rayResult.Position
 							else
@@ -1904,14 +1909,14 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Anchored = true
 							warnCircle.CanCollide = false
 							warnCircle.Material = Enum.Material.Neon
-							warnCircle.Color = Color3.fromRGB(218, 145, 0) -- 모래 대지 경고
+							warnCircle.Color = Color3.fromRGB(0, 180, 80) -- 숲의 힘 (초록색) 경고
 							warnCircle.Transparency = 0.85
 							warnCircle.Parent = workspace
 
 							local ts = game:GetService("TweenService")
 							ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 								Transparency = 0.4,
-								Color = Color3.fromRGB(255, 200, 100) -- 모래 황금빛으로 점멸
+								Color = Color3.fromRGB(100, 255, 150) -- 비취빛/에메랄드빛 점멸
 							}):Play()
 
 							-- 애니메이션 (Stump 에셋 기반이므로 Stump_Magic/Stump_Attack 시도)
@@ -2016,7 +2021,7 @@ local function createMobModel(areaId, index, config)
 								local raycastParams = RaycastParams.new()
 								raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 								raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 5, 0), Vector3.new(0, -30, 0), raycastParams)
 								if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
 
 								-- 예고 장판 (반경 12스터드로 축소)
@@ -2028,11 +2033,14 @@ local function createMobModel(areaId, index, config)
 								warnCircle.Anchored = true
 								warnCircle.CanCollide = false
 								warnCircle.Material = Enum.Material.Neon
-								warnCircle.Color = Color3.fromRGB(230, 180, 100) -- 모래 황금빛 장판
+								warnCircle.Color = Color3.fromRGB(0, 160, 60) -- 초록빛 낙하 경고
 								warnCircle.Transparency = 0.85
 								warnCircle.Parent = workspace
 
-								ts:Create(warnCircle, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+								ts:Create(warnCircle, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+									Transparency = 0.4,
+									Color = Color3.fromRGB(80, 255, 130) -- 에메랄드빛 점멸
+								}):Play()
 
 								-- 0.5초 대기 (회피 시간)
 								task.wait(0.5)
@@ -2041,11 +2049,11 @@ local function createMobModel(areaId, index, config)
 
 								-- 나무 둥치 모델 생성 (대형 통나무)
 								local trunk = Instance.new("Part")
-								trunk.Name = "FallingBoulder"
-								trunk.Shape = Enum.PartType.Block
-								trunk.Size = Vector3.new(8, 10, 8) -- 거대한 사암 바위
-								trunk.Color = Color3.fromRGB(195, 145, 95) -- 사암색
-								trunk.Material = Enum.Material.Sandstone
+								trunk.Name = "FallingTrunk"
+								trunk.Shape = Enum.PartType.Cylinder
+								trunk.Size = Vector3.new(12, 6, 6) -- 거대 원기둥 통나무
+								trunk.Color = Color3.fromRGB(100, 70, 35) -- 통나무 갈색
+								trunk.Material = Enum.Material.Wood
 								trunk.CanCollide = false
 								trunk.Anchored = true
 
@@ -2683,7 +2691,7 @@ local function createMobModel(areaId, index, config)
 							local raycastParams = RaycastParams.new()
 							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), raycastParams)
 							if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
 
 							-- 1초 늪 영역 예고 장판 생성 (반경 14스터드)
@@ -2818,7 +2826,7 @@ local function createMobModel(areaId, index, config)
 												local raycastParams2 = RaycastParams.new()
 												raycastParams2.FilterType = Enum.RaycastFilterType.Exclude
 												raycastParams2.FilterDescendantsInstances = {model, targetPlayer}
-												local rayResult2 = workspace:Raycast(spikeTargetPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams2)
+												local rayResult2 = workspace:Raycast(spikeTargetPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), raycastParams2)
 												if rayResult2 then spikeTargetPos = rayResult2.Position else spikeTargetPos = spikeTargetPos - Vector3.new(0, currentTargetRoot.Size.Y / 2, 0) end
 
 												task.spawn(function()
@@ -3054,7 +3062,7 @@ local function createMobModel(areaId, index, config)
 							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
 
-							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -40, 0), raycastParams)
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), raycastParams)
 							if rayResult then
 								targetFloorPos = rayResult.Position
 							else
@@ -3239,7 +3247,7 @@ local function createMobModel(areaId, index, config)
 							local raycastParams = RaycastParams.new()
 							raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 							raycastParams.FilterDescendantsInstances = {model, targetPlayer}
-							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), raycastParams)
+							local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), raycastParams)
 							if rayResult then targetFloorPos = rayResult.Position else targetFloorPos = targetFloorPos - Vector3.new(0, phrp.Size.Y / 2, 0) end
 
 							-- 0.6초 즉발성 좁은 예고 장판 (반경 7스터드)
@@ -6268,7 +6276,7 @@ local function createMobModel(areaId, index, config)
 								rayParams.FilterType = Enum.RaycastFilterType.Exclude
 								local ignoreList = {model, targetPlayer}
 								rayParams.FilterDescendantsInstances = ignoreList
-								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 10, 0), Vector3.new(0, -30, 0), rayParams)
+								local rayResult = workspace:Raycast(targetFloorPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 								if rayResult then
 									targetFloorPos = rayResult.Position
 									floorY = rayResult.Position.Y + 0.2
@@ -6315,7 +6323,7 @@ local function createMobModel(areaId, index, config)
 
 											-- 정확한 지면 Y 구하기
 											local stepFloorY = floorY
-											local rayResultDrop = workspace:Raycast(dropCenter + Vector3.new(0, 15, 0), Vector3.new(0, -40, 0), rayParams)
+											local rayResultDrop = workspace:Raycast(dropCenter + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 											if rayResultDrop then
 												stepFloorY = rayResultDrop.Position.Y
 											end
@@ -6553,7 +6561,7 @@ local function createMobModel(areaId, index, config)
 											if not isAlive then break end
 											local stepPos = hrp.Position + hrp.CFrame.LookVector * ((chargeLength / stepCount) * i)
 											local stepFloorY = floorY
-											local rayResult = workspace:Raycast(stepPos + Vector3.new(0, 15, 0), Vector3.new(0, -40, 0), rayParams)
+											local rayResult = workspace:Raycast(stepPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 											if rayResult then
 												stepFloorY = rayResult.Position.Y
 											end
@@ -6741,7 +6749,7 @@ local function createMobModel(areaId, index, config)
 
 										-- 강타 이펙트는 무조건 시전됨 (바닥 파편 등 연출)
 										local smashPos = currentPos + hrp.CFrame.LookVector * (G_ATTACK_RANGE / 2)
-										local smashRayResult = workspace:Raycast(smashPos + Vector3.new(0, 15, 0), Vector3.new(0, -30, 0), rayParams)
+										local smashRayResult = workspace:Raycast(smashPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 										local finalSmashPos = smashRayResult and smashRayResult.Position or Vector3.new(smashPos.X, floorPos.Y, smashPos.Z)
 										playRockSmashEffect(finalSmashPos, G_ATTACK_RANGE * 0.8)
 
@@ -6825,7 +6833,7 @@ local function createMobModel(areaId, index, config)
 										if p.Character then table.insert(ignoreList, p.Character) end
 									end
 									rayParams.FilterDescendantsInstances = ignoreList
-									local rayResult = workspace:Raycast(lungeTargetPos + Vector3.new(0, 10, 0), Vector3.new(0, -20, 0), rayParams)
+									local rayResult = workspace:Raycast(lungeTargetPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 									local floorPos = rayResult and rayResult.Position or (lungeTargetPos - Vector3.new(0, 2, 0))
 
 									warnCircle.CFrame = CFrame.new(floorPos + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))

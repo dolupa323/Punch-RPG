@@ -149,7 +149,7 @@ local STEP_DEFS = {
 	},
 	[10] = {
 		id = "COLLECT_STUMP_BARK",
-		currentStepText = "사막의 검 재료 모으기",
+		currentStepText = "숲의 검 재료 모으기",
 		stepCommand = "스텀프 나무껍질 10개를 모으세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 10,
@@ -160,8 +160,8 @@ local STEP_DEFS = {
 	},
 	[11] = {
 		id = "CRAFT_MOGWOLDO",
-		currentStepText = "사막의 검 만들기",
-		stepCommand = "사막의 검을 제작하세요.",
+		currentStepText = "숲의 검 만들기",
+		stepCommand = "숲의 검을 제작하세요.",
 		stepKind = "ITEM_ANY",
 		stepCount = 1,
 		rewardGold = 200,

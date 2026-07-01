@@ -612,8 +612,8 @@ local function findNearestTarget()
 	end
 	
 	-- 시작마을 허수아비 폴더 수집 추가
-	local startVillage = workspace:FindFirstChild("StartVillage")
-	local trainingFolder = startVillage and startVillage:FindFirstChild("Training")
+	local newWorldMap = workspace:FindFirstChild("NewWorldMap")
+	local trainingFolder = newWorldMap and newWorldMap:FindFirstChild("Training")
 	if trainingFolder then
 		for _, obj in ipairs(trainingFolder:GetChildren()) do
 			table.insert(targets, obj)
@@ -1059,13 +1059,10 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 				local scale = 1.0
 				local moveDist = 20.0
 				
-				-- 불씨(EMBER), 물방울(DROPLET), 짙은밤(NIGHT/ROCK)은 날아가지 않고 원래 스케일/방향대로 한번 출력
-				if assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" then
-					scale = 1.0
-					moveDist = nil -- 투사체 비행 제외
-				elseif assetKey == "SLASH" then
+				-- 불씨(EMBER), 물방울(DROPLET), 짙은밤(NIGHT/ROCK), 슬래시(SLASH) 동일 스케일 적용
+				if assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" or assetKey == "SLASH" then
 					scale = 2.5
-					moveDist = nil -- 투사체 비행 제외 (한번 휘두르고 끝)
+					moveDist = nil -- 투사체 비행 제외
 				end
 				
 				local spawned = spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, scale, moveDist)

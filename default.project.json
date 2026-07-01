@@ -17,9 +17,6 @@
         "CameraMinZoomDistance": 5
       },
       "StarterPlayerScripts": { "$path": "src/StarterPlayer/StarterPlayerScripts" }
-    },
-    "Workspace": {
-      "$ignoreUnknownInstances": true
     }
   }
 }

@@ -11,6 +11,11 @@ local TweenService = game:GetService("TweenService")
 
 local initialized = false
 local dummies = {} -- Model -> DummyStateData Table
+local hitCallbacks = {} -- TrainerQuestService 등이 등록하는 타격 콜백
+
+function TrainingDummyService.RegisterHitCallback(fn)
+	table.insert(hitCallbacks, fn)
+end
 
 -- BillboardGui 생성 함수
 local function createDummyUI(parentPart)
@@ -69,37 +74,66 @@ local function createDummyUI(parentPart)
 end
 
 -- 허수아비 세팅 함수
-local function setupDummy(meshPart)
-	if meshPart:GetAttribute("IsDummyConfigured") then return end
-	meshPart:SetAttribute("IsDummyConfigured", true)
+local function setupDummy(target)
+	if target:GetAttribute("IsDummyConfigured") then return end
+	target:SetAttribute("IsDummyConfigured", true)
 	
-	-- 물리 충돌 및 앵커링 확보 (움직이지 않고 공중에 잘 고정되게 함)
-	meshPart.Anchored = true
-	meshPart.CanCollide = true
-	
-	-- 1. 메쉬 파트를 포장할 Model 생성
-	local model = Instance.new("Model")
-	model.Name = "TrainingDummy"
-	model.Parent = meshPart.Parent
-	
-	-- 메쉬파트를 모델 하위로 이동
-	meshPart.Parent = model
-	model.PrimaryPart = meshPart
-	
-	-- 2. Humanoid 생성 및 세팅 (기존 Combat/Attack 시스템이 타격 대상으로 완벽 인식하도록 주입)
-	local hum = Instance.new("Humanoid")
-	hum.MaxHealth = 99999999
-	hum.Health = hum.MaxHealth
-	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	hum.Parent = model
+	local model, part, hum
+	if target:IsA("Model") then
+		model = target
+		part = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildOfClass("BasePart")
+		if not part then
+			warn("[TrainingDummyService] Model named " .. target.Name .. " has no parts to attach UI!")
+			return
+		end
+		
+		-- 물리 충돌 및 앵커링 확보
+		for _, child in ipairs(model:GetDescendants()) do
+			if child:IsA("BasePart") then
+				child.Anchored = true
+				child.CanCollide = true
+			end
+		end
+		
+		hum = model:FindFirstChildOfClass("Humanoid")
+		if not hum then
+			hum = Instance.new("Humanoid")
+			hum.MaxHealth = 99999999
+			hum.Health = hum.MaxHealth
+			hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			hum.Parent = model
+		end
+	else
+		local meshPart = target
+		-- 물리 충돌 및 앵커링 확보 (움직이지 않고 공중에 잘 고정되게 함)
+		meshPart.Anchored = true
+		meshPart.CanCollide = true
+		
+		-- 1. 메쉬 파트를 포장할 Model 생성
+		model = Instance.new("Model")
+		model.Name = "TrainingDummy"
+		model.Parent = meshPart.Parent
+		
+		-- 메쉬파트를 모델 하위로 이동
+		meshPart.Parent = model
+		model.PrimaryPart = meshPart
+		part = meshPart
+		
+		-- 2. Humanoid 생성 및 세팅 (기존 Combat/Attack 시스템이 타격 대상으로 완벽 인식하도록 주입)
+		hum = Instance.new("Humanoid")
+		hum.MaxHealth = 99999999
+		hum.Health = hum.MaxHealth
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		hum.Parent = model
+	end
 	
 	-- 3. BillboardGui UI 생성
-	local statsLabel = createDummyUI(meshPart)
+	local statsLabel = createDummyUI(part)
 	
 	-- 허수아비 상태 데이터 기록
 	local state = {
 		model = model,
-		part = meshPart,
+		part = part,
 		humanoid = hum,
 		statsLabel = statsLabel,
 		totalDamage = 0,
@@ -140,6 +174,11 @@ local function setupDummy(meshPart)
 				local userId = attacker.UserId
 				state.playerHits[userId] = (state.playerHits[userId] or 0) + 1
 				local hits = state.playerHits[userId]
+
+				-- 외부 콜백 알림 (TrainerQuestService 등)
+				for _, cb in ipairs(hitCallbacks) do
+					pcall(cb, attacker)
+				end
 				
 				-- 100회 도달 시 보상 지급 루틴 가동
 				if hits == 100 then
@@ -262,40 +301,40 @@ end
 
 -- NPC 스캔 및 폴더 내 모든 Training 메쉬 감지
 local function scanDummies()
-	local startVillage = Workspace:FindFirstChild("StartVillage")
-	local trainingFolder = startVillage and startVillage:FindFirstChild("Training")
+	local newWorldMap = Workspace:FindFirstChild("NewWorldMap")
+	local trainingFolder = newWorldMap and newWorldMap:FindFirstChild("Training")
 	
 	if trainingFolder then
 		for _, child in ipairs(trainingFolder:GetChildren()) do
-			if child:IsA("MeshPart") and child.Name == "Training" then
+			if child.Name == "Training" then
 				setupDummy(child)
 			end
 		end
 		
 		-- 스트리밍 대비 동적 노드 감지
 		trainingFolder.ChildAdded:Connect(function(child)
-			if child:IsA("MeshPart") and child.Name == "Training" then
+			if child.Name == "Training" then
 				task.defer(function()
 					setupDummy(child)
 				end)
 			end
 		end)
-		print("[TrainingDummyService] Scanning completed in StartVillage/Training folder.")
+		print("[TrainingDummyService] Scanning completed in NewWorldMap/Training folder.")
 	else
-		warn("[TrainingDummyService] 'Workspace/StartVillage/Training' folder not found yet. Awaiting folder...")
+		warn("[TrainingDummyService] 'Workspace/NewWorldMap/Training' folder not found yet. Awaiting folder...")
 		-- 폴더가 나중에 생성되는 예외적인 케이스 대응
 		task.spawn(function()
-			local folder = Workspace:WaitForChild("StartVillage", 10)
+			local folder = Workspace:WaitForChild("NewWorldMap", 10)
 			if folder then
 				local tr = folder:WaitForChild("Training", 10)
 				if tr then
 					for _, child in ipairs(tr:GetChildren()) do
-						if child:IsA("MeshPart") and child.Name == "Training" then
+						if child.Name == "Training" then
 							setupDummy(child)
 						end
 					end
 					tr.ChildAdded:Connect(function(child)
-						if child:IsA("MeshPart") and child.Name == "Training" then
+						if child.Name == "Training" then
 							task.defer(function()
 								setupDummy(child)
 							end)

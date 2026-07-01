@@ -596,6 +596,16 @@ SkillTreeData.RUNES = {
 		effects = { { stat = "CRIT_CHANCE", value = 0.10 } },
 	},
 	{
+		id = "SKILL_RUNE_HEAVEN",
+		name = "하늘의 자격",
+		type = "PASSIVE",
+		icon = "Rune_Wing",
+		reqLevel = 1,
+		spCost = 0,
+		description = "장착 시 이동 속도가 15% 증가합니다.",
+		effects = { { stat = "SPEED_MULT", value = 0.15 } },
+	},
+	{
 		id = "SKILL_RUNE_FLAME_ACTIVE",
 		name = "화염",
 		type = "ACTIVE",

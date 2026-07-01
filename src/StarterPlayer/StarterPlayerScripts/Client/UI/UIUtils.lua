@@ -104,7 +104,7 @@ function UIUtils.mkLabel(p)
 	l.TextColor3 = p.ink and C.INK or (p.color or C.WHITE)
 	l.TextSize = p.ts or 14
 	l.Font = p.ink and F.CLASSIC or (p.font or F.NORMAL)
-	l.FontFace = Font.fromName("Michroma") -- Force immediate assignment
+	l.FontFace = Font.fromId(12188570269) -- Force immediate assignment
 	l.TextXAlignment = p.ax or Enum.TextXAlignment.Center
 	l.TextYAlignment = p.ay or Enum.TextYAlignment.Center
 	
@@ -137,7 +137,7 @@ function UIUtils.mkBtn(p)
 	b.TextColor3 = p.color or (isNeg and C.INK or C.BG_PANEL) -- Action buttons use dark text for contrast
 	b.TextSize = p.ts or 15
 	b.Font = p.font or F.TITLE 
-	b.FontFace = Font.fromName("Michroma") -- Force immediate assignment
+	b.FontFace = Font.fromId(12188570269) -- Force immediate assignment
 	b.AutoButtonColor = false
 	b.Visible = p.vis ~= false
 	b.ZIndex = p.z or 1
@@ -490,13 +490,13 @@ end
 local function enforceCustomFont(obj)
 	if not obj or not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
 	
-	local MICHROMA = Font.fromName("Michroma")
-	obj.FontFace = MICHROMA
+	local CUSTOM_FONT = Font.fromId(12188570269)
+	obj.FontFace = CUSTOM_FONT
 	
 	-- Safety lock to prevent legacy scripts from reverting font back to standard System fonts
 	obj:GetPropertyChangedSignal("Font"):Connect(function()
 		if obj.Font ~= Enum.Font.Custom then
-			obj.FontFace = MICHROMA
+			obj.FontFace = CUSTOM_FONT
 		end
 	end)
 end

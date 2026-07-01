@@ -28,7 +28,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftMogwoldo",
-		name = "사막의 검",
+		name = "숲의 검",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 8,
@@ -38,7 +38,7 @@ local RecipeData = {
 	},
 	{
 		id = "CraftPoisonHornSpear",
-		name = "사막의 밤",
+		name = "숲의 밤",
 		category = "WEAPON",
 		requiredFacility = nil,
 		craftTime = 110,

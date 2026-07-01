@@ -13,7 +13,20 @@ local SaveService = require(ServerScriptService.Server.Services.SaveService)
 local SpawnConfig = require(ReplicatedStorage.Shared.Config.SpawnConfig)
 
 local NetController = nil
+local PlayerStatService = nil
 local initialized = false
+
+local HEAVEN_RUNE_ID = "SKILL_RUNE_HEAVEN"
+local REQUIRED_LEVEL = 40
+
+local function playerHasHeavenRune(player: Player): boolean
+	local state = SaveService.getPlayerState(player.UserId)
+	if not state or not state.equippedPassives then return false end
+	for _, skillId in pairs(state.equippedPassives) do
+		if skillId == HEAVEN_RUNE_ID then return true end
+	end
+	return false
+end
 
 -- 대기열/중복 방지 쿨다운
 local debounces = {}
@@ -42,11 +55,59 @@ local function setupNPC(npc, objectText, actionText, isReturn)
 	print(string.format("[SkyIslandTransportService] NPC 프롬프트 등록 완료: %s (isReturn: %s)", npc.Name, tostring(isReturn)))
 	
 	prompt.Triggered:Connect(function(player)
-		if NetController then
-			NetController.FireClient(player, "SkyIsland.OpenUI", {
-				isReturn = isReturn
+		if not NetController then return end
+
+		if isReturn then
+			-- 귀환 NPC는 조건 없이 대화 시작
+			NetController.FireClient(player, "SkyIsland.OpenDialogue", {
+				isReturn = true,
+				canTravel = true,
+				npcName = "지상 인도자",
+				dialogue = "지상으로 돌아가시겠습니까?\n청운촌 입구 앞에 내려드리겠습니다.",
+				confirmText = "예, 돌아가겠습니다.",
+				declineText = "아직 괜찮습니다.",
 			})
+			return
 		end
+
+		-- 하늘섬 이동 조건 검사
+		local level = PlayerStatService.getLevel(player.UserId) or 1
+		local hasRune = playerHasHeavenRune(player)
+		local canTravel = level >= REQUIRED_LEVEL and hasRune
+
+		local dialogue, confirmText, declineText
+		if canTravel then
+			dialogue = "어서 오십시오, 여행자여.\n당신의 자격을 확인했습니다.\n하늘섬으로 인도해 드리겠습니다."
+			confirmText = "하늘섬으로 이동한다."
+			declineText = "아직 괜찮다."
+		elseif level < REQUIRED_LEVEL and not hasRune then
+			dialogue = string.format(
+				"이곳은 아무나 오를 수 있는 곳이 아닙니다.\n\n하늘섬에 오르려면 레벨 <b>%d</b> 이상이어야 하며,\n<b>'하늘의 자격'</b> 패시브 룬을 장착해야 합니다.\n\n현재 레벨: <b>%d</b> / 룬 미장착",
+				REQUIRED_LEVEL, level
+			)
+			confirmText = nil
+			declineText = "알겠습니다."
+		elseif level < REQUIRED_LEVEL then
+			dialogue = string.format(
+				"당신의 자격은 아직 부족합니다.\n\n하늘섬에 오르려면 레벨 <b>%d</b> 이상이어야 합니다.\n\n현재 레벨: <b>%d</b>",
+				REQUIRED_LEVEL, level
+			)
+			confirmText = nil
+			declineText = "알겠습니다."
+		else
+			dialogue = "'하늘의 자격' 패시브 룬을 장착하지 않으셨군요.\n\n하늘섬의 기운을 감당하려면 그 룬이 반드시 필요합니다.\n룬을 장착한 뒤 다시 찾아오십시오."
+			confirmText = nil
+			declineText = "알겠습니다."
+		end
+
+		NetController.FireClient(player, "SkyIsland.OpenDialogue", {
+			isReturn = false,
+			canTravel = canTravel,
+			npcName = "하늘섬 인도자",
+			dialogue = dialogue,
+			confirmText = confirmText,
+			declineText = declineText,
+		})
 	end)
 end
 
@@ -101,6 +162,16 @@ local function handleTeleportRequest(player: Player, payload: any)
 	debounces[userId] = tick()
 	
 	local isReturn = payload and payload.isReturn == true
+
+	-- 서버 측 재검증 (하늘섬으로 이동하는 경우만)
+	if not isReturn then
+		local level = PlayerStatService.getLevel(player.UserId) or 1
+		local hasRune = playerHasHeavenRune(player)
+		if level < REQUIRED_LEVEL or not hasRune then
+			return { success = false, errorCode = "NOT_QUALIFIED" }
+		end
+	end
+
 	local targetPos = getTeleportPosition(isReturn)
 	local destName = isReturn and "지상(청운촌)" or "하늘섬"
 	
@@ -202,11 +273,12 @@ local function handleTeleportRequest(player: Player, payload: any)
 end
 
 -- 초기화
-function SkyIslandTransportService.Init(netController)
+function SkyIslandTransportService.Init(netController, playerStatService)
 	if initialized then return end
 	initialized = true
-	
+
 	NetController = netController
+	PlayerStatService = playerStatService
 	
 	-- 기존 배치된 NPC 스캔
 	scanNPCs()
