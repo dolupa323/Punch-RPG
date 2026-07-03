@@ -6,10 +6,11 @@ local Players = game:GetService("Players")
 
 local TrainerController = {}
 
-local Client = script.Parent.Parent
-local Theme = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
-local NetClient = require(Client:WaitForChild("NetClient"))
-local UIManager = require(Client:WaitForChild("UIManager"))
+local Client      = script.Parent.Parent
+local Theme       = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local NetClient   = require(Client:WaitForChild("NetClient"))
+local UIManager   = require(Client:WaitForChild("UIManager"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 local player = Players.LocalPlayer
 
 local F = Theme.Fonts
@@ -152,8 +153,8 @@ local function setIndicator(state)
 end
 
 local function showTrainerDialogue(data)
-	local npcName   = data.npcName   or "훈련 교관"
-	local dialogue  = data.dialogue  or ""
+	local npcName   = UILocalizer.Localize(data.npcName   or "훈련 교관")
+	local dialogue  = UILocalizer.Localize(data.dialogue  or "")
 	local choices   = data.choices   or {}
 
 	local playerGui = player:WaitForChild("PlayerGui")
@@ -332,7 +333,7 @@ local function showTrainerDialogue(data)
 		for idx, choice in ipairs(choices) do
 			local isAction = (choice.action ~= "CLOSE")
 			local color = isAction and Color3.fromRGB(150, 210, 255) or Color3.fromRGB(160, 160, 160)
-			makeChoiceBtn(choice.text, idx, color, function()
+			makeChoiceBtn(UILocalizer.Localize(choice.text), idx, color, function()
 				if choice.action == "CLOSE" then
 					closeDialogue()
 				elseif choice.action == "ACCEPT" or choice.action == "CLAIM" then

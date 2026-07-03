@@ -14,10 +14,31 @@ local ZONES = {
 	CHEONGUN = {
 		min = Vector2.new(-164.695, 74.801),
 		max = Vector2.new(162.5, 543.238),
+		minY = 170,  -- 지하 수중도시와 분리
 		spawnPoint = Vector3.new(0, 245, 309),
 		displayName = "청운촌",
 		subName = "CHEONGUN VILLAGE",
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
+	},
+	UNDERWATER_CITY = {
+		min = Vector2.new(-567, -248),
+		max = Vector2.new(432, 751),
+		minY = 30,
+		maxY = 169,
+		spawnPoint = Vector3.new(-67, 85, 251),
+		displayName = "클레이온",
+		subName = "KLEION · UNDERWATER CITY",
+		priority = 20,
+	},
+	DEEP_ABYSS = {
+		min = Vector2.new(200, -50),
+		max = Vector2.new(1320, 560),
+		minY = -130,
+		maxY = 29,
+		spawnPoint = Vector3.new(860, -100, 251),
+		displayName = "심연의 협곡",
+		subName = "ABYSS CANYON · HUNTING ZONE",
+		priority = 25,
 	},
 	SLIME_HABITAT = {
 		min = Vector2.new(-434.738, 102.266),
@@ -327,9 +348,11 @@ local ZONE_CONFIGS = {
 local sortedZones = {}
 for zoneName, zone in pairs(ZONES) do
 	table.insert(sortedZones, {
-		name = zoneName,
-		min = zone.min,
-		max = zone.max,
+		name     = zoneName,
+		min      = zone.min,
+		max      = zone.max,
+		minY     = zone.minY,
+		maxY     = zone.maxY,
 		priority = zone.priority or 0
 	})
 end
@@ -370,10 +393,12 @@ end
 function SpawnConfig.GetZoneAtPosition(position: Vector3): string?
 	if not position then return nil end
 	
-	local x, z = position.X, position.Z
-	
+	local x, y, z = position.X, position.Y, position.Z
+
 	for _, zone in ipairs(sortedZones) do
 		if x >= zone.min.X and x <= zone.max.X and z >= zone.min.Y and z <= zone.max.Y then
+			if zone.minY and y < zone.minY then continue end
+			if zone.maxY and y > zone.maxY then continue end
 			return zone.name
 		end
 	end

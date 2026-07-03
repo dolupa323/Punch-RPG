@@ -711,8 +711,11 @@ local function createMobModel(areaId, index, config)
 			bb.StudsOffset = Vector3.new(0, head.Size.Y/2 + 1.5, 0)
 		else
 			bb.Adornee = hrp
-			-- HRP가 보통 하단에 있으므로 모델 전체 높이(extents.Y)만큼 띄움
-			bb.StudsOffset = Vector3.new(0, extents.Y + 1.0, 0) 
+			-- 젤리피쉬: HRP가 모델 중심 → 절반 높이 + 여유 / 일반: HRP 하단 → 전체 높이
+			local yOff = (config.mobModelName == "Jellyfish")
+				and (extents.Y * 0.5 + 4)
+				or  (extents.Y + 1.0)
+			bb.StudsOffset = Vector3.new(0, yOff, 0)
 		end
 		
 		bb.AlwaysOnTop = true
@@ -943,9 +946,9 @@ local function createMobModel(areaId, index, config)
 			local bfkAuraEmitters = {}
 
 			-- [반응속도 및 감지혁신]: 스텀프/박쥐의 유저 인식 반경 상승, FSM 주기를 단축하여 극적인 초고속 즉시 타격 실현!
-			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or (isBoss and 40 or 30))
-			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or 6)
-			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or (isBoss and 0.15 or 0.2))
+			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or ((config.mobModelName == "Jellyfish") and 90 or (isBoss and 40 or 30)))
+			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or ((config.mobModelName == "Jellyfish") and 18 or 6))
+			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or ((config.mobModelName == "Jellyfish") and 0.15 or (isBoss and 0.15 or 0.2)))
 
 			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
 			local function playRockSmashEffect(pos, radius)
@@ -1236,7 +1239,7 @@ local function createMobModel(areaId, index, config)
 								billboard.Size = UDim2.new(2, 0, 2, 0)
 								
 								local extents = model:GetExtentsSize()
-								local yOffset = head and (head.Size.Y/2 + 1.0) or (extents.Y + 2.0)
+								local yOffset = head and (head.Size.Y/2 + 1.0) or ((config.mobModelName == "Jellyfish") and (extents.Y * 0.5 + 6) or (extents.Y + 2.0))
 								billboard.StudsOffset = Vector3.new(0, yOffset, 0)
 								billboard.AlwaysOnTop = true
 								
@@ -7004,6 +7007,165 @@ local function createMobModel(areaId, index, config)
 						else
 							humanoid:MoveTo(phrp.Position)
 						end
+
+					elseif config.mobModelName == "Jellyfish" then
+						--========================================================================
+						-- [Jellyfish 전용 FSM 분기]: 3D 수중 유영 + 바닥 장판 전조 공격
+						-- CyclopsBat 패턴 참조: humanoid:MoveTo + PlatformStand
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPos  = phrp.Position
+						local distToPlayer = minDist
+						local now = os.clock()
+						local attackCooldown = config.attackCooldown or 2.2
+						local JELLY_ATTACK_RANGE = 28  -- HRP가 모델 중심 기준, 거대한 몸체 반경 고려
+
+						-- Humanoid 물리 간섭 차단 (파닥거림 방지)
+						humanoid.PlatformStand = true
+
+						-- BodyVelocity로 3D 수중 이동 (중력 무효화)
+						local bv = hrp:FindFirstChild("JellyBV")
+						if not bv then
+							bv = Instance.new("BodyVelocity")
+							bv.Name = "JellyBV"
+							bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+							bv.P = 8000
+							bv.Velocity = Vector3.new(0, 0, 0)
+							bv.Parent = hrp
+						end
+
+						if distToPlayer > JELLY_ATTACK_RANGE then
+							-- 플레이어를 향해 3D 수영 이동
+							local dir = (targetPos - currentPos)
+							if dir.Magnitude > 1 then
+								bv.Velocity = dir.Unit * (config.walkSpeed or 12)
+								-- 수평 방향만 바라보기
+								local lookDir = Vector3.new(dir.X, 0, dir.Z)
+								if lookDir.Magnitude > 0.1 then
+									hrp.CFrame = CFrame.lookAt(currentPos, currentPos + lookDir.Unit)
+								end
+							else
+								bv.Velocity = Vector3.new(0, 0, 0)
+							end
+						else
+							-- 공격 범위 내 → 제자리 정지 후 공격
+							bv.Velocity = Vector3.new(0, 0, 0)
+
+							if now - lastAttackTick >= attackCooldown then
+								lastAttackTick = now
+
+								task.spawn(function()
+									local mobRootPos = hrp.Position
+									local ts = game:GetService("TweenService")
+									local attackRadius = 14
+									local telegraphDuration = 1.2
+
+									-- ── 바닥 레이캐스트 ──
+									local rayParams = RaycastParams.new()
+									rayParams.FilterType = Enum.RaycastFilterType.Exclude
+									rayParams.FilterDescendantsInstances = {model, targetPlayer}
+									local castOrigin = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+									local rayResult = workspace:Raycast(castOrigin, Vector3.new(0, -300, 0), rayParams)
+									local floorPos = rayResult and (rayResult.Position + Vector3.new(0, 0.2, 0)) or Vector3.new(targetPos.X, 68, targetPos.Z)
+
+									if not isAlive then return end
+									local currentTargetHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
+									if not currentTargetHrp then return end
+
+									local endP = currentTargetHrp.Position
+
+									-- ── 1. VFX + 전조 장판 동시 시작 ──
+
+									-- Thunder VFX
+									local vfxAssets = ReplicatedStorage:FindFirstChild("Assets")
+									local thunderTemplate = vfxAssets
+										and vfxAssets:FindFirstChild("VFX")
+										and vfxAssets.VFX:FindFirstChild("Boss")
+										and vfxAssets.VFX.Boss:FindFirstChild("Thunder")
+
+									if thunderTemplate then
+										local thunder = thunderTemplate:Clone()
+										local VFX_SCALE = 6.0
+										if thunder:IsA("Model") then
+											pcall(function() thunder:ScaleTo(VFX_SCALE) end)
+											thunder:PivotTo(CFrame.new(endP))
+										elseif thunder:IsA("BasePart") then
+											thunder.Size = thunder.Size * VFX_SCALE
+											thunder.CFrame = CFrame.new(endP)
+										end
+										thunder.Parent = workspace
+										for _, desc in ipairs(thunder:GetDescendants()) do
+											if desc:IsA("ParticleEmitter") then
+												desc.Speed = NumberRange.new(desc.Speed.Min * VFX_SCALE, desc.Speed.Max * VFX_SCALE)
+												desc.Enabled = true
+												-- 전조 장판이 끝날 때 파티클 중단
+												task.delay(telegraphDuration, function() if desc and desc.Parent then desc.Enabled = false end end)
+											elseif desc:IsA("Beam") or desc:IsA("Trail") then
+												desc.Enabled = true
+												task.delay(telegraphDuration, function() if desc and desc.Parent then desc.Enabled = false end end)
+											elseif desc:IsA("Sound") then
+												desc:Play()
+											end
+										end
+										if thunder:IsA("BasePart") then
+											ts:Create(thunder, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+												Transparency = 1
+											}):Play()
+										end
+										task.delay(telegraphDuration + 1.0, function()
+											if thunder and thunder.Parent then thunder:Destroy() end
+										end)
+									end
+
+									-- 전조 장판
+									local warnCircle = Instance.new("Part")
+									warnCircle.Name = "JellyfishTelegraph"
+									warnCircle.Shape = Enum.PartType.Cylinder
+									warnCircle.Size = Vector3.new(0.4, attackRadius * 2, attackRadius * 2)
+									warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90))
+									warnCircle.Anchored = true
+									warnCircle.CanCollide = false
+									warnCircle.CanTouch = false
+									warnCircle.CanQuery = false
+									warnCircle.CastShadow = false
+									warnCircle.Material = Enum.Material.Neon
+									warnCircle.Color = Color3.fromRGB(0, 220, 255)
+									warnCircle.Transparency = 0.85
+									warnCircle.Parent = workspace
+
+									ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+										Transparency = 0.2,
+										Size = Vector3.new(0.4, attackRadius * 2.4, attackRadius * 2.4),
+									}):Play()
+
+									-- ── 2. 전조 장판 끝날 때까지 대기 → 데미지 ──
+									task.wait(telegraphDuration)
+									warnCircle:Destroy()
+
+									if not isAlive then return end
+									local finalHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
+									if not finalHrp then return end
+
+									local playerDistFromCenter = (finalHrp.Position - floorPos).Magnitude
+									if playerDistFromCenter <= attackRadius then
+										local dmg = config.baseDamage or 65
+										local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+										if currentPhum and currentPhum.Health > 0 then
+											dealDamageToHumanoid(currentPhum, dmg)
+											local bounceDir = (finalHrp.Position - mobRootPos)
+											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
+											local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+											if hitPlayer then
+												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+												local NetController = require(Controllers:WaitForChild("NetController"))
+												NetController.FireClient(hitPlayer, "Player.Stun", bounceDir)
+											end
+										end
+									end
+								end)
+							end
+						end
+
 					else
 						--========================================================================
 						-- [기타 일반 몬스터 Melee 전투 FSM 분기]
@@ -7149,7 +7311,7 @@ local function createMobModel(areaId, index, config)
 							billboard.Size = UDim2.new(2, 0, 2, 0)
 							
 							local extents = model:GetExtentsSize()
-							local yOffset = head and (head.Size.Y/2 + 1.0) or (extents.Y + 2.0)
+							local yOffset = head and (head.Size.Y/2 + 1.0) or ((config.mobModelName == "Jellyfish") and (extents.Y * 0.5 + 6) or (extents.Y + 2.0))
 							billboard.StudsOffset = Vector3.new(0, yOffset, 0)
 							billboard.AlwaysOnTop = true
 							
@@ -7181,8 +7343,31 @@ local function createMobModel(areaId, index, config)
 				lastTarget = nil
 
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter) 기준 랜덤 오프셋 영역으로 자연스럽게 배회합니다.
-				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon")
+				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon" or config.mobModelName == "Jellyfish")
 				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian") and 35 or 20
+
+				-- [Jellyfish 전용 수중 배회] PlatformStand + BodyVelocity 3D 유영
+				if config.mobModelName == "Jellyfish" then
+					humanoid.PlatformStand = true
+					local bv = hrp:FindFirstChild("JellyBV")
+					if not bv then
+						bv = Instance.new("BodyVelocity")
+						bv.Name = "JellyBV"
+						bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+						bv.P = 8000
+						bv.Velocity = Vector3.new(0, 0, 0)
+						bv.Parent = hrp
+					end
+					local wanderTarget = Vector3.new(
+						spawnCenter.X + math.random(-20, 20),
+						spawnCenter.Y + math.random(-6, 6),
+						spawnCenter.Z + math.random(-20, 20)
+					)
+					local dir = (wanderTarget - hrp.Position)
+					bv.Velocity = dir.Magnitude > 2 and (dir.Unit * 5) or Vector3.new(0, 0, 0)
+					task.wait(math.random(4, 8))
+					continue
+				end
 
 				local wanderOffset = Vector3.new(math.random(-wanderRadius, wanderRadius), 0, math.random(-wanderRadius, wanderRadius))
 				local nextDest = spawnCenter + wanderOffset

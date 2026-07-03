@@ -315,6 +315,21 @@ local HazardService = require(Services.HazardService)
 HazardService.Init(NetController)
 ServiceRegistry.Register("HazardService", HazardService)
 
+local FountainService = require(Services.FountainService)
+FountainService.Init(NetController)
+for command, handler in pairs(FountainService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("FountainService", FountainService)
+
+local MermanService = require(Services.MermanService)
+MermanService.Init(NetController)
+for command, handler in pairs(MermanService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("MermanService", MermanService)
+
+
 print("[ServerInit] RPG Core initialized - Legacy systems removed")
 
 

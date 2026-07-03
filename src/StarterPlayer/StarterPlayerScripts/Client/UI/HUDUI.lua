@@ -1678,12 +1678,9 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			returnCooling = true
 
 			task.spawn(function()
-				TeleportFade.execute(function()
-					local c = game:GetService("Players").LocalPlayer.Character
-					local h = c and c:FindFirstChild("HumanoidRootPart")
-					if h then h.CFrame = CFrame.new(VILLAGE_POS) end
-				end)
-				-- 서버에 귀환 완료 알림 (마법사 퀘스트 연동)
+				-- 서버에 텔레포트 요청 (페이드아웃+로딩+이동+페이드인 서버가 처리)
+				NetClient.Request("Fountain.Return.Request", {})
+				-- 마법사 퀘스트 연동
 				NetClient.Request("Magician.VillageReturn.Event", {})
 			end)
 			rbCdOverlay.Visible = true
@@ -2119,8 +2116,16 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	
 	if HUDUI.Refs.hex_Jump then
 		HUDUI.Refs.hex_Jump.MouseButton1Click:Connect(function()
-			local hum = player.Character and player.Character:FindFirstChild("Humanoid")
-			if hum then hum.Jump = true end
+			-- MovementAbilityController의 커스텀 점프 시스템으로 통일
+			-- hum.Jump = true 대신 JumpRequest 이벤트를 직접 발생시켜 requestJump() 경유
+			local MAC = require(Controllers:WaitForChild("MovementAbilityController"))
+			if MAC and MAC.requestJump then
+				MAC.requestJump()
+			else
+				-- 폴백: humanoid.Jump
+				local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+				if hum then hum.Jump = true end
+			end
 		end)
 	end
 

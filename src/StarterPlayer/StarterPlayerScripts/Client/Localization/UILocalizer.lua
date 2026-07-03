@@ -594,6 +594,69 @@ local KO_TO_EN = {
 	["보관 골드: %d"] = "Stored Gold: %d",
 	["소지 골드: %d"] = "Held Gold: %d",
 	["골드: 0"] = "Gold: 0",
+
+	-- ── NPC Names ──
+	["마법사"] = "Magician",
+	["훈련 교관"] = "Training Instructor",
+
+	-- ── Magician Quest Dialogues ──
+	["오오, 반갑소 여행자!\n나는 포탈 마법을 연구하는 마법사라오.\n\n이 세계의 <b>포탈 시스템</b>을 알려주겠소!\n\n① 각 지역에는 <b>포탈</b>이 세워져 있다오.\n② 그 앞에서 <b>E키</b>를 누르면 그 지역이 <b>등록</b>되지요.\n③ 등록한 지역은 마을 중앙 포탈에서 <b>순간이동</b>으로 언제든 갈 수 있다오!\n\n먼저 초원에 나가 포탈을 등록해 보겠나?"] = "Ah, welcome traveler!\nI am a wizard who studies portal magic.\n\nLet me explain the <b>Portal System</b>!\n\n① Each region has a <b>portal</b>.\n② Press <b>E</b> in front of it to <b>register</b> that region.\n③ Registered regions can be reached via <b>instant travel</b> at the village portal anytime!\n\nShall you head to the Grasslands and register a portal first?",
+	["오호! 초원 포탈을 등록했군! 잘 했다오!\n\n이제 마을 중앙 포탈에서 초원을 선택해 이동할 수 있다오.\n마을 포탈은 이 근처 중앙 광장에 있으니\n가서 <b>E키</b>로 상호작용해 보게나!"] = "Oh! You registered the Grasslands portal! Well done!\n\nNow you can select Grasslands at the village central portal.\nThe village portal is at the central plaza nearby.\nGo and try interacting with it using <b>E</b>!",
+	["마을 중앙에 있는 큰 포탈로 가보게!\n<b>E키</b>를 누르면 등록된 지역 목록이 열린다오.\n거기서 <b>초원</b>을 선택하면 순간이동이 된다네!\n\n이동하고 나면 이곳으로 돌아오게나."] = "Head to the large portal in the village center!\nPress <b>E</b> to open the list of registered regions.\nSelect <b>Grasslands</b> and you will be teleported!\n\nCome back here after you travel.",
+	["초원까지 포탈로 다녀왔구나! 훌륭하이!\n\n이제 마지막으로 <b>마을귀환</b> 기능을 배워보세나.\n화면 하단의 [마을귀환] 버튼을 누르면\n포탈 없이도 즉시 마을로 돌아온다오!"] = "You traveled to the Grasslands by portal! Splendid!\n\nNow let us learn the <b>Village Return</b> feature last.\nPress the [Village Return] button at the bottom of the screen\nto instantly return to the village without a portal!",
+	["마지막 수업이오!\n화면 <b>하단 중앙</b>에 <b>[마을귀환]</b> 버튼이 있다오.\n포탈 없이도 그 버튼 하나로 즉시 마을로 돌아올 수 있다네!\n\n한번 눌러보게나. 어디 있든 바로 이 마을로 돌아온다오."] = "This is the final lesson!\nThere is a <b>[Village Return]</b> button at the <b>bottom center</b> of your screen.\nWith just that button you can instantly return to the village without a portal!\n\nGive it a try. No matter where you are, you will return right here.",
+	["완벽하이! 이제 자네는 어떤 지역에 가더라도\n포탈로 이동하고, 마을귀환으로 복귀하는 것을 알게 됐군.\n\n앞으로의 여정에서 이 지식이 큰 도움이 될 것이오. 행운을 빌겠네!"] = "Perfect! Now you know how to travel by portal\nand return via Village Return no matter where you go.\n\nThis knowledge will serve you well on your journey ahead. Good luck!",
+	["이미 모든 포탈 수련을 마쳤군!\n포탈과 마을귀환을 자유자재로 쓸 수 있는 여행자가 됐다네.\n앞으로의 여정에 행운을 빌겠네!"] = "You have already completed all portal training!\nYou are now a traveler who can freely use portals and Village Return.\nBest of luck on your journey ahead!",
+	["잠시 후 다시 이야기하세."] = "Let us talk again shortly.",
+
+	-- Magician quest titles
+	["초원 포탈 등록"] = "Register Grasslands Portal",
+	["마을 포탈로 초원 이동"] = "Travel to Grasslands via Portal",
+	["마을귀환 버튼 사용"] = "Use Village Return Button",
+
+	-- Magician tracker descs
+	["초원 지역으로 이동 → 포탈 앞에서 E키로 등록 → 마법사에게 보고"] = "Go to Grasslands → Press E at portal → Report to Magician",
+	["마을 중앙 포탈 → E키 → 초원 선택하여 이동 → 마법사에게 보고"] = "Village portal → Press E → Select Grasslands → Report to Magician",
+	["화면 하단 [마을귀환] 버튼 사용 → 마을 복귀 → 마법사에게 보고"] = "Use [Village Return] button → Return to village → Report to Magician",
+	["완료! 마법사에게 돌아가 보고하세요."] = "Done! Return to the Magician.",
+
+	-- Magician choice texts
+	["감사합니다, 마법사님."] = "Thank you, Wizard.",
+	["알겠습니다, 계속 해보겠습니다."] = "Understood. I will keep going.",
+	["나중에 하겠습니다."] = "Maybe later.",
+	["나중에 받겠습니다."] = "I will claim it later.",
+	["알겠습니다."] = "Understood.",
+
+	-- ── Trainer Quest Dialogues ──
+	["모든 수련 퀘스트를 완료했군!\n자네는 이제 진정한 전사야.\n앞으로도 계속 정진하게."] = "You have completed all training quests!\nYou are now a true warrior.\nKeep striving forward!",
+	["아직 수련을 시작하지 않았군.\n먼저 이전 퀘스트를 완료해야 하네."] = "You have not started training yet.\nYou must complete the previous quest first.",
+
+	-- Trainer claimable dialogues (known values)
+	["잘 했네! '수련의 시작' 퀘스트를 완료했군.\n허수아비 50회 타격 달성!\n\n보상을 받아가게."] = "Well done! 'Beginning of Training' quest complete.\n50 dummy hits achieved!\n\nClaim your reward.",
+	["잘 했네! '수련의 완성' 퀘스트를 완료했군.\n허수아비 100회 타격 달성!\n\n보상을 받아가게."] = "Well done! 'Completion of Training' quest complete.\n100 dummy hits achieved!\n\nClaim your reward.",
+
+	-- Trainer offer dialogues (known values)
+	["어서오게나, 수련생!\n이곳에서 수련하면 강해질 수 있네.\n\n퀘스트: <b>수련의 시작</b>\n허수아비를 50회 타격하세요.\n\n보상: XP +500, 골드 +200"] = "Welcome, trainee!\nTraining here will make you stronger.\n\nQuest: <b>Beginning of Training</b>\nStrike the training dummy 50 times.\n\nReward: XP +500, Gold +200",
+	["어서오게나, 수련생!\n이곳에서 수련하면 강해질 수 있네.\n\n퀘스트: <b>수련의 완성</b>\n허수아비를 100회 타격하세요.\n\n보상: XP +1500, 골드 +500"] = "Welcome, trainee!\nTraining here will make you stronger.\n\nQuest: <b>Completion of Training</b>\nStrike the training dummy 100 times.\n\nReward: XP +1500, Gold +500",
+
+	-- Trainer quest titles & descs
+	["수련의 시작"] = "Beginning of Training",
+	["수련의 완성"] = "Completion of Training",
+	["허수아비를 50회 타격하세요."] = "Strike the training dummy 50 times.",
+	["허수아비를 100회 타격하세요."] = "Strike the training dummy 100 times.",
+	["완료! 훈련 교관에게 보고하세요."] = "Done! Report to the Instructor.",
+	["허수아비 타격"] = "Dummy Hits",
+
+	-- Trainer choice texts
+	["계속 수련하겠습니다."] = "I will continue training.",
+	["퀘스트를 수락합니다."] = "I accept the quest.",
+	["다음에 하겠습니다."] = "Maybe later.",
+	["감사합니다."] = "Thank you.",
+
+	-- ── WeaponCrafter Dialogue ──
+	["어서 오십시오, 모험가님!\n저는 이 마을의 무기 장인입니다.\n좋은 무기 하나가 전장에서 목숨을 구하지요.\n무엇을 도와드릴까요?"] = "Welcome, adventurer!\nI am the Weapon Crafter of this village.\nA good weapon can save your life on the battlefield.\nHow may I help you?",
+	["무기를 제작하고 싶습니다."] = "I would like to craft a weapon.",
+	["아무것도 필요 없습니다."] = "Nothing for now.",
 }
 
 local EN_TO_KO = {}
@@ -714,6 +777,18 @@ local function localizePatternsToEnglish(text: string): string
 	-- Rune Stone Claims
 	text = string.gsub(text, "^액티브 룬 %[(.+)%]을 획득했습니다%! %((%d+)%/(%d+)%)$", "Acquired Active Rune [%1]! (%2/%3)")
 	text = string.gsub(text, "^액티브 룬 %[(.+)%]을 획득했습니다%! %(누적 (%d+)회 획득%)$", "Acquired Active Rune [%1]! (Accumulated %2 claims)")
+
+	-- NPC Quest choice buttons (dynamic reward amounts)
+	text = string.gsub(text, "^보상 받기 %(XP %+(%d+), 골드 %+(%d+)%)$", "Claim Reward (XP +%1, Gold +%2)")
+	text = string.gsub(text, "^수락하겠습니다! %(XP %+(%d+), 골드 %+(%d+)%)$", "Accept! (XP +%1, Gold +%2)")
+
+	-- Trainer active quest dialogue (hit count changes dynamically)
+	text = string.gsub(text, "수련 중이군! '(.-)' 퀘스트가 진행 중이네%.", "Training! '%1' quest is in progress.")
+	text = string.gsub(text, "허수아비 타격: (%d+) / (%d+)", "Dummy Hits: %1 / %2")
+	text = string.gsub(text, "남은 횟수: (%d+)회", "Remaining: %1")
+	text = string.gsub(text, "이곳에서 수련하면 강해질 수 있네%.", "Training here will make you stronger.")
+	text = string.gsub(text, "어서오게나, 수련생!", "Welcome, trainee!")
+	text = string.gsub(text, "보상: XP %+(%d+), 골드 %+(%d+)", "Reward: XP +%1, Gold +%2")
 	return text
 end
 

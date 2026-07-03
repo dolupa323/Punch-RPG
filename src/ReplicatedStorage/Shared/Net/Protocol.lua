@@ -253,6 +253,16 @@ Protocol.Commands = {
 	["Auction.CancelSale.Request"] = true,
 	["Auction.GetPending.Request"] = true,
 	["Auction.ClaimPending.Request"] = true,
+
+	-- Fountain (분수대 지하 통로) 명령어
+	["Fountain.Return.Request"] = true,   -- C→S: 마을 복귀 요청
+	["Fountain.Return"] = true,           -- S→C: 복귀 트리거
+
+	-- Merman NPC (클레이온 수문장) 명령어
+	["Merman.Interact"] = true,              -- C→S: NPC 상호작용 (레거시, 미사용)
+	["Merman.Dialogue"] = true,              -- S→C: 대사 표시 (레거시, 미사용)
+	["Merman.OpenDialogue"] = true,          -- S→C: 대화창 열기 (TrainerController 컨벤션)
+	["Merman.QuestAction.Request"] = true,   -- C→S: 선택지 응답 (CLOSE)
 }
 
 -- 에러 코드는 Enums.ErrorCode 사용

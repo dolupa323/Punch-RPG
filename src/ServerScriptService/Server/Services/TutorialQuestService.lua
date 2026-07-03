@@ -745,7 +745,7 @@ function TutorialQuestService.OnQuickslotSaved(userId: number, quickslots: {stri
 		local progress = _getStepProgress(state, 9)
 		progress.count = 1
 		state.progressByStep[9] = progress
-		_updateProgressAndSync(userId)
+		_tryCompleteStep(userId)
 	end
 end
 

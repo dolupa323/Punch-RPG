@@ -2917,7 +2917,7 @@ local function setupEventListeners()
 			nameLabel.Size                   = UDim2.new(0, 0, 1, 0)
 			nameLabel.AutomaticSize          = Enum.AutomaticSize.X
 			nameLabel.BackgroundTransparency = 1
-			nameLabel.Text                   = "  무기 장인  "
+			nameLabel.Text                   = "  " .. UILocalizer.Localize("무기 장인") .. "  "
 			nameLabel.Font                   = F.TITLE
 			nameLabel.TextSize               = 14
 			nameLabel.TextColor3             = Color3.fromRGB(255, 210, 140)
@@ -2999,7 +2999,7 @@ local function setupEventListeners()
 				return btn
 			end
 
-			local fullText = "어서 오십시오, 모험가님!\n저는 이 마을의 무기 장인입니다.\n좋은 무기 하나가 전장에서 목숨을 구하지요.\n무엇을 도와드릴까요?"
+			local fullText = UILocalizer.Localize("어서 오십시오, 모험가님!\n저는 이 마을의 무기 장인입니다.\n좋은 무기 하나가 전장에서 목숨을 구하지요.\n무엇을 도와드릴까요?")
 			local typingDone = false
 
 			task.spawn(function()
@@ -3033,13 +3033,13 @@ local function setupEventListeners()
 				textLabel.Text = fullText
 				divider.Visible = true
 
-				makeChoiceBtn("무기를 제작하고 싶습니다.", 1, Color3.fromRGB(255, 200, 100), function()
+				makeChoiceBtn(UILocalizer.Localize("무기를 제작하고 싶습니다."), 1, Color3.fromRGB(255, 200, 100), function()
 					closeDialogue()
 					local RecipeData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("RecipeData"))
 					local weaponRecipes = collectWeaponCrafterRecipes(RecipeData)
 					UIManager.openWeaponCrafting(weaponRecipes)
 				end)
-				makeChoiceBtn("아무것도 필요 없습니다.", 2, Color3.fromRGB(160, 160, 160), function()
+				makeChoiceBtn(UILocalizer.Localize("아무것도 필요 없습니다."), 2, Color3.fromRGB(160, 160, 160), function()
 					closeDialogue()
 				end)
 			end
@@ -3147,7 +3147,26 @@ function UIManager.Init()
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
-	-- 모바일 점프 버튼 등은 ContextActionService로 제어되거나 HUDUI가 덮어씌움
+
+	-- [모바일 점프버튼 중복 제거]
+	-- 커스텀 hex_Jump 버튼과 Roblox 기본 터치 점프버튼이 화면 우측 하단에 겹쳐
+	-- 기본 버튼이 터치를 소비하지 못해 씹히는 현상 방지
+	-- PlayerModule > ControlModule > TouchJump 버튼을 직접 숨김
+	if UserInputService.TouchEnabled then
+		task.spawn(function()
+			local playerGui = player:WaitForChild("PlayerGui")
+			-- TouchGui는 PlayerGui 하위에 생성됨 (최대 10초 대기)
+			local touchGui = playerGui:WaitForChild("TouchGui", 10)
+			if touchGui then
+				local jumpBtn = touchGui:FindFirstChild("JumpButton", true)
+				if jumpBtn then
+					jumpBtn.Visible = false
+				end
+				-- TouchGui 내 기본 조이스틱도 커스텀 HUD와 중복 시 숨김 처리 가능
+				-- (조이스틱은 현재 커스텀 대체없으므로 유지)
+			end
+		end)
+	end
 
 	-- 신규 모듈형 UI 초기화 (안전한 래퍼 도입으로 특정 모듈 에러가 전체 파이프라인을 중단하지 않도록 방지)
 	local function safeInit(name, module, ...)

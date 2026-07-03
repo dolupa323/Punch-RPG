@@ -8,10 +8,11 @@ local UserInputService = game:GetService("UserInputService")
 
 local MagicianController = {}
 
-local Client    = script.Parent.Parent
-local Theme     = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
-local NetClient = require(Client:WaitForChild("NetClient"))
-local UIManager = require(Client:WaitForChild("UIManager"))
+local Client      = script.Parent.Parent
+local Theme       = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
+local NetClient   = require(Client:WaitForChild("NetClient"))
+local UIManager   = require(Client:WaitForChild("UIManager"))
+local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
 
 local player = Players.LocalPlayer
 local F = Theme.Fonts
@@ -123,8 +124,8 @@ end
 -- ── 대화창 UI ──
 
 local function showDialogue(data)
-	local npcName  = data.npcName  or "마법사"
-	local dialogue = data.dialogue or ""
+	local npcName  = UILocalizer.Localize(data.npcName  or "마법사")
+	local dialogue = UILocalizer.Localize(data.dialogue or "")
 	local choices  = data.choices  or {}
 
 	local playerGui = player:WaitForChild("PlayerGui")
@@ -318,10 +319,10 @@ local function showDialogue(data)
 		for idx, choice in ipairs(choices) do
 			local isAction = (choice.action ~= "CLOSE")
 			local color = isAction and Color3.fromRGB(180, 150, 255) or Color3.fromRGB(160, 160, 160)
-			makeChoiceBtn(choice.text, idx, color, function()
+			makeChoiceBtn(UILocalizer.Localize(choice.text), idx, color, function()
 				if choice.action == "CLOSE" then
 					closeDialogue()
-				elseif choice.action == "ACCEPT" or choice.action == "ACCEPT_AND_CLOSE" then
+				elseif choice.action == "ACCEPT" or choice.action == "ACCEPT_TALK" or choice.action == "CLAIM" then
 					closeDialogue()
 					task.spawn(function()
 						local ok, _ = NetClient.Request("Magician.QuestAction.Request", {

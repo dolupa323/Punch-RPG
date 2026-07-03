@@ -510,7 +510,42 @@ local MobSpawnData = {
 
 		-- 얼음 기사 2구역과 동일한 좌표 반영
 		spawnPositions = {}
-	}
+	},
+
+	["JellyfishZone"] = {
+		spawnAreaId   = "JellyfishZone",
+		level         = 67,
+		mobModelName  = "Jellyfish",
+		mobDisplayName = "젤리피쉬",
+		maxHealth     = 22000,
+		baseDamage    = 65,
+		attackCooldown = 2.2,
+		respawnDelay  = 12.0,
+		modelScale    = 7.0,    -- 24.6 * 7 ≈ 172 스터드
+		walkSpeed     = 12,
+		xpReward      = 2800,
+		isSwimming    = true,   -- 3D 자유유영 (지면 레이캐스트 제외)
+		aggroRadius   = 55,
+
+		spawnAsPolygon = false,
+		spawnCount    = 10,
+		isIndoor      = true,
+		raycastStartOffsetY = 0,
+		raycastDepth  = 0,
+
+		spawnPositions = {
+			{x = 243, y = 100, z = 255},
+			{x = 290, y = 110, z = 274},
+			{x = 335, y = 108, z = 260},
+			{x = 380, y = 107, z = 256},
+			{x = 425, y =  97, z = 248},
+			{x = 469, y = 102, z = 230},
+			{x = 517, y = 106, z = 200},
+			{x = 557, y =  98, z = 190},
+			{x = 605, y = 102, z = 188},
+			{x = 650, y = 100, z = 198},
+		},
+	},
 }
 
 return MobSpawnData
