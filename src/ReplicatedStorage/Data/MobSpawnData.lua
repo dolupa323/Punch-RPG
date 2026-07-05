@@ -136,7 +136,7 @@ local MobSpawnData = {
 		spawnRotationOffset = {x = 90, y = 0, z = 0}, -- 누워있는 비행 방향을 정면 수직으로 보정
 		customHipHeight = 15.0, -- 공중 비행(Hovering) 높이 15.0 스터드로 강제 보정
 		walkSpeed = 10,
-		xpReward = 480,
+		xpReward = 700,
 		level = 29,
 
 		spawnAsPolygon = true,

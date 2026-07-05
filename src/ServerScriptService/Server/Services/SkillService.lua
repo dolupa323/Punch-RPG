@@ -729,7 +729,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 								local diff = playerLevel - mobLevel
 								finalDamageCalculated = finalDamageCalculated * (1 + (diff * 0.05))
 							elseif playerLevel < mobLevel then
-								finalDamageCalculated = finalDamageCalculated * 0.5
+								local diff = mobLevel - playerLevel
+								finalDamageCalculated = finalDamageCalculated * math.max(0.01, 1 - diff * 0.1)
 							end
 							finalDamageCalculated = math.max(1, math.floor(finalDamageCalculated + 0.5))
 
@@ -755,7 +756,16 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 								local vfxPos = (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
 									and ((model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart).Position)
 									or hrp.Position
+								-- VFX는 전체, 데미지 숫자는 공격자만
 								hitRemote:FireAllClients({
+									target = model,
+									element = "Skill",
+									position = vfxPos,
+									skillId = itemId,
+									isMiss = false,
+									hideVfx = false,
+								})
+								hitRemote:FireClient(player, {
 									target = model,
 									element = "Skill",
 									position = vfxPos,
@@ -763,7 +773,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 									isCritical = false,
 									skillId = itemId,
 									isMiss = false,
-									hideVfx = false,
+									hideVfx = true,
 								})
 							end
 						end
@@ -892,6 +902,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 				for _, part in ipairs(nearbyParts) do
 					local model = part:FindFirstAncestorOfClass("Model")
 					if model then
+						-- PvP 차단: 플레이어 캐릭터 타겟 무시
+						if game:GetService("Players"):GetPlayerFromCharacter(model) then continue end
 						local hum = model:FindFirstChildOfClass("Humanoid")
 						-- 체력이 0이하인 시체도 타격하여 4타의 데미지 텍스트가 모두 표기되도록 허용
 						if hum and not hitHumanoids[hum] then
@@ -934,7 +946,8 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 								local diff = playerLevel - mobLevel
 								finalDamageCalculated = finalDamageCalculated * (1 + (diff * 0.05))
 							elseif playerLevel < mobLevel then
-								finalDamageCalculated = finalDamageCalculated * 0.5
+								local diff = mobLevel - playerLevel
+								finalDamageCalculated = finalDamageCalculated * math.max(0.01, 1 - diff * 0.1)
 							end
 							finalDamageCalculated = math.max(1, math.floor(finalDamageCalculated + 0.5))
 
@@ -962,8 +975,16 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 								local targetHrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
 								local vfxPos = targetHrp and targetHrp.Position or hitPos
 								vfxPos = vfxPos + Vector3.new((math.random() - 0.5)*3, (math.random() - 0.5)*3, (math.random() - 0.5)*3)
-								
+								-- VFX는 전체 (첫 타만), 데미지 숫자는 공격자만
 								vfxRemote:FireAllClients({
+									target = model,
+									element = "Skill",
+									position = vfxPos,
+									skillId = itemId,
+									isMiss = false,
+									hideVfx = not isFirstHit
+								})
+								vfxRemote:FireClient(player, {
 									target = model,
 									element = "Skill",
 									position = vfxPos,
@@ -971,7 +992,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 									isCritical = hitCrit,
 									skillId = itemId,
 									isMiss = false,
-									hideVfx = not isFirstHit
+									hideVfx = true,
 								})
 							end
 						end

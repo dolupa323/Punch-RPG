@@ -314,10 +314,16 @@ local function getGroundHeight(pos: Vector3): Vector3
 		end
 	end
 	
-	-- 2. 몬스터/크리처 스폰 폴더 제외
+	-- 2. 몬스터/크리처 스폰 폴더 제외 (폴더 없이 workspace 직하위에 있는 몹 모델도 제외)
 	local mobsFolder = Workspace:FindFirstChild("Mobs") or Workspace:FindFirstChild("Creatures") or Workspace:FindFirstChild("NPCs")
 	if mobsFolder then
 		table.insert(excludeList, mobsFolder)
+	end
+	-- workspace 직하위 MobId 속성을 가진 모든 모델 제외
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child:IsA("Model") and child:GetAttribute("MobId") then
+			table.insert(excludeList, child)
+		end
 	end
 	
 	-- 3. 이미 스폰된 드롭 폴더 및 잔해 제외

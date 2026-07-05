@@ -950,7 +950,30 @@ function InventoryService.getOrCreateInventory(userId: number): any
 		slots = normalizedSlots,
 		equipment = _normalizeEquipmentSlots(savedEquip)
 	}
-	
+
+	-- [Migration] skillBooks 상태에 남아있는 스킬북을 인벤토리 아이템으로 이관
+	if loadedState and type(loadedState.skillBooks) == "table" and #loadedState.skillBooks > 0 then
+		local remaining = {}
+		for _, bookId in ipairs(loadedState.skillBooks) do
+			-- 빈 슬롯에 배치
+			local placed = false
+			for s = 1, Balance.MAX_INV_SLOTS do
+				if inv.slots[s] == nil then
+					inv.slots[s] = { itemId = bookId, count = 1 }
+					placed = true
+					break
+				end
+			end
+			if not placed then
+				table.insert(remaining, bookId)
+				warn(string.format("[InventoryService] skillBook migration overflow: %s for user %d", bookId, userId))
+			end
+		end
+		-- 이관 완료된 항목 제거 (인벤토리 꽉 찬 경우 남은 것만 유지)
+		loadedState.skillBooks = remaining
+		print(string.format("[InventoryService] Migrated %d skillBook(s) to inventory for user %d", #loadedState.skillBooks == 0 and #loadedState.skillBooks or (#loadedState.skillBooks), userId))
+	end
+
 	playerInventories[userId] = inv
 	return inv
 end
@@ -1428,87 +1451,6 @@ function InventoryService.addItem(userId: number, itemId: string, count: number,
 	
 	local player = Players:GetPlayerByUserId(userId)
 
-	-- 스킬북 예외 처리: 아이템 ID가 "BOOK_"로 시작하는 경우 인벤토리에 넣지 않고 즉시 소장 스킬북(state.skillBooks)에 추가
-	if type(itemId) == "string" and itemId:sub(1, 5) == "BOOK_" then
-		if SaveService then
-			local state = SaveService.getPlayerState(userId)
-			if state then
-				state.skillBooks = state.skillBooks or {}
-				
-				local skillId = nil
-				if itemId == "BOOK_GRIT" then
-					skillId = "SKILL_RUNE_GRIT"
-				elseif itemId == "BOOK_STEADFAST" then
-					skillId = "SKILL_RUNE_STEADFAST"
-				elseif itemId == "BOOK_DROPLET" then
-					skillId = "SKILL_DROPLET"
-				elseif itemId == "BOOK_EMBER" then
-					skillId = "SKILL_EMBER"
-				elseif itemId == "BOOK_ROCK" then
-					skillId = "SKILL_ROCK"
-				elseif itemId == "BOOK_FLAME" then
-					skillId = "SKILL_RUNE_FLAME_ACTIVE"
-				elseif itemId == "BOOK_WAVE" then
-					skillId = "SKILL_RUNE_WAVE_ACTIVE"
-				elseif itemId == "BOOK_SHADOW" then
-					skillId = "SKILL_RUNE_SHADOW_ACTIVE"
-				elseif itemId == "BOOK_SLASH" then
-					skillId = "SKILL_SLASH"
-				elseif itemId == "BOOK_DASH" then
-					skillId = "SKILL_RUNE_DASH"
-				elseif itemId == "BOOK_HEAVEN" then
-					skillId = "SKILL_RUNE_HEAVEN"
-				end
-
-				local isAlreadyOwned = false
-				for _, bid in ipairs(state.skillBooks) do
-					if bid == itemId then
-						isAlreadyOwned = true
-						break
-					end
-				end
-
-				local isAlreadyLearned = false
-				if skillId and state.unlockedSkills and state.unlockedSkills[skillId] then
-					isAlreadyLearned = true
-				end
-
-				if not isAlreadyOwned and not isAlreadyLearned then
-					table.insert(state.skillBooks, itemId)
-					SaveService.markPlayerDirty(userId)
-					
-					-- 클라이언트에 즉각 업데이트 알림 (SkillService에 의존)
-					local okSkill, SkillService = pcall(function()
-						return require(game:GetService("ServerScriptService").Server.Services.SkillService)
-					end)
-					if okSkill and SkillService then
-						if player and NetController then
-							local data = {
-								unlockedSkills = state.unlockedSkills or {},
-								combatTreeId = state.combatTreeId,
-								spAvailable = SkillService.getAvailableSP(userId),
-								spSpent = state.skillPointsSpent or 0,
-								activeSkillSlots = state.activeSkillSlots or { nil, nil, nil, nil },
-								level = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
-								skillBooks = state.skillBooks,
-								equippedPassives = state.equippedPassives or {},
-							}
-							NetController.FireClient(player, "Skill.Data.Updated", data)
-						end
-					end
-				end
-			end
-		end
-
-		if questItemCallback then
-			task.spawn(function()
-				questItemCallback(userId, itemId, count)
-			end)
-		end
-
-		return count, 0
-	end
-	
 	local remaining = count
 	local added = 0
 	local changedSlots = {}
@@ -2132,7 +2074,80 @@ local function handleUse(player: Player, payload: any)
 		return { success = true, data = { action = "STARTER_PACK_OPENED" } }
 	end
 
-	-- 1. ?착 가???이??(무기, ?구 ??
+	-- 1. 스킬북 사용: 인벤토리에서 소모 후 스킬 습득
+	if itemData.type == "SKILL_BOOK" then
+		local BOOK_TO_SKILL = {
+			["BOOK_GRIT"]     = "SKILL_RUNE_GRIT",
+			["BOOK_STEADFAST"]= "SKILL_RUNE_STEADFAST",
+			["BOOK_DROPLET"]  = "SKILL_DROPLET",
+			["BOOK_EMBER"]    = "SKILL_EMBER",
+			["BOOK_ROCK"]     = "SKILL_ROCK",
+			["BOOK_FLAME"]    = "SKILL_RUNE_FLAME_ACTIVE",
+			["BOOK_WAVE"]     = "SKILL_RUNE_WAVE_ACTIVE",
+			["BOOK_SHADOW"]   = "SKILL_RUNE_SHADOW_ACTIVE",
+			["BOOK_SLASH"]    = "SKILL_SLASH",
+			["BOOK_DASH"]     = "SKILL_RUNE_DASH",
+			["BOOK_HEAVEN"]   = "SKILL_RUNE_HEAVEN",
+		}
+		local skillId = BOOK_TO_SKILL[slotData.itemId]
+		local state = SaveService and SaveService.getPlayerState(userId)
+		if not state then
+			return { success = false, errorCode = Enums.ErrorCode.INTERNAL_ERROR }
+		end
+
+		if not skillId then
+			if NetController then
+				NetController.FireClient(player, "Notify.Message", { text = "알 수 없는 스킬북입니다." })
+			end
+			return { success = false, errorCode = Enums.ErrorCode.INVALID_ITEM }
+		end
+
+		-- 이미 습득 여부 확인
+		if state.unlockedSkills and state.unlockedSkills[skillId] then
+			if NetController then
+				NetController.FireClient(player, "Notify.Message", { text = "이미 습득한 스킬입니다." })
+			end
+			return { success = false, errorCode = Enums.ErrorCode.ALREADY_OWNED }
+		end
+
+		-- 인벤토리에서 스킬북 1개 소모
+		InventoryService.removeItemFromSlot(userId, slot, 1)
+
+		-- 스킬 습득
+		state.unlockedSkills = state.unlockedSkills or {}
+		state.unlockedSkills[skillId] = true
+		SaveService.markPlayerDirty(userId)
+
+		-- 클라이언트에 스킬 데이터 업데이트
+		local okSkill, SkillService = pcall(function()
+			return require(game:GetService("ServerScriptService").Server.Services.SkillService)
+		end)
+		if okSkill and SkillService and NetController then
+			local data = {
+				unlockedSkills    = state.unlockedSkills or {},
+				combatTreeId      = state.combatTreeId,
+				spAvailable       = SkillService.getAvailableSP(userId),
+				spSpent           = state.skillPointsSpent or 0,
+				activeSkillSlots  = state.activeSkillSlots or { nil, nil, nil, nil },
+				level             = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
+				skillBooks        = state.skillBooks,
+				equippedPassives  = state.equippedPassives or {},
+			}
+			NetController.FireClient(player, "Skill.Data.Updated", data)
+		end
+
+		if NetController then
+			NetController.FireClient(player, "Notify.Message", { text = "스킬북을 사용하여 스킬을 습득했습니다!" })
+		end
+
+		if questItemCallback then
+			task.spawn(function() questItemCallback(userId, slotData.itemId, 1) end)
+		end
+
+		return { success = true, data = { action = "SKILL_BOOK_USED", itemId = slotData.itemId } }
+	end
+
+	-- 2. 장착 가능 아이템 (무기, 도구 등)
 	if itemData.type == Enums.ItemType.WEAPON or itemData.type == Enums.ItemType.TOOL or itemData.type == Enums.ItemType.ARMOR then
 		-- ?? ?바(1-8)???는 경우 -> ?성 ?롯?로 ?정
 		if slot >= 1 and slot <= 8 then
@@ -2682,9 +2697,11 @@ function InventoryService.GetHandlers()
 						SaveService.markPlayerDirty(userId)
 					end
 					
-					local tqs = ServiceRegistry.get("TutorialQuestService")
-					if tqs and tqs.OnQuickslotSaved then
-						tqs.OnQuickslotSaved(userId, state.quickslots)
+					local ok, TutorialQuestService = pcall(function()
+						return require(game:GetService("ServerScriptService").Server.Services.TutorialQuestService)
+					end)
+					if ok and TutorialQuestService and TutorialQuestService.OnQuickslotSaved then
+						TutorialQuestService.OnQuickslotSaved(userId, state.quickslots)
 					end
 					
 					return { success = true }

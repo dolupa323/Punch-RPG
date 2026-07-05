@@ -23,10 +23,10 @@ local playerConnections = {} -- [userId] = { RBXScriptConnection, ... }
 
 local QUEST_ID = "RPG_TUTORIAL"
 local QUEST_TITLE = "튜토리얼 퀘스트"
-local TOTAL_STEPS = 12
-local QUEST_VERSION = 7
+local TOTAL_STEPS = 11
+local QUEST_VERSION = 8
 local QUEST_SCHEMA_VERSION = 1
-local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260612_V4"
+local QUEST_RESET_MARKER = "RPG_TUTORIAL_RESET_20260705_V5"
 local QUEST_SAVE_KEY = "rpgTutorialQuest"
 local LEGACY_SAVE_KEY = "tutorialQuest"
 
@@ -126,28 +126,6 @@ local STEP_DEFS = {
 		rewardGold = 100,
 	},
 	[9] = {
-		id = "REGISTER_POTION",
-		currentStepText = "포션 단축키 등록하기",
-		stepCommand = "HP/MP 포션을 구매하고, 가방(I)에서 소비 단축슬롯에 등록하세요.",
-		stepKind = "ITEM_ANY",
-		stepCount = 1,
-		rewardGold = 100,
-		sync = function(userId, state, progress)
-			local saveState = SaveService and SaveService.getPlayerState(userId)
-			local quickslots = saveState and saveState.quickslots or {}
-			local hasPotionInQuickslot = false
-			for _, itemId in ipairs(quickslots) do
-				if itemId == "BASIC_HP_POTION" or itemId == "BASIC_MP_POTION" then
-					hasPotionInQuickslot = true
-					break
-				end
-			end
-			if hasPotionInQuickslot then
-				progress.count = 1
-			end
-		end,
-	},
-	[10] = {
 		id = "COLLECT_STUMP_BARK",
 		currentStepText = "숲의 검 재료 모으기",
 		stepCommand = "스텀프 나무껍질 10개를 모으세요.",
@@ -158,7 +136,7 @@ local STEP_DEFS = {
 			progress.count = math.max(progress.count or 0, _countInventoryItem(userId, "STUMP_BARK"))
 		end,
 	},
-	[11] = {
+	[10] = {
 		id = "CRAFT_MOGWOLDO",
 		currentStepText = "숲의 검 만들기",
 		stepCommand = "숲의 검을 제작하세요.",
@@ -166,7 +144,7 @@ local STEP_DEFS = {
 		stepCount = 1,
 		rewardGold = 200,
 	},
-	[12] = {
+	[11] = {
 		id = "EQUIP_DASH",
 		currentStepText = "스킬 장착하기",
 		stepCommand = "스킬 탭(K)을 열어 스킬북을 배우고 패시브 슬롯에 대쉬를 장착하세요.",
@@ -219,7 +197,7 @@ local function _ensureState(userId: number)
 	if type(state) == "table" then
 		local v = tonumber(state.version) or 0
 		local m = tostring(state.resetMarker or "")
-		if (v == 7 or v == 8) and (m == "RPG_TUTORIAL_RESET_20260612_V4" or m == "RPG_TUTORIAL_RESET_20260626_V1") then
+		if v == QUEST_VERSION and m == QUEST_RESET_MARKER then
 			isValid = true
 		end
 	end
@@ -233,14 +211,13 @@ local function _ensureState(userId: number)
 	state.active = state.completed ~= true
 	state.completed = state.completed == true
 	state.stepIndex = math.clamp(math.floor(tonumber(state.stepIndex) or 1), 1, TOTAL_STEPS)
-	
-	-- 만약 예전에 모든 퀘스트를 완료(completed=true)했었으나, 새로운 퀘스트 단계가 추가되었다면 다시 활성화합니다.
+
 	if state.completed and state.stepIndex < TOTAL_STEPS then
 		state.completed = false
 		state.active = true
 		state.stepIndex = state.stepIndex + 1
 	end
-	
+
 	if state.completed then
 		state.active = false
 		state.stepIndex = TOTAL_STEPS
@@ -501,7 +478,6 @@ local function _grantCurrentStepReward(userId: number, stepIndex: number)
 		_addGold(userId, rewardGold)
 	end
 
-	-- 말랑봉 만들기 완료 시 플레이어가 레벨 2가 되어 스탯 포인트(3포인트)를 갖도록 처리
 	if stepDef.id == "CRAFT_SOFTCLUB" then
 		if PlayerStatService and PlayerStatService.getLevel then
 			local currentLevel = PlayerStatService.getLevel(userId)
@@ -645,7 +621,7 @@ function TutorialQuestService.OnEquipmentChanged(userId: number)
 		return
 	end
 
-	if state.stepIndex == 4 or state.stepIndex == 12 then
+	if state.stepIndex == 4 or state.stepIndex == 11 then
 		_updateProgressAndSync(userId)
 	end
 end
@@ -686,10 +662,10 @@ function TutorialQuestService.OnItemAdded(userId: number, itemId: string, added:
 		state.progressByStep[2] = progress
 		_persistState(userId)
 		_updateProgressAndSync(userId)
-	elseif state.stepIndex == 10 and itemId == "STUMP_BARK" then
-		local progress = _getStepProgress(state, 10)
+	elseif state.stepIndex == 9 and itemId == "STUMP_BARK" then
+		local progress = _getStepProgress(state, 9)
 		progress.count = (progress.count or 0) + added
-		state.progressByStep[10] = progress
+		state.progressByStep[9] = progress
 		_persistState(userId)
 		_updateProgressAndSync(userId)
 	end
@@ -712,7 +688,7 @@ function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
 		progress.count = 1
 		state.progressByStep[stepIndex] = progress
 		_updateProgressAndSync(userId)
-	elseif stepIndex == 11 and recipeId == "CraftMogwoldo" then
+	elseif stepIndex == 10 and recipeId == "CraftMogwoldo" then
 		progress.count = 1
 		state.progressByStep[stepIndex] = progress
 		_updateProgressAndSync(userId)
@@ -720,33 +696,11 @@ function TutorialQuestService.OnCraftCompleted(userId: number, recipeId: string)
 end
 
 function TutorialQuestService.OnShopPurchased(userId: number, shopId: string, itemId: string, count: number)
-	-- 포션 구매 자체로는 완료 처리하지 않고 단축키 등록 시점에 완료되도록 변경됨
+	-- 미사용
 end
 
 function TutorialQuestService.OnQuickslotSaved(userId: number, quickslots: {string})
-	local state = _ensureState(userId)
-	if not state or state.completed then
-		return
-	end
-
-	if state.stepIndex ~= 9 then
-		return
-	end
-
-	local hasPotionInQuickslot = false
-	for _, itemId in ipairs(quickslots) do
-		if itemId == "BASIC_HP_POTION" or itemId == "BASIC_MP_POTION" then
-			hasPotionInQuickslot = true
-			break
-		end
-	end
-
-	if hasPotionInQuickslot then
-		local progress = _getStepProgress(state, 9)
-		progress.count = 1
-		state.progressByStep[9] = progress
-		_tryCompleteStep(userId)
-	end
+	-- 포션 단축키 등록 퀘스트 삭제됨 — 처리 없음
 end
 
 function TutorialQuestService.OnEnhanceCompleted(userId: number, itemId: string, newLevel: number)
@@ -833,7 +787,7 @@ function TutorialQuestService.Init(_NetController, _SaveService, _InventoryServi
 			TutorialQuestService.OnItemAdded(userId, itemId, added)
 		end)
 	end
-	
+
 	local skillService = require(game:GetService("ServerScriptService").Server.Services.SkillService)
 	if skillService and skillService.SetQuestEquipCallback then
 		skillService.SetQuestEquipCallback(function(userId)

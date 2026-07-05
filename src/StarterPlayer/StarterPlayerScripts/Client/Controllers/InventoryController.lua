@@ -220,6 +220,11 @@ function InventoryController.requestUse(slot: number)
 					end
 				end)
 			end
+		elseif ok and data and data.action == "SKILL_BOOK_USED" then
+			local SkillController = require(script.Parent:WaitForChild("SkillController"))
+			if SkillController and SkillController.requestData then
+				SkillController.requestData()
+			end
 		elseif not ok then
 			warn("[InventoryController] Use failed:", data)
 		end

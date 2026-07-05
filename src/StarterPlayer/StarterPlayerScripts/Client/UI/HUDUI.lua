@@ -472,8 +472,8 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- for adjacent floating components like the Hotbar to attach without colliding with UIListLayout.
 	local mainAnchor = Utils.mkFrame({
 		name = "MainHUDAnchor",
-		size = UDim2.new(0.34, 0, 0.08, 0), 
-		pos = UDim2.new(0.5, 0, 0.98, 0), 
+		size = UDim2.new(0.34, 0, 0.08, 0),
+		pos = UDim2.new(0.5, 0, 0.91, 0),
 		anchor = Vector2.new(0.5, 1),
 		bgT = 1, -- Invisible root
 		parent = parent
@@ -489,14 +489,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	local szConstraint = Instance.new("UISizeConstraint")
 	szConstraint.MinSize = Vector2.new(340, 90); szConstraint.MaxSize = Vector2.new(620, 163); szConstraint.Parent = mainAnchor
 	
-	-- Actual visual container, child of the anchor
 	local mainContainer = Utils.mkFrame({
 		name = "MainHUDContainer",
-		size = UDim2.new(1, 0, 1, 0), -- Fully conform to constrained anchor bounds
-		pos = UDim2.new(0, 0, 0, 0), 
+		size = UDim2.new(1, 0, 1, 0),
+		pos = UDim2.new(0, 0, 0, 0),
 		bg = Color3.fromRGB(12, 12, 12),
-		bgT = 1, -- Fully transparent background for clean floating components
-		r = 0, 
+		bgT = 1,
+		r = 0,
 		parent = mainAnchor
 	})
 	HUDUI.Refs.statusPanel = mainContainer
@@ -1528,6 +1527,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		parent = mainContainer
 	})
 	consumableFrame.LayoutOrder = 5
+	HUDUI.Refs.consumableFrame = consumableFrame
 
 	local consumableHList = Instance.new("UIListLayout")
 	consumableHList.FillDirection = Enum.FillDirection.Horizontal
@@ -1562,8 +1562,98 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		clkBtn.ZIndex = slot.frame.ZIndex + 5
 		clkBtn.Parent = slot.frame
 		
-		clkBtn.MouseButton1Click:Connect(function()
-			HUDUI.UseConsumableQuickslot(i)
+		-- 드래그앤드랍: 소모품 슬롯 간 이동
+		local dragStartPos = nil
+		local dragSlotIdx = i
+		local consumableGhost = nil
+		local moveConn = nil
+
+		local function destroyGhost()
+			if consumableGhost then
+				consumableGhost:Destroy()
+				consumableGhost = nil
+			end
+			if moveConn then
+				moveConn:Disconnect()
+				moveConn = nil
+			end
+		end
+
+		local function createGhost(itemId)
+			destroyGhost()
+			local uiScale = parent:FindFirstChildOfClass("UIScale")
+			local scale = uiScale and uiScale.Scale or 1
+			consumableGhost = Instance.new("Frame")
+			consumableGhost.Name = "ConsumableDragGhost"
+			consumableGhost.Size = UDim2.new(0, 60, 0, 60)
+			consumableGhost.BackgroundColor3 = Color3.fromRGB(40, 42, 48)
+			consumableGhost.BackgroundTransparency = 0.2
+			consumableGhost.BorderSizePixel = 0
+			consumableGhost.ZIndex = 3000
+			consumableGhost.Parent = parent
+			local gc = Instance.new("UICorner")
+			gc.CornerRadius = UDim.new(0, 8)
+			gc.Parent = consumableGhost
+			local gs = Instance.new("UIStroke")
+			gs.Color = Color3.fromRGB(255, 215, 0)
+			gs.Thickness = 2
+			gs.Parent = consumableGhost
+			local gi = Instance.new("ImageLabel")
+			gi.Size = UDim2.new(0.8, 0, 0.8, 0)
+			gi.Position = UDim2.new(0.1, 0, 0.1, 0)
+			gi.BackgroundTransparency = 1
+			gi.Image = _UIManager and _UIManager.getItemIcon and _UIManager.getItemIcon(itemId) or ""
+			gi.ScaleType = Enum.ScaleType.Fit
+			gi.ZIndex = 3001
+			gi.Parent = consumableGhost
+			-- 마우스 추적
+			local mp = UserInputService:GetMouseLocation()
+			consumableGhost.Position = UDim2.new(0, mp.X / scale - 30, 0, mp.Y / scale - 30)
+			moveConn = UserInputService.InputChanged:Connect(function(inp)
+				if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+					local p = UserInputService:GetMouseLocation()
+					if consumableGhost then
+						consumableGhost.Position = UDim2.new(0, p.X / scale - 30, 0, p.Y / scale - 30)
+					end
+				end
+			end)
+		end
+
+		clkBtn.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragStartPos = UserInputService:GetMouseLocation()
+				HUDUI._consumableDragStart = dragSlotIdx
+				-- ghost는 일정 거리 이상 이동 후 생성 (threshold 체크용 delayed spawn)
+				local startSnap = dragStartPos
+				task.spawn(function()
+					while dragStartPos do
+						local cur = UserInputService:GetMouseLocation()
+						if (cur - startSnap).Magnitude >= 10 then
+							local itemId = consumableQuickslots[dragSlotIdx]
+							if itemId and itemId ~= "" then
+								createGhost(itemId)
+							end
+							break
+						end
+						task.wait(0.02)
+					end
+				end)
+			end
+		end)
+		clkBtn.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				local moved = dragStartPos and (UserInputService:GetMouseLocation() - dragStartPos).Magnitude or 0
+				destroyGhost()
+				if moved < 10 then
+					HUDUI.UseConsumableQuickslot(i)
+				else
+					-- 드래그앤드랍: 다른 소모품 슬롯으로 이동
+					local DragDropController = require(script.Parent.Parent:WaitForChild("Controllers"):WaitForChild("DragDropController"))
+					DragDropController.handleConsumableDrop()
+				end
+				HUDUI._consumableDragStart = nil
+				dragStartPos = nil
+			end
 		end)
 		
 		-- [추가] 포션용 쿨타임 오버레이
@@ -1859,6 +1949,13 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			consumableQuickslots[2] or "",
 			consumableQuickslots[3] or "",
 		}
+	end
+
+	function HUDUI.RefreshConsumableSlots()
+		HUDUI.UpdateConsumableHotbar()
+		task.spawn(function()
+			safeRequest("Inventory.SaveQuickslots.Request", { quickslots = cloneConsumableQuickslots() })
+		end)
 	end
 
 	function HUDUI.RegisterConsumable(slotIdx, itemId)
@@ -2801,8 +2898,14 @@ local function _setReadyPulse(ready)
 end
 
 function HUDUI.SetVisible(visible)
-	if HUDUI.Refs.statusPanel then HUDUI.Refs.statusPanel.Visible = visible end
-	if HUDUI.Refs.bottomEdge then HUDUI.Refs.bottomEdge.Visible = visible end
+	-- mainContainer 자체는 숨기지 않음 (bgT=1 투명) — consumableFrame 제외한 자식만 토글
+	if HUDUI.Refs.statusPanel then
+		for _, child in ipairs(HUDUI.Refs.statusPanel:GetChildren()) do
+			if child:IsA("GuiObject") and child ~= HUDUI.Refs.consumableFrame then
+				child.Visible = visible
+			end
+		end
+	end
 	if HUDUI.Refs.leftMenuContainer then HUDUI.Refs.leftMenuContainer.Visible = visible end
 	if HUDUI.Refs.hex_Attack then HUDUI.Refs.hex_Attack.Parent.Visible = visible end
 	if HUDUI.Refs.starterPackButton then

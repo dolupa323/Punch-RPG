@@ -39,7 +39,7 @@ local function playBossSound(soundName, host, volume)
 	end
 end
 
-local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number)
+local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number, mobLevel: number?)
 	if not phum or phum.Health <= 0 then return end
 	local char = phum.Parent
 	local defense = 0
@@ -49,8 +49,20 @@ local function dealDamageToHumanoid(phum: Humanoid, rawDamage: number)
 
 	-- Defense damage reduction formula: damage = rawDamage * (100 / (100 + defense))
 	local finalDamage = rawDamage * (100 / (100 + defense))
-	finalDamage = math.max(1, math.floor(finalDamage + 0.5))
 
+	-- 레벨 차이 보정: 플레이어가 낮은 레벨일수록 더 많은 피해를 받음
+	if mobLevel and mobLevel > 1 then
+		local player = char and Players:GetPlayerFromCharacter(char)
+		if player then
+			local playerLevel = PlayerStatService.getLevel(player.UserId) or 1
+			local diff = mobLevel - playerLevel
+			if diff > 0 then
+				finalDamage = finalDamage * (1 + diff * 0.1)
+			end
+		end
+	end
+
+	finalDamage = math.max(1, math.floor(finalDamage + 0.5))
 	phum:TakeDamage(finalDamage)
 end
 
@@ -438,6 +450,15 @@ local function createMobModel(areaId, index, config)
 			model:ScaleTo(config.modelScale)
 			print(string.format("[MobSpawnService Scale] Applied scale %f to '%s'", config.modelScale, model.Name))
 		end)
+	end
+
+	-- Jellyfish: PointLight 기본 OFF (공격 시에만 켜짐)
+	if config.mobModelName == "Jellyfish" then
+		for _, desc in ipairs(model:GetDescendants()) do
+			if desc:IsA("PointLight") or desc:IsA("SpotLight") or desc:IsA("SurfaceLight") then
+				desc.Enabled = false
+			end
+		end
 	end
 	task.wait() -- 물리 정합성 캐시 대기
 
@@ -1516,7 +1537,7 @@ local function createMobModel(areaId, index, config)
 										if phum and phum.Health > 0 and pRoot then
 											local dist = (pRoot.Position - attackPos).Magnitude
 											if dist <= 12 then -- 피해 반경 12스터드로 확장
-												dealDamageToHumanoid(phum, config.baseDamage or 25)
+												dealDamageToHumanoid(phum, config.baseDamage or 25, config.level)
 
 												local bounceDir = (pRoot.Position - attackPos)
 												bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -1619,7 +1640,7 @@ local function createMobModel(areaId, index, config)
 								if isAlive and phrp and phum and phum.Health > 0 then
 									local dist = (hrp.Position - phrp.Position).Magnitude
 									if dist <= 12 then
-										dealDamageToHumanoid(phum, config.baseDamage or 25)
+										dealDamageToHumanoid(phum, config.baseDamage or 25, config.level)
 
 										local bounceDir = (phrp.Position - hrp.Position)
 										bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
@@ -1840,7 +1861,7 @@ local function createMobModel(areaId, index, config)
 									if phum and phum.Health > 0 and pRoot then
 										local dist = (pRoot.Position - endLaserPos).Magnitude
 										if dist <= 9 then
-											dealDamageToHumanoid(phum, config.baseDamage or 35)
+											dealDamageToHumanoid(phum, config.baseDamage or 35, config.level)
 
 											local bounceDir = (pRoot.Position - endLaserPos)
 											bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -1975,7 +1996,7 @@ local function createMobModel(areaId, index, config)
 										if heightDiff > 7.0 then
 											-- 타이밍 맞춰 점프함 (데미지 무시)
 										else
-											dealDamageToHumanoid(phum, config.baseDamage or 50)
+											dealDamageToHumanoid(phum, config.baseDamage or 50, config.level)
 											local bounceDir = (pRoot.Position - groundPos)
 											bounceDir = Vector3.new(bounceDir.X, 0, bounceDir.Z).Unit
 											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
@@ -2090,7 +2111,7 @@ local function createMobModel(areaId, index, config)
 										local pRoot = char and char:FindFirstChild("HumanoidRootPart")
 										if phum and phum.Health > 0 and pRoot then
 											if (pRoot.Position - targetFloorPos).Magnitude <= 12 then
-												dealDamageToHumanoid(phum, config.baseDamage or 50)
+												dealDamageToHumanoid(phum, config.baseDamage or 50, config.level)
 												local bounceDir = Vector3.new(pRoot.Position.X - targetFloorPos.X, 0, pRoot.Position.Z - targetFloorPos.Z).Unit
 												local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
 												local NetController = require(Controllers:WaitForChild("NetController"))
@@ -3191,7 +3212,7 @@ local function createMobModel(areaId, index, config)
 									if phum and phum.Health > 0 and pRoot then
 										local dist = (pRoot.Position - endLaserPos).Magnitude
 										if dist <= 9 then
-											dealDamageToHumanoid(phum, config.baseDamage or 80)
+											dealDamageToHumanoid(phum, config.baseDamage or 80, config.level)
 
 											local bounceDir = (pRoot.Position - endLaserPos)
 											bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -5138,7 +5159,7 @@ local function createMobModel(areaId, index, config)
 											if phum and phum.Health > 0 and pRoot then
 												local dist = (pRoot.Position - attackPos).Magnitude
 												if dist <= 8 then
-													dealDamageToHumanoid(phum, config.baseDamage)
+													dealDamageToHumanoid(phum, config.baseDamage, config.level)
 
 													local bounceDir = (pRoot.Position - attackPos)
 													bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
@@ -7034,22 +7055,40 @@ local function createMobModel(areaId, index, config)
 							bv.Parent = hrp
 						end
 
-						if distToPlayer > JELLY_ATTACK_RANGE then
-							-- 플레이어를 향해 3D 수영 이동
-							local dir = (targetPos - currentPos)
+						-- BodyGyro로 회전 고정 (빙글빙글 방지)
+						local bg = hrp:FindFirstChild("JellyBG")
+						if not bg then
+							bg = Instance.new("BodyGyro")
+							bg.Name = "JellyBG"
+							bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+							bg.P = 10000
+							bg.D = 1000
+							bg.CFrame = hrp.CFrame
+							bg.Parent = hrp
+						end
+
+						local yDiff = math.abs(currentPos.Y - targetPos.Y)
+						local inAttackRange = distToPlayer <= JELLY_ATTACK_RANGE and yDiff <= 12
+
+						if not inAttackRange then
+							-- 플레이어 Y 높이로 내려오면서 3D 수영 이동
+							local swimTarget = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+							local dir = (swimTarget - currentPos)
 							if dir.Magnitude > 1 then
 								bv.Velocity = dir.Unit * (config.walkSpeed or 12)
-								-- 수평 방향만 바라보기
 								local lookDir = Vector3.new(dir.X, 0, dir.Z)
 								if lookDir.Magnitude > 0.1 then
-									hrp.CFrame = CFrame.lookAt(currentPos, currentPos + lookDir.Unit)
+									local targetCF = CFrame.lookAt(currentPos, currentPos + lookDir.Unit)
+									bg.CFrame = targetCF
+									hrp.CFrame = targetCF
 								end
 							else
 								bv.Velocity = Vector3.new(0, 0, 0)
 							end
 						else
-							-- 공격 범위 내 → 제자리 정지 후 공격
+							-- 플레이어 높이 도달 + 공격 범위 내 → 정지 후 공격
 							bv.Velocity = Vector3.new(0, 0, 0)
+							bg.CFrame = hrp.CFrame  -- 현재 방향 유지
 
 							if now - lastAttackTick >= attackCooldown then
 								lastAttackTick = now
@@ -7069,55 +7108,18 @@ local function createMobModel(areaId, index, config)
 									local floorPos = rayResult and (rayResult.Position + Vector3.new(0, 0.2, 0)) or Vector3.new(targetPos.X, 68, targetPos.Z)
 
 									if not isAlive then return end
-									local currentTargetHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
-									if not currentTargetHrp then return end
+									local attackHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
+									if not attackHrp then return end
 
-									local endP = currentTargetHrp.Position
+									local endP = attackHrp.Position
 
-									-- ── 1. VFX + 전조 장판 동시 시작 ──
-
-									-- Thunder VFX
 									local vfxAssets = ReplicatedStorage:FindFirstChild("Assets")
 									local thunderTemplate = vfxAssets
 										and vfxAssets:FindFirstChild("VFX")
 										and vfxAssets.VFX:FindFirstChild("Boss")
 										and vfxAssets.VFX.Boss:FindFirstChild("Thunder")
 
-									if thunderTemplate then
-										local thunder = thunderTemplate:Clone()
-										local VFX_SCALE = 6.0
-										if thunder:IsA("Model") then
-											pcall(function() thunder:ScaleTo(VFX_SCALE) end)
-											thunder:PivotTo(CFrame.new(endP))
-										elseif thunder:IsA("BasePart") then
-											thunder.Size = thunder.Size * VFX_SCALE
-											thunder.CFrame = CFrame.new(endP)
-										end
-										thunder.Parent = workspace
-										for _, desc in ipairs(thunder:GetDescendants()) do
-											if desc:IsA("ParticleEmitter") then
-												desc.Speed = NumberRange.new(desc.Speed.Min * VFX_SCALE, desc.Speed.Max * VFX_SCALE)
-												desc.Enabled = true
-												-- 전조 장판이 끝날 때 파티클 중단
-												task.delay(telegraphDuration, function() if desc and desc.Parent then desc.Enabled = false end end)
-											elseif desc:IsA("Beam") or desc:IsA("Trail") then
-												desc.Enabled = true
-												task.delay(telegraphDuration, function() if desc and desc.Parent then desc.Enabled = false end end)
-											elseif desc:IsA("Sound") then
-												desc:Play()
-											end
-										end
-										if thunder:IsA("BasePart") then
-											ts:Create(thunder, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-												Transparency = 1
-											}):Play()
-										end
-										task.delay(telegraphDuration + 1.0, function()
-											if thunder and thunder.Parent then thunder:Destroy() end
-										end)
-									end
-
-									-- 전조 장판
+									-- ── 1. 경고 장판 (전조) ──
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "JellyfishTelegraph"
 									warnCircle.Shape = Enum.PartType.Cylinder
@@ -7138,10 +7140,58 @@ local function createMobModel(areaId, index, config)
 										Size = Vector3.new(0.4, attackRadius * 2.4, attackRadius * 2.4),
 									}):Play()
 
-									-- ── 2. 전조 장판 끝날 때까지 대기 → 데미지 ──
 									task.wait(telegraphDuration)
 									warnCircle:Destroy()
 
+									-- ── 2. Thunder VFX (패턴 공격) ──
+									-- 공격 시 PointLight 켜기
+									for _, desc in ipairs(model:GetDescendants()) do
+										if desc:IsA("PointLight") or desc:IsA("SpotLight") then
+											desc.Enabled = true
+										end
+									end
+									task.delay(1.5, function()
+										for _, desc in ipairs(model:GetDescendants()) do
+											if desc:IsA("PointLight") or desc:IsA("SpotLight") then
+												desc.Enabled = false
+											end
+										end
+									end)
+
+									if thunderTemplate then
+										local thunder = thunderTemplate:Clone()
+										local VFX_SCALE = 6.0
+										if thunder:IsA("Model") then
+											pcall(function() thunder:ScaleTo(VFX_SCALE) end)
+											thunder:PivotTo(CFrame.new(endP))
+										elseif thunder:IsA("BasePart") then
+											thunder.Size = thunder.Size * VFX_SCALE
+											thunder.CFrame = CFrame.new(endP)
+										end
+										thunder.Parent = workspace
+										for _, desc in ipairs(thunder:GetDescendants()) do
+											if desc:IsA("ParticleEmitter") then
+												desc.Speed = NumberRange.new(desc.Speed.Min * VFX_SCALE, desc.Speed.Max * VFX_SCALE)
+												desc.Enabled = true
+												task.delay(1.5, function() if desc and desc.Parent then desc.Enabled = false end end)
+											elseif desc:IsA("Beam") or desc:IsA("Trail") then
+												desc.Enabled = true
+												task.delay(1.5, function() if desc and desc.Parent then desc.Enabled = false end end)
+											elseif desc:IsA("Sound") then
+												desc:Play()
+											end
+										end
+										if thunder:IsA("BasePart") then
+											ts:Create(thunder, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+												Transparency = 1
+											}):Play()
+										end
+										task.delay(2.5, function()
+											if thunder and thunder.Parent then thunder:Destroy() end
+										end)
+									end
+
+									-- ── 3. 데미지 판정 ──
 									if not isAlive then return end
 									local finalHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
 									if not finalHrp then return end
@@ -7512,7 +7562,17 @@ local function createMobModel(areaId, index, config)
 			-- ★ 사망 시 경험치 지급 처리
 			local tag = humanoid:FindFirstChild("creator")
 			local killer = tag and tag.Value
-			local deathPos = model:GetPivot().Position
+			-- HRP 기준으로 지면 근처 좌표 사용 (GetPivot은 모델 중심이라 공중일 수 있음)
+			local deathHrp = model:FindFirstChild("HumanoidRootPart")
+			local deathPos = deathHrp and deathHrp.Position or model:GetPivot().Position
+			-- 몬스터가 workspace 직하위에 있으므로 바닥 레이캐스트 시 몹 자신을 직접 제외
+			local deathRayParams = RaycastParams.new()
+			deathRayParams.FilterType = Enum.RaycastFilterType.Exclude
+			deathRayParams.FilterDescendantsInstances = { model }
+			local deathRay = workspace:Raycast(deathPos + Vector3.new(0, 2, 0), Vector3.new(0, -50, 0), deathRayParams)
+			if deathRay then
+				deathPos = deathRay.Position + Vector3.new(0, 0.05, 0)
+			end
 			
 			if killer and killer:IsA("Player") then
 				local xpReward = config.xpReward or 10

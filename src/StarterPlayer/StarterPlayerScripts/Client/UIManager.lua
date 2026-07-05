@@ -1088,6 +1088,9 @@ function UIManager.isDragging() return DragDropController.isDragging() end
 function UIManager.getInvSlots() return invSlots end
 function UIManager.getHotbarSlots() return hotbarSlots end
 function UIManager.getEquipSlots() return equipSlots end
+function UIManager.getConsumableSlots()
+	return HUDUI.Refs and HUDUI.Refs.consumableSlots or {}
+end
 function UIManager.isWindowOpen(winId) return WindowManager.isOpen(winId) end
 function UIManager.getIsMobile() return isMobile end
 

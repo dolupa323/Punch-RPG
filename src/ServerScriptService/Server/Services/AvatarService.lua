@@ -304,6 +304,9 @@ function AvatarService.Init()
 		local targetModel = data and data.targetModel
 		if not targetModel or not targetModel:FindFirstChild("Humanoid") then return end
 
+		-- PvP 차단: 타겟이 플레이어 캐릭터면 무시
+		if Players:GetPlayerFromCharacter(targetModel) then return end
+
 		local char = player.Character
 		if not char then return end
 		local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -398,7 +401,8 @@ function AvatarService.Init()
 							local diff = playerLevel - mobLevel
 							finalCurDmg = finalCurDmg * (1 + (diff * 0.05))
 						elseif playerLevel < mobLevel then
-							finalCurDmg = finalCurDmg * 0.5
+							local diff = mobLevel - playerLevel
+							finalCurDmg = finalCurDmg * math.max(0.01, 1 - diff * 0.1)
 						end
 						finalCurDmg = math.max(1, math.floor(finalCurDmg + 0.5))
 
@@ -425,12 +429,21 @@ function AvatarService.Init()
 						pcall(function()
 							-- 타격 좌표에 약간의 난수를 부여해 다단히트 숫자가 겹치지 않고 예쁘게 흩뿌려지도록 처리
 							local hitPos = targetHrp.Position + Vector3.new((math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5, (math.random() - 0.5) * 2.5)
+							-- VFX(이펙트)는 모든 클라이언트에게 전송 (damage 제외)
 							vfxRemote:FireAllClients({
 								target = targetModel,
 								element = "None",
 								position = hitPos,
+								hideVfx = false,
+							})
+							-- 데미지 숫자는 공격한 플레이어 본인에게만 전송
+							vfxRemote:FireClient(player, {
+								target = targetModel,
+								element = "None",
+								position = hitPos,
 								damage = curDmg,
-								isCritical = isCurCrit
+								isCritical = isCurCrit,
+								hideVfx = true, -- VFX는 이미 위에서 전송했으므로 중복 생성 방지
 							})
 						end)
 						

@@ -1242,10 +1242,7 @@ function AuctionUI.RefreshInventoryList()
 	local InventoryController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController)
 	local items = InventoryController.getItems() or {}
 	
-	local SkillController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.SkillController)
-	local skillBooks = SkillController and SkillController.getSkillBooks() or {}
-	
-	-- 1. 일반 인벤토리 아이템 렌더링
+	-- 일반 인벤토리 아이템 렌더링
 	for slot, item in pairs(items) do
 		if item and item.itemId then
 			local itemData = DataHelper.GetData("ItemData", item.itemId)
@@ -1306,44 +1303,8 @@ function AuctionUI.RefreshInventoryList()
 		end
 	end
 	
-	-- 2. 스킬북 아이템 렌더링
-	for index, bookItemId in ipairs(skillBooks) do
-		local slotKey = "BOOK_SLOT_" .. index
-		local itemData = DataHelper.GetData("ItemData", bookItemId)
-		local rarity = itemData and itemData.rarity or "COMMON"
-		local rarityColor = C[rarity] or C.COMMON
-		
-		-- 스킬북은 항상 교환 가능
-		local isTradeable = true
-		
-		local slotFrame = Utils.mkFrame({
-			name = "Slot_" .. slotKey,
-			bg = C.BG_SLOT,
-			bgT = 0.5,
-			r = 6,
-			stroke = 1,
-			strokeC = selectedInventorySlot == slotKey and GOLD_COLOR or C.BORDER_DIM,
-			parent = AuctionUI.Refs.InventoryScroll
-		})
-		
-		local icon = Instance.new("ImageButton")
-		icon.Size = UDim2.new(1, -8, 1, -8)
-		icon.Position = UDim2.new(0.5, 0, 0.5, 0)
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.BackgroundTransparency = 1
-		icon.Image = currentUIManager.getItemIcon(bookItemId)
-		icon.Parent = slotFrame
-		
-		icon.MouseButton1Click:Connect(function()
-			selectedInventorySlot = slotKey
-			AuctionUI.RefreshInventoryList() -- 선택 테두리 갱신을 위해 재호출
-			AuctionUI.UpdateSellSelection()
-		end)
-	end
-	
 	local itemsCount = 0
 	for _ in pairs(items) do itemsCount = itemsCount + 1 end
-	for _ in ipairs(skillBooks) do itemsCount = itemsCount + 1 end
 	local rowCount = math.ceil(itemsCount / 5)
 	AuctionUI.Refs.InventoryScroll.CanvasSize = UDim2.new(0, 0, 0, rowCount * 72 + 20)
 end
@@ -1358,32 +1319,19 @@ function AuctionUI.UpdateSellSelection()
 		return
 	end
 	
-	local item = nil
-	local isSkillBookSlot = (type(selectedInventorySlot) == "string" and string.sub(selectedInventorySlot, 1, 10) == "BOOK_SLOT_")
-	
-	if isSkillBookSlot then
-		local index = tonumber(string.sub(selectedInventorySlot, 11))
-		local SkillController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.SkillController)
-		local skillBooks = SkillController and SkillController.getSkillBooks() or {}
-		local bookItemId = skillBooks[index]
-		if bookItemId then
-			item = { itemId = bookItemId, count = 1 }
-		end
-	else
-		local InventoryController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController)
-		item = InventoryController.getSlot(selectedInventorySlot)
-	end
-	
+	local InventoryController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController)
+	local item = InventoryController.getSlot(selectedInventorySlot)
+
 	if not item then
 		selectedInventorySlot = nil
 		AuctionUI.UpdateSellSelection()
 		return
 	end
-	
+
 	local itemData = DataHelper.GetData("ItemData", item.itemId)
 	local rarity = itemData and itemData.rarity or "COMMON"
 	local rarityColor = C[rarity] or C.COMMON
-	
+
 	AuctionUI.Refs.SelIcon.Image = currentUIManager.getItemIcon(item.itemId)
 	AuctionUI.Refs.SelIcon.Visible = true
 	
@@ -1401,22 +1349,9 @@ function AuctionUI.SubmitSale()
 		return
 	end
 	
-	local item = nil
-	local isSkillBookSlot = (type(selectedInventorySlot) == "string" and string.sub(selectedInventorySlot, 1, 10) == "BOOK_SLOT_")
-	
-	if isSkillBookSlot then
-		local index = tonumber(string.sub(selectedInventorySlot, 11))
-		local SkillController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.SkillController)
-		local skillBooks = SkillController and SkillController.getSkillBooks() or {}
-		local bookItemId = skillBooks[index]
-		if bookItemId then
-			item = { itemId = bookItemId, count = 1 }
-		end
-	else
-		local InventoryController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController)
-		item = InventoryController.getSlot(selectedInventorySlot)
-	end
-	
+	local InventoryController = require(Players.LocalPlayer.PlayerScripts.Client.Controllers.InventoryController)
+	local item = InventoryController.getSlot(selectedInventorySlot)
+
 	if not item then
 		selectedInventorySlot = nil
 		AuctionUI.UpdateSellSelection()

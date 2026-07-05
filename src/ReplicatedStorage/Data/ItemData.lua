@@ -2225,7 +2225,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '근성' 패시브 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Rune_Grit",
+		iconName = "Icon_SkillBook",
 		runeType = "PASSIVE",
 	},
 	{
@@ -2236,7 +2236,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '부동심' 패시브 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Rune_Steadfast",
+		iconName = "Icon_SkillBook",
 		runeType = "PASSIVE",
 	},
 	{
@@ -2247,7 +2247,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '물방울' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Skill_Droplet",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2258,7 +2258,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '불씨' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Skill_Ember",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2269,7 +2269,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '짙은 밤' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Skill_Night",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2280,7 +2280,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '화염 오라' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Rune_Flame",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2291,7 +2291,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '파도 오라' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Rune_Wave",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2302,7 +2302,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '그림자 오라' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Rune_Shadow",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2313,7 +2313,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '슬래시' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Icon_Skill_Slash",
+		iconName = "Icon_SkillBook",
 		runeType = "ACTIVE",
 	},
 	{
@@ -2324,7 +2324,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '대쉬' 패시브 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Rune_Dash",
+		iconName = "Icon_SkillBook",
 		runeType = "PASSIVE",
 	},
 	{
@@ -2335,7 +2335,7 @@ local ItemData = {
 		maxStack = 1,
 		weight = 0.5,
 		description = "사용 시 '하늘의 자격' 패시브 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
-		iconName = "Rune_Wing",
+		iconName = "Icon_SkillBook",
 		runeType = "PASSIVE",
 	},
 	{

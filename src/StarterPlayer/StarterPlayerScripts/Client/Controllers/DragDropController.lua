@@ -310,7 +310,28 @@ function DragDropController.handleDragUpdate()
 	end
 	
 
-	-- 2.5. 룬 슬롯 확인
+	-- 2.5. 소모품 단축키 슬롯 확인 (인벤토리 열릴 때)
+	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("INV") then
+		local consumableSlots = UIManager.getConsumableSlots and UIManager.getConsumableSlots() or {}
+		for _, s in pairs(consumableSlots) do
+			local slotFrame = s and s.frame
+			if slotFrame and isMouseOverSlot(mousePos, slotFrame) then
+				local absPos = slotFrame.AbsolutePosition
+				local absSize = slotFrame.AbsoluteSize
+				local slotCenterX = absPos.X + absSize.X * 0.5
+				local slotCenterY = absPos.Y + absSize.Y * 0.5
+				local distX = mousePos.X - slotCenterX
+				local distY = mousePos.Y - slotCenterY
+				local distance = math.sqrt(distX * distX + distY * distY)
+				if distance < minDistance then
+					minDistance = distance
+					foundSlotFrame = slotFrame
+				end
+			end
+		end
+	end
+
+	-- 2.7. 룬 슬롯 확인
 	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("SKILL") then
 		local runeSlots = UIManager.getRuneSlots and UIManager.getRuneSlots() or {}
 		for _, s in pairs(runeSlots) do
@@ -436,6 +457,28 @@ function DragDropController.handleDragEnd()
 		end
 	end
 
+	-- 2.5. 소모품 단축키 슬롯 확인
+	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("INV") then
+		local consumableSlots = UIManager.getConsumableSlots and UIManager.getConsumableSlots() or {}
+		for i, s in pairs(consumableSlots) do
+			local slotFrame = s and s.frame
+			if slotFrame and isMouseOverSlot(mousePos, slotFrame) then
+				local absPos = slotFrame.AbsolutePosition
+				local absSize = slotFrame.AbsoluteSize
+				local slotCenterX = absPos.X + absSize.X * 0.5
+				local slotCenterY = absPos.Y + absSize.Y * 0.5
+				local distX = mousePos.X - slotCenterX
+				local distY = mousePos.Y - slotCenterY
+				local distance = math.sqrt(distX * distX + distY * distY)
+				if distance < minDistance then
+					minDistance = distance
+					foundSlot = i
+					foundType = "consumable"
+				end
+			end
+		end
+	end
+
 	-- 3. 장비 확인
 	if draggingSourceWindow ~= "storage" and UIManager.isWindowOpen("EQUIP") then
 		for slotName, s in pairs(UIManager.getEquipSlots()) do
@@ -483,6 +526,21 @@ function DragDropController.handleDragEnd()
 		if foundSlot then
 			UIManager.moveStorageItem(draggingSlotIdx, draggingSourceType, foundSlot, foundType)
 		end
+	elseif foundType == "consumable" and foundSlot then
+		-- 소모품 단축키 슬롯에 드랍 → RegisterConsumable
+		local items = InventoryController.getItems()
+		local item = items[draggingSlotIdx]
+		if item and item.itemId then
+			local itemData = DataHelper.GetData("ItemData", item.itemId)
+			if itemData and (itemData.type == "CONSUMABLE" or itemData.type == "FOOD") then
+				local HUDUI = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("HUDUI"))
+				if HUDUI and HUDUI.RegisterConsumable then
+					HUDUI.RegisterConsumable(foundSlot, item.itemId)
+				end
+			else
+				if UIManager.notify then UIManager.notify("소모품만 단축키에 등록할 수 있습니다.", Color3.fromRGB(255, 160, 60)) end
+			end
+		end
 	elseif foundSlot then
 		InventoryController.moveItem(draggingSlotIdx, foundSlot, foundType)
 	else
@@ -518,6 +576,47 @@ function DragDropController.handleDragEnd()
 	draggingSourceType = nil
 	draggingSourceWindow = "inventory"
 	pendingSourceWindow = "inventory"
+end
+
+-- 소모품 슬롯 간 드래그앤드랍 처리
+function DragDropController.handleConsumableDrop()
+	local HUDUI = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("HUDUI"))
+	local fromIdx = HUDUI._consumableDragStart
+	if not fromIdx then return end
+
+	local rawMouse = UserInputService:GetMouseLocation()
+	local insetTop = GuiService:GetGuiInset()
+	local mousePos = Vector2.new(rawMouse.X, rawMouse.Y - insetTop.Y)
+
+	local consumableSlots = UIManager.getConsumableSlots and UIManager.getConsumableSlots() or {}
+	local toIdx = nil
+	local minDist = math.huge
+	for i, s in pairs(consumableSlots) do
+		local slotFrame = s and s.frame
+		if slotFrame and i ~= fromIdx and isMouseOverSlot(mousePos, slotFrame) then
+			local absPos = slotFrame.AbsolutePosition
+			local absSize = slotFrame.AbsoluteSize
+			local cx = absPos.X + absSize.X * 0.5
+			local cy = absPos.Y + absSize.Y * 0.5
+			local dist = math.sqrt((mousePos.X - cx)^2 + (mousePos.Y - cy)^2)
+			if dist < minDist then
+				minDist = dist
+				toIdx = i
+			end
+		end
+	end
+
+	if toIdx then
+		local qs = HUDUI.ConsumableQuickslots
+		if qs then
+			qs[fromIdx], qs[toIdx] = qs[toIdx], qs[fromIdx]
+			-- 화면 갱신
+			if HUDUI.RefreshConsumableSlots then
+				HUDUI.RefreshConsumableSlots()
+			end
+		end
+	end
+	HUDUI._consumableDragStart = nil
 end
 
 function DragDropController.isDragging()

@@ -1353,7 +1353,7 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			if d.QuickRow then d.QuickRow.Visible = false end
 			local isArmor = (itemData and itemData.type == Enums.ItemType.ARMOR)
 			local isStarterBox = (itemData and itemData.id == "STARTER_PACK_BOX")
-			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM or isStarterBox))
+			local isUsable = (itemData and (itemData.type == Enums.ItemType.CONSUMABLE or itemData.type == Enums.ItemType.FOOD or itemData.type == "REPAIR_ITEM" or itemData.type == Enums.ItemType.REPAIR_ITEM or itemData.type == "SKILL_BOOK" or isStarterBox))
 			local isCaptureBox = (itemData and itemData.type == Enums.ItemType.CAPTURE_BOX)
 			
 			if isArmor then
