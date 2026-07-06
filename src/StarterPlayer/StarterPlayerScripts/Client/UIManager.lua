@@ -819,6 +819,7 @@ local bagTabBtn, craftTabBtn
 local notifyQueue = {}
 local sideNotifyStack = {} -- [frame] = { startTime, label }
 local sideNotifyContainer = nil
+local xpToastContainer = nil
 
 -- Drag & Drop
 local DRAG_THRESHOLD = 5 -- Lower threshold for easier dragging
@@ -2063,6 +2064,55 @@ function UIManager.sideNotify(text, color, icon)
 	end)
 end
 
+-- [New] 몬스터 처치 시 즉시 지급되는 경험치를 화면 우측 하단에 "+205 XP" 형태로 잠깐 표시 (흰 구슬 습득 방식 폐기)
+function UIManager.showXPGain(amount)
+	if not mainGui then return end
+	if not amount or amount <= 0 then return end
+
+	if not xpToastContainer then
+		xpToastContainer = Utils.mkFrame({
+			name = "XPToastContainer",
+			size = UDim2.new(0, 220, 0, 160),
+			pos = UDim2.new(1, -20, 1, -90),
+			anchor = Vector2.new(1, 1),
+			bgT = 1,
+			parent = mainGui,
+		})
+		local layout = Instance.new("UIListLayout")
+		layout.Padding = UDim.new(0, 2)
+		layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Parent = xpToastContainer
+	end
+
+	local label = Utils.mkLabel({
+		text = string.format("+%d XP", amount),
+		size = UDim2.new(1, 0, 0, 26),
+		ts = 20,
+		color = Color3.fromRGB(150, 230, 90), -- 연두색
+		ax = Enum.TextXAlignment.Right,
+		parent = xpToastContainer,
+	})
+	label.BackgroundTransparency = 1
+	label.TextTransparency = 1
+	label.TextStrokeTransparency = 1
+
+	TweenService:Create(label, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+		TextStrokeTransparency = 0.4,
+	}):Play()
+
+	task.delay(1.2, function()
+		if not label or not label.Parent then return end
+		local fade = TweenService:Create(label, TweenInfo.new(0.5), { TextTransparency = 1, TextStrokeTransparency = 1 })
+		fade:Play()
+		fade.Completed:Connect(function()
+			if label then label:Destroy() end
+		end)
+	end)
+end
+
 function UIManager.refreshStatusEffects()
 	local list = {}
 	for _, data in pairs(activeDebuffs) do
@@ -2243,6 +2293,7 @@ local function setupEventListeners()
 				for k, v in pairs(d) do cachedStats[k] = v end
 				if d.level then UIManager.updateLevel(d.level) end
 				if d.currentXP and d.requiredXP then UIManager.updateXP(d.currentXP, d.requiredXP) end
+				if d.amount and d.amount > 0 then UIManager.showXPGain(d.amount) end
 				if d.leveledUp then
 					UIManager.showLevelUpEffect(d.level)
 				end

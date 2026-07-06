@@ -244,7 +244,7 @@ local function createDropModel(dropData)
 		
 		-- [크기 정화 및 롤백]: 에셋 제작자가 만든 오리지널 예쁜 크기를 100% 최우선 존중! (DNA 등 지나치게 큰 모델만 1.5스터드로 제한 축소)
 		-- [수정] 희귀 아이템용 보물상자(Chest) 및 룬(RUNE)은 일반 아이템보다 훨씬 크게(3.5스터드) 표시하여 만족도를 높임
-		local DROP_TARGET = isDna and 1.0 or (isSkillBook and 9.0 or (isRune and 6.5 or (isChest and 3.5 or (isCoin and 2.8 or (Balance.DROP_TARGET_SIZE or 1.5)))))
+		local DROP_TARGET = isDna and 1.0 or (isSkillBook and 3.5 or (isRune and 6.5 or (isChest and 3.5 or (isCoin and 2.8 or (Balance.DROP_TARGET_SIZE or 1.5)))))
 		if mainObject:IsA("Model") then
 			local _, mSize = mainObject:GetBoundingBox()
 			local maxDim = math.max(mSize.X, mSize.Y, mSize.Z)
@@ -361,10 +361,11 @@ local function createDropModel(dropData)
 		highlight.OutlineColor = Color3.fromRGB(100, 255, 200)
 		highlight.OutlineTransparency = 0.0
 	else
-		highlight.FillColor = template and Color3.new(1,1,1) or (mainObject:IsA("BasePart") and mainObject.Color or Color3.new(1,1,1))
-		highlight.FillTransparency = 0.7
-		highlight.OutlineColor = Color3.new(1, 1, 1)
-		highlight.OutlineTransparency = 0.5
+		local rarityColor = getDropColor(dropData.dropType == "gold" and "GOLD" or dropData.itemId)
+		highlight.FillColor = rarityColor
+		highlight.FillTransparency = 0.85
+		highlight.OutlineColor = rarityColor
+		highlight.OutlineTransparency = 0.6
 	end
 	highlight.Parent = mainObject
 	

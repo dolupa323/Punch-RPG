@@ -999,6 +999,411 @@ end
 -- [Skill System 연동] 스킬 액션 시각화
 --========================================
 
+-- StumpKing 보스 낙하 패턴(MobSpawnService.playWoodSmashEffect)과 동일한 구조를 슬라임 버전으로 재구성
+-- (파티클만 쓰지 않고, 실제 물리 파츠가 튕겨 날아가는 잔해를 함께 사용 - 돌 파편 대신 초록 슬라임 덩어리가 튀도록 재구성)
+local function playRockSmashEffect(pos: Vector3, radius: number)
+	local Debris = game:GetService("Debris")
+
+	-- 1. 바닥에 남는 초록 슬라임 자국(크레이터) 링
+	local crater = Instance.new("Part")
+	crater.Name = "RockCrater"
+	crater.Shape = Enum.PartType.Cylinder
+	crater.Size = Vector3.new(0.2, radius * 1.5, radius * 1.5)
+	crater.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	crater.Anchored = true
+	crater.CanCollide = false
+	crater.CastShadow = false
+	crater.Material = Enum.Material.Neon
+	crater.Color = Color3.fromRGB(90, 220, 90)
+	crater.Parent = workspace
+	TweenService:Create(crater, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+	Debris:AddItem(crater, 2.0)
+
+	-- 2. 슬라임 덩어리 튀기기 (실제 물리 파츠, 구형태로 사방에 튕겨나갔다 사라짐)
+	for _ = 1, 10 do
+		local rock = Instance.new("Part")
+		rock.Shape = Enum.PartType.Ball
+		rock.Size = Vector3.new(1, 1, 1) * math.random(10, 20) / 10
+		rock.Position = pos + Vector3.new(math.random(-2, 2), 1, math.random(-2, 2))
+		rock.Material = Enum.Material.SmoothPlastic
+		rock.Color = Color3.fromRGB(math.random(70, 130), math.random(200, 240), math.random(70, 130))
+		rock.CanCollide = false
+		rock.Anchored = false
+		rock.Parent = workspace
+
+		local angle = math.random() * math.pi * 2
+		local speed = math.random(20, 40)
+		rock.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(25, 45), math.sin(angle) * speed)
+		rock.AssemblyAngularVelocity = Vector3.new(math.random(-15, 15), math.random(-15, 15), math.random(-15, 15))
+
+		TweenService:Create(rock, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+		Debris:AddItem(rock, 1.2)
+	end
+
+	-- 3. 튀는 초록 슬라임 물방울 안개
+	local dustPart = Instance.new("Part")
+	dustPart.Size = Vector3.new(1, 1, 1)
+	dustPart.Position = pos
+	dustPart.Anchored = true
+	dustPart.CanCollide = false
+	dustPart.Transparency = 1
+	dustPart.Parent = workspace
+
+	local dust = Instance.new("ParticleEmitter")
+	dust.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	dust.Color = ColorSequence.new(Color3.fromRGB(140, 230, 120), Color3.fromRGB(80, 190, 90))
+	dust.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 2.5), NumberSequenceKeypoint.new(1, 0)})
+	dust.Transparency = NumberSequence.new(0.4, 1)
+	dust.Lifetime = NumberRange.new(0.6, 1.0)
+	dust.Rate = 60
+	dust.Speed = NumberRange.new(6, 16)
+	dust.SpreadAngle = Vector2.new(90, 90)
+	dust.Parent = dustPart
+
+	Debris:AddItem(dustPart, 2.0)
+	task.delay(0.3, function() if dust then dust.Enabled = false end end)
+
+	-- 4. 확산되는 초록 충격파 고리
+	local shockwave = Instance.new("Part")
+	shockwave.Name = "RockShockwave"
+	shockwave.Shape = Enum.PartType.Cylinder
+	shockwave.Size = Vector3.new(0.5, 1, 1)
+	shockwave.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	shockwave.Anchored = true
+	shockwave.CanCollide = false
+	shockwave.CastShadow = false
+	shockwave.Material = Enum.Material.Neon
+	shockwave.Color = Color3.fromRGB(110, 230, 110)
+	shockwave.Parent = workspace
+	TweenService:Create(shockwave, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.5, radius * 2, radius * 2),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(shockwave, 0.5)
+end
+
+-- 오버그로스 버스트: 목표 지점에 마법진(회전하는 이중 링)이 그려진 뒤,
+-- 그 안에서 나무 3그루가 대각선으로 기울어진 채 솟아올라 공격하고 다시 가라앉음
+local function playOvergrowthBurstEffect(hrp: BasePart, targetCFrame: CFrame, char: Instance)
+	local Debris = game:GetService("Debris")
+
+	local aimDir = targetCFrame.LookVector
+	local flatAimDir = Vector3.new(aimDir.X, 0, aimDir.Z)
+	if flatAimDir.Magnitude < 0.01 then flatAimDir = Vector3.new(0, 0, -1) else flatAimDir = flatAimDir.Unit end
+	local castDistance = 15 -- SkillService.lua의 OVERGROWTH hitPos 거리(15)와 동일하게 맞춤
+	local xzTarget = Vector3.new(hrp.Position.X, hrp.Position.Y, hrp.Position.Z) + flatAimDir * castDistance
+
+	-- 실제 바닥 높이 레이캐스트 (슬라임샷과 동일한 방식)
+	-- [수정] 경사/단차/구덩이 등 굴곡진 지형에서도 바닥을 놓치지 않도록 탐색 범위를 넉넉하게 확장 (+20~-60 -> +50~-150)
+	local groundY = hrp.Position.Y
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = {char}
+	local rayResult = workspace:Raycast(xzTarget + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
+	if rayResult then
+		groundY = rayResult.Position.Y
+	end
+	local groundPos = Vector3.new(xzTarget.X, groundY, xzTarget.Z)
+
+	local circleRadius = 11 -- SkillService.lua의 OVERGROWTH 판정 반경(11)과 동일
+
+	-- 1. 마법진 (이중 링, 서로 반대로 회전)
+	local circleModel = Instance.new("Model")
+	circleModel.Name = "OvergrowthCircle"
+
+	local function makeRing(sizeMult, thickness, color)
+		local ring = Instance.new("Part")
+		ring.Shape = Enum.PartType.Cylinder
+		ring.Size = Vector3.new(thickness, circleRadius * 2 * sizeMult, circleRadius * 2 * sizeMult)
+		ring.CFrame = CFrame.new(groundPos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		ring.Anchored = true
+		ring.CanCollide = false
+		ring.CanQuery = false
+		ring.CanTouch = false
+		ring.CastShadow = false
+		ring.Material = Enum.Material.Neon
+		ring.Color = color
+		ring.Transparency = 1
+		ring.Parent = circleModel
+		return ring
+	end
+
+	local outerRing = makeRing(1.0, 0.15, Color3.fromRGB(80, 200, 90))
+	local innerRing = makeRing(0.65, 0.12, Color3.fromRGB(140, 230, 120))
+	circleModel.Parent = workspace
+
+	TweenService:Create(outerRing, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.3}):Play()
+	TweenService:Create(innerRing, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.45}):Play()
+
+	-- 회전 연출 (서로 반대 방향)
+	local spinning = true
+	task.spawn(function()
+		local angle1, angle2 = 0, 0
+		while spinning and outerRing.Parent do
+			angle1 += 90 * (1 / 30)
+			angle2 -= 130 * (1 / 30)
+			outerRing.CFrame = CFrame.new(groundPos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, math.rad(angle1), math.rad(90))
+			innerRing.CFrame = CFrame.new(groundPos + Vector3.new(0, 0.35, 0)) * CFrame.Angles(0, math.rad(angle2), math.rad(90))
+			task.wait(1 / 30)
+		end
+	end)
+
+	-- 2. 텔레그래프 대기 (서버 데미지 판정 시작 시점인 0.25s와 맞춤)
+	task.wait(0.3)
+
+	-- 3. 나무 3그루가 마법진 안에서 대각선으로 솟아오름 (0.15초 간격 - 서버 히트 간격과 동일)
+	for i = 1, 3 do
+		task.spawn(function(treeIndex)
+			local angle = math.rad(90 + (treeIndex - 1) * 120)
+			local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * (circleRadius * 0.45)
+			local basePos = groundPos + offset
+
+			-- [수정] 마법진 중심의 바닥 높이를 그대로 재사용하면 경사지/단차가 있는 지형에서
+			-- 나무가 뜨거나 파묻히므로, 각 나무가 실제로 서는 위치에서 다시 개별 레이캐스트해 보정
+			local treeRayParams = RaycastParams.new()
+			treeRayParams.FilterType = Enum.RaycastFilterType.Exclude
+			treeRayParams.FilterDescendantsInstances = { char }
+			local treeRayResult = workspace:Raycast(basePos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), treeRayParams)
+			if treeRayResult then
+				basePos = Vector3.new(basePos.X, treeRayResult.Position.Y, basePos.Z)
+			end
+
+			local leanAngle = math.rad(22) -- 대각선으로 삐쳐 나오는 기울기
+			local spinDir = (treeIndex % 2 == 0) and 1 or -1
+			local baseCFrame = CFrame.new(basePos) * CFrame.Angles(0, angle * spinDir, 0) * CFrame.Angles(leanAngle, 0, 0)
+
+			local tree = Instance.new("Model")
+			tree.Name = "OvergrowthTree"
+
+			-- [고도화 v3] 이 게임 맵에 이미 있는 실제 나무(Workspace...BorderTrees.Tree: Trunk Block + Crown Block들)와
+			-- 동일한 스타일로 제작 - 갈색 각진 몸통 + 초록 뭉치 잎사귀들로 구성된 "진짜 나무" 형태
+			local trunkHeight = 20
+			local trunkWidth = 3.6
+			local barkColor = Color3.fromRGB(75, 50, 28)
+			local leafColor = Color3.fromRGB(58, 108, 42)
+
+			local trunk = Instance.new("Part")
+			trunk.Name = "Trunk"
+			trunk.Shape = Enum.PartType.Block
+			trunk.Size = Vector3.new(trunkWidth, 0.1, trunkWidth)
+			trunk.Material = Enum.Material.Wood
+			trunk.Color = barkColor
+			trunk.Anchored = true
+			trunk.CanCollide = false
+			trunk.CanQuery = false
+			trunk.CanTouch = false
+			trunk.CastShadow = true
+			trunk.Parent = tree
+
+			-- 잎사귀 뭉치 (Crown) 3덩어리를 나무 꼭대기에 살짝 겹치게 배치해 풍성한 수관을 표현
+			local crownDefs = {
+				{ size = 13, offset = Vector3.new(0, 0, 0) },
+				{ size = 10, offset = Vector3.new(2.6, 1.6, 1.2) },
+				{ size = 10, offset = Vector3.new(-2.2, -1.2, 1.8) },
+			}
+			local crowns = {}
+			for ci, def in ipairs(crownDefs) do
+				local crown = Instance.new("Part")
+				crown.Name = "Crown" .. ci
+				crown.Shape = Enum.PartType.Block
+				crown.Size = Vector3.new(0.1, 0.1, 0.1)
+				crown.Material = Enum.Material.Grass
+				crown.Color = leafColor
+				crown.Anchored = true
+				crown.CanCollide = false
+				crown.CanQuery = false
+				crown.CanTouch = false
+				crown.CastShadow = true
+				crown.Parent = tree
+				crowns[ci] = crown
+			end
+
+			-- [중요] baseCFrame의 로컬 Y축(기울어진 방향)을 따라 절반 높이만큼 이동시켜 몸통을 배치
+			local function poseAt(growT: number)
+				local curHeight = trunkHeight * growT
+				trunk.CFrame = baseCFrame * CFrame.new(0, curHeight / 2, 0)
+				trunk.Size = Vector3.new(trunkWidth, math.max(curHeight, 0.05), trunkWidth)
+
+				-- 잎사귀 뭉치들은 몸통 꼭대기 부근에 뭉쳐서 성장과 함께 같이 부풀어오름
+				for ci, def in ipairs(crownDefs) do
+					local crown = crowns[ci]
+					crown.CFrame = baseCFrame * CFrame.new(def.offset * growT + Vector3.new(0, curHeight, 0))
+					crown.Size = Vector3.new(1, 1, 1) * (def.size * growT)
+				end
+			end
+
+			poseAt(0.02)
+			tree.Parent = workspace
+
+			-- 성장(=찌르기) 트윈: 부드럽게 자라는 느낌이 아니라, 순식간에 솟구쳐 찌르는 느낌으로 매우 빠르게 처리
+			local growValue = Instance.new("NumberValue")
+			growValue.Value = 0.02
+			growValue.Changed:Connect(function(v)
+				if trunk.Parent then poseAt(v) end
+			end)
+			local growTween = TweenService:Create(growValue, TweenInfo.new(0.12, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Value = 1})
+			growTween:Play()
+
+			growTween.Completed:Once(function()
+				task.wait(0.45) -- 잠시 유지 (공격 판정 시간)
+				local shrinkTween = TweenService:Create(growValue, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Value = 0})
+				shrinkTween:Play()
+				shrinkTween.Completed:Once(function()
+					growValue:Destroy()
+					tree:Destroy()
+				end)
+			end)
+
+			Debris:AddItem(tree, 3.0)
+		end, i)
+
+		task.wait(0.15) -- 서버 히트 간격(0.15초)과 동일하게 순차적으로 솟아오름
+	end
+
+	-- 4. 마법진 정리
+	spinning = false
+	TweenService:Create(outerRing, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+	TweenService:Create(innerRing, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+	Debris:AddItem(circleModel, 0.6)
+end
+
+-- 매화낙락: 캐릭터 주위에 벚꽃 잎이 휘날리고, 분홍빛 검기(Beam)가 사방으로 뻗어나가는 광역 슬래시
+local function playMaehwaEffect(hrp: BasePart)
+	local Debris = game:GetService("Debris")
+	local petalColor = Color3.fromRGB(255, 170, 200)
+	local slashColor = Color3.fromRGB(255, 110, 170)
+
+	-- 캐릭터를 따라다니는 앵커 파트 (짧은 지속시간 동안만 위치 갱신)
+	local anchor = Instance.new("Part")
+	anchor.Name = "MaehwaAnchor"
+	anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	anchor.Transparency = 1
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.CFrame = hrp.CFrame
+	anchor.Parent = workspace
+
+	-- 1. 벚꽃 잎 파티클 (분홍/흰색, 사방으로 풍성하게 흩날림)
+	local petalAtt = Instance.new("Attachment")
+	petalAtt.Parent = anchor
+	local petals = Instance.new("ParticleEmitter")
+	petals.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	petals.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, petalColor),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 235, 245)),
+	})
+	petals.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.6),
+		NumberSequenceKeypoint.new(1, 0.15),
+	})
+	petals.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	petals.Lifetime = NumberRange.new(0.9, 1.5)
+	petals.Rate = 0
+	petals.Speed = NumberRange.new(8, 20)
+	petals.SpreadAngle = Vector2.new(180, 180)
+	petals.RotSpeed = NumberRange.new(-150, 150)
+	petals.Rotation = NumberRange.new(0, 360)
+	petals.Acceleration = Vector3.new(0, -6, 0)
+	petals.Parent = petalAtt
+	petals:Emit(90)
+
+	-- 2. 분홍 검기 (한 점에서 뻗어나가는 부채꼴이 아니라, 캐릭터 주변 넓은 공간에 흩뿌려진
+	-- 독립적인 "얇고 날카로운 선" 형태의 슬래시 자국들이 서로 다른 시점에 불규칙하게 나타남 - 레퍼런스의 대규모 난사 느낌)
+	local slashCount = 40
+
+	for i = 1, slashCount do
+		-- 슬래시 중심점: 캐릭터 주변 훨씬 넓은 구형 공간 안의 무작위 위치 (한 점에서 뻗어나가지 않도록)
+		local centerTheta = math.random() * math.pi * 2
+		local centerPhi = math.acos(2 * math.random() - 1)
+		local centerDir = Vector3.new(math.sin(centerPhi) * math.cos(centerTheta), math.cos(centerPhi), math.sin(centerPhi) * math.sin(centerTheta))
+		local centerDist = math.random(8, 40) -- [수정] 3~16 -> 8~40: 훨씬 큰 규모의 광역기로
+		local slashCenter = anchor.Position + centerDir * centerDist
+
+		-- 슬래시 방향: 중심점과 무관한 별도의 무작위 방향 (각 슬래시마다 다른 기울기)
+		local dirTheta = math.random() * math.pi * 2
+		local dirPhi = math.acos(2 * math.random() - 1)
+		local slashDir = Vector3.new(math.sin(dirPhi) * math.cos(dirTheta), math.cos(dirPhi), math.sin(dirPhi) * math.sin(dirTheta))
+		local slashLen = math.random(14, 30) -- [수정] 5~11 -> 14~30: 길고 날카로운 선
+
+		-- 각 슬래시가 완전히 무작위 시점에(0~0.7초 사이) 따로따로 나타나도록 - "순서도 불규칙"
+		local appearDelay = math.random() * 0.7
+
+		task.delay(appearDelay, function()
+			if not anchor.Parent then return end
+
+			local p0Part = Instance.new("Part")
+			p0Part.Name = "MaehwaSlashTip"
+			p0Part.Size = Vector3.new(0.2, 0.2, 0.2)
+			p0Part.Transparency = 1
+			p0Part.Anchored = true
+			p0Part.CanCollide = false
+			p0Part.CanQuery = false
+			p0Part.CanTouch = false
+			p0Part.CFrame = CFrame.new(slashCenter - slashDir * (slashLen / 2))
+			p0Part.Parent = workspace
+			Debris:AddItem(p0Part, 1.0)
+
+			local p1Part = Instance.new("Part")
+			p1Part.Name = "MaehwaSlashTip"
+			p1Part.Size = Vector3.new(0.2, 0.2, 0.2)
+			p1Part.Transparency = 1
+			p1Part.Anchored = true
+			p1Part.CanCollide = false
+			p1Part.CanQuery = false
+			p1Part.CanTouch = false
+			p1Part.CFrame = CFrame.new(slashCenter + slashDir * (slashLen / 2))
+			p1Part.Parent = workspace
+			Debris:AddItem(p1Part, 1.0)
+
+			local att0 = Instance.new("Attachment")
+			att0.Parent = p0Part
+			local att1 = Instance.new("Attachment")
+			att1.Parent = p1Part
+
+			local beam = Instance.new("Beam")
+			beam.Attachment0 = att0
+			beam.Attachment1 = att1
+			-- [수정] 두꺼운 막대기처럼 보이지 않도록 폭을 대폭 축소 (0.08~0.16 -> 0.02~0.05), 끝으로 갈수록 더 얇아지는 칼날 형태
+			beam.Width0 = math.random(3, 5) / 100
+			beam.Width1 = math.random(1, 3) / 100
+			beam.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(0.5, slashColor),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
+			})
+			beam.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.05),
+				NumberSequenceKeypoint.new(1, 0.05),
+			})
+			beam.LightEmission = 1
+			beam.FaceCamera = true
+			beam.Segments = 1
+			beam.Parent = p0Part
+
+			-- [주의] Beam.Transparency는 NumberSequence라 TweenService로 직접 트윈이 안 되므로 NumberValue 프록시로 페이드
+			local fadeValue = Instance.new("NumberValue")
+			fadeValue.Value = 0.15
+			fadeValue.Changed:Connect(function(v)
+				if beam.Parent then
+					beam.Transparency = NumberSequence.new(v)
+				end
+			end)
+			local fadeTween = TweenService:Create(fadeValue, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Value = 1 })
+			fadeTween:Play()
+			fadeTween.Completed:Once(function()
+				fadeValue:Destroy()
+			end)
+		end)
+	end
+
+	Debris:AddItem(anchor, 1.5)
+end
+
 function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
 	local char = hrp.Parent
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1048,25 +1453,89 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	end
 
 	-- 3. Cast VFX 재생 (Assets/VFX/Cast/<itemId>_Cast)
-	if not isAuraRune then
+	if assetKey == "OVERGROWTH" then
+		-- 오버그로스 버스트: 목표 지점에 마법진이 그려지고, 그 위에서 나무 3그루가 대각선으로 솟아올라 공격
+		-- [주의] 내부적으로 task.wait를 여러 번 사용하므로, 호출부(서버 요청 등)를 막지 않도록 반드시 task.spawn으로 감싼다
+		task.spawn(playOvergrowthBurstEffect, hrp, targetCFrame, char)
+	elseif assetKey == "MAEHWA" then
+		-- 매화낙락: 캐릭터 주위로 벚꽃 잎 + 분홍 검기가 사방으로 퍼지는 광역기 (조준 방향과 무관하게 자기 중심)
+		task.spawn(playMaehwaEffect, hrp)
+	elseif not isAuraRune then
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then
 			local vfxTemplate = castVFXFolder:FindFirstChild(assetKey .. "_Cast")
 			if not vfxTemplate and assetKey == "SLASH" then
 				vfxTemplate = castVFXFolder:FindFirstChild("Default_Attack_Cast_1") or castVFXFolder:FindFirstChild("Base_Attack_Cast_1")
 			end
-			if vfxTemplate then
+			if vfxTemplate and assetKey == "SLIMESHOT" then
+				-- 슬라임샷(개편): 목표 지점 위에서 커다란 슬라임을 소환해 떨어뜨리고,
+				-- 착지하면 돌 깨지는 이펙트(SLIMESHOT_Hit)와 함께 슬라임이 사라짐
+				local aimDir = targetCFrame.LookVector
+				local flatAimDir = Vector3.new(aimDir.X, 0, aimDir.Z)
+				if flatAimDir.Magnitude < 0.01 then flatAimDir = Vector3.new(0, 0, -1) else flatAimDir = flatAimDir.Unit end
+				local dropDistance = 12 -- SkillService.lua의 SLIMESHOT hitPos 거리(12)와 동일하게 맞춤
+				local xzTarget = Vector3.new(hrp.Position.X, hrp.Position.Y, hrp.Position.Z) + flatAimDir * dropDistance
+
+				-- [수정] hrp.Position.Y(허리 높이)를 그대로 쓰면 장판/착지 지점이 실제 지면보다 떠버리므로,
+				-- 목표 지점 위에서 아래로 레이캐스트해 실제 바닥 높이를 구함
+				local groundY = hrp.Position.Y
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				rayParams.FilterDescendantsInstances = {char}
+				local rayResult = workspace:Raycast(xzTarget + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), rayParams)
+				if rayResult then
+					groundY = rayResult.Position.Y
+				end
+				local landPos = Vector3.new(xzTarget.X, groundY, xzTarget.Z)
+				local dropHeight = 22
+				local fallDuration = 1.0 -- [수정] 0.4 -> 1.0: 더 천천히 떨어지도록
+
+				local bigSlime = vfxTemplate:Clone()
+				bigSlime.Name = "SLIMESHOT_Cast"
+				for _, d in ipairs(bigSlime:GetDescendants()) do
+					if d:IsA("BasePart") then
+						d.Anchored = true
+						d.CanCollide = false
+						d.CanQuery = false
+						d.CanTouch = false
+					end
+				end
+				bigSlime:PivotTo(CFrame.new(landPos + Vector3.new(0, dropHeight, 0)))
+				bigSlime.Parent = workspace
+
+				local cfProxy = Instance.new("CFrameValue")
+				cfProxy.Value = bigSlime:GetPivot()
+				local fallConn
+				fallConn = cfProxy.Changed:Connect(function(val)
+					if bigSlime and bigSlime.Parent then
+						bigSlime:PivotTo(val)
+					end
+				end)
+				local fallTween = TweenService:Create(cfProxy, TweenInfo.new(fallDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Value = CFrame.new(landPos),
+				})
+				fallTween:Play()
+				fallTween.Completed:Once(function()
+					fallConn:Disconnect()
+					cfProxy:Destroy()
+
+					playRockSmashEffect(landPos, 9) -- 9 = SkillService.lua의 SLIMESHOT 폭발 반경과 동일
+					if bigSlime and bigSlime.Parent then
+						bigSlime:Destroy()
+					end
+				end)
+			elseif vfxTemplate then
 				local scale = 1.0
 				local moveDist = 20.0
-				
-				-- 불씨(EMBER), 물방울(DROPLET), 짙은밤(NIGHT/ROCK), 슬래시(SLASH) 동일 스케일 적용
+
+				-- 불씨(EMBER), 물방울(DROPLET), 짙은밤(NIGHT/ROCK), 슬래시(SLASH): 원거리에 즉시 착탄하는 연출이라 비행 없이 목표 지점에 바로 표시
 				if assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" or assetKey == "SLASH" then
 					scale = 2.5
 					moveDist = nil -- 투사체 비행 제외
 				end
-				
+
 				local spawned = spawnCombatVFX(vfxTemplate, targetCFrame, 2.0, hrp, scale, moveDist)
-				if spawned and (assetKey == "EMBER" or assetKey == "DROPLET" or assetKey == "NIGHT" or assetKey == "SLASH") then
+				if spawned then
 					task.delay(0.25, function()
 						if spawned and spawned.Parent then
 							for _, desc in ipairs(spawned:GetDescendants()) do
@@ -1093,6 +1562,12 @@ function AvatarController.playSkillHit(itemId: string, pos: Vector3, targetHrp: 
 	local assetKey = string.gsub(itemId, "^SKILL_", "")
 	if assetKey == "ROCK" then
 		assetKey = "NIGHT"
+	end
+
+	-- 슬라임샷은 낙하 착지 시(playSkillCast) playRockSmashEffect로 이미 터지는 연출을 전부 처리하므로
+	-- 서버 명중 확인 시 또 여기서 재생하면 같은 자리에 이펙트가 중복으로 보임 -> 여기서는 스킵
+	if assetKey == "SLIMESHOT" then
+		return
 	end
 
 	-- 1. 공용 Hit Sound 재생 (룬이든 평타든 모두 동일하게)

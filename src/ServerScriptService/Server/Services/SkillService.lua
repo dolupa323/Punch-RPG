@@ -669,8 +669,9 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
 				local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
-				local auraBaseDamage = (weaponDmg * (1 + enhanceLevel * bonusRate)) + auraDamage
-				local totalAuraDamage = auraBaseDamage * attackMult * auraTotalDamageMult
+				local weaponScaledDamage = weaponDmg * (1 + enhanceLevel * bonusRate)
+				-- [수정] auraDamage도 EMBER/DROPLET류와 동일하게 무기 데미지 대비 % 보너스로 취급 (고정값 덧셈이 약한 무기의 스케일을 묻어버리는 문제 방지)
+				local totalAuraDamage = weaponScaledDamage * (auraTotalDamageMult + auraDamage / 100) * attackMult
 				local ticksPossible = math.max(1, math.floor(auraDuration / auraTickInterval + 0.5))
 				local finalTickDamage = math.max(1, math.floor(totalAuraDamage / ticksPossible))
 				local params = OverlapParams.new()
@@ -800,7 +801,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -810,25 +811,46 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		if look.Magnitude < 0.1 then look = hrp.CFrame.LookVector end
 		
 		local vfxName = "Fireball"
-		local dmgAmount = 40
-		local skillMult = 1.5
+		-- [너프] 불씨: dmgAmount 40->30, skillMult 1.5->1.1 (총 배율 1.9 -> 1.4, 약 26% 하향)
+		local dmgAmount = 30
+		local skillMult = 1.1
 		local skillColor = Color3.fromRGB(255, 100, 50)
-		
+
 		if baseItemId == "DROPLET" then
 			vfxName = "WaterWave"
-			dmgAmount = 200
-			skillMult = 3.5
+			-- [너프] 물방울: dmgAmount 200->150, skillMult 3.5->2.6 (총 배율 5.5 -> 4.1, 약 25% 하향)
+			dmgAmount = 150
+			skillMult = 2.6
 			skillColor = Color3.fromRGB(50, 150, 255)
 		elseif baseItemId == "NIGHT" then
 			vfxName = "NightSpike"
-			dmgAmount = 80
-			skillMult = 2.0
+			-- [너프] 짙은밤: dmgAmount 80->60, skillMult 2.0->1.5 (총 배율 2.8 -> 2.1, 25% 하향)
+			dmgAmount = 60
+			skillMult = 1.5
 			skillColor = Color3.fromRGB(138, 43, 226)
 		elseif baseItemId == "SLASH" then
 			vfxName = "Default_Attack_Cast_1"
 			dmgAmount = 140
 			skillMult = 2.5
 			skillColor = Color3.fromRGB(255, 255, 255)
+		elseif baseItemId == "SLIMESHOT" then
+			-- 초반부 습득 스킬: 가장 약한 위력, 단발 폭발
+			vfxName = "SlimeShot"
+			dmgAmount = 12
+			skillMult = 0.6
+			skillColor = Color3.fromRGB(120, 220, 120)
+		elseif baseItemId == "OVERGROWTH" then
+			-- Stump/StumpKing 드롭: 나무 3그루가 솟아올라 각각 한 번씩 타격 (중간 티어 범위 스킬)
+			vfxName = "OvergrowthBurst"
+			dmgAmount = 60
+			skillMult = 1.4
+			skillColor = Color3.fromRGB(80, 200, 90)
+		elseif baseItemId == "MAEHWA" then
+			-- 사무라이 존 드롭: 자기 주변에 벚꽃/분홍 검기를 흩뿌리는 광역기
+			vfxName = "MaehwaNakrak"
+			dmgAmount = 70
+			skillMult = 1.8
+			skillColor = Color3.fromRGB(255, 140, 190)
 		end
 		
 		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
@@ -851,39 +873,45 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		
 		local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
 		
-		-- 무기 데미지 + 스킬 고유 베이스 데미지 (dmgAmount)
+		-- 무기 데미지(강화/등급 반영) 산출 - 일반공격과 동일한 비례 구조
 		local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
 		local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
-		local finalDamage = (weaponDmg * (1 + enhanceLevel * bonusRate)) + dmgAmount
-		
+		local weaponScaledDamage = weaponDmg * (1 + enhanceLevel * bonusRate)
+
+		-- [수정] dmgAmount는 더 이상 무기 데미지에 그냥 더하는 고정값이 아니라,
+		-- 무기 데미지 대비 % 보너스로 취급 -> 약한 무기를 끼면 스킬 데미지도 일반공격처럼 같이 낮아짐
+		-- (기존에는 dmgAmount(40~200)가 고정값으로 더해져서 약한 무기의 낮은 weaponDmg를 통째로 묻어버렸음)
+		local finalDamage = weaponScaledDamage * (skillMult + dmgAmount / 100)
+
 		-- 2. 스탯 보너스 및 치명타 확률/데미지 가져오기 (고정 스탯)
 		local attackMult = 1.0
 		local critChance = 0
 		local critDamageMult = 0
-		
+
 		local success, PlayerStatService = pcall(function()
 			return require(script.Parent.PlayerStatService)
 		end)
-		
+
 		if success and PlayerStatService then
 			local calc = PlayerStatService.GetCalculatedStats(player.UserId)
 			attackMult = calc.attackMult or 1.0
 			critChance = calc.critChance or 0
 			critDamageMult = calc.critDamageMult or 0
 		end
-		
-		-- 기본 스킬 데미지 (무기 데미지에 스킬 고유 배율 적용)
-		local baseSkillDamage = finalDamage * attackMult * skillMult
+
+		-- 기본 스킬 데미지 (skillMult는 이미 finalDamage에 반영됨)
+		local baseSkillDamage = finalDamage * attackMult
 		
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
-		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or 15)
-		
-		-- Damage logic (4타 멀티 히트)
+		-- 매화낙락은 자기 주변을 베는 광역기라 원거리 조준이 아니라 캐릭터 바로 앞(짧은 거리)을 중심으로 판정
+		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or 15))))
+
+		-- Damage logic (슬라임샷은 단발 폭발, 오버그로스 버스트는 나무 3그루=3타, 그 외는 4타 멀티 히트)
 		task.spawn(function()
 			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
-			local maxHits = 4
+			local maxHits = (baseItemId == "SLIMESHOT") and 1 or (baseItemId == "OVERGROWTH" and 3 or 4)
 			for hitIndex = 1, maxHits do
-				local radius = (baseItemId == "SLASH") and 20 or 15 -- 슬래시 범위 대폭 확대 (VFX 스케일 반영)
+				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or (baseItemId == "MAEHWA" and 18 or 15))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 매화낙락은 광역기라 넓은 범위
 				
 				local params = OverlapParams.new()
 				params.FilterType = Enum.RaycastFilterType.Exclude

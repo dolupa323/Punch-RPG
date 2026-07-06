@@ -2088,6 +2088,9 @@ local function handleUse(player: Player, payload: any)
 			["BOOK_SLASH"]    = "SKILL_SLASH",
 			["BOOK_DASH"]     = "SKILL_RUNE_DASH",
 			["BOOK_HEAVEN"]   = "SKILL_RUNE_HEAVEN",
+			["BOOK_SLIMESHOT"] = "SKILL_SLIMESHOT",
+			["BOOK_OVERGROWTH"] = "SKILL_OVERGROWTH",
+			["BOOK_MAEHWA"] = "SKILL_MAEHWA",
 		}
 		local skillId = BOOK_TO_SKILL[slotData.itemId]
 		local state = SaveService and SaveService.getPlayerState(userId)

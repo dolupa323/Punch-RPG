@@ -265,6 +265,7 @@ function PlayerStatService.addXP(userId: number, amount: number, source: string?
 			totalXP = stats.totalXP,
 			leveledUp = leveledUp,
 			source = source,
+			amount = amount,
 			statPointsAvailable = PlayerStatService.getStatPoints(userId),
 		})
 	end

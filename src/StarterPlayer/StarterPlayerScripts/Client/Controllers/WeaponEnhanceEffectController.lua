@@ -1,158 +1,44 @@
 -- WeaponEnhanceEffectController.lua
--- Assets/VFX/SwordAura 파티클 클론 기반, 강화 단계별 색·강도 조절
+-- Assets/VFX/Purple(Attachment+Beam+ParticleEmitter) 클론 기반, 강화 단계별 색상 조절
 
 local Players           = game:GetService("Players")
-local TweenService      = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local localPlayer = Players.LocalPlayer
 local WeaponEnhanceEffectController = {}
 
-local EFFECT_TAG   = "WEE_v3"
+local EFFECT_TAG   = "WEE_v4"
 local currentLevel = 0
-local darkThread   = nil
 
 -- ============================================================
--- SwordAura 원본
+-- Purple 이펙트 원본 (Attachment + Beam*5 + ParticleEmitter)
 -- ============================================================
-local function getSwordAura()
+local function getAuraTemplate()
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local vfx    = assets and assets:FindFirstChild("VFX")
-	return vfx and vfx:FindFirstChild("SwordAura")
+	return vfx and vfx:FindFirstChild("Purple")
 end
 
 -- ============================================================
 -- 강화 단계 티어
--- 모든 색에 화이트계열 혼합 (c2가 항상 밝은 색)
--- 네온 파트 없음 - 파티클 + PointLight + Highlight만 사용
+-- Purple 이펙트의 Color만 티어별로 교체하여 사용
 -- ============================================================
--- 단색 ColorSequence (c2 없음, 흰색 섞임 없음)
+-- 단색 ColorSequence
 local function makeSolidCS(c)
 	return ColorSequence.new(c)
 end
 
+-- 티어별 색상. 크기 배율은 강화 레벨에 따라 applyEffect에서 별도 계산
 local TIERS = {
-	-- 단색 파티클 색상, 흰색 혼합 없음
-	-- +8  금빛
-	[8] = {
-		color = Color3.fromRGB(255, 200, 40),
-		layerCount = 1,
-		rateMult = 1.0, sizeMult = 1.0, speedMult = 1.0,
-		lightColor  = Color3.fromRGB(255, 220, 100),
-		lightBright = 1.2, lightRange = 10,
-		hlFill    = Color3.fromRGB(255, 200, 60),
-		hlOutline = Color3.fromRGB(255, 250, 180),
-		hlFillT   = 0.80,
-	},
-	-- +9  청록
-	[9] = {
-		color = Color3.fromRGB(0, 210, 190),
-		layerCount = 1,
-		rateMult = 1.4, sizeMult = 1.15, speedMult = 1.1,
-		lightColor  = Color3.fromRGB(0, 220, 210),
-		lightBright = 1.6, lightRange = 12,
-		hlFill    = Color3.fromRGB(0, 200, 190),
-		hlOutline = Color3.fromRGB(180, 255, 250),
-		hlFillT   = 0.75,
-	},
-	-- +10 파랑
-	[10] = {
-		color = Color3.fromRGB(50, 110, 255),
-		layerCount = 2,
-		rateMult = 1.8, sizeMult = 1.30, speedMult = 1.2,
-		lightColor  = Color3.fromRGB(70, 130, 255),
-		lightBright = 2.0, lightRange = 14,
-		hlFill    = Color3.fromRGB(50, 110, 255),
-		hlOutline = Color3.fromRGB(190, 215, 255),
-		hlFillT   = 0.68,
-	},
-	-- +11 에메랄드
-	[11] = {
-		color = Color3.fromRGB(0, 200, 90),
-		layerCount = 2,
-		rateMult = 2.2, sizeMult = 1.50, speedMult = 1.3,
-		lightColor  = Color3.fromRGB(0, 210, 110),
-		lightBright = 2.5, lightRange = 15,
-		hlFill    = Color3.fromRGB(0, 190, 90),
-		hlOutline = Color3.fromRGB(180, 255, 210),
-		hlFillT   = 0.62,
-	},
-	-- +12 오렌지
-	[12] = {
-		color = Color3.fromRGB(255, 120, 0),
-		layerCount = 2,
-		rateMult = 2.7, sizeMult = 1.70, speedMult = 1.4,
-		lightColor  = Color3.fromRGB(255, 140, 0),
-		lightBright = 3.0, lightRange = 17,
-		hlFill    = Color3.fromRGB(255, 120, 0),
-		hlOutline = Color3.fromRGB(255, 235, 170),
-		hlFillT   = 0.55,
-	},
-	-- +13 불꽃빨강
-	[13] = {
-		color = Color3.fromRGB(255, 40, 0),
-		layerCount = 3,
-		rateMult = 3.4, sizeMult = 2.00, speedMult = 1.55,
-		lightColor  = Color3.fromRGB(255, 70, 0),
-		lightBright = 4.0, lightRange = 20,
-		hlFill    = Color3.fromRGB(255, 40, 0),
-		hlOutline = Color3.fromRGB(255, 190, 140),
-		hlFillT   = 0.45,
-	},
-	-- +14 순수백 (신성)
-	[14] = {
-		color = Color3.fromRGB(230, 245, 255),
-		layerCount = 3,
-		rateMult = 4.2, sizeMult = 2.35, speedMult = 1.75,
-		lightColor  = Color3.fromRGB(255, 255, 255),
-		lightBright = 5.0, lightRange = 24,
-		hlFill    = Color3.fromRGB(225, 240, 255),
-		hlOutline = Color3.fromRGB(255, 255, 255),
-		hlFillT   = 0.35,
-	},
-	-- +15 골드+화이트
-	[15] = {
-		color  = Color3.fromRGB(255, 220, 80),   -- 골드
-		color2 = Color3.fromRGB(255, 255, 220),  -- 화이트
-		layerCount = 4,
-		rateMult = 6.0, sizeMult = 2.80, speedMult = 2.0,
-		lightColor  = Color3.fromRGB(255, 230, 120),
-		lightBright = 1.5, lightRange = 16,
-		hlFill    = Color3.fromRGB(255, 210, 60),
-		hlOutline = Color3.fromRGB(255, 255, 200),
-		hlFillT   = 0.25,
-	},
+	[8]  = { color = Color3.fromRGB(160, 60, 220) },  -- 보라
+	[9]  = { color = Color3.fromRGB(255, 200, 40) },  -- 금빛
+	[10] = { color = Color3.fromRGB(0, 210, 190) },   -- 청록
+	[11] = { color = Color3.fromRGB(50, 110, 255) },  -- 파랑
+	[12] = { color = Color3.fromRGB(0, 200, 90) },    -- 에메랄드
+	[13] = { color = Color3.fromRGB(255, 120, 0) },   -- 오렌지
+	[14] = { color = Color3.fromRGB(255, 40, 0) },    -- 불꽃빨강
+	[15] = { color = Color3.fromRGB(255, 255, 255) }, -- 순수백 (+16~+50도 동일)
 }
-
--- +15 어둠 색상 순환 (Highlight/Light용 — 파티클과 별개)
-local DARK_CYCLE = {
-	Color3.fromRGB(8,   8,  12),
-	Color3.fromRGB(20, 10,  30),
-	Color3.fromRGB(40,  0,  60),
-	Color3.fromRGB(15, 15,  20),
-	Color3.fromRGB(50,  0,  70),
-	Color3.fromRGB(10,  8,  15),
-}
-
--- ============================================================
--- NumberSequence / NumberRange 배율
--- ============================================================
-local function scaleNS(ns, mult)
-	local kps = {}
-	for _, kp in ipairs(ns.Keypoints) do
-		table.insert(kps, NumberSequenceKeypoint.new(
-			kp.Time,
-			math.clamp(kp.Value * mult, 0, 9999),
-			math.clamp(kp.Envelope * mult, 0, 9999)
-		))
-	end
-	return NumberSequence.new(kps)
-end
-
-local function scaleNR(nr, mult)
-	return NumberRange.new(nr.Min * mult, nr.Max * mult)
-end
-
 
 -- ============================================================
 -- 기존 이펙트 제거
@@ -172,26 +58,14 @@ end
 -- ============================================================
 -- PointLight (약한 주변광, 그림자 OFF)
 -- ============================================================
-local function createLight(handle, tier)
+local function createLight(handle, tier, sizeMult)
 	local light = Instance.new("PointLight")
-	light.Brightness = tier.lightBright
-	light.Range      = tier.lightRange
-	light.Color      = tier.lightColor
+	light.Brightness = 1.5
+	light.Range      = 12 * sizeMult
+	light.Color      = tier.color
 	light.Shadows    = false
 	light:SetAttribute(EFFECT_TAG, true)
 	light.Parent = handle
-
-	local base = tier.lightBright
-	task.spawn(function()
-		while light.Parent do
-			TweenService:Create(light, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-				{ Brightness = base * 0.5 }):Play()
-			task.wait(1.0)
-			TweenService:Create(light, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-				{ Brightness = base * 1.3 }):Play()
-			task.wait(1.0)
-		end
-	end)
 	return light
 end
 
@@ -200,9 +74,9 @@ end
 -- ============================================================
 local function createHighlight(acc, tier)
 	local hl = Instance.new("Highlight")
-	hl.FillColor           = tier.hlFill
-	hl.OutlineColor        = tier.hlOutline
-	hl.FillTransparency    = tier.hlFillT
+	hl.FillColor           = tier.color
+	hl.OutlineColor        = tier.color
+	hl.FillTransparency    = 0.75
 	hl.OutlineTransparency = 0.1
 	hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
 	hl.Adornee             = acc
@@ -211,71 +85,54 @@ local function createHighlight(acc, tier)
 	return hl
 end
 
--- ============================================================
--- SwordAura 파티클 1레이어 클론
--- Color만 교체, LightEmission은 원본 유지 (검정 네모 아티팩트 방지)
--- ============================================================
-local function cloneAuraLayer(swordAura, handle, tier, layerIdx)
-	local cs
-	if tier.keepOriginalColor then
-		cs = nil
-	elseif tier.color2 then
-		-- 두 색 교차 (골드+화이트 등)
-		local c1 = tier.color
-		local c2 = tier.color2
-		cs = ColorSequence.new{
-			ColorSequenceKeypoint.new(0,    c1),
-			ColorSequenceKeypoint.new(0.40, c2),
-			ColorSequenceKeypoint.new(0.60, c1),
-			ColorSequenceKeypoint.new(1,    c2),
-		}
-	else
-		cs = makeSolidCS(tier.color)
+local function scaleNS(ns, mult)
+	local kps = {}
+	for _, kp in ipairs(ns.Keypoints) do
+		table.insert(kps, NumberSequenceKeypoint.new(
+			kp.Time,
+			math.clamp(kp.Value * mult, 0, 9999),
+			math.clamp(kp.Envelope * mult, 0, 9999)
+		))
 	end
-
-	local lSizeMult  = tier.sizeMult  * (1 + (layerIdx - 1) * 0.20)
-	local lRateMult  = tier.rateMult  * math.max(0.50, 1 - (layerIdx - 1) * 0.18)
-	local lSpeedMult = tier.speedMult * (1 + (layerIdx - 1) * 0.08)
-	local lifeMult   = 1 + (tier.rateMult - 1) * 0.10
-
-	for _, child in ipairs(swordAura:GetChildren()) do
-		if child:IsA("ParticleEmitter") then
-			local pe = child:Clone()
-
-			-- keepOriginalColor이면 Color 교체 안 함 (원본 텍스처/색 유지)
-			if not tier.keepOriginalColor then
-				pe.Color = cs
-			end
-			pe.Rate     = math.clamp(pe.Rate * lRateMult, 1, 3000)
-			pe.Size     = scaleNS(pe.Size, lSizeMult)
-			pe.Speed    = scaleNR(pe.Speed, lSpeedMult)
-			pe.Lifetime = scaleNR(pe.Lifetime, lifeMult)
-
-			pe.Name = ("AuraL%d_%s"):format(layerIdx, child.Name)
-			pe:SetAttribute(EFFECT_TAG, true)
-			pe.Parent = handle
-		end
-	end
+	return NumberSequence.new(kps)
 end
 
 -- ============================================================
--- +15 어둠 Highlight/Light 색상 순환
+-- Purple 이펙트 클론 - Attachment0/Attachment1 참조가 깨지지 않도록
+-- Part 전체를 통째로 복제한 뒤 Handle에 용접, Color만 교체
+-- sizeMult로 Attachment 배치 간격/Beam 두께/Particle 크기를 함께 확대
 -- ============================================================
-local function startDarkCycle(hl, light)
-	if darkThread then task.cancel(darkThread); darkThread = nil end
-	darkThread = task.spawn(function()
-		local idx = 1
-		while hl and hl.Parent do
-			local c  = DARK_CYCLE[idx]
-			local cn = DARK_CYCLE[(idx % #DARK_CYCLE) + 1]
-			TweenService:Create(hl,    TweenInfo.new(0.8, Enum.EasingStyle.Sine),
-				{ FillColor = c, OutlineColor = cn }):Play()
-			TweenService:Create(light, TweenInfo.new(0.8, Enum.EasingStyle.Sine),
-				{ Color = cn }):Play()
-			idx = (idx % #DARK_CYCLE) + 1
-			task.wait(0.85)
+local function cloneAuraLayer(auraTemplate, handle, tier, sizeMult)
+	local carrier = auraTemplate:Clone()
+	carrier.Anchored   = false
+	carrier.CanCollide = false
+	carrier.CanQuery   = false
+	carrier.CanTouch   = false
+	carrier.Massless   = true
+	carrier.Transparency = 1
+	-- Purple 템플릿의 빔 배열은 로컬 X축을 따라 배치돼 있고, 무기 Handle의 긴 축(날 방향)은 로컬 Z축이므로 90도 보정
+	carrier.CFrame = handle.CFrame * CFrame.Angles(0, math.rad(90), 0)
+	carrier:SetAttribute(EFFECT_TAG, true)
+	carrier.Parent = handle
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = handle
+	weld.Part1 = carrier
+	weld.Parent = carrier
+
+	local cs = makeSolidCS(tier.color)
+	for _, obj in ipairs(carrier:GetDescendants()) do
+		if obj:IsA("Attachment") then
+			obj.CFrame = obj.CFrame.Rotation + obj.CFrame.Position * sizeMult
+		elseif obj:IsA("Beam") then
+			obj.Color  = cs
+			obj.Width0 = obj.Width0 * sizeMult
+			obj.Width1 = obj.Width1 * sizeMult
+		elseif obj:IsA("ParticleEmitter") then
+			obj.Color = cs
+			obj.Size  = scaleNS(obj.Size, sizeMult)
 		end
-	end)
+	end
 end
 
 -- ============================================================
@@ -310,37 +167,35 @@ end
 -- ============================================================
 -- 이펙트 적용
 -- ============================================================
+-- 반환값: 이펙트가 (무/유 상관없이) 실제로 적용됐는지 여부.
+-- false면 무기 Accessory가 아직 캐릭터에 붙지 않은 것이므로 refresh()가 재시도해야 함
 local function applyEffect(char, level)
 	local acc = findWeaponAccessory(char)
-	if not acc then return end
+	if not acc then return false end
 	local handle = acc:FindFirstChild("Handle")
-	if not handle or not handle:IsA("BasePart") then return end
+	if not handle or not handle:IsA("BasePart") then return false end
 
 	clearEffects(handle)
-	if darkThread then task.cancel(darkThread); darkThread = nil end
 
-	if level < 8 then return end
+	if level < 8 then return true end
 	local tier = getTier(level)
-	if not tier then return end
+	if not tier then return true end
 
-	local swordAura = getSwordAura()
-	if not swordAura then
-		warn("[WeaponEnhanceEffect] Assets/VFX/SwordAura 없음")
-		return
+	local auraTemplate = getAuraTemplate()
+	if not auraTemplate then
+		warn("[WeaponEnhanceEffect] Assets/VFX/Purple 없음")
+		return false
 	end
 
-	for i = 1, tier.layerCount do
-		cloneAuraLayer(swordAura, handle, tier, i)
-	end
+	-- 강화 수치가 오를수록 이펙트 전체 크기가 완만하게 커짐 (+8: 1.0배 ~ +50: 약 2.3배)
+	local sizeMult = 1 + math.min(level - 8, 42) * 0.03
 
-	local light = createLight(handle, tier)
-	local hl    = createHighlight(acc, tier)
+	cloneAuraLayer(auraTemplate, handle, tier, sizeMult)
+	createLight(handle, tier, sizeMult)
+	createHighlight(acc, tier)
 
-	if tier.dark then
-		startDarkCycle(hl, light)
-	end
-
-	print(("[WeaponEnhanceEffect] +%d 적용 (%d레이어)"):format(level, tier.layerCount))
+	print(("[WeaponEnhanceEffect] +%d 적용"):format(level))
+	return true
 end
 
 -- ============================================================
@@ -351,8 +206,9 @@ local function refresh()
 	if not char then return end
 	local level = getHandLevel()
 	if level == currentLevel then return end
-	currentLevel = level
-	applyEffect(char, level)
+	if applyEffect(char, level) then
+		currentLevel = level
+	end
 end
 
 local function onCharAdded(char)
@@ -377,7 +233,6 @@ local function onCharAdded(char)
 		char.ChildRemoved:Connect(function(child)
 			if child:IsA("Accessory") and child:GetAttribute("IsWeaponAccessory") then
 				currentLevel = 0
-				if darkThread then task.cancel(darkThread); darkThread = nil end
 			end
 		end)
 	end)

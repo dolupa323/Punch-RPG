@@ -742,37 +742,49 @@ local function createMobModel(areaId, index, config)
 		bb.AlwaysOnTop = true
 		bb.MaxDistance = 60 -- 너무 멀리있는건 안보여서 화면 깔끔하게 유지
 
-		-- 1. 이름표 라벨 (더 얇고 작게)
+		-- 1. 이름표 라벨 (레벨 배지 + 이름, RichText로 레벨만 금색 강조)
 		local nameLabel = Instance.new("TextLabel")
 		nameLabel.Name = "NameLabel"
 		nameLabel.Size = UDim2.new(1, 0, 0, 16)
 		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = config.mobDisplayName or config.mobModelName
+		nameLabel.RichText = true
+		nameLabel.Text = string.format(
+			'<font color="rgb(255,210,90)">Lv.%d</font>  %s',
+			config.level or 1,
+			config.mobDisplayName or config.mobModelName
+		)
 		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		nameLabel.TextStrokeTransparency = 0.4
 		nameLabel.Font = Enum.Font.SourceSansBold
 		nameLabel.TextSize = 12 -- 미니멀 폰트사이즈
 		nameLabel.Parent = bb
 
-		-- 2. HP 바 컨테이너 (극도로 얇게 조정)
+		-- 2. HP 바 컨테이너 (캡슐형 라운드 + 은은한 그라디언트로 고급스럽게)
 		local hpBg = Instance.new("Frame")
 		hpBg.Name = "HPBackground"
 		hpBg.Size = UDim2.new(0.85, 0, 0, 10) -- [요청반영] 기존 15 -> 10으로 초슬림화!!
 		hpBg.Position = UDim2.new(0.5, 0, 0, 16) -- 이름 바로 밑에 밀착
 		hpBg.AnchorPoint = Vector2.new(0.5, 0)
-		hpBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-		hpBg.BackgroundTransparency = 0.2
+		hpBg.BackgroundColor3 = Color3.fromRGB(18, 18, 20)
+		hpBg.BackgroundTransparency = 0.15
 		hpBg.BorderSizePixel = 0
+		hpBg.ClipsDescendants = true
 		hpBg.Parent = bb
 
 		local bgCorner = Instance.new("UICorner")
-		bgCorner.CornerRadius = UDim.new(0, 3) -- 뚱뚱해보이지 않게 코너값 축소
+		bgCorner.CornerRadius = UDim.new(1, 0) -- 캡슐형으로 완전히 둥글게
 		bgCorner.Parent = hpBg
 
 		local bgStroke = Instance.new("UIStroke")
 		bgStroke.Thickness = 1
 		bgStroke.Color = Color3.fromRGB(0, 0, 0)
+		bgStroke.Transparency = 0.2
 		bgStroke.Parent = hpBg
+
+		local bgGradient = Instance.new("UIGradient")
+		bgGradient.Rotation = 90
+		bgGradient.Color = ColorSequence.new(Color3.fromRGB(0, 0, 0), Color3.fromRGB(38, 38, 42))
+		bgGradient.Parent = hpBg
 
 		-- 3. 실제 채워지는 게이지 (Fill)
 		local hpFill = Instance.new("Frame")
@@ -780,11 +792,30 @@ local function createMobModel(areaId, index, config)
 		hpFill.Size = UDim2.new(1, 0, 1, 0)
 		hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 80)
 		hpFill.BorderSizePixel = 0
+		hpFill.ClipsDescendants = true
+		hpFill.ZIndex = 2
 		hpFill.Parent = hpBg
 
 		local fillCorner = Instance.new("UICorner")
-		fillCorner.CornerRadius = UDim.new(0, 3)
+		fillCorner.CornerRadius = UDim.new(1, 0)
 		fillCorner.Parent = hpFill
+
+		-- 광택 효과: 게이지 위쪽 절반에 옅은 하이라이트를 얹어 유리질 느낌 부여
+		local sheen = Instance.new("Frame")
+		sheen.Name = "Sheen"
+		sheen.Size = UDim2.new(1, 0, 0.5, 0)
+		sheen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		sheen.BorderSizePixel = 0
+		sheen.ZIndex = 3
+		sheen.Parent = hpFill
+
+		local sheenGradient = Instance.new("UIGradient")
+		sheenGradient.Rotation = 90
+		sheenGradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.55),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		sheenGradient.Parent = sheen
 
 		-- 4. 게이지 안에 들어갈 HP 텍스트 숫자 (초슬림바에 맞게 아주 작게)
 		local hpLabel = Instance.new("TextLabel")
@@ -7039,7 +7070,7 @@ local function createMobModel(areaId, index, config)
 						local distToPlayer = minDist
 						local now = os.clock()
 						local attackCooldown = config.attackCooldown or 2.2
-						local JELLY_ATTACK_RANGE = 28  -- HRP가 모델 중심 기준, 거대한 몸체 반경 고려
+						local JELLY_ATTACK_RANGE = 16  -- [수정] 28 -> 16: 너무 멀리서 공격하지 않도록 축소
 
 						-- Humanoid 물리 간섭 차단 (파닥거림 방지)
 						humanoid.PlatformStand = true
@@ -7068,7 +7099,7 @@ local function createMobModel(areaId, index, config)
 						end
 
 						local yDiff = math.abs(currentPos.Y - targetPos.Y)
-						local inAttackRange = distToPlayer <= JELLY_ATTACK_RANGE and yDiff <= 12
+						local inAttackRange = distToPlayer <= JELLY_ATTACK_RANGE and yDiff <= 5 -- [수정] 12 -> 5: 플레이어 높이까지 실제로 내려와야 공격
 
 						if not inAttackRange then
 							-- 플레이어 Y 높이로 내려오면서 3D 수영 이동
@@ -7577,15 +7608,19 @@ local function createMobModel(areaId, index, config)
 			if killer and killer:IsA("Player") then
 				local xpReward = config.xpReward or 10
 				if PlayerStatService then
-					-- 기존 즉시 지급 대신 WorldDropService를 통해 물리 구체 소환
-					if WorldDropService and WorldDropService.spawnXpOrbs then
-						WorldDropService.spawnXpOrbs(deathPos, killer, xpReward, config.mobDisplayName or "Mob")
+					-- [수정] 흰 구슬을 줍는 방식 전면 폐기 -> 처치 즉시 경험치 바로 지급
+					if PlayerStatService.grantActionXP then
+						PlayerStatService.grantActionXP(killer.UserId, xpReward, {
+							source = "CREATURE_KILL",
+							actionKey = "MOB:" .. tostring(config.mobId or config.mobModelName or "Mob"),
+							disableDiminishing = true,
+						})
 					end
-					
+
 					if PlayerStatService.incrementKill then
 						PlayerStatService.incrementKill(killer.UserId, config.mobDisplayName or "Mob")
 					end
-					print(string.format("[MobSpawnService] Spawned XP Orbs (%d XP) and updated kills for %s killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
+					print(string.format("[MobSpawnService] Granted %d XP instantly and updated kills for %s killing %s", xpReward, killer.Name, config.mobDisplayName or "Mob"))
 				end
 			end
 
