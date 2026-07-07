@@ -20,6 +20,20 @@ local player = Players.LocalPlayer
 local AvatarController = {}
 local elementSelected = false
 
+-- [버그수정] 스킬 이펙트(오버그로스 나무, 빙화검무 얼음기둥 등)의 바닥 높이 감지용 레이캐스트가
+-- 시전자 캐릭터만 제외하고 있어서, 무작위로 흩뿌려지는 위치에 거대 몬스터(크라켄 등)가 서 있으면
+-- 레이가 실제 바닥이 아니라 몬스터 몸통 표면에 맞아 그 높이에 이펙트가 붕 떠버리는 문제가 있었음.
+-- workspace 최상위의 Humanoid 보유 모델(몬스터/다른 플레이어)을 전부 제외 목록에 추가해서 방지.
+local function getGroundRayExcludes(char: Instance)
+	local excludes = { char }
+	for _, c in ipairs(workspace:GetChildren()) do
+		if c ~= char and c:IsA("Model") and c:FindFirstChildOfClass("Humanoid") then
+			table.insert(excludes, c)
+		end
+	end
+	return excludes
+end
+
 -- 콤보 시스템 상태 제어용 프라이빗 변수군
 local comboIndex = 1              -- 현재 공격 콤보 단계 (1 ➡️ 2 ➡️ 3)
 local lastAttackTime = 0          -- 마지막 평타 시전 타임스탬프
@@ -1098,7 +1112,7 @@ local function playOvergrowthBurstEffect(hrp: BasePart, targetCFrame: CFrame, ch
 	local groundY = hrp.Position.Y
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
-	rayParams.FilterDescendantsInstances = {char}
+	rayParams.FilterDescendantsInstances = getGroundRayExcludes(char)
 	local rayResult = workspace:Raycast(xzTarget + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 	if rayResult then
 		groundY = rayResult.Position.Y
@@ -1162,7 +1176,7 @@ local function playOvergrowthBurstEffect(hrp: BasePart, targetCFrame: CFrame, ch
 			-- 나무가 뜨거나 파묻히므로, 각 나무가 실제로 서는 위치에서 다시 개별 레이캐스트해 보정
 			local treeRayParams = RaycastParams.new()
 			treeRayParams.FilterType = Enum.RaycastFilterType.Exclude
-			treeRayParams.FilterDescendantsInstances = { char }
+			treeRayParams.FilterDescendantsInstances = getGroundRayExcludes(char)
 			local treeRayResult = workspace:Raycast(basePos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), treeRayParams)
 			if treeRayResult then
 				basePos = Vector3.new(basePos.X, treeRayResult.Position.Y, basePos.Z)
@@ -1267,141 +1281,360 @@ local function playOvergrowthBurstEffect(hrp: BasePart, targetCFrame: CFrame, ch
 	Debris:AddItem(circleModel, 0.6)
 end
 
--- 매화낙락: 캐릭터 주위에 벚꽃 잎이 휘날리고, 분홍빛 검기(Beam)가 사방으로 뻗어나가는 광역 슬래시
+-- 매화낙락: 캐릭터 주위에 벚꽃 잎이 휘날리고, 분홍빛 검기가 사방으로 뻗어나가는 광역 슬래시
+-- [고도화] 직접 만든 Part/Beam 대신, 맵에 이미 있는 실제 에셋을 활용:
+--   - 벚꽃 잎: SamuraiZone의 "Cherry Blossom M" 나무에 쓰이는 진짜 벚꽃잎 텍스처(rbxassetid://243160943)
+--   - 검기 슬래시: SLASH_Cast에서 쓰는 진짜 참격 텍스처(rbxassetid://13805841956, Flipbook 애니메이션)
 local function playMaehwaEffect(hrp: BasePart)
 	local Debris = game:GetService("Debris")
-	local petalColor = Color3.fromRGB(255, 170, 200)
-	local slashColor = Color3.fromRGB(255, 110, 170)
+	local slashColor = Color3.fromRGB(255, 130, 190)
+
+	-- [수정] 실제 서버 판정 반경(SkillService.lua의 MAEHWA radius=18)과 정확히 맞춰서
+	-- "보이는 범위"와 "맞는 범위"가 일치하도록 함
+	local AOE_RADIUS = 18
 
 	-- 캐릭터를 따라다니는 앵커 파트 (짧은 지속시간 동안만 위치 갱신)
+	-- [수정] 꽃잎이 한 점에서 날아가 퍼지는 게 아니라 판정 범위 전체(지름 AOE_RADIUS*2)에 걸쳐
+	-- 곧바로 분포되도록, 크기가 있는 구(Sphere) 볼륨으로 만듦
 	local anchor = Instance.new("Part")
 	anchor.Name = "MaehwaAnchor"
-	anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	anchor.Size = Vector3.new(AOE_RADIUS * 2, AOE_RADIUS * 2, AOE_RADIUS * 2)
 	anchor.Transparency = 1
 	anchor.Anchored = true
 	anchor.CanCollide = false
 	anchor.CanQuery = false
 	anchor.CanTouch = false
-	anchor.CFrame = hrp.CFrame
+	-- [수정] 서버의 실제 판정 중심(SkillService.lua hitPos = hrp.Position + look*3)과 정확히 일치시킴
+	-- 기존엔 hrp.CFrame(플레이어 위치 자체)을 중심으로 그려서 판정 중심과 3스터드 어긋나 있었음
+	anchor.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 3
 	anchor.Parent = workspace
 
-	-- 1. 벚꽃 잎 파티클 (분홍/흰색, 사방으로 풍성하게 흩날림)
-	local petalAtt = Instance.new("Attachment")
-	petalAtt.Parent = anchor
+	-- 1. 벚꽃 잎 파티클 - 실제 벚꽃나무 에셋과 동일한 텍스처 사용, 판정 범위 전체에 걸쳐 훨씬 넓고 풍성하게
 	local petals = Instance.new("ParticleEmitter")
-	petals.Texture = "rbxasset://textures/particles/smoke_main.dds"
-	petals.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, petalColor),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 235, 245)),
-	})
+	petals.Texture = "rbxassetid://243160943" -- 실제 Cherry Blossom M 나무의 꽃잎 텍스처
+	petals.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)) -- 텍스처 자체에 색이 있어 흰색 통과가 자연스러움
+	-- [수정] 파트 크기(AOE_RADIUS*2)를 볼륨으로 사용해 판정 범위 전체에 즉시 분포되도록 함
+	petals.Shape = Enum.ParticleEmitterShape.Sphere
+	petals.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	petals.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
 	petals.Size = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.6),
-		NumberSequenceKeypoint.new(1, 0.15),
+		NumberSequenceKeypoint.new(0, 1.6),
+		NumberSequenceKeypoint.new(0.7, 1.3),
+		NumberSequenceKeypoint.new(1, 0.6),
 	})
 	petals.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(0, 0.05),
+		NumberSequenceKeypoint.new(0.8, 0.15),
 		NumberSequenceKeypoint.new(1, 1),
 	})
-	petals.Lifetime = NumberRange.new(0.9, 1.5)
+	petals.Lifetime = NumberRange.new(1.2, 2.0)
 	petals.Rate = 0
-	petals.Speed = NumberRange.new(8, 20)
+	petals.Speed = NumberRange.new(6, 16) -- 이미 넓게 분포되므로 추가 이동 속도는 줄임
 	petals.SpreadAngle = Vector2.new(180, 180)
-	petals.RotSpeed = NumberRange.new(-150, 150)
+	petals.RotSpeed = NumberRange.new(-200, 200)
 	petals.Rotation = NumberRange.new(0, 360)
-	petals.Acceleration = Vector3.new(0, -6, 0)
-	petals.Parent = petalAtt
-	petals:Emit(90)
+	petals.Drag = 1.5
+	petals.Acceleration = Vector3.new(0, -10, 0)
+	petals.Orientation = Enum.ParticleOrientation.FacingCamera
+	petals.Parent = anchor
+	petals:Emit(220) -- [수정] 140 -> 220: 넓어진 범위를 꽉 채우도록 증량
 
-	-- 2. 분홍 검기 (한 점에서 뻗어나가는 부채꼴이 아니라, 캐릭터 주변 넓은 공간에 흩뿌려진
-	-- 독립적인 "얇고 날카로운 선" 형태의 슬래시 자국들이 서로 다른 시점에 불규칙하게 나타남 - 레퍼런스의 대규모 난사 느낌)
-	local slashCount = 40
+	-- 2. 분홍 검기 - Assets/VFX/Slash 파트(전용 제작 에셋)를 여러 개 복제해 판정 범위(AOE_RADIUS) 안에만 흩뿌림
+	local vfxFolder = ReplicatedStorage:FindFirstChild("Assets")
+	vfxFolder = vfxFolder and vfxFolder:FindFirstChild("VFX")
+	local slashTemplate = vfxFolder and vfxFolder:FindFirstChild("Slash")
+	if not slashTemplate then
+		warn("[MaehwaEffect] Assets/VFX/Slash 파트를 찾을 수 없습니다.")
+	end
+
+	local slashCount = 56
 
 	for i = 1, slashCount do
-		-- 슬래시 중심점: 캐릭터 주변 훨씬 넓은 구형 공간 안의 무작위 위치 (한 점에서 뻗어나가지 않도록)
-		local centerTheta = math.random() * math.pi * 2
-		local centerPhi = math.acos(2 * math.random() - 1)
-		local centerDir = Vector3.new(math.sin(centerPhi) * math.cos(centerTheta), math.cos(centerPhi), math.sin(centerPhi) * math.sin(centerTheta))
-		local centerDist = math.random(8, 40) -- [수정] 3~16 -> 8~40: 훨씬 큰 규모의 광역기로
-		local slashCenter = anchor.Position + centerDir * centerDist
+		-- 슬래시 위치: 판정 범위(AOE_RADIUS) 안에서만 무작위 위치 - 판정 범위 밖에서 이펙트가 보이지 않도록
+		local posTheta = math.random() * math.pi * 2
+		local posPhi = math.acos(2 * math.random() - 1)
+		local posDir = Vector3.new(math.sin(posPhi) * math.cos(posTheta), math.cos(posPhi), math.sin(posPhi) * math.sin(posTheta))
+		local posDist = math.random(2, AOE_RADIUS) -- 실제 판정 반경과 일치
+		local slashPos = anchor.Position + posDir * posDist
 
-		-- 슬래시 방향: 중심점과 무관한 별도의 무작위 방향 (각 슬래시마다 다른 기울기)
-		local dirTheta = math.random() * math.pi * 2
-		local dirPhi = math.acos(2 * math.random() - 1)
-		local slashDir = Vector3.new(math.sin(dirPhi) * math.cos(dirTheta), math.cos(dirPhi), math.sin(dirPhi) * math.sin(dirTheta))
-		local slashLen = math.random(14, 30) -- [수정] 5~11 -> 14~30: 길고 날카로운 선
-
-		-- 각 슬래시가 완전히 무작위 시점에(0~0.7초 사이) 따로따로 나타나도록 - "순서도 불규칙"
-		local appearDelay = math.random() * 0.7
+		-- 각 슬래시가 완전히 무작위 시점에(0~0.8초 사이) 따로따로 나타나도록 - "순서도 불규칙"
+		local appearDelay = math.random() * 0.8
 
 		task.delay(appearDelay, function()
-			if not anchor.Parent then return end
+			if not anchor.Parent or not slashTemplate then return end
 
-			local p0Part = Instance.new("Part")
-			p0Part.Name = "MaehwaSlashTip"
-			p0Part.Size = Vector3.new(0.2, 0.2, 0.2)
-			p0Part.Transparency = 1
-			p0Part.Anchored = true
-			p0Part.CanCollide = false
-			p0Part.CanQuery = false
-			p0Part.CanTouch = false
-			p0Part.CFrame = CFrame.new(slashCenter - slashDir * (slashLen / 2))
-			p0Part.Parent = workspace
-			Debris:AddItem(p0Part, 1.0)
+			local slash = slashTemplate:Clone()
+			slash.Name = "MaehwaSlashMark"
+			slash.Anchored = true
+			slash.CanCollide = false
+			slash.CanQuery = false
+			slash.CanTouch = false
+			slash.CastShadow = false
+			-- 원본 파트는 Transparency=1인 투명 앵커라서 그대로 유지 (보이는 건 안의 파티클)
 
-			local p1Part = Instance.new("Part")
-			p1Part.Name = "MaehwaSlashTip"
-			p1Part.Size = Vector3.new(0.2, 0.2, 0.2)
-			p1Part.Transparency = 1
-			p1Part.Anchored = true
-			p1Part.CanCollide = false
-			p1Part.CanQuery = false
-			p1Part.CanTouch = false
-			p1Part.CFrame = CFrame.new(slashCenter + slashDir * (slashLen / 2))
-			p1Part.Parent = workspace
-			Debris:AddItem(p1Part, 1.0)
+			-- 완전히 무작위 회전 + 크기 다양화(2.0~3.6배, 더 크게)를 줘서 슬래시가 다양한 각도/크기로 찍힌 것처럼 보이게 함
+			local scale = math.random(20, 36) / 10
+			slash.CFrame = CFrame.new(slashPos)
+				* CFrame.Angles(math.random() * math.pi * 2, math.random() * math.pi * 2, math.random() * math.pi * 2)
+			slash.Parent = workspace
+			Debris:AddItem(slash, 1.5)
 
-			local att0 = Instance.new("Attachment")
-			att0.Parent = p0Part
-			local att1 = Instance.new("Attachment")
-			att1.Parent = p1Part
-
-			local beam = Instance.new("Beam")
-			beam.Attachment0 = att0
-			beam.Attachment1 = att1
-			-- [수정] 두꺼운 막대기처럼 보이지 않도록 폭을 대폭 축소 (0.08~0.16 -> 0.02~0.05), 끝으로 갈수록 더 얇아지는 칼날 형태
-			beam.Width0 = math.random(3, 5) / 100
-			beam.Width1 = math.random(1, 3) / 100
-			beam.Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-				ColorSequenceKeypoint.new(0.5, slashColor),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
-			})
-			beam.Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.05),
-				NumberSequenceKeypoint.new(1, 0.05),
-			})
-			beam.LightEmission = 1
-			beam.FaceCamera = true
-			beam.Segments = 1
-			beam.Parent = p0Part
-
-			-- [주의] Beam.Transparency는 NumberSequence라 TweenService로 직접 트윈이 안 되므로 NumberValue 프록시로 페이드
-			local fadeValue = Instance.new("NumberValue")
-			fadeValue.Value = 0.15
-			fadeValue.Changed:Connect(function(v)
-				if beam.Parent then
-					beam.Transparency = NumberSequence.new(v)
+			-- 파티클(SlashImpact1 등)을 한 번씩 발사 (색은 이미 분홍이라 그대로 사용, 크기만 키움)
+			-- [중요] 이 파티클은 Orientation = VelocityPerpendicular라서 실제 "속도" 벡터 방향을 기준으로
+			-- 슬래시 각도가 정해짐. 원본 Speed가 0.001로 사실상 0이라 파트를 아무리 랜덤 회전시켜도
+			-- 항상 같은(가로) 방향으로만 보였던 것 -- 그래서 Speed를 실질적인 값으로 줘야 파트의
+			-- 랜덤 회전(Attachment Front 방향)이 실제 슬래시 각도에 반영된다.
+			for _, desc in ipairs(slash:GetDescendants()) do
+				if desc:IsA("ParticleEmitter") then
+					local nsSeq = {}
+					for _, kp in ipairs(desc.Size.Keypoints) do
+						table.insert(nsSeq, NumberSequenceKeypoint.new(kp.Time, kp.Value * scale, kp.Envelope * scale))
+					end
+					desc.Size = NumberSequence.new(nsSeq)
+					local spd = math.random(6, 14)
+					desc.Speed = NumberRange.new(spd, spd)
+					desc.Rate = 0
+					desc:Emit(1)
 				end
-			end)
-			local fadeTween = TweenService:Create(fadeValue, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Value = 1 })
-			fadeTween:Play()
-			fadeTween.Completed:Once(function()
-				fadeValue:Destroy()
-			end)
+			end
 		end)
 	end
 
-	Debris:AddItem(anchor, 1.5)
+	Debris:AddItem(anchor, 2.2)
+end
+
+-- 빙화검무: 매화낙락과 동일한 구조(자기중심 광역기, 판정반경 18)를 얼음 테마로 재구성.
+-- 눈보라(스노우) + 서릿빛 검기(매화낙락과 같은 Slash 파트 재사용, 색만 얼음톤) + 땅에서 엇갈려 솟는 얼음 기둥.
+local function playIceBladeEffect(hrp: BasePart, char: Instance)
+	local Debris = game:GetService("Debris")
+	local iceColor = Color3.fromRGB(200, 235, 255) -- [수정] 더 연한 하늘색으로
+
+	-- [수정] 서버의 실제 판정 반경(SkillService.lua의 ICEBLADE radius=18)과 정확히 맞춤
+	local AOE_RADIUS = 18
+
+	local anchor = Instance.new("Part")
+	anchor.Name = "IceBladeAnchor"
+	anchor.Size = Vector3.new(AOE_RADIUS * 2, AOE_RADIUS * 2, AOE_RADIUS * 2)
+	anchor.Transparency = 1
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	-- 서버의 실제 판정 중심(hitPos = hrp.Position + look*8)과 정확히 일치시킴
+	-- 매화낙락(제자리 중심)과 달리, 빙화검무는 플레이어 살짝 앞에서 이펙트가 시작되도록 함
+	anchor.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
+	anchor.Parent = workspace
+
+	-- 1. 눈보라 파티클 - 판정 범위 전체에 걸쳐 흩날리는 눈송이 (텍스처 없는 기본 원형 파티클을 아주 연한 하늘색으로)
+	local snow = Instance.new("ParticleEmitter")
+	snow.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, iceColor),
+	})
+	snow.Shape = Enum.ParticleEmitterShape.Sphere
+	snow.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	snow.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+	snow.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.5),
+		NumberSequenceKeypoint.new(0.8, 0.4),
+		NumberSequenceKeypoint.new(1, 0.1),
+	})
+	snow.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(0.8, 0.25),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	snow.Lifetime = NumberRange.new(1.6, 2.8) -- [수정] 눈보라처럼 좀 더 오래 흩날리도록 연장
+	snow.Rate = 0
+	-- [수정] 눈보라 느낌으로 옆바람에 휘날리듯 속도/스프레드를 키움
+	snow.Speed = NumberRange.new(8, 20)
+	snow.SpreadAngle = Vector2.new(180, 180)
+	snow.RotSpeed = NumberRange.new(-180, 180)
+	snow.Rotation = NumberRange.new(0, 360)
+	snow.Drag = 1.2
+	snow.Acceleration = Vector3.new(0, -4, 0)
+	snow.Orientation = Enum.ParticleOrientation.FacingCamera
+	snow.Parent = anchor
+	snow:Emit(260)
+
+	-- 1-1. 옆바람에 흩날리는 눈보라 느낌을 강화하기 위해 랜덤한 수평 방향으로 추가 돌풍(윈드 버스트)을 여러 번 발사
+	task.spawn(function()
+		for i = 1, 5 do
+			if not anchor.Parent then return end
+			local windAngle = math.random() * math.pi * 2
+			local windDir = Vector3.new(math.cos(windAngle), 0.15, math.sin(windAngle))
+			snow.Acceleration = windDir * math.random(6, 14)
+			snow:Emit(40)
+			task.wait(0.15)
+		end
+	end)
+
+	-- 1-2. 아주 연한 안개/연기 - 느리고 부드럽게 소용돌이치듯 감도는 연출
+	local mist = Instance.new("ParticleEmitter")
+	mist.Color = ColorSequence.new(Color3.fromRGB(225, 245, 255))
+	mist.Shape = Enum.ParticleEmitterShape.Sphere
+	mist.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	mist.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+	mist.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 4),
+		NumberSequenceKeypoint.new(0.5, 7),
+		NumberSequenceKeypoint.new(1, 10),
+	})
+	mist.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.85), -- 아주 연하게
+		NumberSequenceKeypoint.new(0.5, 0.9),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	mist.Lifetime = NumberRange.new(2.0, 3.2)
+	mist.Rate = 0
+	mist.Speed = NumberRange.new(1, 3) -- 연기처럼 아주 느리게 퍼짐
+	mist.SpreadAngle = Vector2.new(180, 180)
+	mist.RotSpeed = NumberRange.new(-15, 15)
+	mist.Drag = 0.5
+	mist.Acceleration = Vector3.new(0, 1.5, 0) -- 연기처럼 살짝 위로 감돌아 올라감
+	mist.Orientation = Enum.ParticleOrientation.FacingCamera
+	mist.Parent = anchor
+	mist:Emit(30)
+
+	-- 2. 서릿빛 검기 - 매화낙락과 동일한 Slash 파트 재사용, 색만 얼음톤으로
+	local vfxFolder = ReplicatedStorage:FindFirstChild("Assets")
+	vfxFolder = vfxFolder and vfxFolder:FindFirstChild("VFX")
+	local slashTemplate = vfxFolder and vfxFolder:FindFirstChild("Slash")
+	if not slashTemplate then
+		warn("[IceBladeEffect] Assets/VFX/Slash 파트를 찾을 수 없습니다.")
+	end
+
+	local slashCount = 18 -- [수정] 매화낙락(56)보다 검기 개수를 훨씬 적게
+	for i = 1, slashCount do
+		local posTheta = math.random() * math.pi * 2
+		local posPhi = math.acos(2 * math.random() - 1)
+		local posDir = Vector3.new(math.sin(posPhi) * math.cos(posTheta), math.cos(posPhi), math.sin(posPhi) * math.sin(posTheta))
+		local posDist = math.random(2, AOE_RADIUS)
+		local slashPos = anchor.Position + posDir * posDist
+		local appearDelay = math.random() * 0.8
+
+		task.delay(appearDelay, function()
+			if not anchor.Parent or not slashTemplate then return end
+
+			local slash = slashTemplate:Clone()
+			slash.Name = "IceBladeSlashMark"
+			slash.Anchored = true
+			slash.CanCollide = false
+			slash.CanQuery = false
+			slash.CanTouch = false
+			slash.CastShadow = false
+
+			local scale = math.random(20, 36) / 10
+			slash.CFrame = CFrame.new(slashPos)
+				* CFrame.Angles(math.random() * math.pi * 2, math.random() * math.pi * 2, math.random() * math.pi * 2)
+			slash.Parent = workspace
+			Debris:AddItem(slash, 1.5)
+
+			for _, desc in ipairs(slash:GetDescendants()) do
+				if desc:IsA("ParticleEmitter") then
+					desc.Color = ColorSequence.new(iceColor)
+					local nsSeq = {}
+					for _, kp in ipairs(desc.Size.Keypoints) do
+						table.insert(nsSeq, NumberSequenceKeypoint.new(kp.Time, kp.Value * scale, kp.Envelope * scale))
+					end
+					desc.Size = NumberSequence.new(nsSeq)
+					local spd = math.random(6, 14)
+					desc.Speed = NumberRange.new(spd, spd)
+					desc.Rate = 0
+					desc:Emit(1)
+				end
+			end
+		end)
+	end
+
+	-- 3. 얼음 기둥 - Assets/VFX/Shockwave 메쉬파트(전용 제작 에셋)를 재사용.
+	-- 일자로 규칙적으로 나오는 게 아니라, 판정 범위 안 아무 곳에나 대각선으로 기울어진 채
+	-- 불규칙한 타이밍(파바바박)으로 여기저기서 솟아오르도록 구성.
+	local pillarTemplate = vfxFolder and vfxFolder:FindFirstChild("Shockwave")
+	if not pillarTemplate then
+		warn("[IceBladeEffect] Assets/VFX/Shockwave 파트를 찾을 수 없습니다.")
+	end
+
+	if pillarTemplate then
+		local pillarCount = 10
+		for i = 1, pillarCount do
+			-- 완전히 무작위 위치(검기와 동일한 방식으로 판정 범위 안 아무 곳이나) + 무작위 시점에 튀어나옴
+			local posTheta = math.random() * math.pi * 2
+			local posDist = math.random(2, AOE_RADIUS)
+			local offset = Vector3.new(math.cos(posTheta), 0, math.sin(posTheta)) * posDist
+			local basePos = anchor.Position + offset
+
+			-- "파바바박" 느낌: 일정 간격이 아니라 짧은 시간 안에 뭉쳐서 불규칙하게 튀어나오도록
+			local appearDelay = math.random() * 0.5
+
+			task.delay(appearDelay, function()
+				if not anchor.Parent then return end
+
+				-- 각 기둥 위치에서 개별 레이캐스트로 바닥 높이 보정 (굴곡진 지형 대응)
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				rayParams.FilterDescendantsInstances = getGroundRayExcludes(char)
+				local rayResult = workspace:Raycast(basePos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
+				if rayResult then
+					basePos = Vector3.new(basePos.X, rayResult.Position.Y, basePos.Z)
+				end
+
+				-- 대각선으로 삐딱하게 솟아오르도록 기울기 + 무작위 방위각을 줌 (일자로 반듯하게 X)
+				local yaw = math.random() * math.pi * 2
+				local leanAngle = math.rad(math.random(12, 32)) * (math.random() < 0.5 and 1 or -1)
+				local leanAxisAngle = math.random() * math.pi * 2
+				local baseCFrame = CFrame.new(basePos)
+					* CFrame.Angles(0, yaw, 0)
+					* CFrame.Angles(0, 0, leanAxisAngle) -- 기울어지는 방향을 무작위로 회전
+					* CFrame.Angles(leanAngle, 0, 0) -- 대각선 기울기
+					* CFrame.Angles(0, 0, -leanAxisAngle) -- 원래 방위로 복귀 (기울기 방향만 무작위였던 것 유지)
+
+				local scale = math.random(6, 13) / 10 -- 크기도 제각각으로
+
+				local pillar = pillarTemplate:Clone()
+				pillar.Name = "IceBladePillar"
+				pillar.Anchored = true
+				pillar.CanCollide = false
+				pillar.CanQuery = false
+				pillar.CanTouch = false
+				pillar.Parent = workspace
+				Debris:AddItem(pillar, 3.0)
+
+				local fullSize = pillarTemplate.Size * scale
+				local fullHeight = fullSize.Y
+
+				-- 아래에서 솟아오르는 느낌: Y축 크기를 0에서 실제 크기까지 빠르게 키움
+				local function poseAt(growT: number)
+					local curHeight = math.max(fullHeight * growT, 0.05)
+					pillar.Size = Vector3.new(fullSize.X, curHeight, fullSize.Z)
+					-- 메쉬 원점이 중심이라, 바닥에 발이 붙어있도록 커지는 만큼 위로 올려줌
+					pillar.CFrame = baseCFrame * CFrame.new(0, curHeight / 2, 0)
+				end
+
+				poseAt(0.02)
+
+				local growValue = Instance.new("NumberValue")
+				growValue.Value = 0.02
+				growValue.Changed:Connect(function(v)
+					if pillar.Parent then poseAt(v) end
+				end)
+				local growTween = TweenService:Create(growValue, TweenInfo.new(0.12, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Value = 1})
+				growTween:Play()
+
+				growTween.Completed:Once(function()
+					task.wait(0.45)
+					local shrinkTween = TweenService:Create(growValue, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Value = 0})
+					shrinkTween:Play()
+					shrinkTween.Completed:Once(function()
+						growValue:Destroy()
+						pillar:Destroy()
+					end)
+				end)
+			end)
+		end
+	end
+
+	Debris:AddItem(anchor, 2.2)
 end
 
 function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
@@ -1460,6 +1693,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	elseif assetKey == "MAEHWA" then
 		-- 매화낙락: 캐릭터 주위로 벚꽃 잎 + 분홍 검기가 사방으로 퍼지는 광역기 (조준 방향과 무관하게 자기 중심)
 		task.spawn(playMaehwaEffect, hrp)
+	elseif assetKey == "ICEBLADE" then
+		-- 빙화검무: 캐릭터 주위로 눈보라 + 서릿빛 검기 + 땅에서 엇갈려 솟는 얼음 기둥 (자기 중심 광역기)
+		task.spawn(playIceBladeEffect, hrp, char)
 	elseif not isAuraRune then
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then
@@ -1481,8 +1717,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 				local groundY = hrp.Position.Y
 				local rayParams = RaycastParams.new()
 				rayParams.FilterType = Enum.RaycastFilterType.Exclude
-				rayParams.FilterDescendantsInstances = {char}
-				local rayResult = workspace:Raycast(xzTarget + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), rayParams)
+				rayParams.FilterDescendantsInstances = getGroundRayExcludes(char)
+				-- [수정] 다른 스킬들과 동일하게 탐색 범위 확장 (+20~-60 -> +50~-150): 단차 큰 지형에서도 놓치지 않도록
+				local rayResult = workspace:Raycast(xzTarget + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 				if rayResult then
 					groundY = rayResult.Position.Y
 				end

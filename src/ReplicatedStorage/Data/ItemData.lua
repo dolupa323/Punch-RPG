@@ -2050,7 +2050,7 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_Ember",
 		modelName = "RuneModel",
-		cooldown = 25,
+		cooldown = 9,
 		description = "불도마뱀의 심장에서 피어난 작은 불씨. 장착 시 불속성의 힘을 다룰 수 있습니다.",
 	},
 	{
@@ -2090,7 +2090,7 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_Droplet",
 		modelName = "RuneModel",
-		cooldown = 25,
+		cooldown = 10,
 		description = "응축된 맑은 물방울. 장착 시 물속성의 힘을 다룰 수 있습니다.",
 	},
 	{
@@ -2130,7 +2130,7 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_Night",
 		modelName = "RuneModel",
-		cooldown = 25,
+		cooldown = 9,
 		description = "어둠의 기운을 머금은 짙은 밤의 결정체. 장착 시 어둠속성의 힘을 다룰 수 있습니다.",
 	},
 	{
@@ -2372,6 +2372,17 @@ local ItemData = {
 		runeType = "ACTIVE",
 	},
 	{
+		id = "BOOK_ICEBLADE",
+		name = "스킬북: 빙화검무",
+		type = "SKILL_BOOK",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.5,
+		description = "사용 시 '빙화검무' 스킬을 영구적으로 습득할 수 있는 신비로운 책입니다.",
+		iconName = "Icon_SkillBook",
+		runeType = "ACTIVE",
+	},
+	{
 		id = "COIN",
 		name = "코인",
 		type = "MATERIAL",
@@ -2393,7 +2404,7 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_Slash",
 		modelName = "RuneModel",
-		cooldown = 25,
+		cooldown = 8,
 		description = "검기를 크고 빠르게 전방으로 발사하여 적을 베어버립니다.",
 	},
 	{
@@ -2423,7 +2434,7 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_OvergrowthBurst",
 		modelName = "RuneModel",
-		cooldown = 15,
+		cooldown = 9,
 		description = "지면에 마법진을 그려 나무 3그루를 대각선으로 솟아오르게 해 범위 안의 적을 공격합니다.",
 	},
 	{
@@ -2438,8 +2449,23 @@ local ItemData = {
 		slot = "RUNE",
 		iconName = "Icon_Skill_MaehwaNakrak",
 		modelName = "RuneModel",
-		cooldown = 20,
+		cooldown = 10,
 		description = "벚꽃 잎이 휘날리는 가운데 분홍빛 검기를 사방으로 흩뿌려 주위의 적을 베어버리는 광역기입니다.",
+	},
+	{
+		id = "ICEBLADE",
+		name = "빙화검무",
+		type = "RUNE",
+		runeType = "ACTIVE",
+		element = "Water",
+		rarity = "RARE",
+		maxStack = 1,
+		weight = 0.1,
+		slot = "RUNE",
+		iconName = "Icon_Skill_IceBlade",
+		modelName = "RuneModel",
+		cooldown = 10,
+		description = "얼음 기운에 휩싸여 새하얀 눈이 휘날리는 가운데 서릿빛 검기를 사방으로 흩뿌리고, 땅 아래에서 얼음 기둥이 엇갈려 솟아오르는 광역기입니다.",
 	},
 }
 

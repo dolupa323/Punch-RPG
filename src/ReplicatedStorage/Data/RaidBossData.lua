@@ -27,6 +27,19 @@ local RaidBossData = {
 		}),
 		underfillColor = Color3.fromRGB(25, 75, 160) -- 네이비 데미지 잔상
 	},
+
+	["Kraken"] = {
+		mobModelName = "Kraken",
+		displayName = "크라켄",
+		segments = 20,
+		themeColor = Color3.fromRGB(120, 90, 200), -- 짙은 심해 자주색 테마 (모델 맨틀 색과 통일)
+		hpGradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 130, 230)), -- 밝은 보라
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 200, 190)), -- 생체발광 청록
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 30, 70)) -- 짙은 남보라
+		}),
+		underfillColor = Color3.fromRGB(35, 25, 55) -- 어두운 자주 데미지 잔상
+	},
 }
 
 return RaidBossData

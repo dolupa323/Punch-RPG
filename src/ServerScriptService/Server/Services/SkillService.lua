@@ -801,7 +801,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" or baseItemId == "ICEBLADE" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -810,47 +810,63 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		local look = Vector3.new(dir.x, dir.y, dir.z)
 		if look.Magnitude < 0.1 then look = hrp.CFrame.LookVector end
 		
+		-- [쿨타임 조율] 모든 스킬 쿨타임을 평균 8~10초로 대폭 단축하는 대신,
+		-- 쿨타임이 줄어든 비율만큼 1회 캐스트당 데미지를 낮춰 초당 데미지(DPS)는 기존과 동일하게 유지.
+		-- (예: 쿨타임이 25s->9s로 64% 감소했으면 캐스트당 데미지도 동일 비율로 낮춤)
 		local vfxName = "Fireball"
-		-- [너프] 불씨: dmgAmount 40->30, skillMult 1.5->1.1 (총 배율 1.9 -> 1.4, 약 26% 하향)
-		local dmgAmount = 30
-		local skillMult = 1.1
+		-- EMBER: 쿨타임 25->9 (배율 0.36), 총배율 1.4 -> 0.51
+		local dmgAmount = 11
+		local skillMult = 0.40
 		local skillColor = Color3.fromRGB(255, 100, 50)
 
 		if baseItemId == "DROPLET" then
 			vfxName = "WaterWave"
-			-- [너프] 물방울: dmgAmount 200->150, skillMult 3.5->2.6 (총 배율 5.5 -> 4.1, 약 25% 하향)
-			dmgAmount = 150
-			skillMult = 2.6
+			-- [너프] 불씨(EMBER, DPS지표 0.227) 수준으로 하향: 총배율 1.64 -> 0.57 (DPS지표 0.64 -> 0.228)
+			dmgAmount = 17
+			skillMult = 0.40
 			skillColor = Color3.fromRGB(50, 150, 255)
 		elseif baseItemId == "NIGHT" then
 			vfxName = "NightSpike"
-			-- [너프] 짙은밤: dmgAmount 80->60, skillMult 2.0->1.5 (총 배율 2.8 -> 2.1, 25% 하향)
-			dmgAmount = 60
-			skillMult = 1.5
+			-- NIGHT: 쿨타임 25->9 (배율 0.36), 총배율 2.1 -> 0.76
+			dmgAmount = 22
+			skillMult = 0.54
 			skillColor = Color3.fromRGB(138, 43, 226)
 		elseif baseItemId == "SLASH" then
 			vfxName = "Default_Attack_Cast_1"
-			dmgAmount = 140
-			skillMult = 2.5
+			-- SLASH: 쿨타임 25->8 (배율 0.32), 총배율 3.9 -> 1.25
+			dmgAmount = 45
+			skillMult = 0.80
 			skillColor = Color3.fromRGB(255, 255, 255)
 		elseif baseItemId == "SLIMESHOT" then
-			-- 초반부 습득 스킬: 가장 약한 위력, 단발 폭발
+			-- 초반부 습득 스킬: 가장 약한 위력, 단발 폭발. 쿨타임 이미 8초라 변경 없음
 			vfxName = "SlimeShot"
 			dmgAmount = 12
 			skillMult = 0.6
 			skillColor = Color3.fromRGB(120, 220, 120)
 		elseif baseItemId == "OVERGROWTH" then
 			-- Stump/StumpKing 드롭: 나무 3그루가 솟아올라 각각 한 번씩 타격 (중간 티어 범위 스킬)
+			-- [너프] 짙은밤(NIGHT, DPS지표 0.338)보다 약하도록 재조정: 총배율 1.2 -> 0.9 (DPS지표 0.4 -> 0.3)
 			vfxName = "OvergrowthBurst"
-			dmgAmount = 60
-			skillMult = 1.4
+			dmgAmount = 25
+			skillMult = 0.65
 			skillColor = Color3.fromRGB(80, 200, 90)
 		elseif baseItemId == "MAEHWA" then
 			-- 사무라이 존 드롭: 자기 주변에 벚꽃/분홍 검기를 흩뿌리는 광역기
+			-- [타수 분할] 기존 4타 -> 8타로 늘려 좀 더 잘게 여러 번 베이는 느낌으로 변경.
+			-- [쿨타임 조율] 20 -> 10 (배율 0.5)
+			-- 기존 DPS = (4타 * 2.5) / 20s = 0.5/s
+			-- 신규 DPS = (8타 * perHitMult) / 10s = 0.5/s  =>  perHitMult = 0.625 (기존 대비 타수 2배, 쿨 2배 단축분 반영)
 			vfxName = "MaehwaNakrak"
-			dmgAmount = 70
-			skillMult = 1.8
+			dmgAmount = 12
+			skillMult = 0.50
 			skillColor = Color3.fromRGB(255, 140, 190)
+		elseif baseItemId == "ICEBLADE" then
+			-- IceKnight/IceDragon 드롭: 얼음 기운에 휩싸여 눈보라 속 서릿빛 검기를 흩뿌리고
+			-- 얼음 기둥이 땅에서 엇갈려 솟아오르는 광역기. 매화낙락과 동일한 DPS 지표(0.496)로 설정.
+			vfxName = "IceBlade"
+			dmgAmount = 12
+			skillMult = 0.50
+			skillColor = Color3.fromRGB(150, 220, 255)
 		end
 		
 		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
@@ -904,14 +920,18 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
 		-- 매화낙락은 자기 주변을 베는 광역기라 원거리 조준이 아니라 캐릭터 바로 앞(짧은 거리)을 중심으로 판정
-		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or 15))))
+		-- 빙화검무는 매화낙락보다 살짝 더 앞쪽(8)에서 판정 중심이 형성되도록 함 (제자리 중심이 아니라 약간 전방)
+		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or (baseItemId == "ICEBLADE" and 8 or 15)))))
 
 		-- Damage logic (슬라임샷은 단발 폭발, 오버그로스 버스트는 나무 3그루=3타, 그 외는 4타 멀티 히트)
 		task.spawn(function()
 			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
-			local maxHits = (baseItemId == "SLIMESHOT") and 1 or (baseItemId == "OVERGROWTH" and 3 or 4)
+			local maxHits = (baseItemId == "SLIMESHOT") and 1 or (baseItemId == "OVERGROWTH" and 3 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 8 or 4))
+			-- [디버그] 실제 명중 타수/캐스트당 총 데미지를 정확히 추적하기 위한 집계용 변수
+			local debugHitCount = 0
+			local debugTotalDamage = 0
 			for hitIndex = 1, maxHits do
-				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or (baseItemId == "MAEHWA" and 18 or 15))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 매화낙락은 광역기라 넓은 범위
+				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 18 or 15))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 매화낙락/빙화검무는 광역기라 넓은 범위
 				
 				local params = OverlapParams.new()
 				params.FilterType = Enum.RaycastFilterType.Exclude
@@ -980,10 +1000,12 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							finalDamageCalculated = math.max(1, math.floor(finalDamageCalculated + 0.5))
 
 							hum:TakeDamage(finalDamageCalculated)
-							
+
 							-- Sync damage for logging and client effects
 							finalHitDmg = finalDamageCalculated
-							print(string.format("[SkillService] %s hit %d/4: %s | Dmg: %d | Crit: %s", vfxName, hitIndex, model.Name, finalHitDmg, tostring(hitCrit)))
+							debugHitCount += 1
+							debugTotalDamage += finalDamageCalculated
+							print(string.format("[SkillService] %s hit %d/%d: %s | Dmg: %d | Crit: %s | 누적: %d타 / %d dmg", vfxName, hitIndex, maxHits, model.Name, finalHitDmg, tostring(hitCrit), debugHitCount, debugTotalDamage))
 							
 							-- 방금 일격으로 죽었을 때만 경험치 1회 지급 (시체 타격 중복 지급 방지)
 							if wasAlive and hum.Health <= 0 then
@@ -1045,7 +1067,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 				task.wait(0.15) -- 0.15초 간격으로 총 4번 타격
 			end
 			
-			print(string.format("[SkillService] %s exploded at %s", vfxName, tostring(hitPos)))
+			print(string.format("[SkillService] %s CAST 종료 - 실제 명중: %d/%d타 | 캐스트 총 데미지: %d", vfxName, debugHitCount, maxHits, debugTotalDamage))
 		end)
 	end
 end

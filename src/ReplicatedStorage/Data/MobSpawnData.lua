@@ -293,6 +293,29 @@ local MobSpawnData = {
 		}
 	},
 
+	["DeepAbyss_Kraken"] = {
+		spawnAreaId = "DeepAbyss_Kraken",
+		level = 50, -- 현재 만렙이 50이라 레벨 상한에 맞춤
+		mobModelName = "Kraken",
+		dropTableId = "KRAKEN",
+		mobDisplayName = "크라켄",
+		maxHealth = 150000,
+		baseDamage = 220,
+		attackCooldown = 2.5,   -- 패턴 미정 상태의 임시값 (추후 패턴 추가 시 조정)
+		respawnDelay = 90.0,    -- 처치 후 1분 30초 뒤 리스폰
+		-- [자체 제작 모델] Parts로 직접 제작(맨틀+촉수 8개, Motor6D 체인)한 실제 크기라 modelScale 불필요
+		-- 촉수 8개가 넓게 퍼진 형태라 HRP 기준 판정 반경이 어긋날 수 있어 바운딩 박스 기반 히트박스 사용
+		hitboxScaleFromBounds = {x = 1.0, y = 1.0, z = 1.0},
+		walkSpeed = 6,          -- 거대한 심해 크라켄이라 느릿느릿하게 이동
+		xpReward = 15000,
+
+		spawnAsPolygon = false, -- 보스는 무작위 스폰이 아닌 보스방 정중앙 고정 스폰
+		spawnCount = 1,
+		isIndoor = true,        -- 실내(천장 있음) 환경
+		skipTerrainScan = true, -- RaidArena 바닥 높이(Y=68)에 정확히 안착시키기 위해 exactSpawnPosition을 그대로 사용
+		exactSpawnPosition = {x = 798.4, y = 100, z = 197.6}, -- 촉수가 아래로 길게 늘어지므로 여유있게 높은 위치에서 시작 (자동 HipHeight 보정이 바닥에 맞춰줌)
+	},
+
 	["GhostKnightZone"] = {
 		spawnAreaId = "GhostKnightZone",
 		level = 58,
@@ -514,7 +537,7 @@ local MobSpawnData = {
 
 	["JellyfishZone"] = {
 		spawnAreaId   = "JellyfishZone",
-		level         = 67,
+		level         = 50, -- 현재 만렙이 50이라 레벨 상한에 맞춤
 		mobModelName  = "Jellyfish",
 		mobDisplayName = "젤리피쉬",
 		maxHealth     = 22000,

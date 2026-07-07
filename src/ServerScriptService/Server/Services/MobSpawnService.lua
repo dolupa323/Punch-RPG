@@ -121,6 +121,17 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 	print(string.format("[MobSpawnService] Processing loot drop for '%s' at %s. Table entries: %d", mobName, tostring(pos), #dropTable))
 
 	for i, entry in ipairs(dropTable) do
+		-- [중복 방지] 이미 배운 패시브 스킬의 스킬북은 드롭되지 않도록 제외
+		-- (예: "하늘의 자격"(SKILL_RUNE_HEAVEN)을 이미 장착/습득한 플레이어에게는 BOOK_HEAVEN이 드롭되지 않음)
+		if entry.itemId == "BOOK_HEAVEN" and killerPlayer then
+			local ok, SkillService = pcall(function()
+				return require(Services:WaitForChild("SkillService"))
+			end)
+			if ok and SkillService and SkillService.isSkillUnlocked(killerPlayer.UserId, "SKILL_RUNE_HEAVEN") then
+				continue
+			end
+		end
+
 		local roll = math.random()
 		local chance = entry.chance or 1.0
 		local dropMultiplier = 1
@@ -638,15 +649,22 @@ local function createMobModel(areaId, index, config)
 				combatHitbox.CanTouch = false
 				combatHitbox.CanQuery = true
 				combatHitbox.Massless = true
+				combatHitbox.Size = hitboxSize
+				combatHitbox.CFrame = hrp.CFrame
 				combatHitbox.Parent = model
 
+				-- [버그수정] WeldConstraint는 Part0/Part1이 모두 지정되는 순간의 상대 위치를 그대로 고정한다.
+				-- 파트가 원점(0,0,0)에 있을 때 먼저 웰드를 걸면 그 잘못된 상대위치가 영구히 박혀버려서,
+				-- 이후 CFrame을 hrp 위치로 옮겨도 웰드가 매 프레임 원래(잘못된) 상대위치로 되돌려버림.
+				-- 반드시 위치/크기를 먼저 맞춘 뒤에 웰드를 걸어야 함.
 				local weld = Instance.new("WeldConstraint")
 				weld.Part0 = hrp
 				weld.Part1 = combatHitbox
 				weld.Parent = combatHitbox
+			else
+				combatHitbox.Size = hitboxSize
+				combatHitbox.CFrame = hrp.CFrame
 			end
-			combatHitbox.Size = hitboxSize
-			combatHitbox.CFrame = hrp.CFrame
 			model:SetAttribute("HitboxRadius", math.max(hitboxSize.X, hitboxSize.Z) * 0.5)
 			model:SetAttribute("HitboxHeight", hitboxSize.Y)
 		else
@@ -989,8 +1007,9 @@ local function createMobModel(areaId, index, config)
 			local lastWhirlwindTick = 0
 			local lastGimmickTick = 0
 			local lastSwordDropTick = 0 -- 유령기사 패턴 3(검 낙하)용
+			local lastCheckerboardTick = 0 -- 크라켄 전용 체스판 물기둥 광역기 쿨타임
 			local currentGimmickMode = 1
-			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian")
+			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken")
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
 
 			-- [푸른불꽃 기사 전용 Phase 2 스태틱 변수군]
@@ -999,8 +1018,70 @@ local function createMobModel(areaId, index, config)
 
 			-- [반응속도 및 감지혁신]: 스텀프/박쥐의 유저 인식 반경 상승, FSM 주기를 단축하여 극적인 초고속 즉시 타격 실현!
 			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or ((config.mobModelName == "Jellyfish") and 90 or (isBoss and 40 or 30)))
-			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or ((config.mobModelName == "Jellyfish") and 18 or 6))
+			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or ((config.mobModelName == "Jellyfish") and 18 or ((config.mobModelName == "Kraken") and 42 or 6)))
 			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or ((config.mobModelName == "Jellyfish") and 0.15 or (isBoss and 0.15 or 0.2)))
+
+			-- [크라켄 전용] 절차적(Procedural) 촉수 애니메이션 - Motor6D 체인으로 만든 촉수 8개를
+			-- 매 프레임 C0 회전을 갱신해서 물결처럼 흐느적거리게 함 (이동 중엔 더 크게, 정지 중엔 은은하게)
+			-- [공격 패턴 연동] tentacleJoints/krakenAttackOverride는 아래쪽 공격 FSM에서도 공유해서 사용하므로
+			-- task.spawn 바깥(코루틴 상위 스코프)에 선언해 접근 가능하게 함
+			local tentacleJoints = {}
+			local krakenAttackOverride = {}
+			if config.mobModelName == "Kraken" then
+				local tentaclesFolder = model:FindFirstChild("Tentacles")
+				if tentaclesFolder then
+					-- Part1(자식 파츠) 기준으로 Motor6D를 빠르게 찾기 위한 조회 테이블 구성
+					local jointByChild = {}
+					for _, d in ipairs(model:GetDescendants()) do
+						if d:IsA("Motor6D") then
+							jointByChild[d.Part1] = d
+						end
+					end
+
+					-- 촉수별로 [세그먼트 조인트, 원래 C0(휴식 자세)] 목록을 미리 수집
+					for _, tentacleFolder in ipairs(tentaclesFolder:GetChildren()) do
+						local joints = {}
+						for si = 1, 5 do
+							local seg = tentacleFolder:FindFirstChild("Seg" .. si)
+							local joint = seg and jointByChild[seg]
+							if joint then
+								table.insert(joints, { motor = joint, restC0 = joint.C0 })
+							end
+						end
+						if #joints > 0 then
+							table.insert(tentacleJoints, joints)
+						end
+					end
+				end
+
+				task.spawn(function()
+					local t = 0
+					local lastPos = hrp.Position
+					while model.Parent and humanoid.Health > 0 do
+						local dt = task.wait(1 / 20)
+						t += dt
+						local curPos = hrp.Position
+						local horizontalDelta = Vector3.new(curPos.X - lastPos.X, 0, curPos.Z - lastPos.Z).Magnitude
+						local isMoving = (horizontalDelta / dt) > 0.5
+						lastPos = curPos
+
+						local amplitude = isMoving and 0.22 or 0.08
+						local speed = isMoving and 3.2 or 1.1
+
+						for ti, joints in ipairs(tentacleJoints) do
+							if not krakenAttackOverride[ti] then
+								local tentaclePhase = ti * 0.9 -- 촉수마다 위상을 어긋나게 해서 제각각 흐느적이도록
+								for si, jointData in ipairs(joints) do
+									local segPhase = si * 0.6 -- 마디마다 위상을 지연시켜 파도처럼 전달되는 움직임 연출
+									local wave = math.sin(t * speed - segPhase - tentaclePhase) * amplitude
+									local sway = math.cos(t * speed * 0.6 - segPhase - tentaclePhase) * amplitude * 0.5
+									jointData.motor.C0 = jointData.restC0 * CFrame.Angles(wave, 0, sway)
+								end
+							end
+						end
+					end
+				end)
+			end
 
 			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
 			local function playRockSmashEffect(pos, radius)
@@ -1094,6 +1175,346 @@ local function createMobModel(areaId, index, config)
 					Transparency = 1
 				}):Play()
 				game:GetService("Debris"):AddItem(shockwave, 0.5)
+			end
+
+			-- [크라켄 전용] 다리 내려찍기 충돌 이펙트 - playRockSmashEffect와 달리 원형 크레이터/충격파를
+			-- 전혀 쓰지 않고, 경고 장판과 동일한 직사각형 영역 전체에 걸쳐 파편/흙먼지가 흩뿌려지도록 함
+			local function playKrakenRectSmashEffect(centerPos: Vector3, flatDir: Vector3, rectW: number, rectL: number)
+				local ts = game:GetService("TweenService")
+				local rightDir = Vector3.new(-flatDir.Z, 0, flatDir.X)
+
+				-- 직사각형 영역 전체(전방 0~rectL, 좌우 ±rectW/2)에 걸쳐 무작위로 파편을 흩뿌림 (원형 X)
+				for _ = 1, 18 do
+					local alongT = math.random()
+					local acrossT = (math.random() - 0.5)
+					local pos = centerPos + flatDir * (alongT * rectL) + rightDir * (acrossT * rectW)
+					local rock = Instance.new("Part")
+					rock.Name = "KrakenRockDebris"
+					rock.Size = Vector3.new(math.random(2, 4), math.random(2, 4), math.random(2, 4))
+					rock.Position = pos + Vector3.new(0, 2, 0)
+					rock.Material = Enum.Material.Slate
+					rock.Color = Color3.fromRGB(100, 100, 100)
+					rock.CanCollide = false
+					rock.Anchored = false
+					rock.Parent = workspace
+
+					local angle = math.random() * math.pi * 2
+					local speed = math.random(30, 70)
+					rock.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(40, 90), math.sin(angle) * speed)
+					rock.AssemblyAngularVelocity = Vector3.new(math.random(-20, 20), math.random(-20, 20), math.random(-20, 20))
+
+					ts:Create(rock, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 1.2), { Transparency = 1 }):Play()
+					game:GetService("Debris"):AddItem(rock, 3.0)
+				end
+
+				-- 직사각형 영역을 따라 흙먼지를 여러 지점에 분산 배치 (한 점에서 퍼지는 원형 연기 X)
+				for i = 1, 4 do
+					local t = (i - 0.5) / 4
+					local pos = centerPos + flatDir * (t * rectL)
+					local smokePart = Instance.new("Part")
+					smokePart.Name = "KrakenSmashSmoke"
+					smokePart.Size = Vector3.new(1, 1, 1)
+					smokePart.Position = pos
+					smokePart.Anchored = true
+					smokePart.CanCollide = false
+					smokePart.Transparency = 1
+					smokePart.Parent = workspace
+					local smoke = Instance.new("Smoke")
+					smoke.Color = Color3.fromRGB(120, 110, 100)
+					smoke.Size = rectW * 0.35
+					smoke.Opacity = 0.45
+					smoke.RiseVelocity = 12
+					smoke.Parent = smokePart
+					game:GetService("Debris"):AddItem(smokePart, 3)
+					task.delay(0.4, function()
+						if smoke then smoke.Enabled = false end
+					end)
+				end
+			end
+
+			-- [크라켄 전용] 체스판 물기둥 광역기 - 몸 주변을 체스판처럼 칸으로 나눠 생존/사망 구역을
+			-- 표시하고, 잠시 후 사망 구역에서 물줄기가 솟아올라 그 안에 있으면 피해를 입음
+			local function playKrakenCheckerboardAttack(mob, targetChar)
+				local centerHrp = mob:FindFirstChild("HumanoidRootPart")
+				if not centerHrp then return end
+				local center = centerHrp.Position
+
+				-- [수정] 거의 전역 범위로 대폭 확대 (10x10칸, 칸당 16스터드 = 총 160x160스터드)
+				local gridSize = 10
+				local cellSize = 16
+				local halfSpan = (gridSize * cellSize) / 2
+
+				-- [버그수정] 격자 범위(160x160)가 레이드룸 크기와 거의 같아서, 크라켄의 현재 위치를
+				-- 그대로 중심으로 쓰면 격자가 방 벽 밖으로 튀어나가버림 -> 레이드룸(RaidArena) 경계
+				-- 안에 격자 전체가 들어오도록 중심 좌표를 방 범위 안으로 고정(clamp)함
+				local ARENA_X_MIN, ARENA_X_MAX = 663.4, 833.4
+				local ARENA_Z_MIN, ARENA_Z_MAX = 117.6, 277.6
+				local clampedX = math.clamp(center.X, ARENA_X_MIN + halfSpan, ARENA_X_MAX - halfSpan)
+				local clampedZ = math.clamp(center.Z, ARENA_Z_MIN + halfSpan, ARENA_Z_MAX - halfSpan)
+				-- 방 폭(160)이 격자 폭(160)과 거의 같아 clamp 여유가 없을 수 있으므로, 그 경우 방 중앙으로 고정
+				if ARENA_X_MIN + halfSpan > ARENA_X_MAX - halfSpan then
+					clampedX = (ARENA_X_MIN + ARENA_X_MAX) / 2
+				end
+				if ARENA_Z_MIN + halfSpan > ARENA_Z_MAX - halfSpan then
+					clampedZ = (ARENA_Z_MIN + ARENA_Z_MAX) / 2
+				end
+				center = Vector3.new(clampedX, center.Y, clampedZ)
+
+				local telegraphDuration = 1.8
+
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				rayParams.FilterDescendantsInstances = { mob }
+				local rayResult = workspace:Raycast(center + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), rayParams)
+				local floorY = rayResult and rayResult.Position.Y or (center.Y - 20)
+
+				local tilesFolder = Instance.new("Folder")
+				tilesFolder.Name = "KrakenCheckerboard"
+				tilesFolder.Parent = workspace
+
+				-- [수정] 규칙적인 체스판(i+j 짝/홀) 무늬가 아니라 칸마다 완전히 독립적인 난수로 사망/생존을 결정.
+				-- 사망 구역만 4칸이 붙어있거나 뭉치는 등 완전히 불규칙한 배치가 나올 수 있음.
+				-- 색상은 항상 고정: 빨강=사망, 파랑=생존 (어느 색이 사망인지는 절대 무작위로 바뀌지 않음)
+				local deathCells = {}
+				local cellRecords = {}
+				for i = 0, gridSize - 1 do
+					for j = 0, gridSize - 1 do
+						local isDeath = math.random() < 0.5
+						table.insert(cellRecords, { i = i, j = j, isDeath = isDeath })
+					end
+				end
+				-- 극히 드문 경우(전부 생존)를 대비해 최소 1칸은 사망 구역으로 강제 보장
+				local hasDeath = false
+				for _, rec in ipairs(cellRecords) do
+					if rec.isDeath then hasDeath = true break end
+				end
+				if not hasDeath then
+					cellRecords[math.random(1, #cellRecords)].isDeath = true
+				end
+
+				for _, rec in ipairs(cellRecords) do
+					local cellCenterX = center.X - halfSpan + cellSize * (rec.i + 0.5)
+					local cellCenterZ = center.Z - halfSpan + cellSize * (rec.j + 0.5)
+
+					local tile = Instance.new("Part")
+					tile.Name = rec.isDeath and "DeathTile" or "SafeTile"
+					tile.Size = Vector3.new(cellSize - 0.4, 0.3, cellSize - 0.4)
+					tile.CFrame = CFrame.new(cellCenterX, floorY + 0.2, cellCenterZ)
+					tile.Anchored = true
+					tile.CanCollide = false
+					tile.CanTouch = false
+					tile.CanQuery = false
+					tile.CastShadow = false
+					tile.Material = Enum.Material.Neon
+					tile.Color = rec.isDeath and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(60, 200, 255)
+					tile.Transparency = rec.isDeath and 0.55 or 0.75
+					tile.Parent = tilesFolder
+
+					if rec.isDeath then
+						table.insert(deathCells, { x = cellCenterX, z = cellCenterZ, part = tile })
+					end
+				end
+
+				-- 사망 구역만 깜빡여서 위험을 알림
+				task.spawn(function()
+					local elapsed = 0
+					while elapsed < telegraphDuration and tilesFolder.Parent do
+						for _, cell in ipairs(deathCells) do
+							if cell.part.Parent then cell.part.Transparency = 0.25 end
+						end
+						task.wait(0.2)
+						elapsed += 0.2
+						for _, cell in ipairs(deathCells) do
+							if cell.part.Parent then cell.part.Transparency = 0.65 end
+						end
+						task.wait(0.2)
+						elapsed += 0.2
+					end
+				end)
+
+				task.wait(telegraphDuration)
+
+				-- 안전 구역 타일 제거, 사망 구역에서 물줄기 솟아오름
+				for _, d in ipairs(tilesFolder:GetChildren()) do
+					if d.Name == "SafeTile" then
+						d:Destroy()
+					end
+				end
+
+				local ts = game:GetService("TweenService")
+				-- 실제 게임에서 쓰는 물 텍스처 재사용 (DROPLET_Hit / RUNE_WAVE_ACTIVE_Aura)
+				local WATER_TEX_1 = "rbxassetid://15990457929" -- WAVE_Aura Water1 (넓게 퍼지는 물결)
+				local WATER_TEX_2 = "rbxassetid://15081467386" -- DROPLET_Hit Water Slash 2 (튀는 물보라)
+
+				for _, cell in ipairs(deathCells) do
+					task.spawn(function()
+						if cell.part.Parent then cell.part:Destroy() end
+
+						local spoutHeight = 26
+						local spout = Instance.new("Part")
+						spout.Name = "KrakenWaterSpout"
+						spout.Shape = Enum.PartType.Cylinder
+						spout.Material = Enum.Material.Glass
+						spout.Color = Color3.fromRGB(100, 180, 235)
+						spout.Transparency = 0.35
+						spout.Anchored = true
+						spout.CanCollide = false
+						spout.CanTouch = false
+						spout.CanQuery = false
+						spout.CastShadow = false
+						spout.Size = Vector3.new(0.1, cellSize * 0.55, cellSize * 0.55)
+						spout.CFrame = CFrame.new(cell.x, floorY, cell.z) * CFrame.Angles(0, 0, math.rad(90))
+						spout.Parent = workspace
+
+						-- 기둥 내부에서 계속 위로 솟구치는 물살 (파트에 직접 부착 - 파트가 커지는 동안 계속 중심에서 뿜어져 나옴)
+						local risePe = Instance.new("ParticleEmitter")
+						risePe.Texture = WATER_TEX_1
+						risePe.Color = ColorSequence.new(Color3.fromRGB(150, 210, 255))
+						risePe.Size = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, cellSize * 0.5),
+							NumberSequenceKeypoint.new(1, cellSize * 0.3),
+						})
+						risePe.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 0.2),
+							NumberSequenceKeypoint.new(0.8, 0.4),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+						risePe.Lifetime = NumberRange.new(0.35, 0.55)
+						risePe.Rate = 90
+						risePe.Speed = NumberRange.new(3, 6)
+						risePe.SpreadAngle = Vector2.new(8, 8)
+						risePe.Rotation = NumberRange.new(0, 360)
+						risePe.EmissionDirection = Enum.NormalId.Top
+						risePe.Parent = spout
+
+						-- [고도화] 실제 게임 분수 이펙트(Assets/VFX/Water의 SquirtWater)를 그대로 재사용해서
+						-- 진짜 물이 솟구쳤다 중력으로 떨어지는 자연스러운 물줄기를 기둥 밑동에 덧붙임
+						local squirtTemplate = ReplicatedStorage:FindFirstChild("Assets")
+						squirtTemplate = squirtTemplate and squirtTemplate:FindFirstChild("VFX")
+						squirtTemplate = squirtTemplate and squirtTemplate:FindFirstChild("Water")
+						if squirtTemplate then
+							local squirt = squirtTemplate:Clone()
+							squirt.Anchored = true
+							squirt.CanCollide = false
+							squirt.CanQuery = false
+							squirt.CanTouch = false
+							squirt.CFrame = CFrame.new(cell.x, floorY + 0.3, cell.z)
+							squirt.Parent = workspace
+							game:GetService("Debris"):AddItem(squirt, 2.5)
+
+							local squirtPe = squirt:FindFirstChild("SquirtWater")
+							if squirtPe then
+								-- 기본값(Speed 100)은 물기둥(spoutHeight=26)보다 훨씬 높게 튀므로,
+								-- 이 기둥 높이에 맞춰 자연스러운 포물선을 그리도록 속도만 축소 조정
+								squirtPe.Speed = NumberRange.new(spoutHeight * 2.1, spoutHeight * 2.3)
+								squirtPe.Rate = 150
+								task.delay(0.6, function()
+									if squirtPe and squirtPe.Parent then
+										squirtPe.Enabled = false
+									end
+								end)
+							end
+						end
+
+						ts:Create(spout, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							Size = Vector3.new(spoutHeight, cellSize * 0.55, cellSize * 0.55),
+							CFrame = CFrame.new(cell.x, floorY + spoutHeight / 2, cell.z) * CFrame.Angles(0, 0, math.rad(90)),
+						}):Play()
+
+						-- 바닥 물보라 (사방으로 퍼지며 튀었다가 중력으로 떨어짐)
+						local baseSplashPart = Instance.new("Part")
+						baseSplashPart.Name = "KrakenSplashBase"
+						baseSplashPart.Size = Vector3.new(0.2, 0.2, 0.2)
+						baseSplashPart.Transparency = 1
+						baseSplashPart.Anchored = true
+						baseSplashPart.CanCollide = false
+						baseSplashPart.CanQuery = false
+						baseSplashPart.CanTouch = false
+						baseSplashPart.CFrame = CFrame.new(cell.x, floorY + 0.5, cell.z)
+						baseSplashPart.Parent = workspace
+						game:GetService("Debris"):AddItem(baseSplashPart, 2)
+
+						local ringPe = Instance.new("ParticleEmitter")
+						ringPe.Texture = WATER_TEX_2
+						ringPe.Color = ColorSequence.new(Color3.fromRGB(180, 225, 255))
+						ringPe.Size = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, cellSize * 0.35),
+							NumberSequenceKeypoint.new(1, 0),
+						})
+						ringPe.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 0.15),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+						ringPe.Lifetime = NumberRange.new(0.4, 0.7)
+						ringPe.Rate = 0
+						ringPe.Speed = NumberRange.new(14, 26)
+						ringPe.SpreadAngle = Vector2.new(180, 180)
+						ringPe.Acceleration = Vector3.new(0, -60, 0)
+						ringPe.Rotation = NumberRange.new(0, 360)
+						ringPe.Parent = baseSplashPart
+						ringPe:Emit(45)
+
+						-- 기둥이 다 자란 뒤 꼭대기에서 터지는 물보라 (정확한 최종 높이에서 재생되도록 지연)
+						task.delay(0.2, function()
+							if not spout.Parent then return end
+							local topSplashPart = Instance.new("Part")
+							topSplashPart.Name = "KrakenSplashTop"
+							topSplashPart.Size = Vector3.new(0.2, 0.2, 0.2)
+							topSplashPart.Transparency = 1
+							topSplashPart.Anchored = true
+							topSplashPart.CanCollide = false
+							topSplashPart.CanQuery = false
+							topSplashPart.CanTouch = false
+							topSplashPart.CFrame = CFrame.new(cell.x, floorY + spoutHeight, cell.z)
+							topSplashPart.Parent = workspace
+							game:GetService("Debris"):AddItem(topSplashPart, 2)
+
+							local topPe = Instance.new("ParticleEmitter")
+							topPe.Texture = WATER_TEX_2
+							topPe.Color = ColorSequence.new(Color3.fromRGB(200, 235, 255))
+							topPe.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, cellSize * 0.5),
+								NumberSequenceKeypoint.new(1, 0),
+							})
+							topPe.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.1),
+								NumberSequenceKeypoint.new(1, 1),
+							})
+							topPe.Lifetime = NumberRange.new(0.35, 0.6)
+							topPe.Rate = 0
+							topPe.Speed = NumberRange.new(10, 20)
+							topPe.SpreadAngle = Vector2.new(180, 180)
+							topPe.Acceleration = Vector3.new(0, -35, 0)
+							topPe.Rotation = NumberRange.new(0, 360)
+							topPe.Parent = topSplashPart
+							topPe:Emit(30)
+						end)
+
+						task.wait(0.2)
+
+						if targetChar and targetChar.Parent then
+							local thrp = targetChar:FindFirstChild("HumanoidRootPart")
+							if thrp then
+								local dx = math.abs(thrp.Position.X - cell.x)
+								local dz = math.abs(thrp.Position.Z - cell.z)
+								if dx <= cellSize / 2 and dz <= cellSize / 2 then
+									local thum = targetChar:FindFirstChildOfClass("Humanoid")
+									if thum and thum.Health > 0 then
+										dealDamageToHumanoid(thum, config.baseDamage or 220)
+									end
+								end
+							end
+						end
+
+						task.wait(0.5)
+						risePe.Enabled = false
+						ts:Create(spout, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+						game:GetService("Debris"):AddItem(spout, 1)
+					end)
+				end
+
+				task.wait(1.5)
+				if tilesFolder.Parent then tilesFolder:Destroy() end
 			end
 
 			-- [스텀프 킹 전용] 자연 대지 나무 타격 이펙트 함수
@@ -7247,6 +7668,256 @@ local function createMobModel(areaId, index, config)
 							end
 						end
 
+					elseif config.mobModelName == "Kraken" then
+						--========================================================================
+						-- [크라켄 전용 FSM 분기]: 촉수를 들어올렸다가 내려찍는 기본 공격
+						-- (원형 경고 서클이 아니라 몸통->착지점까지 이어지는 직사각형 경고 장판)
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+
+						-- [거의 전역 범위 광역기] 사거리와 무관하게 독자 쿨타임으로 발동 (플레이어가 멀리 있어도 발동)
+						do
+							local nowCB = os.clock()
+							local checkerboardCooldown = config.checkerboardCooldown or 16
+							if nowCB - lastCheckerboardTick >= checkerboardCooldown then
+								lastCheckerboardTick = nowCB
+								lastAttackTick = nowCB -- 광역기 직후 바로 기본 공격이 겹치지 않도록 기본 공격 쿨다운도 같이 갱신
+								humanoid:MoveTo(currentPos) -- 캐스팅 동안 정지
+								task.spawn(function()
+									playKrakenCheckerboardAttack(model, targetPlayer)
+								end)
+							end
+						end
+
+						if distToPlayer > ATTACK_RANGE then
+							humanoid:MoveTo(Vector3.new(targetPlayerPos.X, currentPos.Y, targetPlayerPos.Z))
+						else
+							humanoid:MoveTo(currentPos) -- 정지 후 공격
+
+							local now = os.clock()
+							local cooldown = config.attackCooldown or 2.5
+							if now - lastAttackTick >= cooldown and #tentacleJoints > 0 then
+								lastAttackTick = now
+
+								task.spawn(function()
+									local mobRootPos = hrp.Position
+									local attackHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
+									if not attackHrp then return end
+									
+									local dir = attackHrp.Position - mobRootPos
+									local flatDir = Vector3.new(dir.X, 0, dir.Z)
+									flatDir = (flatDir.Magnitude > 0.1) and flatDir.Unit or Vector3.new(0, 0, -1)
+									
+									-- [버그수정] 무작위로 다리를 고르면 경고 장판 방향과 반대쪽 다리가 내려찍는
+									-- 이상한 상황이 생김 -> 플레이어 방향과 가장 가깝게 뻗어있는(세그먼트1의 실제
+									-- 월드 위치 기준) 다리를 골라서 항상 장판과 같은 쪽 다리가 공격하도록 함
+									local armCount = math.min(8, #tentacleJoints)
+									local ti, bestDot = nil, -math.huge
+									for idx = 1, armCount do
+										local candJoints = tentacleJoints[idx]
+										local seg1 = candJoints and candJoints[1] and candJoints[1].motor.Part1
+										if seg1 then
+											local segOffset = seg1.Position - mobRootPos
+											local flatSegOffset = Vector3.new(segOffset.X, 0, segOffset.Z)
+											if flatSegOffset.Magnitude > 0.01 then
+												local d = flatSegOffset.Unit:Dot(flatDir)
+												if d > bestDot then
+													bestDot = d
+													ti = idx
+												end
+											end
+										end
+									end
+									ti = ti or math.random(1, armCount)
+									local joints = tentacleJoints[ti]
+									if not joints or #joints == 0 then return end
+									
+									krakenAttackOverride[ti] = true
+									
+									-- 착지 지점의 실제 바닥 높이 레이캐스트
+									-- [수정] 크라켄의 거대한 스케일(촉수 반경 약 45+)에 맞춰 판정 사거리/장판 크기를 대폭 확대
+									local strikeDistance = 32
+									local strikeCenter = mobRootPos + flatDir * strikeDistance
+									local rayParams = RaycastParams.new()
+									rayParams.FilterType = Enum.RaycastFilterType.Exclude
+									rayParams.FilterDescendantsInstances = { model, targetPlayer }
+									local rayResult = workspace:Raycast(strikeCenter + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), rayParams)
+									local floorY = rayResult and rayResult.Position.Y or (mobRootPos.Y - 20)
+
+									-- 몸통 근처에서 착지 지점까지 길게 이어지는 직사각형 경고 장판
+									local rectWidth = 18
+									local rectLength = strikeDistance + 10
+									local telegraphDuration = 0.9
+
+									local warnRect = Instance.new("Part")
+									warnRect.Name = "KrakenTelegraph"
+									warnRect.Size = Vector3.new(rectWidth, 0.6, rectLength)
+									warnRect.CFrame = CFrame.lookAt(
+										Vector3.new(mobRootPos.X, floorY + 0.4, mobRootPos.Z),
+										Vector3.new(mobRootPos.X + flatDir.X, floorY + 0.4, mobRootPos.Z + flatDir.Z)
+									) * CFrame.new(0, 0, -rectLength / 2)
+									warnRect.Anchored = true
+									warnRect.CanCollide = false
+									warnRect.CanTouch = false
+									warnRect.CanQuery = false
+									warnRect.CastShadow = false
+									warnRect.Material = Enum.Material.Neon
+									warnRect.Color = Color3.fromRGB(255, 25, 25)
+									warnRect.Transparency = 0.55
+									warnRect.Parent = workspace
+
+									-- 선명한 테두리(외곽선)를 덧대어 범위 경계를 더 직관적으로 표시
+									local border = Instance.new("Part")
+									border.Name = "KrakenTelegraphBorder"
+									border.Size = Vector3.new(rectWidth + 1.2, 0.5, rectLength + 1.2)
+									border.CFrame = warnRect.CFrame
+									border.Anchored = true
+									border.CanCollide = false
+									border.CanTouch = false
+									border.CanQuery = false
+									border.CastShadow = false
+									border.Material = Enum.Material.Neon
+									border.Color = Color3.fromRGB(255, 150, 60)
+									border.Transparency = 0.7
+									border.Parent = workspace
+
+									local ts = game:GetService("TweenService")
+									ts:Create(warnRect, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+										Transparency = 0.1,
+									}):Play()
+									ts:Create(border, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+										Transparency = 0.2,
+									}):Play()
+
+									-- 경고 장판을 짧게 두 번 깜빡여 위험을 더 직관적으로 알림
+									task.spawn(function()
+										for _ = 1, 3 do
+											if not warnRect.Parent then break end
+											warnRect.Transparency = 0.6
+											border.Transparency = 0.75
+											task.wait(0.12)
+											if not warnRect.Parent then break end
+											warnRect.Transparency = 0.15
+											border.Transparency = 0.25
+											task.wait(0.12)
+										end
+									end)
+									
+									-- 다리를 들어올림 (텔레그래프 지속시간 동안 다리 전체가 하나의 팔처럼 위로 들림)
+									-- [버그수정] 회전 부호가 반대였음 - 음수(-) 방향이 오히려 땅 아래로 내려가는 방향이었고
+									-- 양수(+) 방향이 위로 들리는 방향이었음. 부호를 뒤집어서 실제로 위로 들리도록 수정.
+									local raiseStart = os.clock()
+									while os.clock() - raiseStart < telegraphDuration do
+										local a = math.min(1, (os.clock() - raiseStart) / telegraphDuration)
+										local eased = 1 - (1 - a) * (1 - a)
+										for si, jointData in ipairs(joints) do
+											local liftDeg = (60 + si * 3) * eased
+											jointData.motor.C0 = jointData.restC0 * CFrame.Angles(math.rad(liftDeg), 0, 0)
+										end
+										task.wait(1 / 30)
+									end
+
+									if warnRect.Parent then warnRect:Destroy() end
+									if border.Parent then border:Destroy() end
+
+									-- 내려찍기 (위로 들었던 자세에서 아래로 확실히 보이는 속도로 내려침)
+									-- [수정] 0.15초는 너무 빨라서 거의 안 보였음 -> 0.55초로 늘려서 내려찍는 동작이 눈에 확실히 보이게 함
+									local slamDuration = 0.55
+									local slamStart = os.clock()
+									while os.clock() - slamStart < slamDuration do
+										local a = math.min(1, (os.clock() - slamStart) / slamDuration)
+										local easedSlam = a * a -- 처음엔 느리게, 끝에 갈수록 빠르게 내려찍히는 가속 느낌
+										for si, jointData in ipairs(joints) do
+											local liftDeg = (60 + si * 3)
+											local slamDeg = -(70 + si * 4)
+											local deg = liftDeg + (slamDeg - liftDeg) * easedSlam
+											jointData.motor.C0 = jointData.restC0 * CFrame.Angles(math.rad(deg), 0, 0)
+										end
+										task.wait(1 / 30)
+									end
+									for si, jointData in ipairs(joints) do
+										local slamDeg = -(70 + si * 4)
+										jointData.motor.C0 = jointData.restC0 * CFrame.Angles(math.rad(slamDeg), 0, 0)
+									end
+
+									-- [버그수정] 다리가 지면을 뚫고 아래까지 내려가버리는 문제 -> 다리 끝(마지막 세그먼트)의
+									-- 실제 월드 위치를 측정해서, 지면(floorY) 아래로 파고들면 각도를 줄여가며(이분 탐색)
+									-- 정확히 지면 높이에서 멈추도록 보정
+									task.wait() -- 물리/렌더링에 최신 C0가 반영되도록 한 프레임 대기
+									local lastJoint = joints[#joints]
+									local lastSeg = lastJoint and lastJoint.motor.Part1
+									if lastSeg then
+										local tipBottomY = lastSeg.Position.Y - lastSeg.Size.Y / 2
+										if tipBottomY < floorY then
+											local lo, hi = 0, 1
+											for _ = 1, 8 do
+												local mid = (lo + hi) / 2
+												for si, jointData in ipairs(joints) do
+													local liftDeg = (60 + si * 3)
+													local slamDegFull = -(70 + si * 4)
+													local deg = liftDeg + (slamDegFull - liftDeg) * mid
+													jointData.motor.C0 = jointData.restC0 * CFrame.Angles(math.rad(deg), 0, 0)
+												end
+												task.wait()
+												local by = lastSeg.Position.Y - lastSeg.Size.Y / 2
+												if by < floorY then
+													hi = mid -- 아직도 지면 아래 -> 각도를 더 줄임
+												else
+													lo = mid
+												end
+											end
+											for si, jointData in ipairs(joints) do
+												local liftDeg = (60 + si * 3)
+												local slamDegFull = -(70 + si * 4)
+												local deg = liftDeg + (slamDegFull - liftDeg) * lo
+												jointData.motor.C0 = jointData.restC0 * CFrame.Angles(math.rad(deg), 0, 0)
+											end
+										end
+									end
+
+									-- 지면 충돌 지점에 콰쾅 바위 타격 이펙트 재생 - 경고 장판과 동일한 직사각형 범위 전체에
+									-- 파편/흙먼지가 흩뿌려지도록 함 (원형 크레이터/충격파 X)
+									local impactBasePos = Vector3.new(mobRootPos.X, floorY, mobRootPos.Z)
+									pcall(function()
+										playKrakenRectSmashEffect(impactBasePos, flatDir, rectWidth, rectLength)
+									end)
+
+									-- 데미지 판정: 직사각형 경고 장판 영역과 정확히 일치하도록 판정
+									-- [수정] 기존엔 -2 스터드 여유값이 있어서 시각적 장판과 실제 판정 범위가 어긋났음.
+									-- 장판이 mobRootPos(전방 0)부터 rectLength까지 정확히 이어지므로 그 범위와 완전히 동일하게 맞춤.
+									if isAlive then
+										local finalHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
+										if finalHrp then
+											local toTarget = finalHrp.Position - mobRootPos
+											local flatToTarget = Vector3.new(toTarget.X, 0, toTarget.Z)
+											local forwardDist = flatToTarget:Dot(flatDir)
+											local lateralDist = (flatToTarget - flatDir * forwardDist).Magnitude
+											if forwardDist >= 0 and forwardDist <= rectLength and lateralDist <= rectWidth / 2 then
+												local dmg = config.baseDamage or 220
+												local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+												if currentPhum and currentPhum.Health > 0 then
+													dealDamageToHumanoid(currentPhum, dmg)
+													local bounceDir = flatDir
+													local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+													if hitPlayer then
+														local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+														local NetController = require(Controllers:WaitForChild("NetController"))
+														NetController.FireClient(hitPlayer, "Player.Stun", bounceDir)
+													end
+												end
+											end
+										end
+									end
+									
+									-- 잠깐 유지 후 원래 흐느적임 애니메이션으로 자연스럽게 복귀
+									task.wait(0.35)
+									krakenAttackOverride[ti] = false
+								end)
+							end
+						end
+						
 					else
 						--========================================================================
 						-- [기타 일반 몬스터 Melee 전투 FSM 분기]
@@ -7425,7 +8096,7 @@ local function createMobModel(areaId, index, config)
 
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter) 기준 랜덤 오프셋 영역으로 자연스럽게 배회합니다.
 				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon" or config.mobModelName == "Jellyfish")
-				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian") and 35 or 20
+				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken") and 35 or 20
 
 				-- [Jellyfish 전용 수중 배회] PlatformStand + BodyVelocity 3D 유영
 				if config.mobModelName == "Jellyfish" then

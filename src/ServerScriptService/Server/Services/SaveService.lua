@@ -154,9 +154,9 @@ local function _getDefaultPlayerSave()
 			startedAt = os.time(),
 			completedAt = nil,
 			progressByStep = {},
-			version = 7,
+			version = 8,
 			schemaVersion = 1,
-			resetMarker = "RPG_TUTORIAL_RESET_20260612_V4",
+			resetMarker = "RPG_TUTORIAL_RESET_20260705_V5",
 		},
 		-- 스냅샷 (롤백용)
 		snapshots = {},
@@ -377,9 +377,9 @@ local function _normalizePlayerState(state: any): any
 	do
 		local tutorialQuest = state.rpgTutorialQuest
 		if type(tutorialQuest) ~= "table"
-			or tonumber(tutorialQuest.version) ~= 7
+			or tonumber(tutorialQuest.version) ~= 8
 			or tonumber(tutorialQuest.schemaVersion) ~= 1
-			or tostring(tutorialQuest.resetMarker or "") ~= "RPG_TUTORIAL_RESET_20260612_V4" then
+			or tostring(tutorialQuest.resetMarker or "") ~= "RPG_TUTORIAL_RESET_20260705_V5" then
 			tutorialQuest = {
 				active = true,
 				completed = false,
@@ -387,9 +387,9 @@ local function _normalizePlayerState(state: any): any
 				startedAt = os.time(),
 				completedAt = nil,
 				progressByStep = {},
-				version = 7,
+				version = 8,
 				schemaVersion = 1,
-				resetMarker = "RPG_TUTORIAL_RESET_20260612_V4",
+				resetMarker = "RPG_TUTORIAL_RESET_20260705_V5",
 			}
 		end
 		state.rpgTutorialQuest = tutorialQuest

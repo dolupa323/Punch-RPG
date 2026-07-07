@@ -94,7 +94,7 @@ local DropTableData = {
 		{ itemId = "STUMP_BARK", chance = 1.0, min = 2, max = 4 },
 		{ itemId = "STUMP_NECKLACE", chance = 0.03, min = 1, max = 1 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
-		{ itemId = "BOOK_OVERGROWTH", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_OVERGROWTH", chance = 0.03, min = 1, max = 1 },
 	},
 	["CYCLOPSBAT"] = {
 		{ itemId = "BAT_FANG", chance = 1.0, min = 1, max = 2 },
@@ -110,7 +110,7 @@ local DropTableData = {
 		{ itemId = "WOOD_GOLEM_SOUL", chance = 1.0, min = 50, max = 50 }, -- 확정으로 영혼조각 50개
 		{ itemId = "WOOD_GOLEM_EARRING", chance = 0.03, min = 1, max = 1 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
-		{ itemId = "BOOK_OVERGROWTH", chance = 0.08, min = 1, max = 1 }, -- 보스이므로 일반 Stump보다 확률 상향
+		{ itemId = "BOOK_OVERGROWTH", chance = 0.03, min = 1, max = 1 },
 	},
 	["SPIDER"] = {
 		{ itemId = "SPIDER_LEG", chance = 1.0, min = 1, max = 3 },
@@ -119,15 +119,17 @@ local DropTableData = {
 	["SAMURAI"] = {
 		{ itemId = "BROKEN_SWORD_FRAGMENT", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
-		{ itemId = "BOOK_MAEHWA", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_MAEHWA", chance = 0.03, min = 1, max = 1 },
 	},
 	["ICEDRAGON"] = {
 		{ itemId = "DRAGON_CLAW", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_ICEBLADE", chance = 0.05, min = 1, max = 1 },
 	},
 	["ICEKNIGHT"] = {
 		{ itemId = "CHILLING_ICE", chance = 1.0, min = 2, max = 3 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_ICEBLADE", chance = 0.05, min = 1, max = 1 },
 	},
 	["GHOSTKNIGHT"] = {
 		{ itemId = "GHOST_KNIGHT_SOUL", chance = 1.0, min = 1, max = 2 },
@@ -138,7 +140,6 @@ local DropTableData = {
 	["GIANTGHOSTKNIGHT"] = {
 		{ itemId = "GHOST_GIANT_PRIDE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "GHOST_KNIGHT_EARRING", chance = 0.03, min = 1, max = 1 },
-		{ itemId = "BOOK_MAEHWA", chance = 0.08, min = 1, max = 1 }, -- 사무라이 존 보스이므로 확률 상향
 	},
 	["BLUEFLAMEKNIGHT"] = {
 		{ itemId = "BLUE_FIRE", chance = 1.0, min = 1, max = 3 },
@@ -147,6 +148,10 @@ local DropTableData = {
 	["DESERTGUARDIAN"] = {
 		{ itemId = "BOOK_SLASH", chance = 0.05, min = 1, max = 1 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
+	},
+	-- [TODO] 전용 드롭 아이템은 아직 미정 - 우선 코인만 확정 지급. 추후 전용 아이템 추가 예정.
+	["KRAKEN"] = {
+		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
 	},
 }
 
