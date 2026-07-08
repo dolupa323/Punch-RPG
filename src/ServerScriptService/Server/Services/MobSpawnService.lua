@@ -1292,25 +1292,27 @@ local function createMobModel(areaId, index, config)
 					cellRecords[math.random(1, #cellRecords)].isDeath = true
 				end
 
+				-- [수정] 생존 구역은 별도 표시를 하지 않음 - 타일이 없는 자리가 곧 생존 구역.
+				-- 오직 사망 구역(빨강)만 타일을 생성함.
 				for _, rec in ipairs(cellRecords) do
-					local cellCenterX = center.X - halfSpan + cellSize * (rec.i + 0.5)
-					local cellCenterZ = center.Z - halfSpan + cellSize * (rec.j + 0.5)
-
-					local tile = Instance.new("Part")
-					tile.Name = rec.isDeath and "DeathTile" or "SafeTile"
-					tile.Size = Vector3.new(cellSize - 0.4, 0.3, cellSize - 0.4)
-					tile.CFrame = CFrame.new(cellCenterX, floorY + 0.2, cellCenterZ)
-					tile.Anchored = true
-					tile.CanCollide = false
-					tile.CanTouch = false
-					tile.CanQuery = false
-					tile.CastShadow = false
-					tile.Material = Enum.Material.Neon
-					tile.Color = rec.isDeath and Color3.fromRGB(255, 30, 30) or Color3.fromRGB(60, 200, 255)
-					tile.Transparency = rec.isDeath and 0.55 or 0.75
-					tile.Parent = tilesFolder
-
 					if rec.isDeath then
+						local cellCenterX = center.X - halfSpan + cellSize * (rec.i + 0.5)
+						local cellCenterZ = center.Z - halfSpan + cellSize * (rec.j + 0.5)
+
+						local tile = Instance.new("Part")
+						tile.Name = "DeathTile"
+						tile.Size = Vector3.new(cellSize - 0.4, 0.3, cellSize - 0.4)
+						tile.CFrame = CFrame.new(cellCenterX, floorY + 0.2, cellCenterZ)
+						tile.Anchored = true
+						tile.CanCollide = false
+						tile.CanTouch = false
+						tile.CanQuery = false
+						tile.CastShadow = false
+						tile.Material = Enum.Material.Neon
+						tile.Color = Color3.fromRGB(255, 30, 30)
+						tile.Transparency = 0.55
+						tile.Parent = tilesFolder
+
 						table.insert(deathCells, { x = cellCenterX, z = cellCenterZ, part = tile })
 					end
 				end
@@ -1334,13 +1336,7 @@ local function createMobModel(areaId, index, config)
 
 				task.wait(telegraphDuration)
 
-				-- 안전 구역 타일 제거, 사망 구역에서 물줄기 솟아오름
-				for _, d in ipairs(tilesFolder:GetChildren()) do
-					if d.Name == "SafeTile" then
-						d:Destroy()
-					end
-				end
-
+				-- 사망 구역에서 물줄기 솟아오름
 				local ts = game:GetService("TweenService")
 				-- 실제 게임에서 쓰는 물 텍스처 재사용 (DROPLET_Hit / RUNE_WAVE_ACTIVE_Aura)
 				local WATER_TEX_1 = "rbxassetid://15990457929" -- WAVE_Aura Water1 (넓게 퍼지는 물결)
@@ -7779,7 +7775,7 @@ local function createMobModel(areaId, index, config)
 									border.CanQuery = false
 									border.CastShadow = false
 									border.Material = Enum.Material.Neon
-									border.Color = Color3.fromRGB(255, 150, 60)
+									border.Color = Color3.fromRGB(180, 0, 0) -- [수정] 주황 대신 짙은 빨강으로 통일 (오직 빨간색만)
 									border.Transparency = 0.7
 									border.Parent = workspace
 

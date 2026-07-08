@@ -248,6 +248,7 @@ local function spawnCombatVFX(template: Instance, cframe: CFrame, lifetime: numb
 	Debris:AddItem(vfx, lifetime)
 	return vfx
 end
+
 local function getCombatSoundFolder(category: string) -- "Cast"
 	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
 	if not assets then 
@@ -824,7 +825,7 @@ local function handleLMBAttack()
 			currentAttackTrack:AdjustSpeed(animLength / comboCooldown)
 		end
 		print(string.format("[AvatarController] Playing Combo %d Animation: %s (Speed: %.2f)", comboIndex, animName, animLength / comboCooldown))
-		
+
 		-- 2. 애니메이션 트랙이 끝날 때(종료) 즉시 파티클 방출을 중단(종료)하여 자연스럽게 잔상이 남고 사라지게 함
 		currentAttackTrack.Stopped:Once(function()
 			if spawnedVFX then

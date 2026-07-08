@@ -252,7 +252,7 @@ local MobSpawnData = {
 		xpReward = 450,      -- [상향] 경험치 보상 대폭 상향 (기존 60 -> 500 -> 450 조정)
 
 		spawnAsPolygon = true,
-		spawnCount = 7, -- 거미 구역 압박감을 높이기 위해 스폰 수 증가
+		spawnCount = 0, -- [임시 비활성화] 원인 불명의 무한 스폰/드롭 스팸 디버깅을 위해 0으로 설정
 		isIndoor = true,
 		skipTerrainScan = true,
 
@@ -299,15 +299,17 @@ local MobSpawnData = {
 		mobModelName = "Kraken",
 		dropTableId = "KRAKEN",
 		mobDisplayName = "크라켄",
-		maxHealth = 150000,
-		baseDamage = 220,
+		-- [밸런스 조정] 수중도시는 하늘섬(BlueFlameKnight: 체력13.4만/공격200) 다음 지역이므로
+		-- 그보다 확실히 강해야 함 -> 체력/공격력 대폭 상향
+		maxHealth = 450000,
+		baseDamage = 450,
 		attackCooldown = 2.5,   -- 패턴 미정 상태의 임시값 (추후 패턴 추가 시 조정)
 		respawnDelay = 90.0,    -- 처치 후 1분 30초 뒤 리스폰
 		-- [자체 제작 모델] Parts로 직접 제작(맨틀+촉수 8개, Motor6D 체인)한 실제 크기라 modelScale 불필요
 		-- 촉수 8개가 넓게 퍼진 형태라 HRP 기준 판정 반경이 어긋날 수 있어 바운딩 박스 기반 히트박스 사용
 		hitboxScaleFromBounds = {x = 1.0, y = 1.0, z = 1.0},
 		walkSpeed = 6,          -- 거대한 심해 크라켄이라 느릿느릿하게 이동
-		xpReward = 15000,
+		xpReward = 30000,
 
 		spawnAsPolygon = false, -- 보스는 무작위 스폰이 아닌 보스방 정중앙 고정 스폰
 		spawnCount = 1,

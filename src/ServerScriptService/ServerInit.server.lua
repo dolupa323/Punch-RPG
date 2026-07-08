@@ -259,6 +259,13 @@ for command, handler in pairs(MagicianQuestService.GetHandlers()) do
 end
 ServiceRegistry.Register("MagicianQuestService", MagicianQuestService)
 
+local CitizenQuestService = require(Services.CitizenQuestService)
+CitizenQuestService.Init(NetController, SaveService, PlayerStatService)
+for command, handler in pairs(CitizenQuestService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("CitizenQuestService", CitizenQuestService)
+
 local LevelTriggerService = require(Services.LevelTriggerService)
 LevelTriggerService.Init()
 ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)

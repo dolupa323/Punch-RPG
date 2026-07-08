@@ -3,6 +3,8 @@
 -- 듀랑고 스타일의 프리미엄 Standalone 창 레이아웃
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 local Theme = require(script.Parent:WaitForChild("UITheme"))
 local Utils = require(script.Parent:WaitForChild("UIUtils"))
 local UILocalizer = require(script.Parent.Parent:WaitForChild("Localization"):WaitForChild("UILocalizer"))
@@ -596,6 +598,200 @@ function EnhanceUI.UpdateChances(allowPrompt)
 	end
 end
 
+-- ============================================================
+-- 강화 결과 연출 (긴장감 연출 + 성공/실패 피드백)
+-- WeaponEnhanceEffectController의 강화 티어 색상표와 동일하게 맞춰서
+-- 강화 UI에서 보여주는 색상과 실제 무기에 씌워지는 오라 색상이 일치하게 함
+-- ============================================================
+local TIER_COLORS = {
+	[8]  = Color3.fromRGB(160, 60, 220),
+	[9]  = Color3.fromRGB(255, 200, 40),
+	[10] = Color3.fromRGB(0, 210, 190),
+	[11] = Color3.fromRGB(50, 110, 255),
+	[12] = Color3.fromRGB(0, 200, 90),
+	[13] = Color3.fromRGB(255, 120, 0),
+	[14] = Color3.fromRGB(255, 40, 0),
+	[15] = Color3.fromRGB(255, 255, 255),
+}
+local function getTierColor(level)
+	if not level or level < 8 then return Color3.fromRGB(140, 190, 255) end
+	local best = 8
+	for k in pairs(TIER_COLORS) do
+		if k <= level and k > best then best = k end
+	end
+	return TIER_COLORS[best]
+end
+
+-- 강화 버튼을 누른 직후 WeaponSlot 테두리가 점점 빠르게 깜빡이며 기대감을
+-- 고조시키는 긴장감 연출. 결과는 이미 서버에서 받았지만 일부러 늦게 공개한다.
+local function playSuspense(duration)
+	local wSlot = EnhanceUI.Refs.WeaponSlot
+	if not wSlot then task.wait(duration); return end
+
+	local ring = Instance.new("UIStroke")
+	ring.Name = "SuspenseRing"
+	ring.Thickness = 3
+	ring.Color = Color3.fromRGB(255, 255, 255)
+	ring.Transparency = 1
+	ring.Parent = wSlot
+
+	local elapsed = 0
+	local pulse = 0.5
+	while elapsed < duration do
+		local t = math.min(pulse, duration - elapsed)
+		local half = t / 2
+		TweenService:Create(ring, TweenInfo.new(half, Enum.EasingStyle.Sine), { Transparency = 0.1 }):Play()
+		task.wait(half)
+		TweenService:Create(ring, TweenInfo.new(half, Enum.EasingStyle.Sine), { Transparency = 0.75 }):Play()
+		task.wait(half)
+		elapsed += t
+		pulse = math.max(0.16, pulse * 0.7) -- 점점 빨라지는 깜빡임
+	end
+
+	ring:Destroy()
+end
+
+-- 중심점 기준으로 사방으로 튀는 파티클(둥근 프레임) 버스트
+local function spawnBurst(parent, color, count, spread)
+	for i = 1, count do
+		local angle = (math.pi * 2 / count) * i + math.random() * 0.4
+		local dist = spread * (0.6 + math.random() * 0.5)
+		local dot = Instance.new("Frame")
+		dot.Name = "EnhanceFX_BurstDot"
+		dot.Size = UDim2.new(0, 7, 0, 7)
+		dot.Position = UDim2.new(0.5, 0, 0.5, 0)
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.BackgroundColor3 = color
+		dot.BorderSizePixel = 0
+		dot.ZIndex = 60
+		dot.Active = false
+		Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+		dot.Parent = parent
+
+		local targetPos = UDim2.new(0.5, math.cos(angle) * dist, 0.5, math.sin(angle) * dist)
+		TweenService:Create(dot, TweenInfo.new(0.45 + math.random() * 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = targetPos,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(0, 2, 0, 2),
+		}):Play()
+		Debris:AddItem(dot, 1)
+	end
+end
+
+-- 성공: 화면 플래시 + 아이콘 펀치 스케일 + 파티클 버스트 + "+N" 팝업
+local function playSuccessEffect(newLevel)
+	local wSlot = EnhanceUI.Refs.WeaponSlot
+	local body = EnhanceUI.Refs.Body
+	local color = getTierColor(newLevel)
+	if not wSlot or not body then return end
+
+	-- [버그수정] 예전엔 창 전체(Frame)에 풀스크린 플래시를 깔아서 X 버튼과 같은
+	-- ZIndex 스택 위를 덮는 바람에 닫기 버튼이 클릭되지 않는 문제가 있었음.
+	-- 타이틀바(X 버튼)가 없는 Body 영역에만 플래시가 깔리도록 범위를 좁힘.
+	local flash = Instance.new("Frame")
+	flash.Name = "EnhanceFX_SuccessFlash"
+	flash.Size = UDim2.new(1, 0, 1, 0)
+	flash.BackgroundColor3 = color
+	flash.BackgroundTransparency = 0.35
+	flash.BorderSizePixel = 0
+	flash.ZIndex = 100
+	flash.Active = false
+	flash.Parent = body
+	TweenService:Create(flash, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+	Debris:AddItem(flash, 0.5)
+
+	local stroke = wSlot:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		local originalColor = stroke.Color
+		stroke.Color = color
+		task.delay(0.6, function()
+			if stroke and stroke.Parent then stroke.Color = originalColor end
+		end)
+	end
+
+	local originalSize = wSlot.Size
+	TweenService:Create(wSlot, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = originalSize + UDim2.new(0, 14, 0, 14)
+	}):Play()
+	task.delay(0.12, function()
+		if wSlot and wSlot.Parent then
+			TweenService:Create(wSlot, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Size = originalSize }):Play()
+		end
+	end)
+
+	spawnBurst(wSlot, color, 14, 70)
+
+	local popup = Instance.new("TextLabel")
+	popup.Name = "EnhanceFX_Popup"
+	popup.Size = UDim2.new(0, 120, 0, 40)
+	popup.Position = UDim2.new(0.5, 0, 0.5, -10)
+	popup.AnchorPoint = Vector2.new(0.5, 0.5)
+	popup.BackgroundTransparency = 1
+	popup.Text = string.format("+%d", newLevel)
+	popup.Font = F.TITLE
+	popup.TextSize = 28
+	popup.TextColor3 = color
+	popup.TextStrokeTransparency = 0.3
+	popup.ZIndex = 70
+	popup.Active = false
+	popup.Parent = wSlot
+	TweenService:Create(popup, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 0, 0.5, -70),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	Debris:AddItem(popup, 1)
+end
+
+-- 하락방지: 은은한 방패색 플래시 (성공보다 절제됨)
+local function playProtectedEffect()
+	local wSlot = EnhanceUI.Refs.WeaponSlot
+	if not wSlot then return end
+	local shield = Instance.new("Frame")
+	shield.Name = "EnhanceFX_Shield"
+	shield.Size = UDim2.new(1, 0, 1, 0)
+	shield.BackgroundColor3 = Color3.fromRGB(255, 220, 120)
+	shield.BackgroundTransparency = 0.5
+	shield.BorderSizePixel = 0
+	shield.ZIndex = 55
+	shield.Active = false
+	Instance.new("UICorner", shield).CornerRadius = UDim.new(0, 12)
+	shield.Parent = wSlot
+	TweenService:Create(shield, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+	Debris:AddItem(shield, 0.6)
+end
+
+-- 실패/하락: 짧은 붉은 플래시 + 아이콘 흔들림 (성공보다 간결하게)
+local function playFailEffect()
+	local wSlot = EnhanceUI.Refs.WeaponSlot
+	if not wSlot then return end
+
+	local flash = Instance.new("Frame")
+	flash.Name = "EnhanceFX_FailFlash"
+	flash.Size = UDim2.new(1, 0, 1, 0)
+	flash.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+	flash.BackgroundTransparency = 0.55
+	flash.BorderSizePixel = 0
+	flash.ZIndex = 55
+	flash.Active = false
+	Instance.new("UICorner", flash).CornerRadius = UDim.new(0, 12)
+	flash.Parent = wSlot
+	TweenService:Create(flash, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+	Debris:AddItem(flash, 0.3)
+
+	local originalPos = wSlot.Position
+	local shakeOffsets = { -6, 6, -3, 0 }
+	task.spawn(function()
+		for _, dx in ipairs(shakeOffsets) do
+			if not wSlot or not wSlot.Parent then break end
+			TweenService:Create(wSlot, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+				Position = originalPos + UDim2.new(0, dx, 0, 0)
+			}):Play()
+			task.wait(0.05)
+		end
+	end)
+end
+
 function EnhanceUI.StartEnhance()
 	if not UI_MANAGER then return end
 	local wSlot = EnhanceUI.State.selectedWeaponSlot
@@ -618,18 +814,24 @@ function EnhanceUI.StartEnhance()
 		scrolls = scrollsPayload
 	})
 
+	-- [연출] 결과를 즉시 공개하지 않고 1.5초간 긴장감을 고조시킨 뒤 공개
+	playSuspense(1.5)
+
 	EnhanceUI.State.isProcessing = false
 	EnhanceUI.State.pendingDownProtectWarning = false
 
 	if ok and result and result.success then
 		if result.result == "SUCCESS" then
+			playSuccessEffect(result.newLevel)
 			UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 성공! +%d 단계가 되었습니다."), result.newLevel), Color3.fromRGB(100, 255, 100))
 		elseif result.result == "PROTECTED" then
+			playProtectedEffect()
 			UI_MANAGER.notify(UILocalizer.Localize("강화 실패! 하락 방지권이 사용되어 등급이 유지되었습니다."), Color3.fromRGB(255, 220, 120))
 		else
+			playFailEffect()
 			UI_MANAGER.notify(string.format(UILocalizer.Localize("강화 실패... +%d 단계로 하락했습니다."), result.newLevel), Color3.fromRGB(255, 100, 100))
 		end
-		
+
 		-- Update slot state and re-sync
 		local updatedWeapon = nil
 		if wSlot == "HAND" then
@@ -671,7 +873,30 @@ function EnhanceUI.Refresh()
 	EnhanceUI.UpdateChances(false)
 end
 
+-- 강화 결과 연출(플래시/버스트/팝업/긴장감 링) 잔여물을 강제로 정리.
+-- 코루틴이 도중에 끊겨도(창을 애니메이션 중에 닫는 경우 등) 잔여 오브젝트가
+-- 남아있지 않도록 창을 닫을 때마다 호출한다.
+local function cleanupEnhanceFX()
+	local wSlot = EnhanceUI.Refs.WeaponSlot
+	local body = EnhanceUI.Refs.Body
+	for _, container in ipairs({ wSlot, body }) do
+		if container then
+			for _, child in ipairs(container:GetChildren()) do
+				if child.Name == "SuspenseRing" or child.Name:match("^EnhanceFX_") then
+					child:Destroy()
+				end
+			end
+		end
+	end
+	-- 리사이즈/흔들림 트윈이 중간에 끊겨도 원래 크기/위치로 강제 복구
+	if wSlot then
+		wSlot.Size = UDim2.new(0, 88, 0, 88)
+		wSlot.Position = UDim2.new(0.5, 0, 0, 10)
+	end
+end
+
 function EnhanceUI.Reset()
+	cleanupEnhanceFX()
 	EnhanceUI.State.selectedWeaponSlot = nil
 	EnhanceUI.State.selectedDownProtectSlot = nil
 	EnhanceUI.State.lastDownProtectCount = 0

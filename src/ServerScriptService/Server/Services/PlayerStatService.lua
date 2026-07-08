@@ -561,6 +561,13 @@ function PlayerStatService.incrementKill(userId: number, mobDisplayName: string)
 			tutorialService.OnMobKilled(userId, mobDisplayName)
 		end)
 	end
+
+	local citizenQuestService = ServiceRegistry.Get("CitizenQuestService")
+	if citizenQuestService and citizenQuestService.OnMobKilled then
+		task.spawn(function()
+			citizenQuestService.OnMobKilled(userId, mobDisplayName)
+		end)
+	end
 end
 
 function PlayerStatService.getStats(userId: number): { [string]: any }

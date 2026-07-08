@@ -228,6 +228,14 @@ Protocol.Commands = {
 	["Magician.OpenDialogue"] = true,     -- S→C: 대화 열기
 	["Magician.QuestTracker"] = true,     -- S→C: 퀘스트 트래커
 
+	-- Citizen NPC 퀘스트 명령어 (청운촌 주민 3인 순차 스토리 퀘스트)
+	["Citizen.QuestAction.Request"]  = true,
+	["Citizen.GetIndicator.Request"] = true,
+	["Citizen.Quest.Reset.Request"]  = true,  -- 어드민 전용 초기화
+	["Citizen.SetIndicator"]         = true,  -- S→C: 느낌표 상태
+	["Citizen.OpenDialogue"]         = true,  -- S→C: 대화 열기
+	["Citizen.QuestTracker"]         = true,  -- S→C: 퀘스트 트래커
+
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,
