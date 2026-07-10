@@ -28,6 +28,19 @@ local RaidBossData = {
 		underfillColor = Color3.fromRGB(25, 75, 160) -- 네이비 데미지 잔상
 	},
 
+	["AbyssGuardian"] = {
+		mobModelName = "AbyssGuardian",
+		displayName = "심연의 수호자",
+		segments = 31,
+		themeColor = Color3.fromRGB(230, 40, 40), -- 붉은 테마
+		hpGradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 70)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(230, 40, 40)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 10, 10))
+		}),
+		underfillColor = Color3.fromRGB(90, 10, 10) -- 짙은 적색 데미지 잔상
+	},
+
 	["Kraken"] = {
 		mobModelName = "Kraken",
 		displayName = "크라켄",

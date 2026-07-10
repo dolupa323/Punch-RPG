@@ -126,8 +126,8 @@ local function cloneAuraLayer(auraTemplate, handle, tier, sizeMult)
 			obj.CFrame = obj.CFrame.Rotation + obj.CFrame.Position * sizeMult
 		elseif obj:IsA("Beam") then
 			obj.Color  = cs
-			obj.Width0 = obj.Width0 * sizeMult
-			obj.Width1 = obj.Width1 * sizeMult
+			obj.Width0 = obj.Width0 * sizeMult * 1.2
+			obj.Width1 = obj.Width1 * sizeMult * 1.2
 		elseif obj:IsA("ParticleEmitter") then
 			obj.Color = cs
 			obj.Size  = scaleNS(obj.Size, sizeMult)
@@ -187,8 +187,8 @@ local function applyEffect(char, level)
 		return false
 	end
 
-	-- 강화 수치가 오를수록 이펙트 전체 크기가 완만하게 커짐 (+8: 1.0배 ~ +50: 약 2.3배)
-	local sizeMult = 1 + math.min(level - 8, 42) * 0.03
+	-- [요청반영] 이펙트가 전반적으로 더 크고 길게 보이도록 배율 상향 (+8: 약 1.5배 ~ +50: 약 3.4배)
+	local sizeMult = 1.5 + math.min(level - 8, 42) * 0.045
 
 	cloneAuraLayer(auraTemplate, handle, tier, sizeMult)
 	createLight(handle, tier, sizeMult)

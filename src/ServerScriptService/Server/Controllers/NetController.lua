@@ -35,6 +35,13 @@ local ADMIN_COMMANDS = {
 	["Admin.GiveEnhanceSet.Request"] = true,
 	["Admin.GiveItem.Request"] = true,
 	["Admin.SetElement.Request"] = true,
+	-- [보안 수정] 아래 3개는 관리자/테스트 전용 퀘스트 초기화 커맨드인데 이 가드에서
+	-- 누락되어 있었음. 특히 Magician.Quest.Reset.Request는 PORTAL_REGISTER 퀘스트가
+	-- "이미 등록된 포탈이면 즉시 목표 달성" 처리를 하기 때문에, 아무나 이 커맨드를 반복
+	-- 호출해서 (리셋 -> 수락 -> 즉시 수령) 무한 골드/XP를 얻을 수 있는 심각한 취약점이었음.
+	["Magician.Quest.Reset.Request"] = true,
+	["Trainer.Quest.Reset.Request"] = true,
+	["Citizen.Quest.Reset.Request"] = true,
 }
 
 local function isAdmin(player: Player): boolean

@@ -256,7 +256,24 @@ local WeaponComboData = {
 			[2] = { angle = -30, duration = 0.08 },
 			[3] = { angle = 40, duration = 0.08 }
 		}
-	}
+	},
+	["MAGMA_SWORD"] = {
+		id = "MAGMA_SWORD",
+		baseDamage = 830,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "AttackSword_Swing_1",
+			[2] = "AttackSword_Swing_2",
+			[3] = "AttackSword_Swing_3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
 }
 
 return WeaponComboData

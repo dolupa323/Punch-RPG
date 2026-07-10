@@ -206,6 +206,7 @@ local WEAPON_TIERS = {
 	"KATANA",
 	"FangSpear",
 	"ICE_SWORD",
+	"MAGMA_SWORD",
 	"KNIGHT_SWORD",
 	"SOUL_SWORD",
 	"SWORD_OF_JUSTICE",

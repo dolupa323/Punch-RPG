@@ -3383,12 +3383,8 @@ RunService.RenderStepped:Connect(function()
 					local cd = _cachedSkillController.getRuneCooldownRemaining(i)
 					if cd > 0 then
 						slot.cdOverlay.Visible = true
-						-- 1초 이상이면 정수로, 1초 미만이면 소수점 첫째 자리까지 표시
-						if cd >= 1.0 then
-							slot.cdLabel.Text = string.format("%d", math.ceil(cd))
-						else
-							slot.cdLabel.Text = string.format("%.1f", cd)
-						end
+						-- 소수점 첫째 자리까지 항상 표시 (예: 6.6)
+						slot.cdLabel.Text = string.format("%.1f", cd)
 					else
 						slot.cdOverlay.Visible = false
 					end
@@ -3404,11 +3400,8 @@ RunService.RenderStepped:Connect(function()
 			if slot and slot.cdOverlay and slot.cdLabel then
 				if remaining > 0 then
 					slot.cdOverlay.Visible = true
-					if remaining >= 1.0 then
-						slot.cdLabel.Text = string.format("%d", math.ceil(remaining))
-					else
-						slot.cdLabel.Text = string.format("%.1f", remaining)
-					end
+					-- 소수점 첫째 자리까지 항상 표시 (예: 6.6)
+					slot.cdLabel.Text = string.format("%.1f", remaining)
 				else
 					slot.cdOverlay.Visible = false
 				end

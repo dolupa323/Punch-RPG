@@ -16,29 +16,9 @@ local PlayerStatService = nil
 local initialized       = false
 
 -- ── NPC별 퀘스트 체인 정의 ──
+-- [주의] citizen_01("농부 만석")은 드롭률 안내 NPC("척척박사")로 용도가 변경되어
+-- 퀘스트 체인에서 제외됨. 해당 NPC의 상호작용은 DropRateInfoService.lua가 전담.
 local CITIZENS = {
-	citizen_01 = {
-		npcModel = "citizen_01",
-		npcName  = "농부 만석",
-		quests = {
-			{
-				id = "CITIZEN1_SLIME", order = 1,
-				title = "골칫거리 슬라임",
-				targetMob = "슬라임", requiredKills = 8,
-				rewardXP = 150, rewardGold = 80,
-				npcDialogue     = "어이구, 이 마을에 온 걸 환영하네. 근데 요즘 슬라임들이 밭을 다 망쳐놔서 큰일이야. 슬라임을 8마리만 처치해 주겠나?",
-				npcDialogueDone = "고맙네! 덕분에 한시름 놓았어.",
-			},
-			{
-				id = "CITIZEN1_LARVA", order = 2,
-				title = "뿔애벌레 소탕",
-				targetMob = "뿔 애벌레", requiredKills = 12,
-				rewardXP = 300, rewardGold = 150,
-				npcDialogue     = "이번엔 뿔애벌레들이 말썽이야. 뿌리까지 갉아먹고 있어. 12마리만 처리해주면 정말 고맙겠네.",
-				npcDialogueDone = "역시 믿음직하구먼! 그나저나... 요즘 하늘을 보면 뭔가 이상한 게 떠 있다는 소문이 돌더군. 나야 뭐 자세힌 모르지만, 궁금하면 촌장님께 여쭤보게.",
-			},
-		},
-	},
 	citizen_02 = {
 		npcModel = "citizen_02",
 		npcName  = "용병 두칠",

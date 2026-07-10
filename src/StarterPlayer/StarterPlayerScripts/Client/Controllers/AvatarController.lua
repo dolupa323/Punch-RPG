@@ -802,13 +802,13 @@ local function handleLMBAttack()
 			local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -3.5)
 			local currentElement = player and player:GetAttribute("Element")
 			local hasElement = currentElement and currentElement ~= "" and currentElement ~= "None"
-			
+
 			local elementTemplate = nil
 			if hasElement then
 				local vfxName = string.format("%s_Attack_Cast_%d", currentElement, comboIndex)
 				elementTemplate = castVFXFolder:FindFirstChild(vfxName)
 			end
-			
+
 			local targetTemplate = elementTemplate or castVFXFolder:FindFirstChild(string.format("Default_Attack_Cast_%d", comboIndex)) or castVFXFolder:FindFirstChild(string.format("Base_Attack_Cast_%d", comboIndex))
 			if targetTemplate then
 				-- 캐릭터 몸에 달라붙어 이동을 따라가도록 nil 대신 hrp를 넘겨 결속(Weld)시킵니다.
@@ -877,8 +877,104 @@ function AvatarController.attack()
 	handleLMBAttack()
 end
 
+-- 일반 공격 기본 히트 VFX: 매화낙락/빙화검무와 동일한 Assets/VFX/Slash 검기를
+-- 흰색으로 재사용. 기존 Default_Attack_Hit 파티클 대신 사용.
+-- [주의] Init() 안의 클로저(vfxRemote.OnClientEvent)보다 반드시 앞에 선언되어야 함
+-- (Lua는 실행 순서가 아니라 소스 코드상 위치로 로컬 변수 스코프를 정하기 때문에,
+--  이 함수가 Init() 뒤에 있으면 클로저 입장에서는 전역 nil로 보여 호출이 실패함)
+local function playDefaultHitSlash(pos: Vector3)
+	local Debris = game:GetService("Debris")
+	local vfxFolder = ReplicatedStorage:FindFirstChild("Assets")
+	vfxFolder = vfxFolder and vfxFolder:FindFirstChild("VFX")
+	local slashTemplate = vfxFolder and vfxFolder:FindFirstChild("Slash")
+	if not slashTemplate then
+		warn("[DefaultHitSlash] Assets/VFX/Slash 파트를 찾을 수 없습니다.")
+		return
+	end
 
+	local slash = slashTemplate:Clone()
+	slash.Name = "DefaultHitSlashMark"
+	slash.Anchored = true
+	slash.CanCollide = false
+	slash.CanQuery = false
+	slash.CanTouch = false
+	slash.CastShadow = false
+	slash.CFrame = CFrame.new(pos)
+		* CFrame.Angles(math.random() * math.pi * 2, math.random() * math.pi * 2, math.random() * math.pi * 2)
+	slash.Parent = workspace
+	Debris:AddItem(slash, 1.5)
 
+	local scale = 1.8
+	for _, desc in ipairs(slash:GetDescendants()) do
+		if desc:IsA("ParticleEmitter") then
+			desc.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+			local nsSeq = {}
+			for _, kp in ipairs(desc.Size.Keypoints) do
+				table.insert(nsSeq, NumberSequenceKeypoint.new(kp.Time, kp.Value * scale, kp.Envelope * scale))
+			end
+			desc.Size = NumberSequence.new(nsSeq)
+			local spd = 10
+			desc.Speed = NumberRange.new(spd, spd)
+			desc.Rate = 0
+
+			-- [버그수정] 복제 직후 같은 프레임에 Emit()을 호출하면 엔진 글로벌 텍스처
+			-- 타이머 동기화 문제로 파티클이 렌더링되지 않는 경우가 있음 (spawnCombatVFX에서
+			-- 이미 발견/수정된 것과 동일한 버그). 텍스처를 잠깐 비웠다가 다음 프레임에
+			-- 복원 후 Emit해서 강제로 1프레임부터 재생되도록 함.
+			local originalTexture = desc.Texture
+			desc.Texture = ""
+			task.spawn(function()
+				task.wait()
+				if desc and desc.Parent then
+					desc.Texture = originalTexture
+					pcall(function() desc:Emit(1) end)
+				end
+			end)
+		end
+	end
+end
+
+-- [몬스터 피격 반응] 지금까지는 타격 지점에 검기 VFX와 대미지 숫자만 뜨고, 정작 맞은
+-- 몬스터 본체는 아무 반응이 없어서 "실제로 맞은건지" 알아보기 어려웠음. 몬스터 모델에
+-- 흰색 플래시(Highlight)와 짧은 히트스톱(애니메이션 정지)을 추가해 타격감을 보강한다.
+local function playMonsterHitReaction(target: Model?)
+	if not target then return end
+
+	-- 1. 흰색 피격 플래시 (파츠 색상을 직접 건드리지 않고 Highlight로 실루엣만 번쩍이게 함)
+	local existingHighlight = target:FindFirstChild("HitFlashHighlight")
+	if existingHighlight then existingHighlight:Destroy() end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "HitFlashHighlight"
+	highlight.FillColor = Color3.fromRGB(255, 40, 40)
+	highlight.FillTransparency = 0.35
+	highlight.OutlineTransparency = 1
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = target
+
+	local tween = TweenService:Create(highlight, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		FillTransparency = 1,
+	})
+	tween:Play()
+	game:GetService("Debris"):AddItem(highlight, 0.25)
+
+	-- 2. 짧은 히트스톱 (재생 중인 애니메이션을 아주 잠깐 멈춰 타격 순간을 강조)
+	local hum = target:FindFirstChildOfClass("Humanoid")
+	if hum then
+		task.spawn(function()
+			local tracks = hum:GetPlayingAnimationTracks()
+			for _, track in ipairs(tracks) do
+				track:AdjustSpeed(0)
+			end
+			task.wait(0.06)
+			for _, track in ipairs(tracks) do
+				if track.IsPlaying then
+					track:AdjustSpeed(1)
+				end
+			end
+		end)
+	end
+end
 
 function AvatarController.Init()
 	print("[AvatarController] Initializing Client Avatar Controller with 3-Combo Attack...")
@@ -920,12 +1016,17 @@ function AvatarController.Init()
 				if pos then
 					local targetHrp = target and (target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart)
 					if not data.hideVfx then
+						-- 몬스터 본체 피격 반응: 기본 공격/스킬 공격 모두 공통 적용
+						if target and not isMiss then
+							playMonsterHitReaction(target)
+						end
+
 						if skillId then
 							AvatarController.playSkillHit(skillId, pos, targetHrp)
 						else
 							-- 0. [디렉티브 반영] 기본 공격 다단히트 틱당 공용 어택 히트 VFX/사운드 시스템 동기화 재생
 							if targetHrp then
-								pcall(function()
+								local ok, err = pcall(function()
 									-- [Sound 재생]
 									local hitSoundFolder = getCombatSoundFolder("Hit")
 									if hitSoundFolder then
@@ -934,17 +1035,13 @@ function AvatarController.Init()
 											playCombatSound(hitSndTemplate, targetHrp)
 										end
 									end
-									
-									-- [VFX 재생]
-									local hitFolder = getElementVFXFolder("Hit")
-									if hitFolder then
-										local hitVfxTemplate = hitFolder:FindFirstChild("Default_Attack_Hit") or hitFolder:FindFirstChild("Base_Attack_Hit")
-										if hitVfxTemplate then
-											-- 데미지 타격 좌표를 바탕으로 월드에 이펙트 투척
-											spawnCombatVFX(hitVfxTemplate, CFrame.new(pos), 2.0)
-										end
-									end
+
+									-- [VFX 재생] 기본 히트 파티클 대신 매화낙락/빙화검무와 동일한 흰색 검기(Slash) 사용
+									playDefaultHitSlash(pos)
 								end)
+								if not ok then
+									warn("[AvatarController] Default hit VFX/sound failed:", err)
+								end
 							end
 						end
 					end
@@ -1638,6 +1735,110 @@ local function playIceBladeEffect(hrp: BasePart, char: Instance)
 	Debris:AddItem(anchor, 2.2)
 end
 
+-- 폭염참(파이어맨 드롭): 전방을 크게 베어내는 붉은 검기 1회 → 그 자리에서 Blast-Explosion-02 폭발
+-- 서버 판정 중심(SkillService.lua BLAZE hitPos = hrp.Position + look*12)과 동일한 지점에서 터지도록 맞춤
+local function playBlazeEffect(hrp: BasePart, targetCFrame: CFrame)
+	local Debris = game:GetService("Debris")
+	local blazeColor = Color3.fromRGB(255, 60, 20)
+
+	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+	local vfxRoot = assetsFolder and assetsFolder:FindFirstChild("VFX")
+
+	local look = targetCFrame.LookVector
+	local flatLook = Vector3.new(look.X, 0, look.Z)
+	flatLook = (flatLook.Magnitude > 0.01) and flatLook.Unit or hrp.CFrame.LookVector
+	local burstPos = hrp.Position + flatLook * 12
+
+	-- 1. 붉은 검기: 매화낙락/빙화검무와 동일한 Slash 파트를 재사용, 색만 붉은색으로 교체
+	local slashTemplate = vfxRoot and vfxRoot:FindFirstChild("Slash")
+	if slashTemplate then
+		local slashPos = hrp.Position + flatLook * 6 + Vector3.new(0, 2.5, 0)
+		local slash = slashTemplate:Clone()
+		slash.Name = "BlazeSlashMark"
+		slash.Anchored = true
+		slash.CanCollide = false
+		slash.CanQuery = false
+		slash.CanTouch = false
+		slash.CastShadow = false
+		slash.CFrame = CFrame.lookAt(slashPos, slashPos + flatLook) * CFrame.Angles(0, math.rad(90), 0)
+		slash.Parent = workspace
+		Debris:AddItem(slash, 1.2)
+
+		for _, desc in ipairs(slash:GetDescendants()) do
+			if desc:IsA("ParticleEmitter") then
+				desc.Color = ColorSequence.new(blazeColor)
+				local nsSeq = {}
+				for _, kp in ipairs(desc.Size.Keypoints) do
+					table.insert(nsSeq, NumberSequenceKeypoint.new(kp.Time, kp.Value * 6.0, kp.Envelope * 6.0))
+				end
+				desc.Size = NumberSequence.new(nsSeq)
+				desc.Speed = NumberRange.new(18, 18)
+				desc.Rate = 0
+				desc:Emit(1)
+			end
+		end
+	else
+		warn("[BlazeEffect] Assets/VFX/Slash 파트를 찾을 수 없습니다.")
+	end
+
+	-- 2. 검기가 지나간 직후, 판정 지점 주변에서 폭염이 6연속으로 "퍼버버벙" 터짐 (원래색/검정색 번갈아)
+	local blastTemplate = vfxRoot and vfxRoot:FindFirstChild("Blast-Explosion-02")
+	if not blastTemplate then
+		warn("[BlazeEffect] Assets/VFX/Blast-Explosion-02 를 찾을 수 없습니다.")
+		return
+	end
+
+	local blazeBlackColor = Color3.fromRGB(15, 15, 15)
+	local burstCount = 6
+	for i = 1, burstCount do
+		local burstDelay = 0.22 + (i - 1) * 0.13
+		local isBlack = (i % 2 == 0)
+		task.delay(burstDelay, function()
+			local offset = Vector3.new(math.random(-6, 6), math.random(0, 3), math.random(-6, 6))
+			local spawnPos = (i == 1) and burstPos or (burstPos + offset)
+			local scale = math.random(75, 100) / 100
+
+			local blast = blastTemplate:Clone()
+			blast.Name = "BlazeBlast"
+			for _, d in ipairs(blast:GetDescendants()) do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+					d.CanCollide = false
+					d.CanQuery = false
+					d.CanTouch = false
+				end
+			end
+
+			if blast:IsA("Model") then
+				blast:PivotTo(CFrame.new(spawnPos))
+				pcall(function() blast:ScaleTo(scale) end)
+			elseif blast:IsA("BasePart") then
+				blast.CFrame = CFrame.new(spawnPos)
+				blast.Transparency = 1
+				blast.Size = blast.Size * scale
+			end
+			blast.Parent = workspace
+
+			for _, desc in ipairs(blast:GetDescendants()) do
+				if desc:IsA("ParticleEmitter") then
+					if isBlack then
+						desc.Color = ColorSequence.new(blazeBlackColor)
+					end
+					if desc.Rate and desc.Rate > 0 then
+						task.delay(0.6, function()
+							if desc and desc.Parent then desc.Enabled = false end
+						end)
+					else
+						desc:Emit(math.random(20, 30))
+					end
+				end
+			end
+
+			Debris:AddItem(blast, 2.5)
+		end)
+	end
+end
+
 function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
 	local char = hrp.Parent
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1661,12 +1862,19 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 		if not targetAnim and assetKey == "SLASH" then
 			targetAnim = skillAnimFolder and (skillAnimFolder:FindFirstChild("EMBER_Cast") or skillAnimFolder:FindFirstChild("DROPLET_Cast") or skillAnimFolder:FindFirstChild("NIGHT_Cast"))
 		end
+		if not targetAnim then
+			-- [폴백] 전용 캐스트 애니메이션이 없는 스킬은 기본 평타 1/2/3타 중 하나를 랜덤 재생
+			local staffAnimFolder = weaponsAnimFolder and weaponsAnimFolder:FindFirstChild("Staff")
+			local fallbackName = "AttackSword_Swing_" .. tostring(math.random(1, 3))
+			targetAnim = staffAnimFolder and staffAnimFolder:FindFirstChild(fallbackName)
+			if not targetAnim then
+				warn(string.format("[ANIM INFO] '%s_Cast' not found, and fallback '%s' also missing", assetKey, fallbackName))
+			end
+		end
 		if targetAnim then
 			local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
 			local track = animator:LoadAnimation(targetAnim)
 			track:Play()
-		else
-			warn(string.format("[ANIM INFO] '%s_Cast' not found in Assets.Animations.Weapons.Skill", assetKey))
 		end
 	end
 
@@ -1697,6 +1905,9 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	elseif assetKey == "ICEBLADE" then
 		-- 빙화검무: 캐릭터 주위로 눈보라 + 서릿빛 검기 + 땅에서 엇갈려 솟는 얼음 기둥 (자기 중심 광역기)
 		task.spawn(playIceBladeEffect, hrp, char)
+	elseif assetKey == "BLAZE" then
+		-- 폭염참: 전방에 붉은 검기 1회 → 그 자리에서 Blast-Explosion-02 폭발 (파이어맨 드롭 스킬)
+		task.spawn(playBlazeEffect, hrp, targetCFrame)
 	elseif not isAuraRune then
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then

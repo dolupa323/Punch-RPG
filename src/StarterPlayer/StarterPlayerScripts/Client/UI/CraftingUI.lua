@@ -419,8 +419,19 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 
 		local itemData = DataHelper.GetData("ItemData", targetId)
 		local atkValue = itemData and (itemData.attack or itemData.damage or itemData.atk)
+		local statsText = ""
+		if atkValue then
+			if itemData.type == "WEAPON" and itemData.damage then
+				-- [품질 반영] 무기는 품질(0~100)에 따라 최종 공격력이 최솟값~최댓값 범위로 변동되므로 그 범위를 표기
+				local minDmg = DataHelper.GetQualityAdjustedWeaponDamage(targetId, 0)
+				local maxDmg = DataHelper.GetQualityAdjustedWeaponDamage(targetId, 100)
+				statsText = string.format("공격력 : %d~%d", minDmg, maxDmg)
+			else
+				statsText = string.format("공격력 : %s", tostring(atkValue))
+			end
+		end
 		local statsL = Utils.mkLabel({
-			text = atkValue and string.format("공격력 : %s", tostring(atkValue)) or "",
+			text = statsText,
 			ts = 13, font = F.NORMAL, color = Color3.fromRGB(200,200,200),
 			pos = UDim2.new(0,0,0.48,0), anchor = Vector2.new(0,0.5),
 			ax = Enum.TextXAlignment.Left, parent = infoArea

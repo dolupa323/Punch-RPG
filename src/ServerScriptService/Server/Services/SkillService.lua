@@ -801,7 +801,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" or baseItemId == "ICEBLADE" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" or baseItemId == "ICEBLADE" or baseItemId == "BLAZE" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -867,6 +867,13 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			dmgAmount = 12
 			skillMult = 0.50
 			skillColor = Color3.fromRGB(150, 220, 255)
+		elseif baseItemId == "BLAZE" then
+			-- 파이어맨 드롭: 붉은 검기로 전방을 벤 직후 그 자리에서 폭염이 터지는 단발 폭발형 스킬
+			-- [요청반영] 단일 1타인 대신, 매화낙락/빙화검무(8타 총배율 0.62*8=4.96)보다 강하도록 1타 총배율을 5.5로 상향
+			vfxName = "Blaze"
+			dmgAmount = 450
+			skillMult = 1.0
+			skillColor = Color3.fromRGB(255, 60, 20)
 		end
 		
 		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
@@ -921,17 +928,17 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
 		-- 매화낙락은 자기 주변을 베는 광역기라 원거리 조준이 아니라 캐릭터 바로 앞(짧은 거리)을 중심으로 판정
 		-- 빙화검무는 매화낙락보다 살짝 더 앞쪽(8)에서 판정 중심이 형성되도록 함 (제자리 중심이 아니라 약간 전방)
-		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or (baseItemId == "ICEBLADE" and 8 or 15)))))
+		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or (baseItemId == "ICEBLADE" and 8 or (baseItemId == "BLAZE" and 12 or 15))))))
 
 		-- Damage logic (슬라임샷은 단발 폭발, 오버그로스 버스트는 나무 3그루=3타, 그 외는 4타 멀티 히트)
 		task.spawn(function()
 			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
-			local maxHits = (baseItemId == "SLIMESHOT") and 1 or (baseItemId == "OVERGROWTH" and 3 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 8 or 4))
+			local maxHits = (baseItemId == "SLIMESHOT" or baseItemId == "BLAZE") and 1 or (baseItemId == "OVERGROWTH" and 3 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 8 or 4))
 			-- [디버그] 실제 명중 타수/캐스트당 총 데미지를 정확히 추적하기 위한 집계용 변수
 			local debugHitCount = 0
 			local debugTotalDamage = 0
 			for hitIndex = 1, maxHits do
-				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 18 or 15))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 매화낙락/빙화검무는 광역기라 넓은 범위
+				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or (baseItemId == "BLAZE" and 13 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 18 or 15)))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 폭염참은 전방 폭발 반경, 매화낙락/빙화검무는 광역기라 넓은 범위
 				
 				local params = OverlapParams.new()
 				params.FilterType = Enum.RaycastFilterType.Exclude

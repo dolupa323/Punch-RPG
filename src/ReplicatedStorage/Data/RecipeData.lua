@@ -87,6 +87,16 @@ local RecipeData = {
 		outputs = { { itemId = "ICE_SWORD", count = 1 } },
 	},
 	{
+		id = "CraftMagmaSword",
+		name = "마그마 소드",
+		category = "WEAPON",
+		requiredFacility = nil,
+		craftTime = 145,
+		techLevel = 1,
+		inputs = { { itemId = "LAVA_SLIME_GEL", count = 20 }, { itemId = "FIREMAN_EMBER", count = 40 } },
+		outputs = { { itemId = "MAGMA_SWORD", count = 1 } },
+	},
+	{
 		id = "CraftKnightSword",
 		name = "나이트 소드",
 		category = "WEAPON",

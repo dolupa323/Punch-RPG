@@ -236,6 +236,10 @@ Protocol.Commands = {
 	["Citizen.OpenDialogue"]         = true,  -- S→C: 대화 열기
 	["Citizen.QuestTracker"]         = true,  -- S→C: 퀘스트 트래커
 
+	-- DropInfo NPC 명령어 (citizen_01, "척척박사" — 아이템 드롭률 안내)
+	["DropInfo.GetTable.Request"] = true,
+	["DropInfo.OpenDialogue"]     = true,  -- S→C: 대화 열기
+
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,

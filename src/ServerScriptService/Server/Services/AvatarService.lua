@@ -322,15 +322,18 @@ function AvatarService.Init()
 				local weaponBase = equippedWeapon and DataService.getItem(equippedWeapon.itemId)
 				local weaponDmg = weaponBase and (weaponBase.damage or weaponBase.baseDamage) or 0
 				local baseDamage = weaponDmg
-				
+				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
+
+				-- [버그수정] 품질 최솟값 보정 없이 단순 (원본 데미지 * 품질%)로만 계산되어,
+				-- 품질이 낮게 뽑히면 무기 티어의 최솟값 하한선을 무시한 채 데미지가 거의 0에 가깝게 나오는 문제가 있었음.
+				-- 스킬 데미지(SkillService.lua)와 동일하게 DataHelper.GetQualityAdjustedWeaponDamage로 통일.
 				if equippedWeapon then
 					local quality = (equippedWeapon.attributes and equippedWeapon.attributes.quality) or 100
-					baseDamage = math.floor(baseDamage * (quality / 100))
+					baseDamage = DataHelper.GetQualityAdjustedWeaponDamage(equippedWeapon.itemId, quality)
 				end
-				
+
 				-- Apply +15% damage bonus per enhancement level
 				local enhanceLevel = equippedWeapon and equippedWeapon.attributes and equippedWeapon.attributes.enhanceLevel or 0
-				local DataHelper = require(game:GetService("ReplicatedStorage").Shared.Util.DataHelper)
 				local bonusRate = DataHelper.GetEnhanceBonusRate(weaponBase and weaponBase.rarity or "COMMON")
 				local finalDamage = baseDamage * (1 + enhanceLevel * bonusRate)
 				

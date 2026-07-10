@@ -702,6 +702,17 @@ SkillTreeData.RUNES = {
 		cooldown = 10.0,
 		description = "얼음 기운에 휩싸여 새하얀 눈이 휘날리는 가운데 서릿빛 검기를 사방으로 흩뿌리고, 땅 아래에서 얼음 기둥이 엇갈려 솟아오르는 광역기입니다.",
 		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.8 } },
+	},
+	{
+		id = "SKILL_BLAZE",
+		name = "폭염참",
+		type = "ACTIVE",
+		icon = "Icon_Skill_Blaze",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 9.0,
+		description = "붉은 검기로 전방을 크게 베어낸 직후, 그 자리에서 거대한 폭염이 터져 나옵니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 2.2 } },
 	}
 }
 

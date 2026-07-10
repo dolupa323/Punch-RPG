@@ -1,143 +1,34 @@
--- CitizenController.lua
--- 청운촌 주민 3인(citizen_01/02/03) 클라이언트 대화창 + 퀘스트 인디케이터
--- Trainer/MagicianController와 동일한 패턴을 3개 NPC에 걸쳐 재사용
+-- DropRateInfoController.lua
+-- 척척박사(citizen_01) NPC 대화창: "무엇이 알고싶나?" -> 아이템 드롭률 표 오픈
 
 local Players          = game:GetService("Players")
-local TweenService      = game:GetService("TweenService")
 local UserInputService  = game:GetService("UserInputService")
 
-local CitizenController = {}
+local DropRateInfoController = {}
 
 local Client      = script.Parent.Parent
 local Theme       = require(Client:WaitForChild("UI"):WaitForChild("UITheme"))
 local NetClient   = require(Client:WaitForChild("NetClient"))
-local UIManager   = require(Client:WaitForChild("UIManager"))
 local UILocalizer = require(Client:WaitForChild("Localization"):WaitForChild("UILocalizer"))
+local DropRateUI  = require(Client:WaitForChild("UI"):WaitForChild("DropRateUI"))
 
 local player = Players.LocalPlayer
 local F = Theme.Fonts
 local initialized = false
 
--- NPC별 사이드퀘스트 트래커 슬롯 (Trainer=100, Magician=101과 겹치지 않게)
--- citizen_01은 드롭률 안내 NPC로 용도가 변경되어 퀘스트 트래커 슬롯이 없음
-local NPC_QUEST_SLOT = {
-	citizen_02 = 103,
-	citizen_03 = 104,
-}
-
-local indicatorGuis = {}   -- [npcId] = BillboardGui
-local pendingStates = {}   -- [npcId] = "NONE" | "AVAILABLE" | "CLAIMABLE"
-
--- ── NPC 루트 파트 탐색 ──
-local function _waitForNpcPart(npcModel)
-	local npcFolder = workspace:WaitForChild("NPC", 30)
-	if not npcFolder then warn("[CitizenController] workspace.NPC 폴더 없음"); return nil end
-	local model = npcFolder:WaitForChild(npcModel, 30)
-	if not model then warn("[CitizenController] workspace.NPC." .. npcModel .. " 없음"); return nil end
-
-	local head = model:WaitForChild("Head", 15)
-	if head then return head end
-
-	local hrp = model:WaitForChild("HumanoidRootPart", 10)
-	if hrp then return hrp end
-
-	for _, d in ipairs(model:GetDescendants()) do
-		if d:IsA("BasePart") then return d end
-	end
-	warn("[CitizenController] " .. npcModel .. " BasePart를 찾지 못했습니다.")
-	return nil
-end
-
--- ── 인디케이터 BillboardGui ──
-local function _buildIndicatorGui(npcId, rootPart, state)
-	local existing = indicatorGuis[npcId]
-	if existing then
-		existing:Destroy()
-		indicatorGuis[npcId] = nil
-	end
-	if state == "NONE" then return end
-	if not rootPart then warn("[CitizenController] " .. npcId .. " rootPart 없음"); return end
-
-	local isAvailable = (state == "AVAILABLE")
-	local playerGui = player:WaitForChild("PlayerGui")
-
-	local bb = Instance.new("BillboardGui")
-	bb.Name         = "CitizenQuestIndicator_" .. npcId
-	bb.Size         = UDim2.new(0, 36, 0, 58)
-	bb.StudsOffset  = Vector3.new(0, 3.5, 0)
-	bb.AlwaysOnTop  = true
-	bb.MaxDistance  = 100
-	bb.ResetOnSpawn = false
-	bb.Adornee      = rootPart
-	bb.Parent       = playerGui
-
-	local shadow = Instance.new("TextLabel")
-	shadow.Size                   = UDim2.new(1, 0, 1, 0)
-	shadow.Position               = UDim2.new(0, 2, 0, 3)
-	shadow.BackgroundTransparency = 1
-	shadow.Text                   = isAvailable and "!" or "?"
-	shadow.Font                   = Enum.Font.GothamBold
-	shadow.TextSize               = 52
-	shadow.TextColor3             = isAvailable and Color3.fromRGB(120, 50, 0) or Color3.fromRGB(20, 60, 140)
-	shadow.TextTransparency       = 0.3
-	shadow.TextXAlignment         = Enum.TextXAlignment.Center
-	shadow.TextYAlignment         = Enum.TextYAlignment.Center
-	shadow.ZIndex                 = 1
-	shadow.Parent                 = bb
-
-	local label = Instance.new("TextLabel")
-	label.Size                   = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text                   = isAvailable and "!" or "?"
-	label.Font                   = Enum.Font.GothamBold
-	label.TextSize               = 52
-	label.TextColor3             = isAvailable and Color3.fromRGB(255, 190, 30) or Color3.fromRGB(100, 200, 255)
-	label.TextStrokeColor3       = isAvailable and Color3.fromRGB(160, 80, 0) or Color3.fromRGB(30, 80, 180)
-	label.TextStrokeTransparency = 0
-	label.TextXAlignment         = Enum.TextXAlignment.Center
-	label.TextYAlignment         = Enum.TextYAlignment.Center
-	label.ZIndex                 = 2
-	label.Parent                 = bb
-
-	task.spawn(function()
-		while bb and bb.Parent do
-			TweenService:Create(bb, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				StudsOffset = Vector3.new(0, 4.6, 0)
-			}):Play()
-			task.wait(0.6)
-			if not bb or not bb.Parent then break end
-			TweenService:Create(bb, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				StudsOffset = Vector3.new(0, 3.5, 0)
-			}):Play()
-			task.wait(0.6)
-		end
-	end)
-
-	indicatorGuis[npcId] = bb
-end
-
-local function setIndicator(npcId, npcModel, state)
-	pendingStates[npcId] = state
-	task.spawn(function()
-		local rootPart = _waitForNpcPart(npcModel)
-		_buildIndicatorGui(npcId, rootPart, pendingStates[npcId])
-	end)
-end
-
--- ── 대화창 UI (Trainer/MagicianController와 동일 패턴) ──
 local function showDialogue(data)
-	local npcName  = UILocalizer.Localize(data.npcName  or "주민")
+	local npcName  = UILocalizer.Localize(data.npcName  or "척척박사")
 	local dialogue = UILocalizer.Localize(data.dialogue or "")
 	local choices  = data.choices  or {}
 
 	local playerGui = player:WaitForChild("PlayerGui")
-	local existing = playerGui:FindFirstChild("CitizenDialogueSG")
+	local existing = playerGui:FindFirstChild("DropInfoDialogueSG")
 	if existing then existing:Destroy() end
 
 	local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 	local sg = Instance.new("ScreenGui")
-	sg.Name           = "CitizenDialogueSG"
+	sg.Name           = "DropInfoDialogueSG"
 	sg.ResetOnSpawn   = false
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	sg.DisplayOrder   = 200
@@ -159,7 +50,7 @@ local function showDialogue(data)
 
 	local topLine = Instance.new("Frame")
 	topLine.Size             = UDim2.new(1, 0, 0, 2)
-	topLine.BackgroundColor3 = Color3.fromRGB(120, 200, 120)
+	topLine.BackgroundColor3 = Color3.fromRGB(230, 190, 90)
 	topLine.BorderSizePixel  = 0
 	topLine.Parent           = dialogueBox
 	Instance.new("UICorner", topLine).CornerRadius = UDim.new(0, 2)
@@ -168,13 +59,13 @@ local function showDialogue(data)
 	namePlate.Size             = UDim2.new(0, 0, 0, 30)
 	namePlate.Position         = UDim2.new(0, 18, 0, -16)
 	namePlate.AutomaticSize    = Enum.AutomaticSize.X
-	namePlate.BackgroundColor3 = Color3.fromRGB(20, 45, 25)
+	namePlate.BackgroundColor3 = Color3.fromRGB(45, 35, 15)
 	namePlate.BorderSizePixel  = 0
 	namePlate.ZIndex           = 2
 	namePlate.Parent           = dialogueBox
 	Instance.new("UICorner", namePlate).CornerRadius = UDim.new(0, 4)
 	local npStroke = Instance.new("UIStroke", namePlate)
-	npStroke.Color = Color3.fromRGB(120, 200, 120); npStroke.Thickness = 1.5
+	npStroke.Color = Color3.fromRGB(230, 190, 90); npStroke.Thickness = 1.5
 
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Size                   = UDim2.new(0, 0, 1, 0)
@@ -183,7 +74,7 @@ local function showDialogue(data)
 	nameLabel.Text                   = "  " .. npcName .. "  "
 	nameLabel.Font                   = F.TITLE
 	nameLabel.TextSize               = 14
-	nameLabel.TextColor3             = Color3.fromRGB(190, 255, 190)
+	nameLabel.TextColor3             = Color3.fromRGB(255, 225, 160)
 	nameLabel.ZIndex                 = 3
 	nameLabel.Parent                 = namePlate
 
@@ -224,7 +115,7 @@ local function showDialogue(data)
 	local divider = Instance.new("Frame")
 	divider.Name             = "Divider"
 	divider.Size             = UDim2.new(1, 0, 0, 1)
-	divider.BackgroundColor3 = Color3.fromRGB(45, 65, 45)
+	divider.BackgroundColor3 = Color3.fromRGB(65, 55, 35)
 	divider.BorderSizePixel  = 0
 	divider.LayoutOrder      = 2
 	divider.Visible          = false
@@ -257,12 +148,12 @@ local function showDialogue(data)
 	local function makeChoiceBtn(text, layoutOrder, color, fn)
 		local btn = Instance.new("TextButton")
 		btn.Size             = UDim2.new(1, 0, 0, isMobile and 36 or 30)
-		btn.BackgroundColor3 = Color3.fromRGB(18, 32, 20)
+		btn.BackgroundColor3 = Color3.fromRGB(32, 26, 14)
 		btn.BorderSizePixel  = 0
 		btn.Text             = "▶  " .. text
 		btn.Font             = F.NORMAL
 		btn.TextSize         = isMobile and 13 or 14
-		btn.TextColor3       = color or Color3.fromRGB(200, 230, 200)
+		btn.TextColor3       = color or Color3.fromRGB(230, 210, 170)
 		btn.TextXAlignment   = Enum.TextXAlignment.Left
 		btn.RichText         = false
 		btn.LayoutOrder      = layoutOrder
@@ -270,8 +161,8 @@ local function showDialogue(data)
 		btn.Parent           = choiceFrame
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
 		local pad = Instance.new("UIPadding", btn); pad.PaddingLeft = UDim.new(0, 10)
-		btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(35, 60, 38) end)
-		btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(18, 32, 20) end)
+		btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(60, 48, 22) end)
+		btn.MouseLeave:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(32, 26, 14) end)
 		btn.MouseButton1Click:Connect(fn)
 		return btn
 	end
@@ -312,19 +203,18 @@ local function showDialogue(data)
 
 		for idx, choice in ipairs(choices) do
 			local isAction = (choice.action ~= "CLOSE")
-			local color = isAction and Color3.fromRGB(150, 230, 150) or Color3.fromRGB(160, 160, 160)
+			local color = isAction and Color3.fromRGB(255, 215, 130) or Color3.fromRGB(160, 160, 160)
 			makeChoiceBtn(UILocalizer.Localize(choice.text), idx, color, function()
 				if choice.action == "CLOSE" then
 					closeDialogue()
-				elseif choice.action == "ACCEPT" or choice.action == "CLAIM" then
+				elseif choice.action == "SHOW_DROPTABLE" then
 					closeDialogue()
 					task.spawn(function()
-						local ok, _ = NetClient.Request("Citizen.QuestAction.Request", {
-							action  = choice.action,
-							questId = choice.questId,
-						})
-						if not ok then
-							warn("[CitizenController] Quest action failed:", choice.action)
+						local ok, result = NetClient.Request("DropInfo.GetTable.Request", {})
+						if ok and type(result) == "table" and result.rows then
+							DropRateUI.Open(result.rows)
+						else
+							warn("[DropRateInfoController] Failed to fetch drop table")
 						end
 					end)
 				end
@@ -356,45 +246,15 @@ local function showDialogue(data)
 	end)
 end
 
--- ── 퀘스트 트래커 → HUDUI 통합 패널 ──
-local function showQuestTracker(npcId, data)
-	local slot = NPC_QUEST_SLOT[npcId]
-	if not slot then return end
-	UIManager.updateSideQuest(slot, data)
-end
-
-function CitizenController.Init()
+function DropRateInfoController.Init()
 	if initialized then return end
 	initialized = true
 
-	NetClient.On("Citizen.OpenDialogue", function(data)
+	NetClient.On("DropInfo.OpenDialogue", function(data)
 		showDialogue(data)
 	end)
 
-	NetClient.On("Citizen.SetIndicator", function(data)
-		local npcId = data and data.npcId
-		if not npcId then return end
-		setIndicator(npcId, npcId, data.state or "NONE")
-	end)
-
-	NetClient.On("Citizen.QuestTracker", function(data)
-		local npcId = data and data.npcId
-		if not npcId then return end
-		showQuestTracker(npcId, data)
-	end)
-
-	-- 서버가 PlayerAdded에서 먼저 쏜 이벤트를 놓친 경우를 대비해 각 NPC 인디케이터를 재요청
-	task.spawn(function()
-		task.wait(5)
-		for npcId in pairs(NPC_QUEST_SLOT) do
-			local success, data = NetClient.Request("Citizen.GetIndicator.Request", { npcId = npcId })
-			if success and type(data) == "table" and data.state then
-				setIndicator(npcId, npcId, data.state)
-			end
-		end
-	end)
-
-	print("[CitizenController] Initialized.")
+	print("[DropRateInfoController] Initialized.")
 end
 
-return CitizenController
+return DropRateInfoController

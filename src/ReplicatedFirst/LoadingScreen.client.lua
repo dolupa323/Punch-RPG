@@ -416,15 +416,42 @@ else
 	updateProgress(85, 0.5)
 end
 
--- 4단계: 플레이어 데이터 및 서비스 연동 대기
+-- 4단계: 플레이어 데이터, 클라이언트 컨트롤러(스킬/이펙트 포함), 캐릭터 외형까지 전부 로드되었는지 대기
 statusText.Text = "게임 정보를 동기화 중입니다..."
 local waitStartTime = os.clock()
-while (not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryLoaded") or not player:GetAttribute("ShopLoaded") or not player:GetAttribute("SkillLoaded")) and (os.clock() - waitStartTime) < 5 do
+local function isFullyReady()
+	if not (player:GetAttribute("DataLoaded") and player:GetAttribute("InventoryLoaded")
+		and player:GetAttribute("ShopLoaded") and player:GetAttribute("SkillLoaded")) then
+		return false
+	end
+	-- [요청반영] 스킬/캐릭터/이펙트 등 클라이언트 컨트롤러(AvatarController, SkillController,
+	-- WeaponEnhanceEffectController 등) Init()이 전부 끝난 시점까지 확인 (ClientInit.client.lua에서 설정)
+	if not player:GetAttribute("ClientControllersLoaded") then
+		return false
+	end
+	-- 캐릭터 모델/외형(장비 액세서리 등)이 실제로 스트리밍 완료됐는지 확인
+	local char = player.Character
+	if not char or not char:FindFirstChildOfClass("Humanoid") then
+		return false
+	end
+	local ok, appearanceLoaded = pcall(function() return player:HasAppearanceLoaded() end)
+	if not ok or not appearanceLoaded then
+		return false
+	end
+	return true
+end
+
+-- [수정] 5초 하드 타임아웃으로 무조건 통과시키던 방식 폐기 -> 최대 15초까지 실제로 다 로드될 때까지 기다림
+while not isFullyReady() and (os.clock() - waitStartTime) < 15 do
 	task.wait(0.2)
 	-- 데이터 로드 진행상황에 따라 85% ~ 95% 구간으로 완만히 증가
 	local elapsed = os.clock() - waitStartTime
-	local fakeProgress = 85 + math.min(math.floor(elapsed * 1.5), 10)
+	local fakeProgress = 85 + math.min(math.floor(elapsed * 0.7), 10)
 	updateProgress(fakeProgress, 0.2)
+end
+
+if not isFullyReady() then
+	warn("[LoadingScreen] 15초 내에 모든 로딩이 완료되지 않아 강제로 진행합니다.")
 end
 
 updateProgress(100, 0.4)

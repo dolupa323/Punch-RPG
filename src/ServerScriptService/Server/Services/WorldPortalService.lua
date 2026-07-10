@@ -19,6 +19,7 @@ local PORTAL_DEFS = {
 	{ id = "Cave",         name = "동굴"        },
 	{ id = "BatTerritory", name = "박쥐 서식지" },
 	{ id = "Snowy",        name = "설원"        },
+	{ id = "Lava",         name = "용암지대"    },
 	{ id = "Sky",          name = "하늘섬"      },
 }
 

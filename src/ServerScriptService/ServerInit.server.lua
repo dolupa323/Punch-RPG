@@ -266,6 +266,13 @@ for command, handler in pairs(CitizenQuestService.GetHandlers()) do
 end
 ServiceRegistry.Register("CitizenQuestService", CitizenQuestService)
 
+local DropRateInfoService = require(Services.DropRateInfoService)
+DropRateInfoService.Init(NetController)
+for command, handler in pairs(DropRateInfoService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("DropRateInfoService", DropRateInfoService)
+
 local LevelTriggerService = require(Services.LevelTriggerService)
 LevelTriggerService.Init()
 ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)

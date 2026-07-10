@@ -153,6 +153,15 @@ local DropTableData = {
 	["KRAKEN"] = {
 		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
 	},
+	["LAVASLIME"] = {
+		{ itemId = "LAVA_SLIME_GEL",    chance = 1.0, min = 2, max = 4 },
+		{ itemId = "LAVASLIME_NECKLACE", chance = 0.03, min = 1, max = 1 },
+	},
+	["FIREMAN"] = {
+		{ itemId = "FIREMAN_EMBER",  chance = 1.0, min = 1, max = 3 },
+		{ itemId = "BOOK_BLAZE",     chance = 0.05, min = 1, max = 1 },
+		{ itemId = "FIREMAN_EARRING", chance = 0.03, min = 1, max = 1 },
+	},
 }
 
 return DropTableData

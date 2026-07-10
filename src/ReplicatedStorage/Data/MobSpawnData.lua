@@ -238,6 +238,35 @@ local MobSpawnData = {
 		}
 	},
 
+	-- [바다 테마 리스킨] 수중도시 서쪽 협곡 레이드방 보스. 사막의 수호자와 동일한 모델/능력치를
+	-- 재사용하되, MobSpawnService.lua의 DesertGuardian FSM 분기가 spawnAreaId로 이 존을 감지해서
+	-- 공격 패턴 색감만 모래톤 -> 바다톤으로 자동 전환함 (사막존 원본은 그대로 유지).
+	["AbyssGuardianZone"] = {
+		spawnAreaId = "AbyssGuardianZone",
+		-- [요청반영] 같은 수중도시 월드보스인 크라켄과 스펙(레벨/체력/공격력/리스폰/경험치)을 맞춤
+		level = 65,
+		mobModelName = "DesertGuardian",
+		mobDisplayName = "심연의 수호자",
+		maxHealth = 450000,
+		baseDamage = 450,
+		attackCooldown = 2.5,
+		respawnDelay = 90.0,
+		modelScale = 0.17, -- [요청반영] 사막 원본(0.25)보다 축소
+		spawnRotationOffset = {x = 90, y = 0, z = 0},
+		customHipHeight = 0.0,
+		groundClearance = 0.0,
+		snapVisualToGround = false, -- 수중 협곡 레이드방은 바닥이 뜬 구조라 지면 스냅 불필요
+		hitboxScaleFromBounds = {x = 0.85, y = 0.9, z = 0.85},
+		walkSpeed = 6,
+		xpReward = 30000,
+
+		spawnAsPolygon = false,
+		spawnCount = 1,
+		isIndoor = true,
+		skipTerrainScan = true,
+		exactSpawnPosition = {x = -731, y = 100, z = 203.2}, -- 서쪽 협곡 레이드방 BossSpawnMarker
+	},
+
 	["SpiderZone"] = {
 		spawnAreaId = "SpiderZone",
 		level = 33, -- 거 거미 레벨 33
@@ -295,7 +324,10 @@ local MobSpawnData = {
 
 	["DeepAbyss_Kraken"] = {
 		spawnAreaId = "DeepAbyss_Kraken",
-		level = 50, -- 현재 만렙이 50이라 레벨 상한에 맞춤
+		-- [밸런스 수정] 레벨을 만렙(50)에 맞추면 몹 레벨차 데미지 페널티(AvatarService)가 0이 되어
+		-- 오히려 하늘섬 보스(BlueFlameKnight, Lv63)보다 쉬워지는 모순이 있었음. "다음 지역이니 더
+		-- 강해야 한다"는 아래 코멘트 의도에 맞춰 BlueFlameKnight보다 약간 높은 레벨로 조정.
+		level = 65,
 		mobModelName = "Kraken",
 		dropTableId = "KRAKEN",
 		mobDisplayName = "크라켄",
@@ -481,6 +513,59 @@ local MobSpawnData = {
 
 		-- 두 번째 스폰지역 좌표 반영
 		spawnPositions = {}
+	},
+
+	-- [레벨디자인 보강] 얼음 기사(38)와 유령기사(48) 사이 갭을 메우는 신규 사냥터.
+	-- 사무라이존 서쪽 화산 능선 지대(VolcanicField)에 배치.
+	["LavaSlimeZone"] = {
+		spawnAreaId = "LavaSlimeZone",
+		level = 41,
+		mobModelName = "LavaSlime",
+		mobDisplayName = "용암 슬라임",
+		maxHealth = 8500,
+		baseDamage = 50,
+		attackCooldown = 1.5,
+		respawnDelay = 10.0,
+		modelScale = 3.2, -- [요청반영] 크기 대폭 확대
+		xpReward = 850,
+
+		spawnAsPolygon = true,
+		spawnCount = 8,
+		isIndoor = false,
+
+		-- 화산 분지 4개 꼭짓점 (사용자 제공 실측 좌표)
+		spawnPositions = {
+			{x = -961.977, y = 574.234, z = -907.889},
+			{x = -641.514, y = 550.443, z = -902.067},
+			{x = -655.299, y = 551.708, z = -1220.3},
+			{x = -957.604, y = 587.019, z = -1185.684},
+		}
+	},
+
+	["FireManZone"] = {
+		spawnAreaId = "FireManZone",
+		level = 45,
+		mobModelName = "FireMan", -- [자체 제작] 크라켄처럼 Part/WedgePart로 직접 제작 (앤더맨 모티브의 불타는 시커먼 형체)
+		mobDisplayName = "파이어맨",
+		maxHealth = 12000,
+		baseDamage = 60,
+		attackCooldown = 2.0,
+		respawnDelay = 14.0,
+		modelScale = 1.0,
+		walkSpeed = 12,
+		xpReward = 1300,
+
+		spawnAsPolygon = true,
+		spawnCount = 5,
+		isIndoor = false,
+
+		-- 화산 분지 4개 꼭짓점 (사용자 제공 실측 좌표)
+		spawnPositions = {
+			{x = -961.977, y = 574.234, z = -907.889},
+			{x = -641.514, y = 550.443, z = -902.067},
+			{x = -655.299, y = 551.708, z = -1220.3},
+			{x = -957.604, y = 587.019, z = -1185.684},
+		}
 	},
 
 	["IceDragonZone"] = {

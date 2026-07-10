@@ -52,6 +52,11 @@ local function getNPCRole(npc: Instance): (string?, string?)
 		return "캠프", "Camp"
 	end
 
+	-- 8. 드롭률 안내 (척척박사)
+	if name == "citizen_01" or npcId == "citizen_01" then
+		return "드롭률확인", "Drop Rate Info"
+	end
+
 	return nil, nil
 end
 
@@ -108,6 +113,8 @@ local function localizeBillboard(billboard: BillboardGui)
 		displayName = isKorean and "룬스톤" or "Rune Stone"
 	elseif displayName == "Tent" then
 		displayName = isKorean and "해당 캠프에서 스폰" or "Spawn at this Camp"
+	elseif displayName == "citizen_01" then
+		displayName = isKorean and "척척박사" or "Know-It-All"
 	end
 
 	-- 고급 텍스트 스타일링 적용 (RichText 활성화)

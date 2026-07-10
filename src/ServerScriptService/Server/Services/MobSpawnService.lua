@@ -330,6 +330,10 @@ end
 local function createMobModel(areaId, index, config)
 	-- 실시간으로 스폰할 정확한 위치 계산! (파트 있으면 파트 위 랜덤 위치)
 	local spawnPos = getNextSpawnPosition(config, index)
+	-- [버그수정용] 지형 레이캐스트로 찾은 "순수 바닥 높이"(버퍼 +5 반영 전)를 별도 보관.
+	-- 아래 완착 보정 단계가 spawnPos.Y(이미 +5 버퍼 포함)를 기준으로 또 HipHeight를 더해 이중으로
+	-- 떠버리는 문제를 막기 위함 (모델 스케일이 클수록 HipHeight도 커져서 이 이중 오프셋이 크게 두드러짐).
+	local terrainGroundY = nil
 
 	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
 	local monstersFolder = assetsFolder and assetsFolder:FindFirstChild("Monsters")
@@ -375,6 +379,7 @@ local function createMobModel(areaId, index, config)
 			if rayResult then
 				-- 바닥(Floor) 정확한 고도를 찾아내고, 모델이 지형에 끼이지 않도록 살짝(5스터드) 위에서 스폰시킴
 				-- 이후 아래에 있는 하이브리드 HipHeight 엔진이 알아서 중력과 함께 완벽히 안착시킴
+				terrainGroundY = rayResult.Position.Y
 				spawnPos = rayResult.Position + Vector3.new(0, 5, 0)
 			end
 		end
@@ -422,6 +427,14 @@ local function createMobModel(areaId, index, config)
 				child:Destroy()
 			end
 		end
+	end
+
+	-- [바다 테마 리스킨] 서쪽 협곡 보스는 DesertGuardian 에셋/애니메이션/FSM을 그대로 재사용하지만,
+	-- workspace 인스턴스 이름이 똑같이 "DesertGuardian"이면 RaidBossData/HUDUI의 보스 UI 탐색
+	-- (workspace:FindFirstChild(mobModelName))이 사막 보스와 구분을 못해 이름표/체력바 테마가 뒤섞임.
+	-- 이름만 별도로 바꿔서 두 존을 완전히 분리한다.
+	if config.spawnAreaId == "AbyssGuardianZone" then
+		model.Name = "AbyssGuardian"
 	end
 
 	-- [물리혁신 1단계] ScaleTo 연산 및 부모화를 "가장 먼저" 수행하여 가상 HRP 크기가 강제 쪼그라드는 버그를 근본적으로 방지!
@@ -964,8 +977,9 @@ local function createMobModel(areaId, index, config)
 		if hrp then
 			pcall(function()
 				local groundClearance = if config.groundClearance ~= nil then config.groundClearance else 0.1
+				local baseGroundY = terrainGroundY or spawnPos.Y
 				local heightOffset = humanoid.HipHeight + (hrp.Size.Y / 2) + groundClearance
-				model:PivotTo(CFrame.new(spawnPos.X, spawnPos.Y + heightOffset, spawnPos.Z))
+				model:PivotTo(CFrame.new(spawnPos.X, baseGroundY + heightOffset, spawnPos.Z))
 
 				if config.snapVisualToGround then
 					local lowestY = math.huge
@@ -979,7 +993,7 @@ local function createMobModel(areaId, index, config)
 					end
 
 					if lowestY < math.huge then
-						local desiredBottomY = spawnPos.Y + groundClearance
+						local desiredBottomY = baseGroundY + groundClearance
 						model:PivotTo(model:GetPivot() + Vector3.new(0, desiredBottomY - lowestY, 0))
 					end
 				end
@@ -988,6 +1002,27 @@ local function createMobModel(areaId, index, config)
 	end
 
 	local isAlive = true
+
+	-- [몸박 데미지] 몬스터 몸체(HRP)에 플레이어가 직접 닿으면 소량의 접촉 데미지가 들어감 (모든 몬스터 공통, 패턴 공격과 별개)
+	if hrp then
+		local touchCooldowns = {}
+		local CONTACT_DAMAGE_COOLDOWN = 1.0
+		hrp.Touched:Connect(function(other)
+			if not isAlive then return end
+			local otherChar = other.Parent
+			local otherPlayer = otherChar and Players:GetPlayerFromCharacter(otherChar)
+			local otherHum = otherChar and otherChar:FindFirstChildOfClass("Humanoid")
+			if not otherPlayer or not otherHum or otherHum.Health <= 0 then return end
+
+			local now = os.clock()
+			local last = touchCooldowns[otherPlayer.UserId] or 0
+			if now - last < CONTACT_DAMAGE_COOLDOWN then return end
+			touchCooldowns[otherPlayer.UserId] = now
+
+			local contactDamage = config.contactDamage or math.max(1, math.floor((config.baseDamage or 10) * 0.15))
+			dealDamageToHumanoid(otherHum, contactDamage, config.level)
+		end)
+	end
 
 	if humanoid then
 		-- [추가] 심플 몬스터 AI 엔진 (배회 + 추격 + 공격 기능 융합!)
@@ -2605,6 +2640,17 @@ local function createMobModel(areaId, index, config)
 						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
 						local now = os.clock()
 
+						-- [바다 테마 리스킨] 서쪽 협곡 레이드방(AbyssGuardianZone)에 스폰된 개체는
+						-- 동일한 패턴/수치를 그대로 쓰되 색감만 모래톤 -> 바다톤으로 바꿔서 표시.
+						-- 기존 사막존(DesertGuardianZone) 개체는 spawnAreaId가 달라 영향 없음.
+						local isSeaVariant = (config.spawnAreaId == "AbyssGuardianZone")
+						local function seaTone(sandColor, seaColor)
+							return isSeaVariant and seaColor or sandColor
+						end
+						-- 크라켄 체스판 공격(playKrakenCheckerboardAttack)이 쓰는 실제 물 텍스처를 그대로 재사용
+						local SEA_WATER_TEX_1 = "rbxassetid://15990457929" -- WAVE_Aura Water1 (넓게 퍼지는 물결)
+						local SEA_WATER_TEX_2 = "rbxassetid://15081467386" -- DROPLET_Hit Water Slash 2 (튀는 물보라)
+
 						local ts = game:GetService("TweenService")
 						local Debris = game:GetService("Debris")
 
@@ -2644,6 +2690,44 @@ local function createMobModel(areaId, index, config)
 							return nil
 						end
 
+						-- [바다 테마 리스킨] DesertGuardian_Tornado / DesertGuardian_RisingStone 같은 완제품
+						-- VFX 에셋은 모래색이 파티클/파츠에 직접 구워져 있어 seaTone() 색상 파라미터만으론
+						-- 바뀌지 않음. 복제된 인스턴스의 파티클/파츠 색을 런타임에 바다톤으로 덮어써서
+						-- 새 에셋 제작 없이 동일 VFX를 재사용한다.
+						local function tintVfxForSea(inst)
+							local SEA_PARTICLE = Color3.fromRGB(140, 210, 255)
+							local SEA_PART = Color3.fromRGB(20, 45, 95) -- 짙은 남색 암석/파츠 톤
+							local SEA_STONE = Color3.fromRGB(25, 50, 110) -- 솟구치는 돌 전용 남색
+							local texToggle = false
+
+							local function tintOne(desc)
+								if desc:IsA("ParticleEmitter") then
+									desc.Color = ColorSequence.new(SEA_PARTICLE)
+									-- 회오리(Windspin류)가 모래 텍스처 그대로 남아있으면 색만 바뀐 모래로
+									-- 보이므로, 실제 물결/물보라 텍스처(크라켄 체스판 공격과 동일)로 교체해서
+									-- 진짜 소용돌이처럼 보이게 함
+									texToggle = not texToggle
+									desc.Texture = texToggle and SEA_WATER_TEX_1 or SEA_WATER_TEX_2
+								elseif desc:IsA("MeshPart") and desc.Transparency < 1 then
+									-- RisingStone(암석 스파이크)은 이미 Material.Ice라 색만 바꿔도
+									-- 크리스탈처럼 보임 -> 요청하신 푸른 남색으로
+									desc.Color = SEA_STONE
+								elseif desc:IsA("BasePart") and desc.Transparency < 1 then
+									desc.Color = SEA_PART
+								elseif desc:IsA("PointLight") or desc:IsA("SpotLight") then
+									desc.Color = SEA_PARTICLE
+								end
+							end
+
+							-- [버그수정] DesertGuardian_RisingStone처럼 자식이 없는 단일 MeshPart는
+							-- GetDescendants()가 빈 배열을 반환해서 색이 하나도 안 바뀌었음.
+							-- 최상위 인스턴스 자체도 반드시 함께 칠해야 함.
+							tintOne(inst)
+							for _, desc in ipairs(inst:GetDescendants()) do
+								tintOne(desc)
+							end
+						end
+
 						local function prepareVfxInstance(template, name, cf, hideParts)
 							local inst = template:Clone()
 							inst.Name = name
@@ -2666,6 +2750,9 @@ local function createMobModel(areaId, index, config)
 							end
 							setVfxCFrame(inst, cf)
 							inst.Parent = workspace
+							if isSeaVariant then
+								tintVfxForSea(inst)
+							end
 							return inst
 						end
 
@@ -2691,7 +2778,7 @@ local function createMobModel(areaId, index, config)
 							local burst = Instance.new("ParticleEmitter")
 							burst.Name = name
 							burst.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-							burst.Color = ColorSequence.new(Color3.fromRGB(255, 232, 175), Color3.fromRGB(185, 135, 80))
+							burst.Color = ColorSequence.new(seaTone(Color3.fromRGB(255, 232, 175), Color3.fromRGB(200, 235, 255)), seaTone(Color3.fromRGB(185, 135, 80), Color3.fromRGB(60, 160, 220)))
 							burst.Size = NumberSequence.new({
 								NumberSequenceKeypoint.new(0, 0.25 * sizeScale),
 								NumberSequenceKeypoint.new(0.4, 0.85 * sizeScale),
@@ -2822,7 +2909,7 @@ local function createMobModel(areaId, index, config)
 							local emitter = Instance.new("ParticleEmitter")
 							emitter.Name = "DesertSandParticle"
 							emitter.Texture = "rbxassetid://243577789"
-							emitter.Color = ColorSequence.new(Color3.fromRGB(210, 180, 140))
+							emitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(210, 180, 140), Color3.fromRGB(150, 210, 255)))
 							emitter.Size = NumberSequence.new({
 								NumberSequenceKeypoint.new(0, 0.5),
 								NumberSequenceKeypoint.new(0.5, 3.0),
@@ -2844,7 +2931,7 @@ local function createMobModel(areaId, index, config)
 							local grainEmitter = Instance.new("ParticleEmitter")
 							grainEmitter.Name = "DesertSandGrainParticle"
 							grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-							grainEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 230, 170), Color3.fromRGB(175, 125, 70))
+							grainEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(255, 230, 170), Color3.fromRGB(210, 235, 255)), seaTone(Color3.fromRGB(175, 125, 70), Color3.fromRGB(50, 150, 210)))
 							grainEmitter.Size = NumberSequence.new({
 								NumberSequenceKeypoint.new(0, 0.12),
 								NumberSequenceKeypoint.new(0.6, 0.35),
@@ -2866,7 +2953,7 @@ local function createMobModel(areaId, index, config)
 
 							local coreLight = Instance.new("PointLight")
 							coreLight.Name = "DesertGuardianCoreLight"
-							coreLight.Color = Color3.fromRGB(255, 190, 95)
+							coreLight.Color = seaTone(Color3.fromRGB(255, 190, 95), Color3.fromRGB(90, 200, 255))
 							coreLight.Brightness = 0.8
 							coreLight.Range = 18
 							coreLight.Shadows = false
@@ -2896,7 +2983,7 @@ local function createMobModel(areaId, index, config)
 							local groundEmitter = Instance.new("ParticleEmitter")
 							groundEmitter.Name = "GroundEmitter"
 							groundEmitter.Texture = "rbxassetid://243577789"
-							groundEmitter.Color = ColorSequence.new(Color3.fromRGB(195, 160, 120))
+							groundEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(195, 160, 120), Color3.fromRGB(140, 200, 240)))
 							groundEmitter.Size = NumberSequence.new({
 								NumberSequenceKeypoint.new(0, 1.0),
 								NumberSequenceKeypoint.new(0.5, 5.0),
@@ -3027,7 +3114,7 @@ local function createMobModel(areaId, index, config)
 												-- 폴백: 기존 모래벽 파티클 이펙트
 												local wallEmitter = Instance.new("ParticleEmitter")
 												wallEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
-												wallEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 212, 155))
+												wallEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(240, 212, 155), Color3.fromRGB(170, 220, 255)))
 												wallEmitter.Size = NumberSequence.new({
 													NumberSequenceKeypoint.new(0, 1.2),
 													NumberSequenceKeypoint.new(0.5, 2.5),
@@ -3175,7 +3262,7 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Anchored = true
 							warnCircle.CanCollide = false
 							warnCircle.Material = Enum.Material.Neon
-							warnCircle.Color = Color3.fromRGB(160, 120, 80)
+							warnCircle.Color = seaTone(Color3.fromRGB(160, 120, 80), Color3.fromRGB(30, 140, 200))
 							warnCircle.Transparency = 0.85
 							warnCircle.Parent = workspace
 
@@ -3194,7 +3281,7 @@ local function createMobModel(areaId, index, config)
 								quicksand.Anchored = true
 								quicksand.CanCollide = false
 								quicksand.Material = Enum.Material.Sand
-								quicksand.Color = Color3.fromRGB(110, 85, 55)
+								quicksand.Color = seaTone(Color3.fromRGB(110, 85, 55), Color3.fromRGB(20, 60, 95))
 								quicksand.Parent = workspace
 
 								-- 늪 비주얼용 투명 파트 생성 (회전이 없어 파티클이 수직으로 이쁘게 상승함)
@@ -3217,7 +3304,7 @@ local function createMobModel(areaId, index, config)
 									quicksandTornado = prepareVfxInstance(tornadoModel, "QuicksandTornado", CFrame.new(targetFloorPos), true)
 									emitVfxParticles(quicksandTornado, 55)
 									addSandBurst(getEmitterHost(quicksandTornado), "QuicksandGoldGrain", 110, NumberRange.new(10, 24), 1.5)
-									createSandShockwave(targetFloorPos, 16, Color3.fromRGB(210, 160, 95), 0.45)
+									createSandShockwave(targetFloorPos, 16, seaTone(Color3.fromRGB(210, 160, 95), Color3.fromRGB(70, 190, 255)), 0.45)
 
 									-- 회오리 회전 루프 (늪 유지 시간 동안 실행)
 									task.spawn(function()
@@ -3233,7 +3320,7 @@ local function createMobModel(areaId, index, config)
 									-- 폴백: 늪 회전 소용돌이 이펙트 이미터 장착 (100% 무조건 노출되는 로블록스 내장 텍스처 사용)
 									local quicksandEmitter = Instance.new("ParticleEmitter")
 									quicksandEmitter.Texture = "rbxasset://textures/particles/fire_main.dds" -- 소용돌이 갈래 형태
-									quicksandEmitter.Color = ColorSequence.new(Color3.fromRGB(235, 205, 150)) -- 밝고 화사한 모래 옐로우
+									quicksandEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(235, 205, 150), Color3.fromRGB(160, 225, 255))) -- 밝고 화사한 모래 옐로우
 									quicksandEmitter.Size = NumberSequence.new({
 										NumberSequenceKeypoint.new(0, 0.8),
 										NumberSequenceKeypoint.new(0.5, 1.6),
@@ -3362,7 +3449,7 @@ local function createMobModel(areaId, index, config)
 																	end
 																end)
 															end
-															createSandShockwave(spikeTargetPos, 9, Color3.fromRGB(235, 190, 115), 0.35)
+															createSandShockwave(spikeTargetPos, 9, seaTone(Color3.fromRGB(235, 190, 115), Color3.fromRGB(90, 200, 255)), 0.35)
 
 															-- 돌이 솟구친 후 다시 땅속으로 자연스레 들어가는 프리미엄 트윈
 															task.spawn(function()
@@ -3399,7 +3486,7 @@ local function createMobModel(areaId, index, config)
 															stonePart.Size = Vector3.new(16, 4, 4) -- X가 길이 방향
 															-- 수직으로 세우기 위해 Z축 90도 회전 각도 부여
 															stonePart.CFrame = CFrame.new(spikeTargetPos + Vector3.new(0, 8, 0)) * CFrame.Angles(0, 0, math.rad(90))
-															stonePart.Color = Color3.fromRGB(240, 215, 160)
+															stonePart.Color = seaTone(Color3.fromRGB(240, 215, 160), Color3.fromRGB(25, 50, 110))
 															stonePart.Material = Enum.Material.Glass
 															stonePart.Transparency = 0.85 -- 아주 희미하게 비치는 모래 원기둥 기둥
 															stonePart.CanCollide = false
@@ -3426,7 +3513,7 @@ local function createMobModel(areaId, index, config)
 														-- 세찬 모래바람 돌풍 줄기 (원기둥 표면 또는 돌 표면에서 위로 고속 방출)
 														local spoutEmitter = Instance.new("ParticleEmitter")
 														spoutEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
-														spoutEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 215, 160)) -- 밝고 화사한 모래 베이지
+														spoutEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(240, 215, 160), Color3.fromRGB(150, 215, 255))) -- 밝고 화사한 모래 베이지
 														spoutEmitter.Size = NumberSequence.new({
 															NumberSequenceKeypoint.new(0, 0.8),
 															NumberSequenceKeypoint.new(0.5, 2.0),
@@ -3448,7 +3535,7 @@ local function createMobModel(areaId, index, config)
 														-- 거친 모래가루 및 비산 알갱이 레이어 결합 (고운 황금가루 비산)
 														local grainEmitter = Instance.new("ParticleEmitter")
 														grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-														grainEmitter.Color = ColorSequence.new(Color3.fromRGB(245, 222, 179))
+														grainEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(245, 222, 179), Color3.fromRGB(190, 230, 255)))
 														grainEmitter.Size = NumberSequence.new({
 															NumberSequenceKeypoint.new(0, 0.4),
 															NumberSequenceKeypoint.new(1, 0)
@@ -3567,7 +3654,7 @@ local function createMobModel(areaId, index, config)
 							chargeSphere.Name = "DesertGuardianLaserCharge"
 							chargeSphere.Shape = Enum.PartType.Ball
 							chargeSphere.Size = Vector3.new(1.6, 1.6, 1.6)
-							chargeSphere.Color = Color3.fromRGB(255, 190, 80)
+							chargeSphere.Color = seaTone(Color3.fromRGB(255, 190, 80), Color3.fromRGB(90, 200, 255))
 							chargeSphere.Material = Enum.Material.Neon
 							chargeSphere.Anchored = true
 							chargeSphere.CanCollide = false
@@ -3615,7 +3702,7 @@ local function createMobModel(areaId, index, config)
 								local laserCore = Instance.new("Part")
 								laserCore.Name = "LaserCore"
 								laserCore.Material = Enum.Material.Neon
-								laserCore.Color = Color3.fromRGB(255, 235, 160)
+								laserCore.Color = seaTone(Color3.fromRGB(255, 235, 160), Color3.fromRGB(210, 240, 255))
 								laserCore.CanCollide = false
 								laserCore.CanTouch = false
 								laserCore.CanQuery = false
@@ -3625,7 +3712,7 @@ local function createMobModel(areaId, index, config)
 								local laserAura = Instance.new("Part")
 								laserAura.Name = "LaserAura"
 								laserAura.Material = Enum.Material.Neon
-								laserAura.Color = Color3.fromRGB(205, 125, 35)
+								laserAura.Color = seaTone(Color3.fromRGB(205, 125, 35), Color3.fromRGB(25, 140, 200))
 								laserAura.CanCollide = false
 								laserAura.CanTouch = false
 								laserAura.CanQuery = false
@@ -3651,7 +3738,92 @@ local function createMobModel(areaId, index, config)
 								exp.BlastPressure = 0
 								exp.Position = endLaserPos
 								exp.ExplosionType = Enum.ExplosionType.NoCraters
+								if isSeaVariant then
+									-- 로블록스 기본 Explosion은 항상 주황 화염/연기 비주얼이 강제로 재생되므로
+									-- 바다 테마에서는 그 기본 비주얼을 끄고, 크라켄 체스판 공격과 동일한
+									-- 물기둥+물보라 이펙트로 완전히 대체한다.
+									exp.Visible = false
+								end
 								exp.Parent = workspace
+
+								if isSeaVariant then
+									task.spawn(function()
+										local splashHost = Instance.new("Part")
+										splashHost.Name = "AbyssGuardianLaserSplash"
+										splashHost.Size = Vector3.new(0.2, 0.2, 0.2)
+										splashHost.Transparency = 1
+										splashHost.Anchored = true
+										splashHost.CanCollide = false
+										splashHost.CanQuery = false
+										splashHost.CanTouch = false
+										splashHost.CFrame = CFrame.new(endLaserPos)
+										splashHost.Parent = workspace
+										Debris:AddItem(splashHost, 2.0)
+
+										-- 상승하는 물기둥 + 사방으로 튀는 물보라 (크라켄 체스판 공격과 동일한 텍스처)
+										local burstPe = Instance.new("ParticleEmitter")
+										burstPe.Texture = SEA_WATER_TEX_2
+										burstPe.Color = ColorSequence.new(Color3.fromRGB(190, 230, 255))
+										burstPe.Size = NumberSequence.new({
+											NumberSequenceKeypoint.new(0, 9),
+											NumberSequenceKeypoint.new(1, 0),
+										})
+										burstPe.Transparency = NumberSequence.new({
+											NumberSequenceKeypoint.new(0, 0.1),
+											NumberSequenceKeypoint.new(1, 1),
+										})
+										burstPe.Lifetime = NumberRange.new(0.4, 0.7)
+										burstPe.Rate = 0
+										burstPe.Speed = NumberRange.new(20, 40)
+										burstPe.SpreadAngle = Vector2.new(180, 180)
+										burstPe.Acceleration = Vector3.new(0, -70, 0)
+										burstPe.Parent = splashHost
+										burstPe:Emit(60)
+
+										local risePe = Instance.new("ParticleEmitter")
+										risePe.Texture = SEA_WATER_TEX_1
+										risePe.Color = ColorSequence.new(Color3.fromRGB(140, 210, 255))
+										risePe.Size = NumberSequence.new({
+											NumberSequenceKeypoint.new(0, 6),
+											NumberSequenceKeypoint.new(1, 12),
+										})
+										risePe.Transparency = NumberSequence.new({
+											NumberSequenceKeypoint.new(0, 0.2),
+											NumberSequenceKeypoint.new(1, 1),
+										})
+										risePe.Lifetime = NumberRange.new(0.3, 0.5)
+										risePe.Rate = 0
+										risePe.Speed = NumberRange.new(6, 14)
+										risePe.SpreadAngle = Vector2.new(20, 20)
+										risePe.EmissionDirection = Enum.NormalId.Top
+										risePe.Parent = splashHost
+										risePe:Emit(30)
+
+										-- 실제 게임 분수 이펙트(SquirtWater) 재사용
+										local squirtTemplate = ReplicatedStorage:FindFirstChild("Assets")
+										squirtTemplate = squirtTemplate and squirtTemplate:FindFirstChild("VFX")
+										squirtTemplate = squirtTemplate and squirtTemplate:FindFirstChild("Water")
+										if squirtTemplate then
+											local squirt = squirtTemplate:Clone()
+											squirt.Anchored = true
+											squirt.CanCollide = false
+											squirt.CanQuery = false
+											squirt.CanTouch = false
+											squirt.CFrame = CFrame.new(endLaserPos)
+											squirt.Parent = workspace
+											Debris:AddItem(squirt, 2.5)
+											local squirtPe = squirt:FindFirstChild("SquirtWater")
+											if squirtPe then
+												squirtPe.Rate = 150
+												task.delay(0.5, function()
+													if squirtPe and squirtPe.Parent then
+														squirtPe.Enabled = false
+													end
+												end)
+											end
+										end
+									end)
+								end
 
 								for _, p in ipairs(Players:GetPlayers()) do
 									local char = p.Character
@@ -3671,8 +3843,8 @@ local function createMobModel(areaId, index, config)
 											task.spawn(function()
 												local highlight = Instance.new("Highlight")
 												highlight.Name = "DamageFlash"
-												highlight.FillColor = Color3.fromRGB(220, 150, 55)
-												highlight.OutlineColor = Color3.fromRGB(255, 235, 150)
+												highlight.FillColor = seaTone(Color3.fromRGB(220, 150, 55), Color3.fromRGB(70, 190, 255))
+												highlight.OutlineColor = seaTone(Color3.fromRGB(255, 235, 150), Color3.fromRGB(210, 240, 255))
 												highlight.FillTransparency = 0.45
 												highlight.OutlineTransparency = 0
 												highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -3731,7 +3903,7 @@ local function createMobModel(areaId, index, config)
 							warnCircle.Anchored = true
 							warnCircle.CanCollide = false
 							warnCircle.Material = Enum.Material.Neon
-							warnCircle.Color = Color3.fromRGB(230, 150, 80)
+							warnCircle.Color = seaTone(Color3.fromRGB(230, 150, 80), Color3.fromRGB(50, 170, 230))
 							warnCircle.Transparency = 0.8
 							warnCircle.Parent = workspace
 							playBossSound("Spout_Telegraph", warnCircle)
@@ -3763,7 +3935,7 @@ local function createMobModel(areaId, index, config)
 									playBossSound("Spout_Burst", spoutVisual)
 									emitVfxParticles(spoutVisual, 60)
 									addSandBurst(getEmitterHost(spoutVisual), "SandSpoutGoldGrain", 85, NumberRange.new(24, 48), 1.1)
-									createSandShockwave(targetFloorPos, 10, Color3.fromRGB(245, 180, 95), 0.3)
+									createSandShockwave(targetFloorPos, 10, seaTone(Color3.fromRGB(245, 180, 95), Color3.fromRGB(100, 205, 255)), 0.3)
 								else
 									-- 폴백: 기존 수직 실린더 형태 생성
 									spoutVisual = Instance.new("Part")
@@ -3772,7 +3944,7 @@ local function createMobModel(areaId, index, config)
 									spoutVisual.Size = Vector3.new(12, 3, 3) -- X가 길이 방향
 									-- 수직으로 세우기 위해 Z축 90도 회전
 									spoutVisual.CFrame = CFrame.new(targetFloorPos + Vector3.new(0, 6, 0)) * CFrame.Angles(0, 0, math.rad(90))
-									spoutVisual.Color = Color3.fromRGB(240, 215, 160)
+									spoutVisual.Color = seaTone(Color3.fromRGB(240, 215, 160), Color3.fromRGB(150, 215, 255))
 									spoutVisual.Material = Enum.Material.Glass
 									spoutVisual.Transparency = 0.85
 									spoutVisual.CanCollide = false
@@ -3783,7 +3955,7 @@ local function createMobModel(areaId, index, config)
 									-- 모래바람 돌풍 줄기 (회오리 기둥 모양 형성)
 									local spoutEmitter = Instance.new("ParticleEmitter")
 									spoutEmitter.Texture = "rbxasset://textures/particles/fire_main.dds"
-									spoutEmitter.Color = ColorSequence.new(Color3.fromRGB(240, 215, 160)) -- 밝고 화사한 모래 베이지
+									spoutEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(240, 215, 160), Color3.fromRGB(150, 215, 255))) -- 밝고 화사한 모래 베이지
 									spoutEmitter.Size = NumberSequence.new({
 										NumberSequenceKeypoint.new(0, 0.6),
 										NumberSequenceKeypoint.new(0.2, 2.0),
@@ -3805,7 +3977,7 @@ local function createMobModel(areaId, index, config)
 									-- 거친 모래알갱이 비산 레이어 결합
 									local grainEmitter = Instance.new("ParticleEmitter")
 									grainEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-									grainEmitter.Color = ColorSequence.new(Color3.fromRGB(245, 222, 179))
+									grainEmitter.Color = ColorSequence.new(seaTone(Color3.fromRGB(245, 222, 179), Color3.fromRGB(190, 230, 255)))
 									grainEmitter.Size = NumberSequence.new({
 										NumberSequenceKeypoint.new(0, 0.4),
 										NumberSequenceKeypoint.new(1, 0)
@@ -7364,6 +7536,470 @@ local function createMobModel(areaId, index, config)
 											end
 										end
 									end
+								end
+							end
+						else
+							humanoid:MoveTo(phrp.Position)
+						end
+					elseif config.mobModelName == "LavaSlime" then
+						--========================================================================
+						-- [LavaSlime 전용 FSM 분기]: 일반 박치기 + 용암 강타(광역 도약 슬램, 내부쿨 9초)
+						--========================================================================
+						local ts = game:GetService("TweenService")
+						local Debris = game:GetService("Debris")
+						local now = os.clock()
+						local slamCooldown = config.leapSlamCooldown or 9.0
+
+						if minDist <= 45 and now - lastLeapSlamTick >= slamCooldown and now - lastAttackTick >= (config.attackCooldown or 2.5) then
+							-- [패턴] 용암 강타: 높이 도약했다가 넓은 범위에 착지하며 용암을 터뜨림
+							lastLeapSlamTick = now
+							lastAttackTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							local targetPos = phrp.Position
+							local slamRadius = 21 -- [요청반영] 커진 몸집(3.2배)에 맞춰 범위 확대
+							local slamDuration = 0.9
+
+							local rayParams = RaycastParams.new()
+							rayParams.FilterType = Enum.RaycastFilterType.Exclude
+							rayParams.FilterDescendantsInstances = {model}
+							local rayResult = workspace:Raycast(targetPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
+							local floorPos = rayResult and rayResult.Position or (targetPos - Vector3.new(0, 3, 0))
+
+							deformSlime(model, 1.5, 0.35, 1.5, 0.35)
+							task.spawn(function()
+								local warnCircle = Instance.new("Part")
+								warnCircle.Name = "LavaSlimeSlamTelegraph"
+								warnCircle.Shape = Enum.PartType.Cylinder
+								warnCircle.Size = Vector3.new(0.4, 0.1, 0.1)
+								warnCircle.CFrame = CFrame.new(floorPos + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+								warnCircle.Anchored = true
+								warnCircle.CanCollide = false
+								warnCircle.Material = Enum.Material.Neon
+								warnCircle.Color = Color3.fromRGB(255, 90, 20)
+								warnCircle.Transparency = 0.8
+								warnCircle.Parent = workspace
+								ts:Create(warnCircle, TweenInfo.new(slamDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+									Size = Vector3.new(0.4, slamRadius * 2, slamRadius * 2),
+									Transparency = 0.5
+								}):Play()
+								task.wait(slamDuration)
+								warnCircle:Destroy()
+							end)
+							task.wait(0.35)
+
+							if isAlive then
+								local jumpCF = CFrame.new(floorPos + Vector3.new(0, 22, 0))
+								ts:Create(hrp, TweenInfo.new(slamDuration * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = jumpCF}):Play()
+								deformSlime(model, 0.8, 1.6, 0.8, slamDuration * 0.5)
+								task.wait(slamDuration * 0.5)
+							end
+
+							if isAlive then
+								local landCF = CFrame.new(floorPos + Vector3.new(0, 3, 0))
+								ts:Create(hrp, TweenInfo.new(slamDuration * 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {CFrame = landCF}):Play()
+								deformSlime(model, 1.6, 0.6, 1.6, 0.15)
+								task.wait(slamDuration * 0.35)
+								deformSlime(model, 1.0, 1.0, 1.0, 0.25)
+
+								local burstPart = Instance.new("Part")
+								burstPart.Name = "LavaSlimeBurst"
+								burstPart.Anchored = true
+								burstPart.CanCollide = false
+								burstPart.Transparency = 1
+								burstPart.Size = Vector3.new(1, 1, 1)
+								burstPart.CFrame = CFrame.new(floorPos + Vector3.new(0, 1, 0))
+								burstPart.Parent = workspace
+								Debris:AddItem(burstPart, 2.0)
+								local vfxSrc = ReplicatedStorage:FindFirstChild("Assets")
+								vfxSrc = vfxSrc and vfxSrc:FindFirstChild("VFX")
+								vfxSrc = vfxSrc and vfxSrc:FindFirstChild("Explosion-01")
+								vfxSrc = vfxSrc and vfxSrc:FindFirstChild("Main")
+								if vfxSrc then
+									for _, pname in ipairs({"Fire1", "Fire2", "Fire3", "Specks1"}) do
+										local src = vfxSrc:FindFirstChild(pname)
+										if src then
+											local pe = src:Clone()
+											local nk = {}
+											for _, kp in ipairs(pe.Size.Keypoints) do
+												table.insert(nk, NumberSequenceKeypoint.new(kp.Time, kp.Value * 0.9, kp.Envelope * 0.9))
+											end
+											pe.Size = NumberSequence.new(nk)
+											pe.Parent = burstPart
+											pe:Emit(pname == "Specks1" and 40 or 12)
+											task.delay(0.6, function() if pe and pe.Parent then pe.Enabled = false end end)
+										end
+									end
+								end
+
+								for _, p in ipairs(Players:GetPlayers()) do
+									local char = p.Character
+									local phumLocal = char and char:FindFirstChild("Humanoid")
+									local pRootLocal = char and char:FindFirstChild("HumanoidRootPart")
+									if phumLocal and phumLocal.Health > 0 and pRootLocal then
+										local dist = (pRootLocal.Position - floorPos).Magnitude
+										if dist <= slamRadius then
+											local dmg = (config.baseDamage or 50) * 1.6
+											dealDamageToHumanoid(phumLocal, dmg)
+											local bounceDir = (pRootLocal.Position - floorPos)
+											bounceDir = Vector3.new(bounceDir.X, 0.3, bounceDir.Z)
+											bounceDir = (bounceDir.Magnitude > 0.1) and bounceDir.Unit or Vector3.new(0, 0.3, 1)
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(p, "Player.Stun", bounceDir)
+										end
+									end
+								end
+							end
+
+							task.wait(0.4)
+						elseif minDist > 22 and minDist <= 55 and now - lastThrustTick >= (config.lavaSpitCooldown or 4.5) then
+							-- [패턴] 용암 튀김: 원거리에서 용암 덩어리 3발을 흩뿌려 던짐
+							lastThrustTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							local aimBase = phrp.Position
+							for i = 1, 3 do
+								task.spawn(function()
+									task.wait((i - 1) * 0.15)
+									if not isAlive then return end
+									local spread = Vector3.new((math.random() - 0.5) * 10, 0, (math.random() - 0.5) * 10)
+									local aimPos = aimBase + spread
+									local startPos = hrp.Position + Vector3.new(0, 4, 0)
+
+									local glob = Instance.new("Part")
+									glob.Name = "LavaSlimeGlob"
+									glob.Shape = Enum.PartType.Ball
+									glob.Anchored = true
+									glob.CanCollide = false
+									glob.Material = Enum.Material.Neon
+									glob.Color = Color3.fromRGB(255, 100, 20)
+									glob.Size = Vector3.new(1.8, 1.8, 1.8)
+									glob.CFrame = CFrame.new(startPos)
+									glob.Parent = workspace
+
+									local flightTime = math.clamp((aimPos - startPos).Magnitude / 45, 0.3, 1.4)
+									local peakCF = CFrame.new((startPos + aimPos) / 2 + Vector3.new(0, 12, 0))
+									ts:Create(glob, TweenInfo.new(flightTime * 0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = peakCF}):Play()
+									task.wait(flightTime * 0.5)
+									if glob and glob.Parent then
+										ts:Create(glob, TweenInfo.new(flightTime * 0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {CFrame = CFrame.new(aimPos)}):Play()
+										task.wait(flightTime * 0.5)
+									end
+
+									if glob and glob.Parent then
+										glob:Destroy()
+										local burstPart = Instance.new("Part")
+										burstPart.Name = "LavaGlobBurst"
+										burstPart.Anchored = true
+										burstPart.CanCollide = false
+										burstPart.Transparency = 1
+										burstPart.Size = Vector3.new(1, 1, 1)
+										burstPart.CFrame = CFrame.new(aimPos)
+										burstPart.Parent = workspace
+										Debris:AddItem(burstPart, 1.5)
+										local ring = Instance.new("Part")
+										ring.Name = "LavaGlobRing"
+										ring.Shape = Enum.PartType.Cylinder
+										ring.Anchored = true
+										ring.CanCollide = false
+										ring.Material = Enum.Material.Neon
+										ring.Color = Color3.fromRGB(255, 100, 20)
+										ring.Transparency = 0.3
+										ring.Size = Vector3.new(0.3, 1, 1)
+										ring.CFrame = CFrame.new(aimPos) * CFrame.Angles(0, 0, math.rad(90))
+										ring.Parent = workspace
+										ts:Create(ring, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+											Size = Vector3.new(0.3, 9, 9), Transparency = 1
+										}):Play()
+										Debris:AddItem(ring, 0.5)
+
+										for _, p in ipairs(Players:GetPlayers()) do
+											local char = p.Character
+											local phumLocal = char and char:FindFirstChild("Humanoid")
+											local pRootLocal = char and char:FindFirstChild("HumanoidRootPart")
+											if phumLocal and phumLocal.Health > 0 and pRootLocal then
+												local dist = (pRootLocal.Position - aimPos).Magnitude
+												if dist <= 4.5 then
+													dealDamageToHumanoid(phumLocal, (config.baseDamage or 50) * 0.7)
+												end
+											end
+										end
+									end
+								end)
+							end
+							task.wait(0.6)
+						elseif minDist <= ATTACK_RANGE or (minDist <= 25 and now - lastAttackTick >= (config.attackCooldown or 2.5) + 1.0) then
+							humanoid:MoveTo(hrp.Position)
+							local cooldown = config.attackCooldown or 2.5
+							if now - lastAttackTick >= cooldown then
+								lastAttackTick = now
+								local targetHrpPos = phrp.Position
+								local lungeDir = (targetHrpPos - hrp.Position)
+								lungeDir = Vector3.new(lungeDir.X, 0, lungeDir.Z)
+								lungeDir = (lungeDir.Magnitude > 0.1) and lungeDir.Unit or Vector3.new(0, 0, 1)
+								local lungeTargetPos = hrp.Position + lungeDir * 6
+								local telegraphRadius = 7
+								local telegraphDuration = 0.7
+
+								task.spawn(function()
+									local warnCircle = Instance.new("Part")
+									warnCircle.Name = "SlimeAtkTelegraph"
+									warnCircle.Shape = Enum.PartType.Cylinder
+									warnCircle.Size = Vector3.new(0.4, 0.1, 0.1)
+									local rayParams2 = RaycastParams.new()
+									rayParams2.FilterType = Enum.RaycastFilterType.Exclude
+									rayParams2.FilterDescendantsInstances = {model}
+									local rayResult2 = workspace:Raycast(lungeTargetPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams2)
+									local floorPos2 = rayResult2 and rayResult2.Position or (lungeTargetPos - Vector3.new(0, 2, 0))
+									warnCircle.CFrame = CFrame.new(floorPos2 + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90))
+									warnCircle.Anchored = true
+									warnCircle.CanCollide = false
+									warnCircle.Material = Enum.Material.Neon
+									warnCircle.Color = Color3.fromRGB(255, 130, 40)
+									warnCircle.Transparency = 0.85
+									warnCircle.Parent = workspace
+									ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										Size = Vector3.new(0.4, telegraphRadius * 2, telegraphRadius * 2),
+										Transparency = 0.6
+									}):Play()
+									task.wait(telegraphDuration)
+									warnCircle:Destroy()
+								end)
+
+								deformSlime(model, 1.4, 0.4, 1.4, 0.2)
+								task.wait(0.25)
+								if isAlive then
+									deformSlime(model, 0.7, 1.5, 0.7, 0.15)
+									local origCF = hrp.CFrame
+									ts:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										CFrame = CFrame.new(lungeTargetPos) * origCF.Rotation
+									}):Play()
+									task.wait(0.2)
+									deformSlime(model, 1.0, 1.0, 1.0, 0.2)
+									local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
+									if currentPhrp then
+										local playerDistFromCenter = (currentPhrp.Position - lungeTargetPos).Magnitude
+										if playerDistFromCenter <= telegraphRadius then
+											local dmg = config.baseDamage or 50
+											local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+											if currentPhum and currentPhum.Health > 0 then
+												dealDamageToHumanoid(currentPhum, dmg)
+												local bounceDir = (currentPhrp.Position - lungeTargetPos)
+												bounceDir = Vector3.new(bounceDir.X, 0.2, bounceDir.Z)
+												bounceDir = (bounceDir.Magnitude > 0.1) and bounceDir.Unit or Vector3.new(0, 0.2, 1)
+												local hitPlayer = Players:GetPlayerFromCharacter(targetPlayer)
+												if hitPlayer then
+													local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+													local NetController = require(Controllers:WaitForChild("NetController"))
+													NetController.FireClient(hitPlayer, "Player.Stun", bounceDir * 0.7)
+												end
+											end
+										end
+									end
+								end
+							end
+						else
+							humanoid:MoveTo(phrp.Position)
+						end
+					elseif config.mobModelName == "FireMan" then
+						--========================================================================
+						-- [FireMan 전용 FSM 분기]: 순간이동(내부쿨 13초) + 불기둥(근거리 광역) + 화염 투척(원거리)
+						--========================================================================
+						local ts = game:GetService("TweenService")
+						local Debris = game:GetService("Debris")
+						local now = os.clock()
+
+						local fireVfxRoot = ReplicatedStorage:FindFirstChild("Assets")
+						fireVfxRoot = fireVfxRoot and fireVfxRoot:FindFirstChild("VFX")
+						fireVfxRoot = fireVfxRoot and fireVfxRoot:FindFirstChild("Explosion-01")
+						fireVfxRoot = fireVfxRoot and fireVfxRoot:FindFirstChild("Main")
+
+						local function spawnFirePuff(pos, scale, amount)
+							local host = Instance.new("Part")
+							host.Name = "FireManPuff"
+							host.Anchored = true
+							host.CanCollide = false
+							host.Transparency = 1
+							host.Size = Vector3.new(1, 1, 1)
+							host.CFrame = CFrame.new(pos)
+							host.Parent = workspace
+							Debris:AddItem(host, 2.0)
+							if fireVfxRoot then
+								for _, pname in ipairs({"Fire1", "Fire2", "Fire3", "Specks1"}) do
+									local src = fireVfxRoot:FindFirstChild(pname)
+									if src then
+										local pe = src:Clone()
+										local nk = {}
+										for _, kp in ipairs(pe.Size.Keypoints) do
+											table.insert(nk, NumberSequenceKeypoint.new(kp.Time, kp.Value * scale, kp.Envelope * scale))
+										end
+										pe.Size = NumberSequence.new(nk)
+										pe.Parent = host
+										pe:Emit(pname == "Specks1" and (amount * 2) or amount)
+										task.delay(0.5, function() if pe and pe.Parent then pe.Enabled = false end end)
+									end
+								end
+							end
+						end
+
+						local teleportCooldown = config.teleportCooldown or 13.0
+						local pillarCooldown = config.pillarCooldown or 7.0
+						local fireballCooldown = config.fireballCooldown or 5.0
+
+						if now - lastGimmickTick >= teleportCooldown and minDist > 12 then
+							-- [패턴] 순간이동: 플레이어 근처(8~14스터드)로 불꽃과 함께 블링크
+							lastGimmickTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							spawnFirePuff(hrp.Position + Vector3.new(0, 2, 0), 0.12, 20)
+
+							local ang = math.random() * math.pi * 2
+							local dist = math.random(10, 20)
+							local destPos = phrp.Position + Vector3.new(math.cos(ang) * dist, 0, math.sin(ang) * dist)
+							local rayParams = RaycastParams.new()
+							rayParams.FilterType = Enum.RaycastFilterType.Exclude
+							rayParams.FilterDescendantsInstances = {model}
+							local rayResult = workspace:Raycast(destPos + Vector3.new(0, 40, 0), Vector3.new(0, -120, 0), rayParams)
+							local landPos = rayResult and rayResult.Position or destPos
+
+							task.wait(0.15)
+							if isAlive then
+								model:PivotTo(CFrame.new(landPos + Vector3.new(0, 3, 0)) * CFrame.Angles(0, math.random() * math.pi * 2, 0))
+								spawnFirePuff(landPos + Vector3.new(0, 2, 0), 0.14, 22)
+							end
+							task.wait(0.3)
+
+						elseif minDist <= 34 and now - lastWhirlwindTick >= pillarCooldown and now - lastAttackTick >= (config.attackCooldown or 2.0) then
+							-- [패턴] 불기둥: 플레이어 주변 4곳에서 땅을 뚫고 불기둥이 솟구침
+							lastWhirlwindTick = now
+							lastAttackTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							local centerPos = phrp.Position
+							local pillarSpots = {}
+							for i = 1, 4 do
+								local ang = (i - 1) * (math.pi * 2 / 4) + math.random() * 0.5
+								local dist = math.random(0, 13)
+								local spotXZ = centerPos + Vector3.new(math.cos(ang) * dist, 0, math.sin(ang) * dist)
+								local rayParams = RaycastParams.new()
+								rayParams.FilterType = Enum.RaycastFilterType.Exclude
+								rayParams.FilterDescendantsInstances = {model}
+								local rayResult = workspace:Raycast(spotXZ + Vector3.new(0, 40, 0), Vector3.new(0, -120, 0), rayParams)
+								table.insert(pillarSpots, rayResult and rayResult.Position or spotXZ)
+							end
+
+							for _, spot in ipairs(pillarSpots) do
+								task.spawn(function()
+									local warnCircle = Instance.new("Part")
+									warnCircle.Name = "FireManPillarTelegraph"
+									warnCircle.Shape = Enum.PartType.Cylinder
+									warnCircle.Size = Vector3.new(0.3, 9, 9)
+									warnCircle.CFrame = CFrame.new(spot + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+									warnCircle.Anchored = true
+									warnCircle.CanCollide = false
+									warnCircle.Material = Enum.Material.Neon
+									warnCircle.Color = Color3.fromRGB(255, 60, 20)
+									warnCircle.Transparency = 0.7
+									warnCircle.Parent = workspace
+									ts:Create(warnCircle, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.2}):Play()
+									task.wait(0.8)
+									warnCircle:Destroy()
+
+									if not isAlive then return end
+
+									-- 불기둥 솟구침
+									local pillar = Instance.new("Part")
+									pillar.Name = "FireManPillar"
+									pillar.Anchored = true
+									pillar.CanCollide = false
+									pillar.Material = Enum.Material.Neon
+									pillar.Color = Color3.fromRGB(255, 110, 30)
+									pillar.Transparency = 0.15
+									pillar.Size = Vector3.new(4.5, 0.5, 4.5)
+									pillar.CFrame = CFrame.new(spot)
+									pillar.Parent = workspace
+									ts:Create(pillar, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+										Size = Vector3.new(4.5, 24, 4.5),
+										CFrame = CFrame.new(spot + Vector3.new(0, 12, 0)),
+									}):Play()
+									spawnFirePuff(spot + Vector3.new(0, 1, 0), 0.18, 24)
+									Debris:AddItem(pillar, 0.9)
+
+									task.wait(0.25)
+									for _, p in ipairs(Players:GetPlayers()) do
+										local char = p.Character
+										local phumLocal = char and char:FindFirstChild("Humanoid")
+										local pRootLocal = char and char:FindFirstChild("HumanoidRootPart")
+										if phumLocal and phumLocal.Health > 0 and pRootLocal then
+											local dist = (Vector3.new(pRootLocal.Position.X, 0, pRootLocal.Position.Z) - Vector3.new(spot.X, 0, spot.Z)).Magnitude
+											if dist <= 7.5 then
+												dealDamageToHumanoid(phumLocal, config.baseDamage or 60)
+											end
+										end
+									end
+								end)
+								task.wait(0.15)
+							end
+							task.wait(0.5)
+
+						elseif minDist > 20 and now - lastThrustTick >= fireballCooldown then
+							-- [패턴] 화염 투척: 원거리에서 불덩이를 던짐
+							lastThrustTick = now
+							humanoid:MoveTo(hrp.Position)
+
+							local startPos = hrp.Position + Vector3.new(0, 3, 0) + hrp.CFrame.LookVector * 1.5
+							local fireball = Instance.new("Part")
+							fireball.Name = "FireManFireball"
+							fireball.Shape = Enum.PartType.Ball
+							fireball.Anchored = true
+							fireball.CanCollide = false
+							fireball.Material = Enum.Material.Neon
+							fireball.Color = Color3.fromRGB(255, 130, 30)
+							fireball.Size = Vector3.new(1.6, 1.6, 1.6)
+							fireball.CFrame = CFrame.new(startPos)
+							fireball.Parent = workspace
+							local trail = Instance.new("ParticleEmitter")
+							trail.Texture = "rbxasset://textures/particles/fire_main.dds"
+							trail.Color = ColorSequence.new(Color3.fromRGB(255, 180, 60))
+							trail.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 1.4), NumberSequenceKeypoint.new(1, 0)})
+							trail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+							trail.Lifetime = NumberRange.new(0.2, 0.3)
+							trail.Rate = 60
+							trail.Speed = NumberRange.new(0, 1)
+							trail.Parent = fireball
+
+							local aimPos = phrp.Position
+							local flightTime = math.clamp((aimPos - startPos).Magnitude / 60, 0.25, 1.6)
+							ts:Create(fireball, TweenInfo.new(flightTime, Enum.EasingStyle.Linear), {CFrame = CFrame.new(aimPos)}):Play()
+
+							task.spawn(function()
+								task.wait(flightTime)
+								if fireball and fireball.Parent then
+									spawnFirePuff(fireball.Position, 0.13, 16)
+									fireball:Destroy()
+								end
+								local currentPhrp = targetPlayer:FindFirstChild("HumanoidRootPart")
+								if currentPhrp then
+									local dist = (currentPhrp.Position - aimPos).Magnitude
+									if dist <= 12 then
+										local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+										if currentPhum and currentPhum.Health > 0 then
+											dealDamageToHumanoid(currentPhum, config.baseDamage or 60)
+										end
+									end
+								end
+							end)
+							task.wait(0.4)
+
+						elseif minDist <= ATTACK_RANGE then
+							-- [기본 근접 공격]
+							humanoid:MoveTo(hrp.Position)
+							if now - lastAttackTick >= (config.attackCooldown or 2.0) then
+								lastAttackTick = now
+								local currentPhum = targetPlayer:FindFirstChild("Humanoid")
+								if currentPhum and currentPhum.Health > 0 then
+									dealDamageToHumanoid(currentPhum, config.baseDamage or 60)
 								end
 							end
 						else

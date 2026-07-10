@@ -265,13 +265,16 @@ local function init()
 
 	-- UIManager 초기화 (HUD, 인벤토리 등 UI 생성)
 	UIManager.Init()
-	
+
 	-- 기본 카메라 줌아웃 한계 설정 (전체 유저 공통 적용)
 	player.CameraMaxZoomDistance = Balance.CAM_MAX_ZOOM or 45
 	player.CameraMinZoomDistance = Balance.CAM_MIN_ZOOM or 0.5
-	
+
 	-- 어드민 패널 생성
 	createAdminPanel()
+
+	-- [로딩스크린 연동] 스킬/이펙트 등 모든 컨트롤러(Init 포함)와 UI가 준비된 시점을 로딩 스크린이 감지할 수 있도록 표시
+	player:SetAttribute("ClientControllersLoaded", true)
 
 	print("[ClientInit] Client successfully initialized in RPG mode.")
 end

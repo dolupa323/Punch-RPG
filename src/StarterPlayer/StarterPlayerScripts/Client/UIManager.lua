@@ -90,6 +90,7 @@ local WEAPON_CRAFTER_RECIPE_ORDER = {
 	"CraftIronStaff",         -- 철검
 	"CraftFangSpear",         -- 뱀파이어 소드
 	"CraftIceSword",          -- 아이스 소드
+	"CraftMagmaSword",        -- 마그마 소드
 	-- 하늘섬 티어
 	"CraftKnightSword",
 	"CraftSoulSword",

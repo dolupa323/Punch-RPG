@@ -106,10 +106,22 @@ local function _calculateLevelFromXP(totalXP: number): number
 	return 1
 end
 
+--- 특정 레벨(currentLevel -> currentLevel+1) 구간에 필요한 순수 XP 계산
+--- 튜토리얼 라인(레벨 20 미만) 구간은 Balance.TUTORIAL_XP_DISCOUNT를 적용해 할인됨.
+--- totalXPTable 사전 계산과 _getXPForNextLevel(진행바 표시)이 반드시 이 함수 하나만
+--- 공유해야 두 값이 어긋나지 않음.
+local function _computeLevelXPRequirement(level: number): number
+	local base = math.floor(Balance.BASE_XP_PER_LEVEL * (Balance.XP_SCALING ^ (level - 1)))
+	if level < (Balance.TUTORIAL_XP_LEVEL_CAP or 0) then
+		base = math.max(1, math.floor(base * (Balance.TUTORIAL_XP_DISCOUNT or 1)))
+	end
+	return base
+end
+
 --- 다음 레벨까지 필요한 XP (순수 해당 레벨 구간)
 local function _getXPForNextLevel(currentLevel: number): number
 	if currentLevel >= Balance.PLAYER_MAX_LEVEL then return 0 end
-	return math.floor(Balance.BASE_XP_PER_LEVEL * (Balance.XP_SCALING ^ (currentLevel - 1)))
+	return _computeLevelXPRequirement(currentLevel)
 end
 
 --- 현재 레벨에서의 진행 XP
@@ -792,7 +804,7 @@ function PlayerStatService.Init(netController, saveService, dataService, stamina
 	local runningTotal = 0
 	totalXPTable[1] = 0
 	for l = 1, Balance.PLAYER_MAX_LEVEL - 1 do
-		local xpNeededForThisLevel = math.floor(Balance.BASE_XP_PER_LEVEL * (Balance.XP_SCALING ^ (l - 1)))
+		local xpNeededForThisLevel = _computeLevelXPRequirement(l)
 		runningTotal = runningTotal + xpNeededForThisLevel
 		totalXPTable[l+1] = runningTotal
 	end
