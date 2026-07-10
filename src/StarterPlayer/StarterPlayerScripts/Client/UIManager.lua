@@ -52,7 +52,7 @@ local EnhanceUI = require(UI:WaitForChild("EnhanceUI"))
 local NPCRadialUI = require(UI:WaitForChild("NPCRadialUI"))
 local TentUI = require(UI:WaitForChild("TentUI"))
 local DismantleUI = require(UI:WaitForChild("DismantleUI"))
-local AuctionUI = require(UI:WaitForChild("AuctionUI"))
+local TradeUI = require(UI:WaitForChild("TradeUI"))
 
 local WindowManager = require(Client:WaitForChild("Utils"):WaitForChild("WindowManager"))
 
@@ -1881,29 +1881,38 @@ function UIManager.refreshShop(shopId)
 	ShopUI.Refresh(shopInfo, playerItems, getItemIcon, C, UIManager)
 end
 
-function UIManager.openAuctionHouse()
-	WindowManager.open("AUCTION")
+function UIManager.openTradeUI(data)
+	WindowManager.open("TRADE", data)
 end
 
-function UIManager._onOpenAuctionHouse()
-	AuctionUI.SetVisible(true)
+function UIManager._onOpenTradeUI(data)
+	TradeUI.SetVisible(true)
+	if data then TradeUI.SetData(data) end
 	updateUIMode()
 end
 
-function UIManager.closeAuctionHouse()
-	WindowManager.close("AUCTION")
+function UIManager.closeTradeUI()
+	WindowManager.close("TRADE")
 end
 
-function UIManager._onCloseAuctionHouse()
-	AuctionUI.SetVisible(false)
+function UIManager._onCloseTradeUI()
+	TradeUI.SetVisible(false)
 end
 
-function UIManager.toggleAuctionHouse()
-	WindowManager.toggle("AUCTION")
+function UIManager.showTradeInvite(data)
+	TradeUI.ShowInvite(data)
 end
 
-function UIManager.refreshAuctionPending(data)
-	AuctionUI.RefreshPendingOnly(data)
+function UIManager.closeTradeInvite()
+	TradeUI.CloseInvite()
+end
+
+function UIManager.openTradePlayerList()
+	TradeUI.ShowPlayerList()
+end
+
+function UIManager.refreshTradeUI(data)
+	TradeUI.Refresh(data)
 end
 
 function UIManager.requestBuy(itemId, count)
@@ -3263,7 +3272,7 @@ function UIManager.Init()
 	safeInit("StorageUI", StorageUI, mainGui, UIManager, isMobile)
 	safeInit("MaterialSelectUI", MaterialSelectUI, mainGui, UIManager)
 	safeInit("PremiumShopUI", PremiumShopUI, mainGui, UIManager)
-	safeInit("AuctionUI", AuctionUI, mainGui, UIManager, isMobile)
+	safeInit("TradeUI", TradeUI, mainGui, UIManager, isMobile)
 
 	safeInit("PortalUI", PortalUI, mainGui, UIManager, isMobile)
 	if PortalRadialUI then
@@ -3328,7 +3337,7 @@ function UIManager.Init()
 	WindowManager.register("SKILL", UIManager._onOpenSkillTree, UIManager._onCloseSkillTree)
 	WindowManager.register("ENHANCE", UIManager._onOpenEnhance, UIManager._onCloseEnhance)
 	WindowManager.register("DISMANTLE", UIManager._onOpenDismantle, UIManager._onCloseDismantle)
-	WindowManager.register("AUCTION", UIManager._onOpenAuctionHouse, UIManager._onCloseAuctionHouse)
+	WindowManager.register("TRADE", UIManager._onOpenTradeUI, UIManager._onCloseTradeUI)
 
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
@@ -3362,7 +3371,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("CRAFTING", findMainPanel(CraftingUI.Refs.Frame))
 
 		WindowManager.registerFrame("SKILL", findMainPanel(SkillTreeUI.Refs.Frame))
-		WindowManager.registerFrame("AUCTION", findMainPanel(AuctionUI.Refs.Frame))
+		WindowManager.registerFrame("TRADE", findMainPanel(TradeUI.Refs.Frame))
 
 		-- 직접 윈도우 구조 UI들 (Refs.Frame이 곧 패널)
 		WindowManager.registerFrame("PORTAL", PortalUI.Refs.Frame)

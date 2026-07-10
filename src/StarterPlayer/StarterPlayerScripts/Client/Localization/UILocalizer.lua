@@ -71,7 +71,6 @@ local KO_TO_EN = {
 	["[장착 보너스 비활성]\n준비 중인 기능입니다."] = "[Equipment bonus disabled]\nFeature in preparation.",
 	["섬 상점"] = "Island Shop",
 	["상점"] = "Shop",
-	["경매장"] = "Auction House",
 	["구매"] = "Buy",
 	["판매"] = "Sell",
 	["보관함"] = "Storage",

@@ -285,12 +285,12 @@ local WeaponCrafterService = require(Services.WeaponCrafterService)
 WeaponCrafterService.Init(NetController)
 ServiceRegistry.Register("WeaponCrafterService", WeaponCrafterService)
 
-local AuctionService = require(Services.AuctionService)
-AuctionService.Init(NetController)
-for command, handler in pairs(AuctionService.GetHandlers()) do
+local TradeService = require(Services.TradeService)
+TradeService.Init(NetController)
+for command, handler in pairs(TradeService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end
-ServiceRegistry.Register("AuctionService", AuctionService)
+ServiceRegistry.Register("TradeService", TradeService)
 
 local EnhanceMasterService = require(Services.EnhanceMasterService)
 EnhanceMasterService.Init(NetController)

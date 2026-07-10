@@ -258,13 +258,12 @@ Protocol.Commands = {
 	["Tent.SetSpawn"] = true,
 	["Tent.OpenUI"] = true,
 
-	-- Auction (경매장) 명령어
-	["Auction.GetListings.Request"] = true,
-	["Auction.RegisterSale.Request"] = true,
-	["Auction.BuyItem.Request"] = true,
-	["Auction.CancelSale.Request"] = true,
-	["Auction.GetPending.Request"] = true,
-	["Auction.ClaimPending.Request"] = true,
+	-- Trade (1:1 직거래) 명령어
+	["Trade.Request.Request"] = true,
+	["Trade.Respond.Request"] = true,
+	["Trade.UpdateOffer.Request"] = true,
+	["Trade.Confirm.Request"] = true,
+	["Trade.Cancel.Request"] = true,
 
 	-- Fountain (분수대 지하 통로) 명령어
 	["Fountain.Return.Request"] = true,   -- C→S: 마을 복귀 요청

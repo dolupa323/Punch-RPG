@@ -673,11 +673,10 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		print("[HUDUI] QuestTabButton Clicked! calling UIManager.toggleQuest")
 		if UIManager.toggleQuest then UIManager.toggleQuest() end
 	end)
-	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "경매장", 6, function()
-		print("[HUDUI] BtnTrade (경매장) Clicked! calling UIManager.toggleAuctionHouse")
-		if UIManager.toggleAuctionHouse then UIManager.toggleAuctionHouse() end
+	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function()
+		print("[HUDUI] BtnTrade Clicked! calling UIManager.openTradePlayerList")
+		if UIManager.openTradePlayerList then UIManager.openTradePlayerList() end
 	end)
-
 	-- Sidebar collapse/expand functionality (Premium Glassmorphic Design) - Mobile Responsive
 	local menuOpen = true
 	local toggleBtnWidth = isMobile and 20 or 24

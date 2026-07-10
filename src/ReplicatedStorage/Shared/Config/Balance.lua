@@ -224,6 +224,12 @@ Balance.STARTING_GOLD = 100            -- 신규 플레이어 기본 골드
 Balance.GOLD_CAP = 100000000              -- 최대 보유 가능 골드
 Balance.GOLD_EARN_MULTIPLIER = 1.0     -- 골드 획득 배율 (이벤트용)
 
+--========================================
+-- 1:1 거래 시스템
+--========================================
+Balance.TRADE_INTERACT_RANGE = 12      -- 거래 요청 가능 최대 거리 (스터드)
+Balance.TRADE_INVITE_TIMEOUT = 20      -- 거래 요청 자동 만료 시간 (초)
+
 -- 테이블 동결 (런타임 수정 방지)
 Balance.ARMOR_DURABILITY_LOSS_RATIO = 0.1 -- 피격 시 방어구 내구도 감소 비율
 Balance.KNOCKBACK_FORCE = 25               -- 피격 시 기본 넉백 강도 (플레이어)
