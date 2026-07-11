@@ -3212,25 +3212,10 @@ function UIManager.Init()
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 	SG:SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, false)
 
-	-- [모바일 점프버튼 중복 제거]
-	-- 커스텀 hex_Jump 버튼과 Roblox 기본 터치 점프버튼이 화면 우측 하단에 겹쳐
-	-- 기본 버튼이 터치를 소비하지 못해 씹히는 현상 방지
-	-- PlayerModule > ControlModule > TouchJump 버튼을 직접 숨김
-	if UserInputService.TouchEnabled then
-		task.spawn(function()
-			local playerGui = player:WaitForChild("PlayerGui")
-			-- TouchGui는 PlayerGui 하위에 생성됨 (최대 10초 대기)
-			local touchGui = playerGui:WaitForChild("TouchGui", 10)
-			if touchGui then
-				local jumpBtn = touchGui:FindFirstChild("JumpButton", true)
-				if jumpBtn then
-					jumpBtn.Visible = false
-				end
-				-- TouchGui 내 기본 조이스틱도 커스텀 HUD와 중복 시 숨김 처리 가능
-				-- (조이스틱은 현재 커스텀 대체없으므로 유지)
-			end
-		end)
-	end
+	-- [제거됨] 예전엔 커스텀 점프 버튼과 겹친다는 이유로 로블록스 기본 터치 점프 버튼을 강제로 숨겼었는데,
+	-- 지금은 커스텀 점프 버튼이 아예 없고 기본 버튼을 그대로 써야 하므로 숨김 로직을 제거함.
+	-- (실제 원인은 HUDUI.lua의 ATTACK/DASH 버튼이 화면 우측 하단 모서리에 너무 바짝 붙어 배치되어
+	-- 기본 점프 버튼을 뒤덮고 있었던 것 — 그쪽 위치를 고쳐서 해결했다.)
 
 	-- 신규 모듈형 UI 초기화 (안전한 래퍼 도입으로 특정 모듈 에러가 전체 파이프라인을 중단하지 않도록 방지)
 	local function safeInit(name, module, ...)

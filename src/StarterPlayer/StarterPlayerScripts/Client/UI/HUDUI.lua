@@ -61,7 +61,10 @@ local function formatVal(num)
 	end
 end
 
--- [UX] 버튼 클릭/터치/키보드 시각 피드백 (스케일 애니메이션)
+-- [UX] 버튼 클릭/터치/키보드 시각 피드백 (스케일 애니메이션 + 색 플래시)
+-- [버그수정] 스케일 바운스만 있고 색 변화가 전혀 없어서(게다가 AutoButtonColor도 꺼둬서) 눌렀는지
+-- 안 눌렸는지 피드백이 약했다 — 물약/스킬/어택/대쉬 슬롯이 전부 이 함수를 공유하므로 여기서 색
+-- 플래시를 추가하면 한 번에 다 적용된다.
 local function triggerScale(btn)
 	if not btn then return end
 	local uiScale = btn:FindFirstChild("UIScale") or Instance.new("UIScale", btn)
@@ -70,6 +73,34 @@ local function triggerScale(btn)
 		if not uiScale or not uiScale.Parent then return end
 		TweenService:Create(uiScale, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
 	end)
+
+	local ok, originalColor = pcall(function() return btn.BackgroundColor3 end)
+	if ok and originalColor then
+		if btn:GetAttribute("_pressOriginalColor") == nil then
+			btn:SetAttribute("_pressOriginalColor", originalColor)
+			btn:SetAttribute("_pressOriginalTransparency", btn.BackgroundTransparency)
+		end
+		local baseColor = btn:GetAttribute("_pressOriginalColor")
+		local baseTransparency = btn:GetAttribute("_pressOriginalTransparency") or btn.BackgroundTransparency
+		local flashColor = Color3.new(
+			math.min(1, baseColor.R + 0.4),
+			math.min(1, baseColor.G + 0.4),
+			math.min(1, baseColor.B + 0.4)
+		)
+		-- 슬롯 배경이 기본적으로 꽤 투명(예: 0.70)해서 색만 바꾸면 티가 잘 안 남 — 눌린 동안 더 선명하게(불투명하게) 만든다
+		local flashTransparency = math.max(0, baseTransparency - 0.35)
+		TweenService:Create(btn, TweenInfo.new(0.04, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundColor3 = flashColor,
+			BackgroundTransparency = flashTransparency,
+		}):Play()
+		task.delay(0.04, function()
+			if not btn or not btn.Parent then return end
+			TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = baseColor,
+				BackgroundTransparency = baseTransparency,
+			}):Play()
+		end)
+	end
 end
 
 local function bindSlotAction(slot, actionName, actionFn)
@@ -1362,12 +1393,17 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- [X] Redundant interact prompt removed (Using InteractUI instead)
 
 	-- [Punch-RPG Hotbar & Gold] (Right Side, Responsive)
+	-- [버그수정] 이 프레임(과 그 자식 MoneyFrame)이 투명해서 안 보이지만 Utils.mkFrame 기본값이
+	-- Active=true라서, 화면 우측 하단 10%x42%를 뒤덮는 안 보이는 히트박스가 되어 로블록스 기본
+	-- 터치 점프 버튼(같은 자리)의 터치를 거의 다 먹어버리고 있었다. 순수 레이아웃 컨테이너라
+	-- 입력을 소비할 필요가 없으므로 active=false로 명시한다.
 	local rightArea = Utils.mkFrame({
 		name = "RightHUDArea",
 		size = UDim2.new(0.10, 0, 0.42, 0), -- Sleeker percent-based bounding container
-		pos = UDim2.new(0.98, 0, 0.98, 0), 
+		pos = UDim2.new(0.98, 0, 0.98, 0),
 		anchor = Vector2.new(1, 1),
 		bgT = 1,
+		active = false,
 		parent = parent
 	})
 	local rightConstraint = Instance.new("UISizeConstraint")
@@ -1376,10 +1412,11 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- 1. Gold Display (Attached perfectly to bottom right)
 	local moneyFrame = Utils.mkFrame({
 		name = "MoneyFrame",
-		size = UDim2.new(1, 0, 0.08, 0), 
+		size = UDim2.new(1, 0, 0.08, 0),
 		pos = UDim2.new(1, 0, 1, 0),
 		anchor = Vector2.new(1, 1),
 		bgT = 1,
+		active = false,
 		parent = rightArea
 	})
 	local goldLabel = Utils.mkLabel({
@@ -1910,22 +1947,27 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 
 		local attackX = (ap.X + as.X) / scale + 90
 		local dashX = attackX + actionButtonSize + actionButtonGap
+		local actionButtonY = ap.Y / scale + as.Y * 0.35
 
 		-- If the buttons would go off-screen, align them from the right edge of the screen instead
 		if dashX + actionButtonSize > screenWidth - 10 then
-			dashX = screenWidth - 16 - actionButtonSize
+			-- [버그수정] 이 폴백 위치가 화면 우측 하단 모서리에서 16px밖에 안 떨어져 있어서, 로블록스
+			-- 기본 터치 점프 버튼(그 모서리에 있음)을 84px짜리 DASH 버튼이 거의 다 뒤덮어버렸다
+			-- (점프 버튼의 왼쪽 가장자리만 살짝 삐져나와 그 부분만 터치가 되던 증상).
+			-- 점프 버튼 영역을 확실히 피하도록 우측 여백을 크게 늘리고, 위로도 띄운다.
+			local jumpButtonClearance = isMobile and 130 or 16
+			local jumpButtonVerticalClearance = isMobile and 70 or 0
+			dashX = screenWidth - jumpButtonClearance - actionButtonSize
 			attackX = dashX - actionButtonGap - actionButtonSize
+			actionButtonY -= jumpButtonVerticalClearance
 		end
 
 		if attackSlot and attackSlot.frame then
-			attackSlot.frame.Position = UDim2.new(0, attackX, 0, ap.Y / scale + as.Y * 0.35)
+			attackSlot.frame.Position = UDim2.new(0, attackX, 0, actionButtonY)
 		end
 
 		if dashSlot and dashSlot.frame then
-			dashSlot.frame.Position = UDim2.new(
-				0, dashX,
-				0, ap.Y / scale + as.Y * 0.35
-			)
+			dashSlot.frame.Position = UDim2.new(0, dashX, 0, actionButtonY)
 		end
 	end
 

@@ -4,7 +4,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Debris = game:GetService("Debris")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -360,10 +359,10 @@ function MovementAbilityController.applyHitReaction(bounceDirection: Vector3?)
 end
 
 local function bindInputs()
-	UserInputService.JumpRequest:Connect(function()
-		MovementAbilityController.requestJump()
-	end)
-
+	-- [버그수정] UserInputService.JumpRequest는 키보드/게임패드/모바일 점프 버튼 전부에서 발동되는데,
+	-- onCharacterAdded()의 humanoid:GetPropertyChangedSignal("Jump") 리스너도 동일한 입력(로블록스
+	-- 기본 컨트롤이 Humanoid.Jump=true로 바꿀 때)에서 발동한다. 점프 1번에 requestJump()가 2번 호출되어
+	-- 두 번째 호출이 즉시 더블 점프 자원을 소모해버리는 버그가 있었음 — 여기서는 중복 등록하지 않는다.
 	InputManager.bindAction("MovementDashAction", function()
 		MovementAbilityController.requestDash()
 	end, false, nil, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
