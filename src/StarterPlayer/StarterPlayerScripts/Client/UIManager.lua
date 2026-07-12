@@ -1178,26 +1178,19 @@ function UIManager.confirmModalAction(count)
 		if totalCount < 1 then totalCount = 1 end
 		
 		local validCount = math.max(1, math.min(count, totalCount))
-		
-		local isTradeable = true
-		if DataHelper and DataHelper.IsTradeable then
-			isTradeable = DataHelper.IsTradeable(item.itemId)
-		end
-		
-		if not isTradeable then
-			local itemData = DataHelper.GetData("ItemData", item.itemId)
-			local rawName = itemData and itemData.name or item.itemId
-			local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
-			
-			UIManager.showDropConfirm({
-				message = string.format("<font color='#FF5555'>%s %d개</font>는 <font color='#FFAA00'>교환 불가</font> 아이템입니다.<br/>버리면 땅에 떨어지지 않고 완전히 소멸되어 복구할 수 없습니다.<br/>정말 버리시겠습니까?", tostring(localizedName), validCount),
-				onConfirm = function()
-					InventoryController.requestDropByItemId(item.itemId, validCount)
-				end
-			})
-		else
-			InventoryController.requestDropByItemId(item.itemId, validCount)
-		end
+
+		-- [요청반영] 교환 가능/불가 구분 없이, 이제 모든 아이템은 버리면 월드드랍(회수 가능한 땅
+		-- 아이템)이 아니라 소멸 처리된다. 그러니 예외 없이 전부 이 경고를 띄운다.
+		local itemData = DataHelper.GetData("ItemData", item.itemId)
+		local rawName = itemData and itemData.name or item.itemId
+		local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
+
+		UIManager.showDropConfirm({
+			message = string.format("<font color='#FF5555'>%s %d개</font>를 버리시겠습니까?<br/>버린 아이템은 땅에 떨어지지 않고 <font color='#FFAA00'>완전히 소멸</font>되어 복구할 수 없습니다.", tostring(localizedName), validCount),
+			onConfirm = function()
+				InventoryController.requestDropByItemId(item.itemId, validCount)
+			end
+		})
 	elseif modalActionType == "SPLIT" then
 		local maxCount = (item.count or 1) - 1
 		if maxCount >= 1 then

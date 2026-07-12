@@ -512,14 +512,12 @@ function FacilityService.addFuel(player: Player, structureId: string, invSlot: n
 		-- 기존 연료를 인벤으로 반환
 		local added, remaining = InventoryService.addItem(userId, runtime.fuelSlot.itemId, runtime.fuelSlot.count)
 		
-		-- 인벤토리 가득 참 시 월드 드롭 (아이템 증발 방지)
-		if remaining > 0 and WorldDropService then
-			local pPos = getPlayerPosition(player)
-			if pPos then
-				WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), runtime.fuelSlot.itemId, remaining)
-			end
+		-- [요청반영] 인벤토리가 가득 차서 못 돌려받은 연료는 월드드랍(거래 우회 경로) 대신 소멸시킨다
+		if remaining > 0 then
+			warn(string.format("[FacilityService] Fuel return overflow for %s: x%d %s 소멸 처리됨",
+				userId, remaining, runtime.fuelSlot.itemId))
 		end
-		
+
 		runtime.fuelSlot = nil
 	end
 	
@@ -598,14 +596,12 @@ function FacilityService.addInput(player: Player, structureId: string, invSlot: 
 		-- 기존 Input을 인벤으로 반환
 		local added, remaining = InventoryService.addItem(userId, runtime.inputSlot.itemId, runtime.inputSlot.count)
 		
-		-- 인벤토리 가득 참 시 월드 드롭 (아이템 증발 방지)
-		if remaining > 0 and WorldDropService then
-			local pPos = getPlayerPosition(player)
-			if pPos then
-				WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), runtime.inputSlot.itemId, remaining)
-			end
+		-- [요청반영] 인벤토리가 가득 차서 못 돌려받은 재료는 월드드랍(거래 우회 경로) 대신 소멸시킨다
+		if remaining > 0 then
+			warn(string.format("[FacilityService] Input return overflow for %s: x%d %s 소멸 처리됨",
+				userId, remaining, runtime.inputSlot.itemId))
 		end
-		
+
 		runtime.inputSlot = nil
 		runtime.currentRecipeId = nil
 		runtime.processProgress = 0

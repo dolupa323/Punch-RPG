@@ -461,7 +461,7 @@ function WorldDropService.spawnDrop(pos: Vector3, itemId: string, count: number,
 		despawnAt = now + despawnSeconds,
 		inactive = false,
 	}
-	
+
 	drops[drop.dropId] = drop
 	dropCount = dropCount + 1
 	indexDropForMerge(drop)
@@ -539,7 +539,7 @@ function WorldDropService.loot(player: Player, dropId: string): (boolean, string
 	local effectiveDist = (distY <= 20) and dist2D or distanceBetween(drop.pos, humanoidRootPart.Position)
 	
 	if effectiveDist > Balance.DROP_LOOT_RANGE then
-		warn(string.format("[WorldDropService] 줍기 실패(OUT_OF_RANGE) - Player: %s, Dist: %.2f (2D: %.2f, Y: %.2f) | DropPos: %s | PlayerPos: %s", 
+		warn(string.format("[WorldDropService] 줍기 실패(OUT_OF_RANGE) - Player: %s, Dist: %.2f (2D: %.2f, Y: %.2f) | DropPos: %s | PlayerPos: %s",
 			player.Name, effectiveDist, dist2D, distY, tostring(drop.pos), tostring(humanoidRootPart.Position)))
 		return false, Enums.ErrorCode.OUT_OF_RANGE, nil
 	end

@@ -530,7 +530,7 @@ local function createMobModel(areaId, index, config)
 		-- [중요] 모든 애니메이션의 서버 로딩 및 클라이언트 동기화 복제를 위해 Animator 객체 선제 생성 보장!
 		local animator = humanoid:FindFirstChildOfClass("Animator")
 		if not animator then
-			Instance.new("Animator", humanoid)
+			animator = Instance.new("Animator", humanoid)
 		end
 	end
 	model:SetAttribute("MaxHealth", config.maxHealth or 100)
@@ -913,6 +913,20 @@ local function createMobModel(areaId, index, config)
 					end
 				end
 
+				-- [포세이돈 전용] 아직 Poseidon_Idle/Poseidon_Walk 정식 애니메이션이 없어서
+				-- (모델에 딸려온 AnimSaves.Walk는 발행되지 않은 KeyframeSequence 원본 데이터일
+				-- 뿐이라 Animation.AnimationId로 바로 못 씀 - Studio 밖에서는 재생 불가) 우선
+				-- 같은 이족보행 R6 무기 몹인 사무라이 걷기 모션으로 폴백. 추후 Animation Editor에서
+				-- AnimSaves.Walk를 정식 발행해서 이 폴더에 Poseidon_Walk로 넣으면 자동으로 전환됨.
+				if config.mobModelName == "Poseidon" then
+					if not monsterAnims:FindFirstChild(idleAnimName) then
+						idleAnimName = "Samurai_Idle"
+					end
+					if not monsterAnims:FindFirstChild(walkAnimName) then
+						walkAnimName = "Samurai_Walk"
+					end
+				end
+
 				local idleAnim = monsterAnims:FindFirstChild(idleAnimName)
 				local walkAnim = monsterAnims:FindFirstChild(walkAnimName)
 
@@ -1044,7 +1058,7 @@ local function createMobModel(areaId, index, config)
 			local lastSwordDropTick = 0 -- 유령기사 패턴 3(검 낙하)용
 			local lastCheckerboardTick = 0 -- 크라켄 전용 체스판 물기둥 광역기 쿨타임
 			local currentGimmickMode = 1
-			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken")
+			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken" or config.mobModelName == "Poseidon")
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
 
 			-- [푸른불꽃 기사 전용 Phase 2 스태틱 변수군]
@@ -8728,7 +8742,7 @@ local function createMobModel(areaId, index, config)
 
 				-- [B. 평화 모드] 배회 (Wander) - 스폰 중심(spawnCenter) 기준 랜덤 오프셋 영역으로 자연스럽게 배회합니다.
 				local isFlying = (config.mobModelName == "CyclopsBat" or config.mobModelName == "IceDragon" or config.mobModelName == "Jellyfish")
-				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken") and 35 or 20
+				local wanderRadius = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken" or config.mobModelName == "Poseidon") and 35 or 20
 
 				-- [Jellyfish 전용 수중 배회] PlatformStand + BodyVelocity 3D 유영
 				if config.mobModelName == "Jellyfish" then

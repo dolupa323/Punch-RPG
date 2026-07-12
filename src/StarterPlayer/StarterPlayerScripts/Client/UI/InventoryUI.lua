@@ -1292,19 +1292,11 @@ function InventoryUI.UpdateDetail(data, getItemIcon, Enums, DataHelper, itemCoun
 			end
 		end
 		
-		local tradeLabel = ""
-		if DataHelper and DataHelper.IsTradeable then
-			if DataHelper.IsTradeable(displayItemId) then
-				tradeLabel = "<font color='#8CDC64'>[" .. UILocalizer.Localize("교환 가능") .. "]</font>\n"
-			else
-				tradeLabel = "<font color='#E63232'>[" .. UILocalizer.Localize("교환 불가") .. "]</font>\n"
-			end
-		end
-
+		-- [요청반영] 교환 가능/불가 표시 개념을 없앰 (이제 전 아이템 교환 가능이라 표시가 무의미)
 		if itemData and itemData.description then
-			d.Desc.Text = tradeLabel .. UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)
+			d.Desc.Text = UILocalizer.LocalizeDataText("ItemData", tostring(displayItemId), "description", itemData.description)
 		else
-			d.Desc.Text = tradeLabel .. UILocalizer.Localize((itemData and (itemData.name .. " 입니다.")) or "")
+			d.Desc.Text = UILocalizer.Localize((itemData and (itemData.name .. " 입니다.")) or "")
 		end
 		d.Desc.RichText = true
 		

@@ -2630,26 +2630,11 @@ function InventoryService.dropExcessItems(player: Player, newMaxSlots: number): 
 	end
 	
 	if #droppedItems <= 0 then return droppedItems end
-	
-	-- WorldDropService 지연 로딩으로 월드에 드랍
-	local wdOk, WorldDropService = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.Services.WorldDropService)
-	end)
-	
-	if wdOk and WorldDropService and WorldDropService.spawnDrop then
-		local character = player.Character
-		local hrp = character and character:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			local basePos = hrp.Position + Vector3.new(0, -1, 0)
-			for i, item in ipairs(droppedItems) do
-				-- 아이템별로 약간 다른 위치에 드랍 (원형 배치)
-				local angle = (i - 1) * (2 * math.pi / math.max(#droppedItems, 1))
-				local offset = Vector3.new(math.cos(angle) * 3, 0, math.sin(angle) * 3)
-				WorldDropService.spawnDrop(basePos + offset, item.itemId, item.count, item.durability)
-			end
-		end
-	end
-	
+
+	-- [요청반영] 거래는 오직 거래창으로만 가능해야 하므로, 월드드랍은 다른 사람이 주울 수 있는
+	-- 형태로 존재해선 안 된다. 인벤토리 슬롯 초과분은 땅에 흘리지 않고 그냥 소멸시킨다.
+	warn(string.format("[InventoryService] %s의 인벤토리 슬롯 초과 아이템 %d종이 소멸 처리되었습니다.", player.Name, #droppedItems))
+
 	-- 클라이언트에 변경 알림
 	local changes = {}
 	for slot, _ in pairs(changedSlots) do

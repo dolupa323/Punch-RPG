@@ -350,6 +350,29 @@ local MobSpawnData = {
 		exactSpawnPosition = {x = 798.4, y = 100, z = 197.6}, -- 촉수가 아래로 길게 늘어지므로 여유있게 높은 위치에서 시작 (자동 HipHeight 보정이 바닥에 맞춰줌)
 	},
 
+	-- [수중도시 4번째 레이드방] 크라켄(DeepAbyss)/사막의 수호자(DeepAbyss_West)에 이은
+	-- 다음 자리 - DeepAbyss_North의 정식 RaidArena.BossSpawnMarker 좌표에 배치
+	["DeepAbyss_North_Poseidon"] = {
+		spawnAreaId = "DeepAbyss_North_Poseidon",
+		level = 65,
+		mobModelName = "Poseidon",
+		dropTableId = "KRAKEN", -- 임시로 크라켄 드롭 재사용 (정식 드롭 테이블 확정 전까지)
+		mobDisplayName = "포세이돈",
+		maxHealth = 450000,
+		baseDamage = 450,
+		attackCooldown = 2.5,
+		respawnDelay = 90.0,
+		hitboxScaleFromBounds = {x = 1.0, y = 1.0, z = 1.0}, -- 자체 제작 Parts 모델이라 실제 크기 그대로
+		walkSpeed = 8,
+		xpReward = 30000,
+
+		spawnAsPolygon = false,
+		spawnCount = 1,
+		isIndoor = true,
+		skipTerrainScan = true,
+		exactSpawnPosition = {x = -50.7, y = 100, z = -411.8}, -- DeepAbyss_North.RaidArena.BossSpawnMarker 실측 좌표
+	},
+
 	["GhostKnightZone"] = {
 		spawnAreaId = "GhostKnightZone",
 		level = 58,

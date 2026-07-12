@@ -37,6 +37,7 @@ local ZONE_SOUND_NAMES = {
 	SKY_ISLAND = "SKY_BGM",                -- 하늘섬
 	BLUE_FLAME_KNIGHT_ZONE = "BOSS_BGM",-- 푸른 신념 (최종 보스)
 	DESERTGUARDIANZONE = "BOSS_BGM",     -- 사막의 수호자 구역 (BOSS_BGM)
+	DEEPABYSS_NORTH_POSEIDON = "BOSS_BGM", -- 수중도시 포세이돈 레이드방
 
 	-- Legacy Zones
 	GRASSLAND = "FOREST_BGM",

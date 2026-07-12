@@ -36,6 +36,7 @@ local MOB_LIST = {
 	{ dropTableId = "BLUEFLAMEKNIGHT",   displayName = "푸른 불꽃 기사" },
 	{ dropTableId = "DESERTGUARDIAN",    displayName = "사막의 수호자" },
 	{ dropTableId = "KRAKEN",            displayName = "크라켄" },
+	{ dropTableId = "KRAKEN",            displayName = "포세이돈" }, -- 정식 드롭 테이블 확정 전까지 크라켄과 동일 드롭 재사용
 }
 
 -- itemId -> itemName 조회 테이블 (1회 구축)

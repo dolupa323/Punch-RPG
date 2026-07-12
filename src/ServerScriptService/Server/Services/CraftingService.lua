@@ -620,10 +620,10 @@ function CraftingService.start(player: Player, recipeId: string, structureId: st
 			end
 			for _ = 1, output.count * craftCount do
 				local added, remaining = InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
-				if remaining and remaining > 0 and WorldDropService and pPos then
-					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining, outDurability)
-					warn(string.format("[CraftingService] Instant craft overflow for %s: x%d dropped as WorldDrop for userId %d",
-						output.itemId, remaining, userId))
+				if remaining and remaining > 0 then
+					-- [요청반영] 거래는 거래창으로만 가능해야 하므로 월드드랍 대신 소멸시킨다
+					warn(string.format("[CraftingService] Instant craft overflow for %s: x%d %s 소멸 처리됨",
+						userId, remaining, output.itemId))
 				end
 			end
 		end
@@ -729,12 +729,11 @@ function CraftingService.cancel(player: Player, craftId: string)
 			local refundCount = math.floor((input.count * refundableUnits) * Balance.CRAFT_CANCEL_REFUND)
 			if refundCount > 0 then
 				local added, remaining = InventoryService.addItem(userId, input.itemId, refundCount)
-				
-				-- 인벤토리가 가득 차서 남은 재료는 월드 드롭 처리 (데이터 유실 방지)
-				if remaining > 0 and WorldDropService and pPos then
-					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), input.itemId, remaining)
-					warn(string.format("[CraftingService] Refund overflow for %s: x%d dropped as WorldDrop for userId %d", 
-						input.itemId, remaining, userId))
+
+				-- [요청반영] 인벤토리가 가득 차서 못 받은 환불 재료는 월드드랍(거래 우회 경로) 대신 소멸시킨다
+				if remaining > 0 then
+					warn(string.format("[CraftingService] Refund overflow for %s: x%d %s 소멸 처리됨",
+						userId, remaining, input.itemId))
 				end
 			end
 		end
@@ -823,21 +822,20 @@ function CraftingService.collect(player: Player, craftId: string, count: number?
 				end
 			end
 		end
+		-- [요청반영] 인벤토리가 가득 차서 못 받은 제작 완료물은 월드드랍(거래 우회 경로) 대신 소멸시킨다
 		if outAttrs then
 			for _ = 1, totalOut do
 				local added, remaining = InventoryService.addItem(userId, output.itemId, 1, outDurability, outAttrs)
-				if remaining and remaining > 0 and WorldDropService and pPos then
-					WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining, outDurability)
-					warn(string.format("[CraftingService] Collect overflow for %s: x%d dropped as WorldDrop for userId %d",
-						output.itemId, remaining, userId))
+				if remaining and remaining > 0 then
+					warn(string.format("[CraftingService] Collect overflow for %s: x%d %s 소멸 처리됨",
+						userId, remaining, output.itemId))
 				end
 			end
 		else
 			local added, remaining = InventoryService.addItem(userId, output.itemId, totalOut)
-			if remaining and remaining > 0 and WorldDropService and pPos then
-				WorldDropService.spawnDrop(pPos + Vector3.new(0, 2, 0), output.itemId, remaining)
-				warn(string.format("[CraftingService] Collect overflow for %s: x%d dropped as WorldDrop for userId %d",
-					output.itemId, remaining, userId))
+			if remaining and remaining > 0 then
+				warn(string.format("[CraftingService] Collect overflow for %s: x%d %s 소멸 처리됨",
+					userId, remaining, output.itemId))
 			end
 		end
 	end

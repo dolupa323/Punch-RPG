@@ -681,7 +681,7 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 			print(string.format("[HUDUI] Menu Cell '%s' (%s) Activated!", name, label))
 			fn()
 		end)
-		return btn
+		return btn, inner, txt, clk
 	end
 
 	HUDUI.Refs.InventoryTabButton = mkMenuCell("BtnInv", UIManager.getItemIcon("Icon_Inventory"), "가방", 1, function()
@@ -704,10 +704,51 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 		print("[HUDUI] QuestTabButton Clicked! calling UIManager.toggleQuest")
 		if UIManager.toggleQuest then UIManager.toggleQuest() end
 	end)
-	mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function()
+	local TRADE_UNLOCK_LEVEL = 40
+	local tradeBtn, tradeInner, tradeTxt, tradeClk = mkMenuCell("BtnTrade", UIManager.getItemIcon("BtnTrade"), "거래", 6, function()
+		local lvl = (UIManager.getCurrentPlayerLevel and UIManager.getCurrentPlayerLevel()) or 0
+		if lvl < TRADE_UNLOCK_LEVEL then
+			if UIManager.notify then
+				UIManager.notify(string.format("레벨 %d부터 이용 가능합니다.", TRADE_UNLOCK_LEVEL), Color3.fromRGB(255, 80, 80))
+			end
+			return
+		end
 		print("[HUDUI] BtnTrade Clicked! calling UIManager.openTradePlayerList")
 		if UIManager.openTradePlayerList then UIManager.openTradePlayerList() end
 	end)
+	HUDUI.Refs.TradeTabButton = tradeBtn
+
+	local tradeLockOverlay = Instance.new("Frame")
+	tradeLockOverlay.Name = "LockOverlay"
+	tradeLockOverlay.Size = UDim2.new(1, 0, 1, 0)
+	tradeLockOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	tradeLockOverlay.BackgroundTransparency = 0.45
+	tradeLockOverlay.BorderSizePixel = 0
+	tradeLockOverlay.ZIndex = 4
+	tradeLockOverlay.Active = false
+	tradeLockOverlay.Visible = false
+	tradeLockOverlay.Parent = tradeBtn
+	local tradeLockCorner = Instance.new("UICorner")
+	tradeLockCorner.CornerRadius = UDim.new(0, 8)
+	tradeLockCorner.Parent = tradeLockOverlay
+
+	local tradeUnlockedLabel = UILocalizer.Localize("거래")
+	local function refreshTradeLock()
+		local lvl = (UIManager.getCurrentPlayerLevel and UIManager.getCurrentPlayerLevel()) or 0
+		local locked = lvl < TRADE_UNLOCK_LEVEL
+		tradeLockOverlay.Visible = locked
+		if locked then
+			tradeTxt.Text = string.format("Lv.%d", TRADE_UNLOCK_LEVEL)
+			tradeInner.ImageColor3 = Color3.fromRGB(110, 110, 110)
+			tradeInner.ImageTransparency = 0.35
+		else
+			tradeTxt.Text = tradeUnlockedLabel
+			tradeInner.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			tradeInner.ImageTransparency = 0
+		end
+	end
+	refreshTradeLock()
+	HUDUI.RefreshTradeLock = refreshTradeLock
 	-- Sidebar collapse/expand functionality (Premium Glassmorphic Design) - Mobile Responsive
 	local menuOpen = true
 	local toggleBtnWidth = isMobile and 20 or 24
@@ -3124,6 +3165,9 @@ function HUDUI.UpdateLevel(lv)
 	HUDUI.Refs.currentLevel = lv
 	if HUDUI.Refs.levelLabel then
 		HUDUI.Refs.levelLabel.Text = string.format("<font size=\"16\">Lv.</font>%d", tonumber(lv) or 0)
+	end
+	if HUDUI.RefreshTradeLock then
+		HUDUI.RefreshTradeLock()
 	end
 end
 

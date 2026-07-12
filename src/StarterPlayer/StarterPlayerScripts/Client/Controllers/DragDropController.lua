@@ -545,29 +545,23 @@ function DragDropController.handleDragEnd()
 		InventoryController.moveItem(draggingSlotIdx, foundSlot, foundType)
 	else
 		-- 인벤토리가 열려있을 때만 바깥 드래그 → 월드 드랍
+		-- [요청반영] 월드드랍은 이제 예외 없이 소멸 처리이므로, 아이템 종류와 무관하게 항상 경고 후 확인받는다.
 		if draggingSlotIdx and UIManager.isWindowOpen("INV") then
 			local items = InventoryController.getItems()
 			local item = items[draggingSlotIdx]
 			if item and item.itemId then
-				local isTradeable = true
-				if DataHelper and DataHelper.IsTradeable then
-					isTradeable = DataHelper.IsTradeable(item.itemId)
-				end
-				
-				if not isTradeable then
-					local itemData = DataHelper.GetData("ItemData", item.itemId)
-					local rawName = itemData and itemData.name or item.itemId
-					local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
-					
-					UIManager.showDropConfirm({
-						message = string.format("<font color='#FF5555'>%s</font>은(는) <font color='#FFAA00'>교환 불가</font> 아이템입니다.<br/>버리면 땅에 떨어지지 않고 완전히 소멸되어 복구할 수 없습니다.<br/>정말 버리시겠습니까?", tostring(localizedName)),
-						onConfirm = function()
-							InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
-						end
-					})
-				else
-					InventoryController.requestDrop(draggingSlotIdx, item.count or 1)
-				end
+				local itemData = DataHelper.GetData("ItemData", item.itemId)
+				local rawName = itemData and itemData.name or item.itemId
+				local localizedName = UILocalizer.LocalizeDataText("ItemData", item.itemId, "name", rawName)
+				local count = item.count or 1
+				local dropSlotIdx = draggingSlotIdx
+
+				UIManager.showDropConfirm({
+					message = string.format("<font color='#FF5555'>%s %d개</font>를 버리시겠습니까?<br/>버린 아이템은 땅에 떨어지지 않고 <font color='#FFAA00'>완전히 소멸</font>되어 복구할 수 없습니다.", tostring(localizedName), count),
+					onConfirm = function()
+						InventoryController.requestDrop(dropSlotIdx, count)
+					end
+				})
 			end
 		end
 	end

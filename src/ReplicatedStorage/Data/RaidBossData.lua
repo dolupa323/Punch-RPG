@@ -53,6 +53,19 @@ local RaidBossData = {
 		}),
 		underfillColor = Color3.fromRGB(35, 25, 55) -- 어두운 자주 데미지 잔상
 	},
+
+	["Poseidon"] = {
+		mobModelName = "Poseidon",
+		displayName = "포세이돈",
+		segments = 20,
+		themeColor = Color3.fromRGB(90, 205, 255), -- 청록 발광 테마 (기계팔 소켓 색과 통일)
+		hpGradient = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 225, 255)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 170, 230)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 70, 120))
+		}),
+		underfillColor = Color3.fromRGB(20, 55, 90) -- 짙은 청색 데미지 잔상
+	},
 }
 
 return RaidBossData

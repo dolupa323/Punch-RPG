@@ -17,7 +17,6 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Balance = require(Shared.Config.Balance)
 local ServiceRegistry = require(Shared:WaitForChild("Utils"):WaitForChild("ServiceRegistry"))
 local GameEventBus = require(Shared:WaitForChild("Utils"):WaitForChild("GameEventBus"))
-local DataHelper = require(Shared:WaitForChild("Util"):WaitForChild("DataHelper"))
 
 local function initCollisionGroups()
 	local groups = {"Players", "Creatures", "CombatCreatures", "Structures", "Resources"}
@@ -81,26 +80,14 @@ for command, handler in pairs(WorldDropService.GetHandlers()) do
 end
 ServiceRegistry.Register("WorldDropService", WorldDropService)
 
+-- [요청반영] 월드드랍(인벤토리에서 버리기)은 이제 회수 가능한 땅 아이템을 스폰하지 않고
+-- 전부 소멸 처리한다 (예외 없이 모든 아이템 동일). InventoryService.drop(ByItemId)에서 이미
+-- 인벤토리에서 제거가 끝난 상태이므로, 여기서는 그냥 아무것도 스폰하지 않으면 그대로 소멸이다.
 local function handleInventoryDropWithWorldDrop(player, payload)
 	local slot = payload.slot
 	local count = payload.count
 	local success, errorCode, data = InventoryService.drop(player, slot, count)
 	if not success then return { success = false, errorCode = errorCode } end
-	local dropped = data.dropped
-	if dropped then
-		local isTradeable = DataHelper.IsTradeable(dropped.itemId)
-		if isTradeable then
-			local character = player.Character
-			if character then
-				local hrp = character:FindFirstChild("HumanoidRootPart")
-				if hrp then
-					local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-					local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
-					if spawnOk then data.worldDrop = spawnData end
-				end
-			end
-		end
-	end
 	return { success = true, data = data }
 end
 
@@ -109,22 +96,6 @@ local function handleInventoryDropByItemIdWithWorldDrop(player, payload)
 	local count = payload.count
 	local success, errorCode, data = InventoryService.dropByItemId(player, itemId, count)
 	if not success then return { success = false, errorCode = errorCode } end
-	
-	local dropped = data.dropped
-	if dropped then
-		local isTradeable = DataHelper.IsTradeable(dropped.itemId)
-		if isTradeable then
-			local character = player.Character
-			if character then
-				local hrp = character:FindFirstChild("HumanoidRootPart")
-				if hrp then
-					local dropPos = hrp.Position + hrp.CFrame.LookVector * 2 + Vector3.new(0, -1, 0)
-					local spawnOk, _, spawnData = WorldDropService.spawnDrop(dropPos, dropped.itemId, dropped.count, dropped.durability, nil, "DISCARD")
-					if spawnOk then data.worldDrop = spawnData end
-				end
-			end
-		end
-	end
 	return { success = true, data = data }
 end
 
