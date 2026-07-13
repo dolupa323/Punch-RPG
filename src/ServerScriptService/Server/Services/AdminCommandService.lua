@@ -128,6 +128,17 @@ local function handleGiveItem(player: Player, payload: any)
 	return { success = false }
 end
 
+local function handleSkillReset(player: Player, payload: any)
+	local ok, SkillService = pcall(function()
+		return require(game:GetService("ServerScriptService").Server.Services.SkillService)
+	end)
+	if not ok or not SkillService or not SkillService.AdminReset then
+		return { success = false }
+	end
+	local success = SkillService.AdminReset(player.UserId)
+	return { success = success }
+end
+
 local function handleSetElement(player: Player, payload: any)
 	local el = payload and payload.element
 	if el then
@@ -222,6 +233,7 @@ function AdminCommandService.Init(_NetController, _PlayerStatService, _Inventory
 		NetController.RegisterHandler("Admin.GiveEnhanceSet.Request", handleGiveEnhanceSet)
 		NetController.RegisterHandler("Admin.GiveItem.Request", handleGiveItem)
 		NetController.RegisterHandler("Admin.SetElement.Request", handleSetElement)
+		NetController.RegisterHandler("Admin.SkillReset.Request", handleSkillReset)
 	end
 
 	Players.PlayerAdded:Connect(function(player)

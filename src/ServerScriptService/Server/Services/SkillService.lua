@@ -24,6 +24,12 @@ local playerSkillCache = {}
 local skillCooldowns = {} -- [userId][itemId] = endTime
 local activeRuneAuras = {} -- [userId][itemId] = token
 
+-- [버그수정] 예전엔 이 로컬 선언이 파일 맨 아래(SetQuestEquipCallback 옆)에 있었는데, Luau는
+-- local 선언이 "그 줄 이후"부터만 유효해서 훨씬 앞쪽의 handleEquipPassive에서 참조하던
+-- questEquipCallback은 항상 전역(nil)으로 잡혀 튜토리얼 콜백이 절대 호출되지 않고 있었음
+-- (대쉬 패시브를 장착해도 튜토리얼 마지막 스텝이 완료되지 않던 원인).
+local questEquipCallback = nil
+
 --========================================
 -- Internal Helpers
 --========================================
@@ -576,6 +582,24 @@ local function handleResetSkills(player: Player, _payload: any)
 			level = PlayerStatService.getLevel(userId) or 1,
 		},
 	}
+end
+
+--- [DEV/ADMIN] 초기화권 소모 없이 강제로 스킬 초기화 (AdminCommandService 전용)
+function SkillService.AdminReset(userId: number)
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	if not cache then
+		return false
+	end
+
+	cache.unlockedSkills = {}
+	cache.combatTreeId = nil
+	cache.skillPointsSpent = 0
+	cache.activeSkillSlots = { "", "", "", "" }
+	_syncToSave(userId)
+
+	print(string.format("[SkillService] Admin force-reset all skills for userId %d", userId))
+	return true
 end
 
 --- 스킬 실행 로직
@@ -1387,7 +1411,6 @@ function SkillService.onPlayerRemoving(userId: number)
 	activeRuneAuras[userId] = nil
 end
 
-local questEquipCallback = nil
 function SkillService.SetQuestEquipCallback(cb: (number) -> ())
 	questEquipCallback = cb
 end

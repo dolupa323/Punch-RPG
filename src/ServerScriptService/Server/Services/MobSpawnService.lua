@@ -576,7 +576,11 @@ local function createMobModel(areaId, index, config)
 				p.Anchored = false
 
 				if p == hrp then
-					p.CanCollide = true
+					-- [버그수정] 젤리피쉬는 PlatformStand+BodyVelocity로 움직이는 3D 자유유영 몹이라
+					-- HRP 충돌을 켜두면 바다 바닥/벽에 물리적으로 막혀서 플레이어 높이까지 완전히
+					-- 내려오지 못하는 문제가 있었음 (사용자가 직접 지적: "젤리피쉬 하단에 뭐가 있어서
+					-- 일정부분 못내려가는거 아니냐"). 젤리피쉬만 HRP 충돌을 꺼서 자유롭게 통과하게 함.
+					p.CanCollide = (config.mobModelName ~= "Jellyfish")
 					p.Massless = false
 				else
 					p.CanCollide = false
@@ -763,10 +767,17 @@ local function createMobModel(areaId, index, config)
 			bb.StudsOffset = Vector3.new(0, head.Size.Y/2 + 1.5, 0)
 		else
 			bb.Adornee = hrp
-			-- 젤리피쉬: HRP가 모델 중심 → 절반 높이 + 여유 / 일반: HRP 하단 → 전체 높이
-			local yOff = (config.mobModelName == "Jellyfish")
-				and (extents.Y * 0.5 + 4)
-				or  (extents.Y + 1.0)
+			-- [버그수정] GetBoundingBox()는 Part.Size(비주얼 메쉬보다 훨씬 큰 보이지 않는 충돌
+			-- 박스 크기) 기준이라 실제 렌더링되는 몸통보다 훨씬 위까지 계산돼버림 (Studio에서 마커
+			-- 파트로 직접 확인: HRP는 이미 실제 몸통 꼭대기 근처에 있는데 GetBoundingBox 계산값은
+			-- 천장까지 치솟아 있었음). 젤리피쉬는 HRP가 이미 몸통 꼭대기 근처이므로 작은 고정
+			-- 오프셋만 추가.
+			local yOff
+			if config.mobModelName == "Jellyfish" then
+				yOff = 8
+			else
+				yOff = extents.Y + 1.0
+			end
 			bb.StudsOffset = Vector3.new(0, yOff, 0)
 		end
 		
@@ -1057,6 +1068,9 @@ local function createMobModel(areaId, index, config)
 			local lastGimmickTick = 0
 			local lastSwordDropTick = 0 -- 유령기사 패턴 3(검 낙하)용
 			local lastCheckerboardTick = 0 -- 크라켄 전용 체스판 물기둥 광역기 쿨타임
+			local lastTsunamiLeapTick = 0 -- 포세이돈 전용 쓰나미 강하(기믹) 쿨타임
+			local poseidonPatternBusy = false -- 포세이돈 전용 - 패턴 진행 중 다른 패턴이 끼어들지 못하게 잠금
+			local jellyAttackBusy = false -- 젤리피쉬 전용 - 공격(전조+판정) 진행 중엔 몸통이 다시 떠오르지 못하게 고정
 			local currentGimmickMode = 1
 			local isBoss = (config.mobModelName == "BlueFlameKnight" or config.mobModelName == "StumpKing" or config.mobModelName == "Stump" or config.mobModelName == "DesertGuardian" or config.mobModelName == "Kraken" or config.mobModelName == "Poseidon")
 			local spawnCenter = getNextSpawnPosition(config, index) -- 스폰 중심점 (배회 및 둥지 복귀 기준)
@@ -1066,8 +1080,8 @@ local function createMobModel(areaId, index, config)
 			local bfkAuraEmitters = {}
 
 			-- [반응속도 및 감지혁신]: 스텀프/박쥐의 유저 인식 반경 상승, FSM 주기를 단축하여 극적인 초고속 즉시 타격 실현!
-			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or ((config.mobModelName == "Jellyfish") and 90 or (isBoss and 40 or 30)))
-			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or ((config.mobModelName == "Jellyfish") and 18 or ((config.mobModelName == "Kraken") and 42 or 6)))
+			local AGGRO_RADIUS = (config.mobModelName == "Stump") and 70 or ((config.mobModelName == "CyclopsBat") and 60 or ((config.mobModelName == "Jellyfish") and 40 or (isBoss and 40 or 30))) -- [수정] 90->25(과함)->40: 인식범위 너무 짧다는 피드백 반영
+			local ATTACK_RANGE = (config.mobModelName == "FireLizard") and 18 or ((config.mobModelName == "StumpKing") and 15 or ((config.mobModelName == "Jellyfish") and 18 or ((config.mobModelName == "Kraken") and 42 or ((config.mobModelName == "Poseidon") and 16 or 6))))
 			local TICK_RATE = (config.mobModelName == "Stump") and 0.12 or ((config.mobModelName == "CyclopsBat") and 0.15 or ((config.mobModelName == "Jellyfish") and 0.15 or (isBoss and 0.15 or 0.2)))
 
 			-- [크라켄 전용] 절차적(Procedural) 촉수 애니메이션 - Motor6D 체인으로 만든 촉수 8개를
@@ -1562,6 +1576,725 @@ local function createMobModel(areaId, index, config)
 				if tilesFolder.Parent then tilesFolder:Destroy() end
 			end
 
+			-- [포세이돈 전용] 물 패턴 3종 - 전부 물 컨셉으로 통일
+			local POSEIDON_WATER_TEX_1 = "rbxassetid://15990457929" -- WAVE_Aura Water1 (넓게 퍼지는 물결)
+			local POSEIDON_WATER_TEX_2 = "rbxassetid://15081467386" -- DROPLET_Hit Water Slash 2 (튀는 물보라)
+
+			-- 1) 트라이던트 돌진 찌르기 (기본기) - 사무라이 발도 돌진과 동일한 기법(실제 CFrame 트윈 슬라이드 +
+			-- 이동 중 프레임 단위 판정)을 물 테마로 재구성. 크라켄 기본기와 동일하게 config.baseDamage 그대로 사용.
+			local function playPoseidonThrust(mob, targetChar)
+				local ts = game:GetService("TweenService")
+				local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+				local mobHum = mob:FindFirstChildOfClass("Humanoid")
+				local tHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+				if not (mobHrp and mobHum and tHrp) then return end
+
+				local mobRootPos = mobHrp.Position
+				local dir = tHrp.Position - mobRootPos
+				local flatDir = Vector3.new(dir.X, 0, dir.Z)
+				flatDir = (flatDir.Magnitude > 0.1) and flatDir.Unit or mobHrp.CFrame.LookVector
+
+				local rectWidth = 8
+				local chargeLength = 32 -- [버그수정] 먼 거리를 좁히는 추격기 역할을 하도록 사거리 확장 (기존 22 -> 32)
+				local telegraphDuration = 0.9
+
+				-- 지형 레이캐스트로 정확한 바닥 높이 확보 (크라켄/사무라이 패턴과 동일한 기법)
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				local ignoreList = {mob}
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p.Character then table.insert(ignoreList, p.Character) end
+				end
+				rayParams.FilterDescendantsInstances = ignoreList
+				local rayResult = workspace:Raycast(mobRootPos, Vector3.new(0, -30, 0), rayParams)
+				local floorY = rayResult and (rayResult.Position.Y + 0.2) or (mobRootPos.Y - mobHum.HipHeight - mobHrp.Size.Y / 2 + 0.2)
+
+				local warnRect = Instance.new("Part")
+				warnRect.Name = "PoseidonThrustTelegraph"
+				warnRect.Size = Vector3.new(rectWidth, 0.4, chargeLength)
+				warnRect.CFrame = CFrame.lookAt(
+					Vector3.new(mobRootPos.X, floorY, mobRootPos.Z),
+					Vector3.new(mobRootPos.X + flatDir.X, floorY, mobRootPos.Z + flatDir.Z)
+				) * CFrame.new(0, 0, -chargeLength / 2)
+				warnRect.Anchored = true
+				warnRect.CanCollide = false
+				warnRect.CanTouch = false
+				warnRect.CanQuery = false
+				warnRect.CastShadow = false
+				warnRect.Material = Enum.Material.Neon
+				warnRect.Color = Color3.fromRGB(90, 205, 255)
+				warnRect.Transparency = 0.8
+				warnRect.Parent = workspace
+
+				local border = Instance.new("Part")
+				border.Name = "PoseidonThrustTelegraphBorder"
+				border.Size = Vector3.new(rectWidth + 0.8, 0.35, chargeLength + 0.8)
+				border.CFrame = warnRect.CFrame
+				border.Anchored = true
+				border.CanCollide = false
+				border.CanTouch = false
+				border.CanQuery = false
+				border.CastShadow = false
+				border.Material = Enum.Material.Neon
+				border.Color = Color3.fromRGB(20, 130, 200)
+				border.Transparency = 0.85
+				border.Parent = workspace
+
+				local decal = Instance.new("Decal")
+				decal.Texture = POSEIDON_WATER_TEX_1
+				decal.Face = Enum.NormalId.Top
+				decal.Transparency = 0.4
+				decal.Parent = warnRect
+
+				ts:Create(warnRect, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Transparency = 0.35,
+				}):Play()
+				ts:Create(border, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					Transparency = 0.45,
+				}):Play()
+
+				task.wait(telegraphDuration)
+				if warnRect.Parent then warnRect:Destroy() end
+				if border.Parent then border:Destroy() end
+				if not mob.Parent or mobHum.Health <= 0 then return end
+
+				-- 공격 애니메이션 (동적 감지, 없으면 조용히 통과 - 다른 보스들과 동일한 관례)
+				pcall(function()
+					local animator = mobHum:FindFirstChildOfClass("Animator")
+					local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+					local monsterAnims = anims and anims:FindFirstChild("Monster")
+					-- 전용 애니메이션이 없으므로 사무라이 발도 돌진 모션을 그대로 재사용
+					local thrustAnim = monsterAnims and (monsterAnims:FindFirstChild("Poseidon_Thrust") or monsterAnims:FindFirstChild("Samurai_Dash"))
+					if animator and thrustAnim then
+						local track = animator:LoadAnimation(thrustAnim)
+						if track then
+							track.Priority = Enum.AnimationPriority.Action
+							track:Play()
+						end
+					end
+				end)
+
+				-- 돌진 궤적 잔상 파티클 (물보라 트레일)
+				local peDash = Instance.new("ParticleEmitter")
+				peDash.Texture = POSEIDON_WATER_TEX_2
+				peDash.Color = ColorSequence.new(Color3.fromRGB(140, 220, 255))
+				peDash.Size = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 3),
+					NumberSequenceKeypoint.new(1, 0),
+				})
+				peDash.Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0.2),
+					NumberSequenceKeypoint.new(1, 1),
+				})
+				peDash.Rate = 200
+				peDash.Speed = NumberRange.new(6, 12)
+				peDash.SpreadAngle = Vector2.new(15, 15)
+				peDash.Lifetime = NumberRange.new(0.3, 0.5)
+				peDash.EmissionDirection = Enum.NormalId.Back
+				peDash.Parent = mobHrp
+
+				-- [크라켄/사무라이 돌진과 동일한 기법] 실제 CFrame을 짧은 시간 동안 슬라이드시켜서
+				-- 진짜로 이동하는 돌진처럼 보이게 하고, 그 이동 구간 내내 프레임 단위로 판정
+				local targetLand = mobRootPos + flatDir * chargeLength
+				local slideTime = 0.28
+				local slideTween = ts:Create(mobHrp, TweenInfo.new(slideTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					CFrame = CFrame.lookAt(targetLand, targetLand + flatDir),
+				})
+				slideTween:Play()
+
+				local elapsed = 0
+				local hit = false
+				local startPos = mobRootPos
+				while elapsed < slideTime and mobHum.Health > 0 do
+					local dt = task.wait(0.03)
+					elapsed += dt
+
+					if not hit then
+						local finalHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+						local currentPhum = targetChar and targetChar:FindFirstChild("Humanoid")
+						if finalHrp and currentPhum and currentPhum.Health > 0 then
+							local toTarget = finalHrp.Position - startPos
+							local flatToTarget = Vector3.new(toTarget.X, 0, toTarget.Z)
+							local forwardDist = flatToTarget:Dot(flatDir)
+							local lateralDist = (flatToTarget - flatDir * forwardDist).Magnitude
+							-- [버그수정] 여유값(+2/+1)이 더해져서 실제 판정이 눈에 보이는 장판보다 넓었음 -> 장판 크기와 정확히 일치시킴
+							if forwardDist >= 0 and forwardDist <= chargeLength and lateralDist <= rectWidth / 2 then
+								hit = true
+								dealDamageToHumanoid(currentPhum, config.baseDamage or 450)
+								local hitPlayer = Players:GetPlayerFromCharacter(targetChar)
+								if hitPlayer then
+									local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+									local NetController = require(Controllers:WaitForChild("NetController"))
+									NetController.FireClient(hitPlayer, "Player.Stun", flatDir * 1.5)
+								end
+							end
+						end
+					end
+				end
+
+				task.wait(0.1)
+				peDash.Enabled = false
+				game:GetService("Debris"):AddItem(peDash, 1)
+			end
+
+			-- 2) 쓰나미 강하 (기믹형 광역기) - 푸른불꽃 기사의 LeapSlam(도약 강타) 구조를 그대로 따르되
+			-- 물 테마로 리스킨: 공중으로 솟구침 -> 플레이어 현재 위치에 원거리 경고 장판(회피 시간 제공)
+			-- -> 급강하 -> 물보라 파편 + 즉사급 고정 데미지(350, LeapSlam과 동일 수치). 사거리와 무관하게
+			-- 원거리에서도 스킬이 나가야 하므로 자신이 아닌 "플레이어 낙하지점"을 기준으로 발동한다.
+			local function playPoseidonTsunamiLeap(mob, targetChar)
+				local ts = game:GetService("TweenService")
+				local Debris = game:GetService("Debris")
+				local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+				local mobHum = mob:FindFirstChildOfClass("Humanoid")
+				local tHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+				if not (mobHrp and mobHum and tHrp) then return end
+
+				-- 공격(도약) 애니메이션 (동적 감지, 없으면 조용히 통과)
+				pcall(function()
+					local animator = mobHum:FindFirstChildOfClass("Animator")
+					local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+					local monsterAnims = anims and anims:FindFirstChild("Monster")
+					-- 전용 애니메이션이 없으므로 푸른불꽃 기사의 도약 강타 모션을 그대로 재사용
+					local leapAnim = monsterAnims and (monsterAnims:FindFirstChild("Poseidon_TsunamiLeap") or monsterAnims:FindFirstChild("BlueFlameKnight_LeapSlam"))
+					if animator and leapAnim then
+						local track = animator:LoadAnimation(leapAnim)
+						if track then
+							track.Looped = false
+							track:Play()
+						end
+					end
+				end)
+
+				local targetLandPos = tHrp.Position
+				local telegraphRadius = 14
+
+				-- [버그수정] 바닥 레이캐스트가 플레이어 캐릭터 본인은 제외 목록에 없어서, 낙하지점
+				-- 바닥을 찾는 레이가 실제 바닥이 아니라 플레이어 자신의 몸(머리/어깨)에 맞아버려서
+				-- 경고 장판이 플레이어 키 높이(공중)에 생기던 문제 -> 모든 플레이어 캐릭터도 제외
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				local ignoreList = {mob}
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p.Character then table.insert(ignoreList, p.Character) end
+				end
+				rayParams.FilterDescendantsInstances = ignoreList
+
+				-- 천장 레이캐스트로 도약 가능 높이 확보 (실내 레이드방 대비)
+				local ceilResult = workspace:Raycast(mobHrp.Position, Vector3.new(0, 40, 0), rayParams)
+				local availableHeight = ceilResult and math.max(6, ceilResult.Distance - 3) or 20
+				local leapUpHeight = math.min(18, availableHeight)
+
+				-- 도약 (하늘로 솟구침) - 중력에 밀려 떨어지지 않도록 공중에서 고정
+				mobHrp.Anchored = true
+				local leapUp = ts:Create(mobHrp, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					CFrame = CFrame.new(mobHrp.Position + Vector3.new(0, leapUpHeight, 0)),
+				})
+				leapUp:Play()
+				task.wait(0.4)
+
+				if not mob.Parent or mobHum.Health <= 0 then
+					mobHrp.Anchored = false
+					return
+				end
+
+				-- 공중 체공 중 플레이어의 낙하지점 바닥에 경고 장판 생성 (원거리 스킬 - 자신이 아닌 낙하지점 기준)
+				targetLandPos = (targetChar and targetChar.Parent and tHrp.Parent) and tHrp.Position or targetLandPos
+				local groundRay = workspace:Raycast(targetLandPos + Vector3.new(0, 10, 0), Vector3.new(0, -40, 0), rayParams)
+				local floorY = groundRay and (groundRay.Position.Y + 0.2) or (targetLandPos.Y - mobHum.HipHeight - mobHrp.Size.Y / 2)
+
+				local warnCircle = Instance.new("Part")
+				warnCircle.Name = "PoseidonTsunamiTelegraph"
+				warnCircle.Shape = Enum.PartType.Cylinder
+				warnCircle.Size = Vector3.new(0.4, telegraphRadius * 2, telegraphRadius * 2)
+				warnCircle.CFrame = CFrame.new(targetLandPos.X, floorY, targetLandPos.Z) * CFrame.Angles(0, 0, math.rad(90))
+				warnCircle.Anchored = true
+				warnCircle.CanCollide = false
+				warnCircle.CanTouch = false
+				warnCircle.CanQuery = false
+				warnCircle.CastShadow = false
+				warnCircle.Material = Enum.Material.Neon
+				warnCircle.Color = Color3.fromRGB(90, 205, 255)
+				warnCircle.Transparency = 0.85
+				warnCircle.Parent = workspace
+
+				local decal = Instance.new("Decal")
+				decal.Texture = POSEIDON_WATER_TEX_1
+				decal.Face = Enum.NormalId.Top
+				decal.Transparency = 0.5
+				decal.Parent = warnCircle
+
+				ts:Create(warnCircle, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+
+				-- 1.0초 체공 대기 (회피 시간 제공 - LeapSlam과 동일)
+				task.wait(1.0)
+				if warnCircle.Parent then warnCircle:Destroy() end
+
+				if not mob.Parent or mobHum.Health <= 0 then
+					mobHrp.Anchored = false
+					return
+				end
+
+				-- 경고 장판 위치로 급강하 내리치기
+				local groundOffset = mobHum.HipHeight + (mobHrp.Size.Y / 2)
+				local leapDown = ts:Create(mobHrp, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					CFrame = CFrame.new(targetLandPos.X, floorY + groundOffset, targetLandPos.Z),
+				})
+				leapDown:Play()
+				task.wait(0.2)
+
+				mobHrp.Anchored = false -- 착지 완료 후 다시 물리 활성화
+
+				-- 착지 지점 물보라 파편 (LeapSlam의 돌 파편 대신 물방울 파편으로 리스킨)
+				local impactFloorPos = Vector3.new(targetLandPos.X, floorY, targetLandPos.Z)
+				for i = 1, 12 do
+					local droplet = Instance.new("Part")
+					droplet.Name = "PoseidonSplashDebris"
+					droplet.Shape = Enum.PartType.Ball
+					droplet.Size = Vector3.new(math.random(1, 2), math.random(1, 2), math.random(1, 2))
+					droplet.Color = Color3.fromRGB(140, 220, 255)
+					droplet.Material = Enum.Material.Glass
+					droplet.Transparency = 0.2
+					droplet.CFrame = CFrame.new(impactFloorPos + Vector3.new(0, 1, 0))
+					droplet.Velocity = Vector3.new(math.random(-40, 40), math.random(50, 80), math.random(-40, 40))
+					droplet.RotVelocity = Vector3.new(math.random(-30, 30), math.random(-30, 30), math.random(-30, 30))
+					droplet.CanCollide = true
+					droplet.Parent = workspace
+					Debris:AddItem(droplet, math.random(15, 25) / 10)
+				end
+
+				if mobHum.Health > 0 then
+					-- 착지 강타 사운드 (동적 감지, 없으면 조용히 통과)
+					pcall(function()
+						local soundRoot = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+						local monsterSounds = soundRoot and soundRoot:FindFirstChild("Monster")
+						local sound = monsterSounds and monsterSounds:FindFirstChild("Poseidon_TsunamiLeap")
+						if sound then
+							local s = sound:Clone()
+							s.Parent = mobHrp
+							s:Play()
+							Debris:AddItem(s, 2)
+						end
+					end)
+
+					local exp = Instance.new("Explosion")
+					exp.BlastRadius = telegraphRadius
+					exp.BlastPressure = 0
+					exp.Position = targetLandPos
+					exp.ExplosionType = Enum.ExplosionType.NoCraters
+					exp.Visible = false
+					exp.Parent = workspace
+
+					-- 데미지 판정 (LeapSlam과 동일: 즉사급 고정 350)
+					for _, p in ipairs(Players:GetPlayers()) do
+						local char = p.Character
+						local phum = char and char:FindFirstChild("Humanoid")
+						local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+						if phum and phum.Health > 0 and pRoot then
+							local dXZ = Vector3.new(pRoot.Position.X - targetLandPos.X, 0, pRoot.Position.Z - targetLandPos.Z).Magnitude
+							if dXZ <= telegraphRadius and math.abs(pRoot.Position.Y - targetLandPos.Y) < 15 then
+								dealDamageToHumanoid(phum, 350) -- 쓰나미 강하 즉사급 데미지 (BlueFlameKnight LeapSlam과 동일 수치)
+
+								local bounceDir = (pRoot.Position - targetLandPos)
+								bounceDir = Vector3.new(bounceDir.X, 0.5, bounceDir.Z).Unit
+								local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+								local NetController = require(Controllers:WaitForChild("NetController"))
+								NetController.FireClient(p, "Player.Stun", bounceDir * 1.5)
+							end
+						end
+					end
+				end
+
+				-- 착지 후 딜레이(프리딜 타임) - LeapSlam과 동일하게 3.5초
+				task.wait(3.5)
+			end
+
+			-- 3) 소용돌이 급류 (기믹형) - 푸른불꽃 기사의 회오리(Whirlwind Tornado) 구조를 그대로 따르되
+			-- 물 테마로 리스킨: 3연속으로 전방을 향해 소용돌이 투사체를 발사, 진행 경로에 닿으면 피격.
+			-- 데미지도 회오리와 동일한 즉사급 고정값(250) 사용.
+			-- [버그수정] 기존엔 한 방향으로 3연발이었으나, 요청에 따라 한 번에 4방향(전/후/좌/우) 십자형으로
+			-- 동시에 발사하도록 재설계. 파티클도 손으로 만든 스모크/스파클 재질감 대신 실제 워터 파티클
+			-- 팩(ReplicatedStorage.LowPoly."Particle Pack (Water Based)") 템플릿을 그대로 복제해서 사용.
+			local function playPoseidonWhirlpool(mob, targetChar)
+				local ts = game:GetService("TweenService")
+				local Debris = game:GetService("Debris")
+				local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+				local mobHum = mob:FindFirstChildOfClass("Humanoid")
+				local tHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+				if not (mobHrp and mobHum and tHrp) then return end
+
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				local ignoreList = {mob}
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p.Character then table.insert(ignoreList, p.Character) end
+				end
+				rayParams.FilterDescendantsInstances = ignoreList
+				local rayResult = workspace:Raycast(mobHrp.Position, Vector3.new(0, -30, 0), rayParams)
+				local floorY = rayResult and (rayResult.Position.Y + 0.2) or (mobHrp.Position.Y - mobHum.HipHeight - mobHrp.Size.Y / 2 + 0.2)
+
+				-- 실제 워터 파티클 팩 템플릿 조회 (이름 -> ParticleEmitter)
+				local waterEmitterByName = {}
+				local waterPack = ReplicatedStorage:FindFirstChild("LowPoly")
+				waterPack = waterPack and waterPack:FindFirstChild("Particle Pack (Water Based)")
+				if waterPack then
+					for _, d in ipairs(waterPack:GetDescendants()) do
+						if d:IsA("ParticleEmitter") and not waterEmitterByName[d.Name] then
+							waterEmitterByName[d.Name] = d
+						end
+					end
+				end
+
+				-- 타겟 방향을 "정면"으로 삼아 전/우/후/좌 순서로 4방향 벡터 산출
+				local lookDir = (tHrp.Position - mobHrp.Position)
+				lookDir = Vector3.new(lookDir.X, 0, lookDir.Z)
+				lookDir = (lookDir.Magnitude > 0.1) and lookDir.Unit or mobHrp.CFrame.LookVector
+				mobHrp.CFrame = CFrame.lookAt(mobHrp.Position, mobHrp.Position + lookDir)
+
+				local rightDir = Vector3.new(-lookDir.Z, 0, lookDir.X)
+				local directions = { lookDir, rightDir, -lookDir, -rightDir }
+
+				local tornadoLength = 45
+				local tornadoWidth = 16 -- [요청반영] 더 뚱뚱한 십자로 판정/경고 범위 확대 (기존 8 -> 16)
+
+				-- 1. 4방향 전조 장판을 동시에 생성
+				local warnLines = {}
+				for _, dir in ipairs(directions) do
+					local warnLine = Instance.new("Part")
+					warnLine.Name = "PoseidonWhirlpoolTelegraph"
+					warnLine.Size = Vector3.new(tornadoWidth, 0.4, tornadoLength)
+					local wcf = CFrame.lookAt(mobHrp.Position, mobHrp.Position + dir) * CFrame.new(0, 0, -tornadoLength / 2)
+					warnLine.CFrame = CFrame.new(wcf.Position.X, floorY, wcf.Position.Z) * CFrame.lookAt(Vector3.zero, dir).Rotation
+					warnLine.Anchored = true
+					warnLine.CanCollide = false
+					warnLine.CanTouch = false
+					warnLine.CanQuery = false
+					warnLine.CastShadow = false
+					warnLine.Material = Enum.Material.Neon
+					warnLine.Color = Color3.fromRGB(90, 205, 255)
+					warnLine.Transparency = 0.85
+					warnLine.Parent = workspace
+
+					local decal = Instance.new("Decal")
+					decal.Texture = POSEIDON_WATER_TEX_1
+					decal.Face = Enum.NormalId.Top
+					decal.Transparency = 0.5
+					decal.Parent = warnLine
+
+					ts:Create(warnLine, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 0.4}):Play()
+					table.insert(warnLines, warnLine)
+				end
+
+				task.wait(0.8)
+				for _, w in ipairs(warnLines) do
+					if w.Parent then w:Destroy() end
+				end
+				if not mob.Parent or mobHum.Health <= 0 then return end
+
+				-- 2. 애니메이션 (전용 없으므로 푸른불꽃 기사 회오리 모션 재사용)
+				pcall(function()
+					local animator = mobHum:FindFirstChildOfClass("Animator")
+					local anims = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Animations")
+					local monsterAnims = anims and anims:FindFirstChild("Monster")
+					local spinAnim = monsterAnims and (monsterAnims:FindFirstChild("Poseidon_Whirlpool") or monsterAnims:FindFirstChild("BlueFlameKnight_Whirlwind"))
+					if animator and spinAnim then
+						local track = animator:LoadAnimation(spinAnim)
+						if track then
+							track.Looped = false
+							track:Play()
+						end
+					end
+				end)
+
+				-- 3. 4방향 소용돌이 투사체를 동시에 발사 (각자 독립 코루틴)
+				for _, dir in ipairs(directions) do
+					task.spawn(function()
+						local tornadoHeight = 12
+						local tornado = Instance.new("Part")
+						tornado.Name = "PoseidonWhirlpoolProjectile"
+						tornado.Shape = Enum.PartType.Cylinder
+						tornado.Size = Vector3.new(tornadoHeight, tornadoWidth, tornadoWidth)
+						local startPos = mobHrp.Position + dir * 3
+						tornado.CFrame = CFrame.new(startPos.X, floorY + (tornadoHeight / 2), startPos.Z) * CFrame.lookAt(Vector3.zero, dir).Rotation * CFrame.Angles(0, math.rad(90), 0)
+						tornado.Anchored = true
+						tornado.CanCollide = false
+						tornado.Material = Enum.Material.Neon
+						tornado.Color = Color3.fromRGB(90, 205, 255)
+						tornado.Transparency = 1.0
+						tornado.Parent = workspace
+
+						-- 실제 워터팩 파티클 복제 (물소용돌이 본체 + 물보라 트레일)
+						local swirl = waterEmitterByName["water 7"] or waterEmitterByName["water 5"]
+						if swirl then
+							local swirlClone = swirl:Clone()
+							swirlClone.Enabled = true
+							swirlClone.Parent = tornado
+						end
+						local spray = waterEmitterByName["Water Slash"] or waterEmitterByName["shards"]
+						if spray then
+							local sprayClone = spray:Clone()
+							sprayClone.Enabled = true
+							sprayClone.Parent = tornado
+						end
+						if not (swirl or spray) then
+							-- 워터팩을 못 찾은 경우를 대비한 최소 폴백
+							local pe = Instance.new("ParticleEmitter")
+							pe.Texture = POSEIDON_WATER_TEX_1
+							pe.Color = ColorSequence.new(Color3.fromRGB(90, 205, 255))
+							pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, tornadoWidth), NumberSequenceKeypoint.new(1, 0)})
+							pe.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1)})
+							pe.Rate = 150
+							pe.Speed = NumberRange.new(4, 9)
+							pe.Lifetime = NumberRange.new(0.6, 1.0)
+							pe.Parent = tornado
+						end
+
+						-- 4. 소용돌이 전진 (Tween)
+						local endPos = mobHrp.Position + dir * tornadoLength
+						local endCFrame = CFrame.new(endPos.X, floorY + (tornadoHeight / 2), endPos.Z) * CFrame.lookAt(Vector3.zero, dir).Rotation * CFrame.Angles(0, math.rad(90), 0)
+						ts:Create(tornado, TweenInfo.new(1.3, Enum.EasingStyle.Linear), {CFrame = endCFrame}):Play()
+
+						-- 5. 이동 중 데미지 판정
+						local moveTime = 1.3
+						local hitPlayers = {}
+						local elapsed = 0
+						while elapsed < moveTime and tornado and tornado.Parent do
+							local dt = task.wait(0.1)
+							elapsed += dt
+
+							local tPos = tornado.Position
+							for _, p in ipairs(Players:GetPlayers()) do
+								local char = p.Character
+								local phum = char and char:FindFirstChild("Humanoid")
+								local pRoot = char and char:FindFirstChild("HumanoidRootPart")
+								if phum and phum.Health > 0 and pRoot and not hitPlayers[p.UserId] then
+									local dist = (Vector3.new(pRoot.Position.X, 0, pRoot.Position.Z) - Vector3.new(tPos.X, 0, tPos.Z)).Magnitude
+									if dist <= (tornadoWidth / 2 + 2) and math.abs(pRoot.Position.Y - tPos.Y) < 15 then
+										hitPlayers[p.UserId] = true
+										dealDamageToHumanoid(phum, 250) -- 소용돌이 급류 즉사급 데미지 (BlueFlameKnight 회오리와 동일 수치)
+
+										local hitPlayer = Players:GetPlayerFromCharacter(char)
+										if hitPlayer then
+											local Controllers = ServerScriptService:WaitForChild("Server"):WaitForChild("Controllers")
+											local NetController = require(Controllers:WaitForChild("NetController"))
+											NetController.FireClient(hitPlayer, "Player.Stun", dir * 1.5)
+										end
+									end
+								end
+							end
+						end
+						if tornado.Parent then tornado:Destroy() end
+					end)
+				end
+
+				-- 4방향 투사체가 전부 소진될 시간만큼 대기 후 함수 종료 (poseidonPatternBusy 잠금 유지)
+				task.wait(1.3 + 0.2)
+			end
+
+			-- 4) 체스판 물기둥 (기믹형) - 크라켄의 playKrakenCheckerboardAttack과 완전히 동일한 로직이지만,
+			-- 그 함수는 크라켄 방(DeepAbyss) 좌표(X:663~833, Z:117~277)가 하드코딩되어 있어 그대로 재사용하면
+			-- 포세이돈 방(DeepAbyss_North)이 아닌 엉뚱한 빈 방에서 격자가 생성되는 문제가 있었음.
+			-- DeepAbyss_North.RaidArena.ArenaFloor 실측 범위로 방 경계만 교체한 전용 버전.
+			local function playPoseidonCheckerboard(mob, targetChar)
+				local centerHrp = mob:FindFirstChild("HumanoidRootPart")
+				if not centerHrp then return end
+				local center = centerHrp.Position
+
+				local gridSize = 10
+				local cellSize = 16
+				local halfSpan = (gridSize * cellSize) / 2
+
+				-- DeepAbyss_North.RaidArena.ArenaFloor 실측: 위치(-50.7, 65, -411.8), 크기(160, 6, 170)
+				local ARENA_X_MIN, ARENA_X_MAX = -130.7, 49.3
+				local ARENA_Z_MIN, ARENA_Z_MAX = -496.8, -326.8
+				local clampedX = math.clamp(center.X, ARENA_X_MIN + halfSpan, ARENA_X_MAX - halfSpan)
+				local clampedZ = math.clamp(center.Z, ARENA_Z_MIN + halfSpan, ARENA_Z_MAX - halfSpan)
+				if ARENA_X_MIN + halfSpan > ARENA_X_MAX - halfSpan then
+					clampedX = (ARENA_X_MIN + ARENA_X_MAX) / 2
+				end
+				if ARENA_Z_MIN + halfSpan > ARENA_Z_MAX - halfSpan then
+					clampedZ = (ARENA_Z_MIN + ARENA_Z_MAX) / 2
+				end
+				center = Vector3.new(clampedX, center.Y, clampedZ)
+
+				local telegraphDuration = 1.8
+
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Exclude
+				local ignoreList = { mob }
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p.Character then table.insert(ignoreList, p.Character) end
+				end
+				rayParams.FilterDescendantsInstances = ignoreList
+				local rayResult = workspace:Raycast(center + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), rayParams)
+				local floorY = rayResult and rayResult.Position.Y or (center.Y - 20)
+
+				local tilesFolder = Instance.new("Folder")
+				tilesFolder.Name = "PoseidonCheckerboard"
+				tilesFolder.Parent = workspace
+
+				local deathCells = {}
+				local cellRecords = {}
+				for i = 0, gridSize - 1 do
+					for j = 0, gridSize - 1 do
+						local isDeath = math.random() < 0.5
+						table.insert(cellRecords, { i = i, j = j, isDeath = isDeath })
+					end
+				end
+				local hasDeath = false
+				for _, rec in ipairs(cellRecords) do
+					if rec.isDeath then hasDeath = true break end
+				end
+				if not hasDeath then
+					cellRecords[math.random(1, #cellRecords)].isDeath = true
+				end
+
+				for _, rec in ipairs(cellRecords) do
+					if rec.isDeath then
+						local cellCenterX = center.X - halfSpan + cellSize * (rec.i + 0.5)
+						local cellCenterZ = center.Z - halfSpan + cellSize * (rec.j + 0.5)
+
+						local tile = Instance.new("Part")
+						tile.Name = "PoseidonDeathTile"
+						tile.Size = Vector3.new(cellSize - 0.4, 0.3, cellSize - 0.4)
+						tile.CFrame = CFrame.new(cellCenterX, floorY + 0.2, cellCenterZ)
+						tile.Anchored = true
+						tile.CanCollide = false
+						tile.CanTouch = false
+						tile.CanQuery = false
+						tile.CastShadow = false
+						tile.Material = Enum.Material.Neon
+						tile.Color = Color3.fromRGB(90, 205, 255)
+						tile.Transparency = 0.55
+						tile.Parent = tilesFolder
+
+						table.insert(deathCells, { x = cellCenterX, z = cellCenterZ, part = tile })
+					end
+				end
+
+				task.spawn(function()
+					local elapsed = 0
+					while elapsed < telegraphDuration and tilesFolder.Parent do
+						for _, cell in ipairs(deathCells) do
+							if cell.part.Parent then cell.part.Transparency = 0.25 end
+						end
+						task.wait(0.2)
+						elapsed += 0.2
+						for _, cell in ipairs(deathCells) do
+							if cell.part.Parent then cell.part.Transparency = 0.65 end
+						end
+						task.wait(0.2)
+						elapsed += 0.2
+					end
+				end)
+
+				task.wait(telegraphDuration)
+
+				local ts = game:GetService("TweenService")
+
+				for _, cell in ipairs(deathCells) do
+					task.spawn(function()
+						if cell.part.Parent then cell.part:Destroy() end
+
+						local spoutHeight = 26
+						local spout = Instance.new("Part")
+						spout.Name = "PoseidonWaterSpout"
+						spout.Shape = Enum.PartType.Cylinder
+						spout.Material = Enum.Material.Glass
+						spout.Color = Color3.fromRGB(100, 180, 235)
+						spout.Transparency = 0.35
+						spout.Anchored = true
+						spout.CanCollide = false
+						spout.CanTouch = false
+						spout.CanQuery = false
+						spout.CastShadow = false
+						spout.Size = Vector3.new(0.1, cellSize * 0.55, cellSize * 0.55)
+						spout.CFrame = CFrame.new(cell.x, floorY, cell.z) * CFrame.Angles(0, 0, math.rad(90))
+						spout.Parent = workspace
+
+						local risePe = Instance.new("ParticleEmitter")
+						risePe.Texture = POSEIDON_WATER_TEX_1
+						risePe.Color = ColorSequence.new(Color3.fromRGB(150, 210, 255))
+						risePe.Size = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, cellSize * 0.5),
+							NumberSequenceKeypoint.new(1, cellSize * 0.3),
+						})
+						risePe.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 0.2),
+							NumberSequenceKeypoint.new(0.8, 0.4),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+						risePe.Lifetime = NumberRange.new(0.35, 0.55)
+						risePe.Rate = 90
+						risePe.Speed = NumberRange.new(3, 6)
+						risePe.SpreadAngle = Vector2.new(8, 8)
+						risePe.Rotation = NumberRange.new(0, 360)
+						risePe.EmissionDirection = Enum.NormalId.Top
+						risePe.Parent = spout
+
+						ts:Create(spout, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							Size = Vector3.new(spoutHeight, cellSize * 0.55, cellSize * 0.55),
+							CFrame = CFrame.new(cell.x, floorY + spoutHeight / 2, cell.z) * CFrame.Angles(0, 0, math.rad(90)),
+						}):Play()
+
+						local baseSplashPart = Instance.new("Part")
+						baseSplashPart.Name = "PoseidonSplashBase"
+						baseSplashPart.Size = Vector3.new(0.2, 0.2, 0.2)
+						baseSplashPart.Transparency = 1
+						baseSplashPart.Anchored = true
+						baseSplashPart.CanCollide = false
+						baseSplashPart.CanQuery = false
+						baseSplashPart.CanTouch = false
+						baseSplashPart.CFrame = CFrame.new(cell.x, floorY + 0.5, cell.z)
+						baseSplashPart.Parent = workspace
+						game:GetService("Debris"):AddItem(baseSplashPart, 2)
+
+						local ringPe = Instance.new("ParticleEmitter")
+						ringPe.Texture = POSEIDON_WATER_TEX_2
+						ringPe.Color = ColorSequence.new(Color3.fromRGB(180, 225, 255))
+						ringPe.Size = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, cellSize * 0.35),
+							NumberSequenceKeypoint.new(1, 0),
+						})
+						ringPe.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 0.15),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+						ringPe.Lifetime = NumberRange.new(0.4, 0.7)
+						ringPe.Rate = 0
+						ringPe.Speed = NumberRange.new(14, 26)
+						ringPe.SpreadAngle = Vector2.new(180, 180)
+						ringPe.Acceleration = Vector3.new(0, -60, 0)
+						ringPe.Rotation = NumberRange.new(0, 360)
+						ringPe.Parent = baseSplashPart
+						ringPe:Emit(45)
+
+						task.wait(0.2)
+
+						if targetChar and targetChar.Parent then
+							local thrp = targetChar:FindFirstChild("HumanoidRootPart")
+							if thrp then
+								local dx = math.abs(thrp.Position.X - cell.x)
+								local dz = math.abs(thrp.Position.Z - cell.z)
+								if dx <= cellSize / 2 and dz <= cellSize / 2 then
+									local thum = targetChar:FindFirstChildOfClass("Humanoid")
+									if thum and thum.Health > 0 then
+										dealDamageToHumanoid(thum, config.baseDamage or 450)
+									end
+								end
+							end
+						end
+
+						task.wait(0.5)
+						risePe.Enabled = false
+						ts:Create(spout, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+						game:GetService("Debris"):AddItem(spout, 1)
+					end)
+				end
+
+				task.wait(1.5)
+				if tilesFolder.Parent then tilesFolder:Destroy() end
+			end
+
 			-- [스텀프 킹 전용] 자연 대지 나무 타격 이펙트 함수
 			local function playWoodSmashEffect(pos, radius)
 				local ts = game:GetService("TweenService")
@@ -1757,7 +2490,16 @@ local function createMobModel(areaId, index, config)
 								billboard.Size = UDim2.new(2, 0, 2, 0)
 								
 								local extents = model:GetExtentsSize()
-								local yOffset = head and (head.Size.Y/2 + 1.0) or ((config.mobModelName == "Jellyfish") and (extents.Y * 0.5 + 6) or (extents.Y + 2.0))
+								local yOffset
+								if head then
+									yOffset = head.Size.Y/2 + 1.0
+								elseif config.mobModelName == "Jellyfish" then
+									-- [버그수정] GetBoundingBox는 비주얼보다 훨씬 큰 Part.Size 기준이라 부정확함.
+									-- HRP가 이미 몸통 꼭대기 근처이므로 작은 고정 오프셋만 사용.
+									yOffset = 10
+								else
+									yOffset = extents.Y + 2.0
+								end
 								billboard.StudsOffset = Vector3.new(0, yOffset, 0)
 								billboard.AlwaysOnTop = true
 								
@@ -8137,7 +8879,8 @@ local function createMobModel(areaId, index, config)
 						local distToPlayer = minDist
 						local now = os.clock()
 						local attackCooldown = config.attackCooldown or 2.2
-						local JELLY_ATTACK_RANGE = 16  -- [수정] 28 -> 16: 너무 멀리서 공격하지 않도록 축소
+						local JELLY_ATTACK_RANGE = 36  -- [수정] 28 -> 16 -> 6 -> 9 -> 18 -> 36: 요청에 따라 2배로 확대
+						local JELLY_LEASH_RADIUS = 40 -- [버그수정] 스폰지점(협곡)에서 이 거리 이상 끌려나가면 강제 귀환 -> 수중도시 바깥까지 쫓아가는 것 방지
 
 						-- Humanoid 물리 간섭 차단 (파닥거림 방지)
 						humanoid.PlatformStand = true
@@ -8167,8 +8910,28 @@ local function createMobModel(areaId, index, config)
 
 						local yDiff = math.abs(currentPos.Y - targetPos.Y)
 						local inAttackRange = distToPlayer <= JELLY_ATTACK_RANGE and yDiff <= 5 -- [수정] 12 -> 5: 플레이어 높이까지 실제로 내려와야 공격
+						local distFromHome = (currentPos - spawnCenter).Magnitude
 
-						if not inAttackRange then
+						if jellyAttackBusy then
+							-- [버그수정] 공격(전조+판정) 진행 중엔 몸통을 그 자리에 완전히 고정시켜서,
+							-- 플레이어가 살짝 움직였다고 다시 떠오르며 "공중에서 공격"하는 것처럼 보이는 문제를 방지.
+							bv.Velocity = Vector3.new(0, 0, 0)
+						elseif distFromHome > JELLY_LEASH_RADIUS then
+							-- [버그수정] 스폰 협곡에서 너무 멀리 끌려나감 -> 타겟 강제 포기하고 스폰지점으로 귀환
+							lastTarget = nil
+							local dir = (spawnCenter - currentPos)
+							if dir.Magnitude > 1 then
+								bv.Velocity = dir.Unit * (config.walkSpeed or 12)
+								local lookDir = Vector3.new(dir.X, 0, dir.Z)
+								if lookDir.Magnitude > 0.1 then
+									local targetCF = CFrame.lookAt(currentPos, currentPos + lookDir.Unit)
+									bg.CFrame = targetCF
+									hrp.CFrame = targetCF
+								end
+							else
+								bv.Velocity = Vector3.new(0, 0, 0)
+							end
+						elseif not inAttackRange then
 							-- 플레이어 Y 높이로 내려오면서 3D 수영 이동
 							local swimTarget = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
 							local dir = (swimTarget - currentPos)
@@ -8190,20 +8953,21 @@ local function createMobModel(areaId, index, config)
 
 							if now - lastAttackTick >= attackCooldown then
 								lastAttackTick = now
+								jellyAttackBusy = true
 
 								task.spawn(function()
+									pcall(function()
 									local mobRootPos = hrp.Position
 									local ts = game:GetService("TweenService")
-									local attackRadius = 14
+									local attackRadius = 7 -- [수정] 14 -> 7 -> 12 -> 24 -> 7: 판정 범위는 원래대로, "사거리"는 접근거리(JELLY_ATTACK_RANGE)만 의미했음
 									local telegraphDuration = 1.2
 
-									-- ── 바닥 레이캐스트 ──
-									local rayParams = RaycastParams.new()
-									rayParams.FilterType = Enum.RaycastFilterType.Exclude
-									rayParams.FilterDescendantsInstances = {model, targetPlayer}
-									local castOrigin = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
-									local rayResult = workspace:Raycast(castOrigin, Vector3.new(0, -300, 0), rayParams)
-									local floorPos = rayResult and (rayResult.Position + Vector3.new(0, 0.2, 0)) or Vector3.new(targetPos.X, 68, targetPos.Z)
+									-- [버그수정] 젤리피쉬는 3D 자유유영이라 플레이어가 바다 바닥 근처에 있지 않은 경우가
+									-- 대부분이라, 바닥에 레이캐스트로 찍은 지점(floorPos)을 판정 중심으로 쓰면 실제
+									-- 전투 위치와 수직으로 수십 스터드씩 어긋나 "판정이 하나도 안 맞는"(=멀리서 헛치는
+									-- 것처럼 보이는) 문제가 있었다. 바닥 대신 트리거 시점 플레이어의 실제 3D 위치를
+									-- 판정 중심으로 사용한다.
+									local floorPos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
 
 									if not isAlive then return end
 									local attackHrp = targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")
@@ -8217,12 +8981,13 @@ local function createMobModel(areaId, index, config)
 										and vfxAssets.VFX:FindFirstChild("Boss")
 										and vfxAssets.VFX.Boss:FindFirstChild("Thunder")
 
-									-- ── 1. 경고 장판 (전조) ──
+									-- ── 1. 경고 구체 (전조) ── [수정] 바닥 원판(Cylinder) -> 3D 구체(Ball)
+									-- 수중 자유유영 몹이라 바닥에 눕는 장판은 실제 판정 위치와 맞지 않음.
 									local warnCircle = Instance.new("Part")
 									warnCircle.Name = "JellyfishTelegraph"
-									warnCircle.Shape = Enum.PartType.Cylinder
-									warnCircle.Size = Vector3.new(0.4, attackRadius * 2, attackRadius * 2)
-									warnCircle.CFrame = CFrame.new(floorPos) * CFrame.Angles(0, 0, math.rad(90))
+									warnCircle.Shape = Enum.PartType.Ball
+									warnCircle.Size = Vector3.new(attackRadius * 2, attackRadius * 2, attackRadius * 2)
+									warnCircle.CFrame = CFrame.new(floorPos)
 									warnCircle.Anchored = true
 									warnCircle.CanCollide = false
 									warnCircle.CanTouch = false
@@ -8235,7 +9000,7 @@ local function createMobModel(areaId, index, config)
 
 									ts:Create(warnCircle, TweenInfo.new(telegraphDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 										Transparency = 0.2,
-										Size = Vector3.new(0.4, attackRadius * 2.4, attackRadius * 2.4),
+										Size = Vector3.new(attackRadius * 2.4, attackRadius * 2.4, attackRadius * 2.4),
 									}):Play()
 
 									task.wait(telegraphDuration)
@@ -8310,6 +9075,8 @@ local function createMobModel(areaId, index, config)
 											end
 										end
 									end
+									end)
+									jellyAttackBusy = false
 								end)
 							end
 						end
@@ -8563,7 +9330,71 @@ local function createMobModel(areaId, index, config)
 								end)
 							end
 						end
-						
+
+					elseif config.mobModelName == "Poseidon" then
+						--========================================================================
+						-- [포세이돈 전용 FSM 분기]: 4종 패턴을 우선순위 체인으로 배치 (동시 발동 방지)
+						-- 1순위: 체스판 물기둥 (크라켄 재사용, 사거리 무관, 쿨 16초)
+						-- 2순위: 소용돌이 급류 (푸른불꽃 기사 회오리 리스킨, 거리<=25, 쿨 12초)
+						-- 3순위: 쓰나미 강하 (푸른불꽃 기사 LeapSlam 리스킨, 거리>=18, 쿨 12초)
+						-- 4순위: 트라이던트 돌진 찌르기 (기본기, 사거리 이내)
+						--========================================================================
+						local currentPos = hrp.Position
+						local targetPlayerPos = phrp.Position
+						local distToPlayer = (currentPos - targetPlayerPos).Magnitude
+						local now = os.clock()
+						local checkerboardCooldown = config.checkerboardCooldown or 16
+
+						-- [버그수정] 패턴들이 task.spawn으로 비동기 실행되는 동안 메인 FSM 루프가 계속
+						-- 돌면서 다른 패턴이 끼어들어 서로 방해/덮어쓰기 하던 문제 -> 진행 중엔 잠금
+						if poseidonPatternBusy then
+							-- 아무 패턴도 새로 시작하지 않고 대기 (진행 중인 패턴이 끝날 때까지)
+						elseif now - lastCheckerboardTick >= checkerboardCooldown then
+							lastCheckerboardTick = now
+							lastAttackTick = now
+							poseidonPatternBusy = true
+							humanoid:MoveTo(currentPos)
+							task.spawn(function()
+								pcall(playPoseidonCheckerboard, model, targetPlayer)
+								poseidonPatternBusy = false
+							end)
+						elseif distToPlayer <= 25 and (now - lastWhirlwindTick >= 9.0) then
+							lastWhirlwindTick = now
+							lastAttackTick = now
+							poseidonPatternBusy = true
+							humanoid:MoveTo(currentPos)
+							task.spawn(function()
+								pcall(playPoseidonWhirlpool, model, targetPlayer)
+								poseidonPatternBusy = false
+							end)
+						elseif distToPlayer >= 18 and (now - lastTsunamiLeapTick >= 26.0) then
+							lastTsunamiLeapTick = now
+							lastAttackTick = now
+							poseidonPatternBusy = true
+							humanoid:MoveTo(currentPos)
+							task.spawn(function()
+								pcall(playPoseidonTsunamiLeap, model, targetPlayer)
+								poseidonPatternBusy = false
+							end)
+						elseif distToPlayer > 32 then
+							-- [버그수정] 예전엔 ATTACK_RANGE(근접 거리) 밖이면 그냥 걷기만 하고, 돌진은
+							-- 이미 가까울 때만 나가서 "먼 거리를 좁히는 추격기" 역할을 전혀 못 했음.
+							-- 돌진 자체의 사거리(chargeLength=30)만큼은 걷지 않고 돌진으로 좁히도록 함.
+							humanoid:MoveTo(Vector3.new(targetPlayerPos.X, currentPos.Y, targetPlayerPos.Z))
+						else
+							humanoid:MoveTo(currentPos)
+
+							local cooldown = config.attackCooldown or 2.5
+							if now - lastAttackTick >= cooldown then
+								lastAttackTick = now
+								poseidonPatternBusy = true
+								task.spawn(function()
+									pcall(playPoseidonThrust, model, targetPlayer)
+									poseidonPatternBusy = false
+								end)
+							end
+						end
+
 					else
 						--========================================================================
 						-- [기타 일반 몬스터 Melee 전투 FSM 분기]
@@ -8709,7 +9540,16 @@ local function createMobModel(areaId, index, config)
 							billboard.Size = UDim2.new(2, 0, 2, 0)
 							
 							local extents = model:GetExtentsSize()
-							local yOffset = head and (head.Size.Y/2 + 1.0) or ((config.mobModelName == "Jellyfish") and (extents.Y * 0.5 + 6) or (extents.Y + 2.0))
+							local yOffset
+							if head then
+								yOffset = head.Size.Y/2 + 1.0
+							elseif config.mobModelName == "Jellyfish" then
+								-- [버그수정] GetBoundingBox는 비주얼보다 훨씬 큰 Part.Size 기준이라 부정확함.
+								-- HRP가 이미 몸통 꼭대기 근처이므로 작은 고정 오프셋만 사용.
+								yOffset = 10
+							else
+								yOffset = extents.Y + 2.0
+							end
 							billboard.StudsOffset = Vector3.new(0, yOffset, 0)
 							billboard.AlwaysOnTop = true
 							

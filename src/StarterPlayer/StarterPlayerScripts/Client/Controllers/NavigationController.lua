@@ -246,25 +246,13 @@ local STEP_TARGETS = {
 }
 
 local function resolveTargetPosition(stepKey: string?, stepIndex: number?): Vector3?
+	-- [버그수정] 예전엔 stepIndex 기반 폴백 매핑표가 있었으나, "포션 단축키 등록" 스텝이 삭제되며
+	-- 스텝 번호가 밀려서 매핑이 틀어졌었음(11번=EQUIP_DASH인데 예전 10번인 CRAFT_MOGWOLDO로 오인식
+	-- -> 스킬 탭 대신 무기 장인 NPC로 화살표가 안내됨). 서버가 항상 정확한 stepKey를 내려주므로
+	-- stepKey 기반 조회만 사용하고, 없으면(EQUIP_DASH처럼 월드 이동이 필요 없는 UI 전용 스텝)
+	-- 화살표를 표시하지 않는다.
 	local key = tostring(stepKey or "")
 	local target = STEP_TARGETS[key]
-
-	if not target and stepIndex then
-		local fallbackKeyByIndex = {
-			[1] = "KILL_SLIME",
-			[2] = "COLLECT_SLIME_MUCUS",
-			[3] = "CRAFT_SOFTCLUB",
-			[4] = "EQUIP_SOFTCLUB",
-			[5] = "DISTRIBUTE_STAT",
-			[6] = "KILL_HORNED_LARVA",
-			[7] = "CRAFT_GAKCHANG",
-			[8] = "ENHANCE_GAKCHANG",
-			[9] = "REGISTER_POTION",
-			[10] = "COLLECT_STUMP_BARK",
-			[11] = "CRAFT_MOGWOLDO",
-		}
-		target = STEP_TARGETS[fallbackKeyByIndex[stepIndex]]
-	end
 
 	if not target then return nil end
 
@@ -424,24 +412,10 @@ function NavigationController.UpdateTutorialStatus(status)
 		return
 	end
 
+	-- [버그수정] stepIndex 기반 폴백 매핑표 제거 (resolveTargetPosition과 동일한 사유:
+	-- 스텝 삭제로 번호가 밀려 EQUIP_DASH가 CRAFT_MOGWOLDO로 오인식되던 버그).
 	local key = tostring(status.stepKey or "")
 	local target = STEP_TARGETS[key]
-	if not target and status.stepIndex then
-		local fallbackKeyByIndex = {
-			[1] = "KILL_SLIME",
-			[2] = "COLLECT_SLIME_MUCUS",
-			[3] = "CRAFT_SOFTCLUB",
-			[4] = "EQUIP_SOFTCLUB",
-			[5] = "DISTRIBUTE_STAT",
-			[6] = "KILL_HORNED_LARVA",
-			[7] = "CRAFT_GAKCHANG",
-			[8] = "ENHANCE_GAKCHANG",
-			[9] = "REGISTER_POTION",
-			[10] = "COLLECT_STUMP_BARK",
-			[11] = "CRAFT_MOGWOLDO",
-		}
-		target = STEP_TARGETS[fallbackKeyByIndex[status.stepIndex]]
-	end
 
 	if target then
 		activeTargetZone = target.zoneName

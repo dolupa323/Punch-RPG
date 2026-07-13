@@ -243,12 +243,13 @@ local MobSpawnData = {
 	-- 공격 패턴 색감만 모래톤 -> 바다톤으로 자동 전환함 (사막존 원본은 그대로 유지).
 	["AbyssGuardianZone"] = {
 		spawnAreaId = "AbyssGuardianZone",
-		-- [요청반영] 같은 수중도시 월드보스인 크라켄과 스펙(레벨/체력/공격력/리스폰/경험치)을 맞춤
-		level = 65,
+		-- [밸런스 재조정] 크라켄 < 심연의 수호자 < 포세이돈 순으로 강해지도록 단계적 상향.
+		-- 크라켄(레벨50 평균스펙 3인 파티 기준)을 기준선으로 삼고, 이 보스는 한 단계 더 어렵게.
+		level = 68,
 		mobModelName = "DesertGuardian",
 		mobDisplayName = "심연의 수호자",
-		maxHealth = 450000,
-		baseDamage = 450,
+		maxHealth = 650000,
+		baseDamage = 600,
 		attackCooldown = 2.5,
 		respawnDelay = 90.0,
 		modelScale = 0.17, -- [요청반영] 사막 원본(0.25)보다 축소
@@ -327,12 +328,13 @@ local MobSpawnData = {
 		-- [밸런스 수정] 레벨을 만렙(50)에 맞추면 몹 레벨차 데미지 페널티(AvatarService)가 0이 되어
 		-- 오히려 하늘섬 보스(BlueFlameKnight, Lv63)보다 쉬워지는 모순이 있었음. "다음 지역이니 더
 		-- 강해야 한다"는 아래 코멘트 의도에 맞춰 BlueFlameKnight보다 약간 높은 레벨로 조정.
+		-- [밸런스 재조정] 수중도시 3개 보스 중 가장 약한 보스로 기준선 역할.
+		-- 기준: 레벨50, 하늘섬산 블루파이어 무기 +5강, 스킬 3개 보유한 평균 스펙 유저 3명이서 클리어
+		-- 가능한 난이도. 심연의 수호자/포세이돈은 이 스펙 대비 순서대로 더 강하게 조정.
 		level = 65,
 		mobModelName = "Kraken",
 		dropTableId = "KRAKEN",
 		mobDisplayName = "크라켄",
-		-- [밸런스 조정] 수중도시는 하늘섬(BlueFlameKnight: 체력13.4만/공격200) 다음 지역이므로
-		-- 그보다 확실히 강해야 함 -> 체력/공격력 대폭 상향
 		maxHealth = 450000,
 		baseDamage = 450,
 		attackCooldown = 2.5,   -- 패턴 미정 상태의 임시값 (추후 패턴 추가 시 조정)
@@ -354,23 +356,32 @@ local MobSpawnData = {
 	-- 다음 자리 - DeepAbyss_North의 정식 RaidArena.BossSpawnMarker 좌표에 배치
 	["DeepAbyss_North_Poseidon"] = {
 		spawnAreaId = "DeepAbyss_North_Poseidon",
-		level = 65,
+		-- [밸런스 재조정] 크라켄 < 심연의 수호자 < 포세이돈 순서에서 가장 강한 최종 보스.
+		level = 72,
 		mobModelName = "Poseidon",
 		dropTableId = "KRAKEN", -- 임시로 크라켄 드롭 재사용 (정식 드롭 테이블 확정 전까지)
 		mobDisplayName = "포세이돈",
-		maxHealth = 450000,
-		baseDamage = 450,
+		maxHealth = 900000,
+		baseDamage = 750,
 		attackCooldown = 2.5,
 		respawnDelay = 90.0,
 		hitboxScaleFromBounds = {x = 1.0, y = 1.0, z = 1.0}, -- 자체 제작 Parts 모델이라 실제 크기 그대로
+		-- [버그수정] 자동 HipHeight 스캐너가 발이 아니라 손에 늘어뜨린 트라이던트 손잡이를
+		-- "가장 낮은 지점"으로 착각해서 캐릭터가 공중에 떠버리는 문제 -> 무기를 제외한 실제
+		-- 다리 최하단 기준으로 직접 측정한 값(HRP 중심~발바닥 6.26 - HRP 반높이 2.09)을 명시.
+		customHipHeight = 4.17,
 		walkSpeed = 8,
 		xpReward = 30000,
 
 		spawnAsPolygon = false,
 		spawnCount = 1,
 		isIndoor = true,
-		skipTerrainScan = true,
-		exactSpawnPosition = {x = -50.7, y = 100, z = -411.8}, -- DeepAbyss_North.RaidArena.BossSpawnMarker 실측 좌표
+		-- [버그수정] BossSpawnMarker 좌표(Y=100)가 실제 바닥보다 떠 있는 잘못된 값이었고, 수동으로
+		-- Y값을 다시 계산해도 계속 어긋났음 -> 좌표를 손으로 맞추는 대신, 다른 보스들도 쓰는 검증된
+		-- 자동 지형 인식 스폰(raycastStartOffsetY만큼 위에서 아래로 레이캐스트해서 실제 바닥을 찾고
+		-- 5스터드 여유 위에 스폰 -> 이후 HipHeight 엔진이 중력과 함께 정확히 안착시킴)을 사용.
+		skipTerrainScan = false,
+		exactSpawnPosition = {x = -50.7, y = 100, z = -411.8}, -- 레이캐스트 시작점(대략적 위치면 충분)
 	},
 
 	["GhostKnightZone"] = {
@@ -651,7 +662,7 @@ local MobSpawnData = {
 		mobModelName  = "Jellyfish",
 		mobDisplayName = "젤리피쉬",
 		maxHealth     = 22000,
-		baseDamage    = 65,
+		baseDamage    = 30, -- [수정] 65 -> 30: 공격 데미지 축소
 		attackCooldown = 2.2,
 		respawnDelay  = 12.0,
 		modelScale    = 7.0,    -- 24.6 * 7 ≈ 172 스터드
@@ -661,22 +672,76 @@ local MobSpawnData = {
 		aggroRadius   = 55,
 
 		spawnAsPolygon = false,
-		spawnCount    = 10,
+		-- [수정 3차 - 최종] 유저가 Studio에서 직접 코너 좌표를 재서 확정해준 두 사각형 기준:
+		-- 1) 수중도시 전체 사각형 (SeaFloor 4코너 Cell_1_1/Cell_1_11/Cell_11_1/Cell_11_11):
+		--    X[-316.2, 184.4] Z[0.6, 503.1]
+		-- 2) 분수대 안전구역 (Rocks 4코너 Cluster_7/8/11/12): X[-172.0, 40.5] Z[170.6, 312.4]
+		-- 스폰구역 = (1)에서 (2)를 뺀 나머지 + 4개 레이드 던전 진입 협곡(CanyonPath/AbyssFloor/
+		-- HuntZone) 내부 전체. 협곡은 유저 확인대로 "그 안쪽"이 스폰구역이므로 포함하되, 레이드
+		-- 보스방(RaidArena) 본체는 배회반경(±20) 감안 30스터드 여유를 두고 계속 제외한다.
+		spawnCount    = 57, -- [수정] 103 -> 57: 젠 마릿수 축소
 		isIndoor      = true,
 		raycastStartOffsetY = 0,
 		raycastDepth  = 0,
 
 		spawnPositions = {
-			{x = 243, y = 100, z = 255},
-			{x = 290, y = 110, z = 274},
-			{x = 335, y = 108, z = 260},
-			{x = 380, y = 107, z = 256},
-			{x = 425, y =  97, z = 248},
-			{x = 469, y = 102, z = 230},
-			{x = 517, y = 106, z = 200},
-			{x = 557, y =  98, z = 190},
-			{x = 605, y = 102, z = 188},
-			{x = 650, y = 100, z = 198},
+			{x = -316, y = 107, z = 0},
+			{x = -316, y = 86, z = 120},
+			{x = -316, y = 88, z = 220},
+			{x = -316, y = 88, z = 320},
+			{x = -316, y = 86, z = 420},
+			{x = -296, y = 98, z = 0},
+			{x = -296, y = 86, z = 120},
+			{x = -296, y = 88, z = 220},
+			{x = -296, y = 116, z = 320},
+			{x = -296, y = 94, z = 420},
+			{x = -196, y = 86, z = 0},
+			{x = -196, y = 70, z = 120},
+			{x = -196, y = 72, z = 220},
+			{x = -196, y = 72, z = 320},
+			{x = -196, y = 70, z = 420},
+			{x = -96, y = 65, z = 0},
+			{x = -96, y = 61, z = 120},
+			{x = -96, y = 62, z = 320},
+			{x = -96, y = 61, z = 420},
+			{x = 3, y = 65, z = 0},
+			{x = 3, y = 61, z = 120},
+			{x = 3, y = 62, z = 320},
+			{x = 3, y = 61, z = 420},
+			{x = 43, y = 64, z = 220},
+			{x = 123, y = 92, z = 0},
+			{x = 123, y = 78, z = 120},
+			{x = 123, y = 80, z = 220},
+			{x = 123, y = 80, z = 320},
+			{x = 123, y = 78, z = 420},
+			{x = 220, y = 96, z = 250},
+			{x = 220, y = 146, z = 330},
+			{x = 240, y = 147, z = 130},
+			{x = 320, y = 135, z = 130},
+			{x = 320, y = 135, z = 210},
+			{x = 320, y = 147, z = 330},
+			{x = 420, y = 147, z = 130},
+			{x = 420, y = 147, z = 210},
+			{x = 420, y = 133, z = 330},
+			{x = 540, y = 95, z = 190},
+			{x = 560, y = 83, z = 210},
+			{x = 560, y = 147, z = 330},
+			{x = 660, y = 145, z = 310},
+			{x = 660, y = 145, z = 330},
+			{x = -610, y = 83, z = 200},
+			{x = -590, y = 87, z = 220},
+			{x = -510, y = 98, z = 160},
+			{x = -510, y = 98, z = 220},
+			{x = -120, y = 98, z = -120},
+			{x = -100, y = 91, z = -240},
+			{x = -100, y = 97, z = -180},
+			{x = -100, y = 98, z = -100},
+			{x = -130, y = 98, z = 580},
+			{x = -130, y = 96, z = 700},
+			{x = -110, y = 88, z = 760},
+			{x = -90, y = 93, z = 540},
+			{x = -90, y = 99, z = 640},
+			{x = -90, y = 91, z = 740},
 		},
 	},
 }

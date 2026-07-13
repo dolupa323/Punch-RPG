@@ -222,6 +222,16 @@ local function showMermanDialogue(data)
 					task.spawn(function()
 						NetClient.Request("Merman.QuestAction.Request", { action = "CLOSE" })
 					end)
+				elseif choice.action == "ACCEPT" or choice.action == "CLAIM" then
+					task.spawn(function()
+						local ok, _ = NetClient.Request("Merman.QuestAction.Request", {
+							action  = choice.action,
+							questId = choice.questId,
+						})
+						if not ok then
+							warn("[MermanController] Quest action failed:", choice.action)
+						end
+					end)
 				end
 			end)
 		end

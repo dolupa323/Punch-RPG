@@ -308,7 +308,7 @@ end
 ServiceRegistry.Register("FountainService", FountainService)
 
 local MermanService = require(Services.MermanService)
-MermanService.Init(NetController)
+MermanService.Init(NetController, PlayerStatService)
 for command, handler in pairs(MermanService.GetHandlers()) do
 	NetController.RegisterHandler(command, handler)
 end

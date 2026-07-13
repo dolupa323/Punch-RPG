@@ -580,6 +580,13 @@ function PlayerStatService.incrementKill(userId: number, mobDisplayName: string)
 			citizenQuestService.OnMobKilled(userId, mobDisplayName)
 		end)
 	end
+
+	local mermanService = ServiceRegistry.Get("MermanService")
+	if mermanService and mermanService.OnMobKilled then
+		task.spawn(function()
+			mermanService.OnMobKilled(userId, mobDisplayName)
+		end)
+	end
 end
 
 function PlayerStatService.getStats(userId: number): { [string]: any }

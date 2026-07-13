@@ -526,81 +526,97 @@ function UIManager.updateTutorialBlinking(status)
 					end
 				end
 			elseif isEquipDash then
-				local isSkillOpen = WindowManager.isOpen("SKILL")
+				-- [버그수정] 예전에는 스킬북을 스킬 UI 자체의 "책 탭"에서 습득/학습했으나, 지금은
+				-- 스킬북이 인벤토리 아이템으로 지급되고 인벤토리에서 "사용"해서 습득하는 방식으로
+				-- 바뀌었음. SkillTreeUI에는 더 이상 BookTabBtn/BookList/LearnBtn 같은 요소가
+				-- 존재하지 않아(전부 nil) 예전 코드가 아무 것도 하이라이트하지 못하고 있었음.
+				local hasDashUnlocked = false
+				if SkillController and SkillController.getUnlockedSkills then
+					hasDashUnlocked = SkillController.getUnlockedSkills()["SKILL_RUNE_DASH"] == true
+				end
+
 				local skillTab = HUDUI.Refs.SkillTabButton
-				
-				if isSkillOpen then
+				local invTab = HUDUI.Refs.InventoryTabButton
+
+				if not hasDashUnlocked then
+					-- 1단계: 아직 스킬북을 사용하지 않음 -> 인벤토리에서 대쉬 스킬북을 찾아 사용하도록 안내
 					if skillTab then
 						skillTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
 						skillTab.BackgroundTransparency = 0.3
 					end
-					
-					local hasDashUnlocked = false
-					if SkillController and SkillController.getUnlockedSkills then
-						hasDashUnlocked = SkillController.getUnlockedSkills()["SKILL_RUNE_DASH"] == true
-					end
-					
-					local uiBookTabBtn = SkillTreeUI.Refs.BookTabBtn
-					local uiSkillTabBtn = SkillTreeUI.Refs.SkillTabBtn
-					local bookTabContent = SkillTreeUI.Refs.BookTabContent
-					local skillTabContent = SkillTreeUI.Refs.SkillTabContent
-					
-					-- Reset all highlights first
-					if uiBookTabBtn then uiBookTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
-					if uiSkillTabBtn then uiSkillTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
-					
-					if not hasDashUnlocked then
-						-- Highlight BookTabBtn if they are not in the book tab
-						if bookTabContent and not bookTabContent.Visible then
-							if uiBookTabBtn then
-								uiBookTabBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(45, 50, 60)
+
+					local isInvOpen = WindowManager.isOpen("INV")
+					if isInvOpen then
+						if invTab then
+							invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+							invTab.BackgroundTransparency = 0.3
+						end
+
+						local targetSlotIndex = nil
+						local cache = InventoryController.getInventoryCache()
+						for slotIndex, itemData in pairs(cache) do
+							if itemData and itemData.itemId == "BOOK_DASH" then
+								targetSlotIndex = slotIndex
+								break
 							end
-						else
-							-- In book tab, highlight the book list item if it exists, or the learn button if selected
-							local bookList = SkillTreeUI.Refs.BookList
-							local learnBtn = SkillTreeUI.Refs.BookDetail and SkillTreeUI.Refs.BookDetail:FindFirstChild("LearnBtn")
-							local isSelected = SkillTreeUI.GetSelectedBookId and SkillTreeUI.GetSelectedBookId() == "BOOK_DASH"
-							
-							if isSelected then
-								if learnBtn and learnBtn.Visible then
-									learnBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
-								end
-							else
-								if bookList then
-									local dashBookUI = bookList:FindFirstChild("BOOK_DASH")
-									if dashBookUI then
-										dashBookUI.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(25, 30, 45)
+						end
+
+						if InventoryUI.Refs.Slots then
+							for i, slot in pairs(InventoryUI.Refs.Slots) do
+								if slot and slot.frame then
+									if i == targetSlotIndex then
+										slot.frame.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(15, 20, 35)
+									else
+										slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
 									end
 								end
 							end
 						end
 					else
-						-- Dash is unlocked, they need to equip it
-						if skillTabContent and not skillTabContent.Visible then
-							if uiSkillTabBtn then
-								uiSkillTabBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(45, 50, 60)
-							end
-						else
-							-- In skill tab, highlight the passive skill and equip button
-							local passiveList = SkillTreeUI.Refs.PassiveList
-							if passiveList then
-								local dashPassiveUI = passiveList:FindFirstChild("SKILL_RUNE_DASH")
-								if dashPassiveUI then
-									local btnContainer = dashPassiveUI:FindFirstChild("BtnContainer")
-									local equipBtn = btnContainer and btnContainer:FindFirstChild("EquipBtn")
-									if equipBtn and equipBtn.Visible then
-										equipBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
-									else
-										dashPassiveUI.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(25, 30, 45)
-									end
+						if InventoryUI.Refs.Slots then
+							for _, slot in pairs(InventoryUI.Refs.Slots) do
+								if slot and slot.frame then
+									slot.frame.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
 								end
 							end
 						end
+						if invTab then
+							invTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+							invTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
+						end
 					end
 				else
-					if skillTab then
-						skillTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
-						skillTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
+					-- 2단계: 스킬북 사용 완료(습득됨) -> 스킬 탭 패시브 목록에서 장착하도록 안내
+					if invTab then
+						invTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+						invTab.BackgroundTransparency = 0.3
+					end
+
+					local isSkillOpen = WindowManager.isOpen("SKILL")
+					if isSkillOpen then
+						if skillTab then
+							skillTab.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+							skillTab.BackgroundTransparency = 0.3
+						end
+
+						local passiveList = SkillTreeUI.Refs.PassiveList
+						if passiveList then
+							local dashPassiveUI = passiveList:FindFirstChild("SKILL_RUNE_DASH")
+							if dashPassiveUI then
+								local btnContainer = dashPassiveUI:FindFirstChild("BtnContainer")
+								local equipBtn = btnContainer and btnContainer:FindFirstChild("EquipBtn")
+								if equipBtn and equipBtn.Visible then
+									equipBtn.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(90, 210, 90)
+								else
+									dashPassiveUI.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(25, 30, 45)
+								end
+							end
+						end
+					else
+						if skillTab then
+							skillTab.BackgroundColor3 = isHighlight and Color3.fromRGB(255, 200, 50) or Color3.fromRGB(28, 28, 28)
+							skillTab.BackgroundTransparency = isHighlight and 0.25 or 0.3
+						end
 					end
 				end
 			end
@@ -626,19 +642,6 @@ function UIManager.updateTutorialBlinking(status)
 			skillTab.BackgroundTransparency = 0.3
 		end
 		if SkillTreeUI and SkillTreeUI.Refs then
-			local uiBookTabBtn = SkillTreeUI.Refs.BookTabBtn
-			local uiSkillTabBtn = SkillTreeUI.Refs.SkillTabBtn
-			if uiBookTabBtn then uiBookTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
-			if uiSkillTabBtn then uiSkillTabBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 60) end
-			
-			local bookList = SkillTreeUI.Refs.BookList
-			if bookList then
-				local dashBookUI = bookList:FindFirstChild("BOOK_DASH")
-				if dashBookUI then dashBookUI.BackgroundColor3 = Color3.fromRGB(25, 30, 45) end
-			end
-			local learnBtn = SkillTreeUI.Refs.BookDetail and SkillTreeUI.Refs.BookDetail:FindFirstChild("LearnBtn")
-			if learnBtn then learnBtn.BackgroundColor3 = Color3.fromRGB(90, 210, 90) end
-			
 			local passiveList = SkillTreeUI.Refs.PassiveList
 			if passiveList then
 				local dashPassiveUI = passiveList:FindFirstChild("SKILL_RUNE_DASH")
