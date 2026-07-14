@@ -1147,7 +1147,7 @@ local function createMobModel(areaId, index, config)
 			end
 
 			-- [빅골렘 전용] 콰콰쾅 바위 타격 이펙트 함수
-			local function playRockSmashEffect(pos, radius)
+			local function playRockSmashEffect(pos, radius, soundName)
 				local ts = game:GetService("TweenService")
 
 				-- 1. 땅 패임 (크레이터 흉내)
@@ -1166,10 +1166,11 @@ local function createMobModel(areaId, index, config)
 
 				-- 2. 묵직한 타격음 (사운드 객체를 찾아서 클론하거나 기본 폭발음 사용)
 				local sfx = nil
-				local customSound = game.ReplicatedStorage:FindFirstChild("Assets")
+				local monsterSoundsFolder = game.ReplicatedStorage:FindFirstChild("Assets")
 					and game.ReplicatedStorage.Assets:FindFirstChild("Sounds")
 					and game.ReplicatedStorage.Assets.Sounds:FindFirstChild("Monster")
-					and game.ReplicatedStorage.Assets.Sounds.Monster:FindFirstChild("BigGolem_Smash")
+				local customSound = monsterSoundsFolder
+					and ((soundName and monsterSoundsFolder:FindFirstChild(soundName)) or monsterSoundsFolder:FindFirstChild("BigGolem_Smash"))
 
 				if customSound and customSound:IsA("Sound") then
 					sfx = customSound:Clone()
@@ -3193,6 +3194,18 @@ local function createMobModel(areaId, index, config)
 								end
 							end)
 
+							pcall(function()
+								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+								local sound = monsterSounds and monsterSounds:FindFirstChild("StumpKing_Stomp")
+								if sound then
+									local sfx = sound:Clone()
+									sfx.Parent = hrp
+									sfx:Play()
+									game.Debris:AddItem(sfx, 3)
+								end
+							end)
+
 							-- 공중으로 떠오르기
 							local jumpHeight = currentPos + Vector3.new(0, 20, 0)
 							ts:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = CFrame.new(jumpHeight)}):Play()
@@ -3264,6 +3277,18 @@ local function createMobModel(areaId, index, config)
 								if animator and attackAnim then
 									local track = animator:LoadAnimation(attackAnim)
 									if track then track:Play() end
+								end
+							end)
+
+							pcall(function()
+								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+								local sound = monsterSounds and monsterSounds:FindFirstChild("StumpKing_TreeDrop")
+								if sound then
+									local sfx = sound:Clone()
+									sfx.Parent = hrp
+									sfx:Play()
+									game.Debris:AddItem(sfx, 3)
 								end
 							end)
 
@@ -7228,11 +7253,11 @@ local function createMobModel(areaId, index, config)
 									end
 								end)
 
-								-- 돌진 사운드 (디폴트)
+								-- 돌진 사운드
 								pcall(function()
 									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
 									local monsterSounds = sounds and sounds:FindFirstChild("Monster")
-									local sound = monsterSounds and (monsterSounds:FindFirstChild("IceKnight_SwordSwing") or monsterSounds:FindFirstChild("GhostKnight_SwordSwing"))
+									local sound = monsterSounds and (monsterSounds:FindFirstChild("IceKnight_Dash") or monsterSounds:FindFirstChild("IceKnight_SwordSwing") or monsterSounds:FindFirstChild("GhostKnight_SwordSwing"))
 									if sound then
 										local sfx = sound:Clone()
 										sfx.Parent = hrp
@@ -7714,6 +7739,18 @@ local function createMobModel(areaId, index, config)
 										end
 									end)
 
+									pcall(function()
+										local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+										local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+										local sound = monsterSounds and (monsterSounds:FindFirstChild("IceDragon_Storm") or monsterSounds:FindFirstChild("IceDragon_Breath"))
+										if sound then
+											local sfx = sound:Clone()
+											sfx.Parent = hrp
+											sfx:Play()
+											game.Debris:AddItem(sfx, 3)
+										end
+									end)
+
 									-- 하늘에서 떨어지는 거대한 네온 얼음 송곳 3개 소환
 									task.spawn(function()
 										for i = 1, 3 do
@@ -8151,7 +8188,7 @@ local function createMobModel(areaId, index, config)
 										local smashPos = currentPos + hrp.CFrame.LookVector * (G_ATTACK_RANGE / 2)
 										local smashRayResult = workspace:Raycast(smashPos + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
 										local finalSmashPos = smashRayResult and smashRayResult.Position or Vector3.new(smashPos.X, floorPos.Y, smashPos.Z)
-										playRockSmashEffect(finalSmashPos, G_ATTACK_RANGE * 0.8)
+										playRockSmashEffect(finalSmashPos, G_ATTACK_RANGE * 0.8, "SmallGolem_Attack")
 
 										if currentDist <= G_ATTACK_RANGE + 2 then
 											local dmg = config.baseDamage or 22
@@ -8306,6 +8343,20 @@ local function createMobModel(areaId, index, config)
 						local now = os.clock()
 						local slamCooldown = config.leapSlamCooldown or 9.0
 
+						local function playLavaSlimeSound(soundName, parent)
+							pcall(function()
+								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+								local sound = monsterSounds and monsterSounds:FindFirstChild(soundName)
+								if sound then
+									local sfx = sound:Clone()
+									sfx.Parent = parent
+									sfx:Play()
+									game.Debris:AddItem(sfx, 3)
+								end
+							end)
+						end
+
 						if minDist <= 45 and now - lastLeapSlamTick >= slamCooldown and now - lastAttackTick >= (config.attackCooldown or 2.5) then
 							-- [패턴] 용암 강타: 높이 도약했다가 넓은 범위에 착지하며 용암을 터뜨림
 							lastLeapSlamTick = now
@@ -8357,6 +8408,7 @@ local function createMobModel(areaId, index, config)
 								deformSlime(model, 1.6, 0.6, 1.6, 0.15)
 								task.wait(slamDuration * 0.35)
 								deformSlime(model, 1.0, 1.0, 1.0, 0.25)
+								playLavaSlimeSound("LavaSlime_LeapSlam", hrp)
 
 								local burstPart = Instance.new("Part")
 								burstPart.Name = "LavaSlimeBurst"
@@ -8413,6 +8465,7 @@ local function createMobModel(areaId, index, config)
 							-- [패턴] 용암 튀김: 원거리에서 용암 덩어리 3발을 흩뿌려 던짐
 							lastThrustTick = now
 							humanoid:MoveTo(hrp.Position)
+							playLavaSlimeSound("LavaSlime_LavaSpit", hrp)
 
 							local aimBase = phrp.Position
 							for i = 1, 3 do
@@ -8571,6 +8624,20 @@ local function createMobModel(areaId, index, config)
 						fireVfxRoot = fireVfxRoot and fireVfxRoot:FindFirstChild("Explosion-01")
 						fireVfxRoot = fireVfxRoot and fireVfxRoot:FindFirstChild("Main")
 
+						local function playFireManSound(soundName, parent)
+							pcall(function()
+								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+								local sound = monsterSounds and monsterSounds:FindFirstChild(soundName)
+								if sound then
+									local sfx = sound:Clone()
+									sfx.Parent = parent
+									sfx:Play()
+									game.Debris:AddItem(sfx, 3)
+								end
+							end)
+						end
+
 						local function spawnFirePuff(pos, scale, amount)
 							local host = Instance.new("Part")
 							host.Name = "FireManPuff"
@@ -8609,6 +8676,7 @@ local function createMobModel(areaId, index, config)
 							humanoid:MoveTo(hrp.Position)
 
 							spawnFirePuff(hrp.Position + Vector3.new(0, 2, 0), 0.12, 20)
+							playFireManSound("FireMan_Teleport", hrp)
 
 							local ang = math.random() * math.pi * 2
 							local dist = math.random(10, 20)
@@ -8631,6 +8699,7 @@ local function createMobModel(areaId, index, config)
 							lastWhirlwindTick = now
 							lastAttackTick = now
 							humanoid:MoveTo(hrp.Position)
+							playFireManSound("FireMan_Pillar", hrp)
 
 							local centerPos = phrp.Position
 							local pillarSpots = {}
@@ -8703,6 +8772,7 @@ local function createMobModel(areaId, index, config)
 							-- [패턴] 화염 투척: 원거리에서 불덩이를 던짐
 							lastThrustTick = now
 							humanoid:MoveTo(hrp.Position)
+							playFireManSound("FireMan_Fireball", hrp)
 
 							local startPos = hrp.Position + Vector3.new(0, 3, 0) + hrp.CFrame.LookVector * 1.5
 							local fireball = Instance.new("Part")
@@ -9003,6 +9073,18 @@ local function createMobModel(areaId, index, config)
 										Size = Vector3.new(attackRadius * 2.4, attackRadius * 2.4, attackRadius * 2.4),
 									}):Play()
 
+									pcall(function()
+										local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+										local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+										local sound = monsterSounds and monsterSounds:FindFirstChild("Jellyfish_Attack")
+										if sound then
+											local sfx = sound:Clone()
+											sfx.Parent = hrp
+											sfx:Play()
+											game.Debris:AddItem(sfx, 3)
+										end
+									end)
+
 									task.wait(telegraphDuration)
 									warnCircle:Destroy()
 
@@ -9098,6 +9180,17 @@ local function createMobModel(areaId, index, config)
 								lastCheckerboardTick = nowCB
 								lastAttackTick = nowCB -- 광역기 직후 바로 기본 공격이 겹치지 않도록 기본 공격 쿨다운도 같이 갱신
 								humanoid:MoveTo(currentPos) -- 캐스팅 동안 정지
+								pcall(function()
+									local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+									local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+									local sound = monsterSounds and monsterSounds:FindFirstChild("Kraken_Checkerboard")
+									if sound then
+										local sfx = sound:Clone()
+										sfx.Parent = hrp
+										sfx:Play()
+										game.Debris:AddItem(sfx, 3)
+									end
+								end)
 								task.spawn(function()
 									playKrakenCheckerboardAttack(model, targetPlayer)
 								end)
@@ -9218,6 +9311,18 @@ local function createMobModel(areaId, index, config)
 										end
 									end)
 									
+									pcall(function()
+										local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+										local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+										local sound = monsterSounds and monsterSounds:FindFirstChild("Kraken_TentacleSlam")
+										if sound then
+											local sfx = sound:Clone()
+											sfx.Parent = hrp
+											sfx:Play()
+											game.Debris:AddItem(sfx, 3)
+										end
+									end)
+
 									-- 다리를 들어올림 (텔레그래프 지속시간 동안 다리 전체가 하나의 팔처럼 위로 들림)
 									-- [버그수정] 회전 부호가 반대였음 - 음수(-) 방향이 오히려 땅 아래로 내려가는 방향이었고
 									-- 양수(+) 방향이 위로 들리는 방향이었음. 부호를 뒤집어서 실제로 위로 들리도록 수정.
@@ -9345,6 +9450,20 @@ local function createMobModel(areaId, index, config)
 						local now = os.clock()
 						local checkerboardCooldown = config.checkerboardCooldown or 16
 
+						local function playPoseidonSound(soundName)
+							pcall(function()
+								local sounds = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("Sounds")
+								local monsterSounds = sounds and sounds:FindFirstChild("Monster")
+								local sound = monsterSounds and monsterSounds:FindFirstChild(soundName)
+								if sound then
+									local sfx = sound:Clone()
+									sfx.Parent = hrp
+									sfx:Play()
+									game.Debris:AddItem(sfx, 3)
+								end
+							end)
+						end
+
 						-- [버그수정] 패턴들이 task.spawn으로 비동기 실행되는 동안 메인 FSM 루프가 계속
 						-- 돌면서 다른 패턴이 끼어들어 서로 방해/덮어쓰기 하던 문제 -> 진행 중엔 잠금
 						if poseidonPatternBusy then
@@ -9354,6 +9473,7 @@ local function createMobModel(areaId, index, config)
 							lastAttackTick = now
 							poseidonPatternBusy = true
 							humanoid:MoveTo(currentPos)
+							playPoseidonSound("Poseidon_Checkerboard")
 							task.spawn(function()
 								pcall(playPoseidonCheckerboard, model, targetPlayer)
 								poseidonPatternBusy = false
@@ -9363,6 +9483,7 @@ local function createMobModel(areaId, index, config)
 							lastAttackTick = now
 							poseidonPatternBusy = true
 							humanoid:MoveTo(currentPos)
+							playPoseidonSound("Poseidon_Whirlpool")
 							task.spawn(function()
 								pcall(playPoseidonWhirlpool, model, targetPlayer)
 								poseidonPatternBusy = false
@@ -9388,6 +9509,7 @@ local function createMobModel(areaId, index, config)
 							if now - lastAttackTick >= cooldown then
 								lastAttackTick = now
 								poseidonPatternBusy = true
+								playPoseidonSound("Poseidon_Thrust")
 								task.spawn(function()
 									pcall(playPoseidonThrust, model, targetPlayer)
 									poseidonPatternBusy = false

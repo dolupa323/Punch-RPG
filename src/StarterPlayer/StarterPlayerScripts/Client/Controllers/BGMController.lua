@@ -17,6 +17,13 @@ local zonePollAccumulator = 0
 
 local ZONE_CHANNEL_NAME = "ZoneBGMChannel"
 local ZONE_VOLUME = 0.02
+-- 소스 Sound의 Volume 프로퍼티(마스터링 보정값)를 최종 재생 볼륨에 반영하기 위한 스케일.
+-- 기준값 0.5일 때 ZONE_VOLUME(0.02)이 되도록 환산한다.
+-- (SNOW_BGM/CAVE_BGM/DESERT_BGM처럼 원본이 작게 마스터링되어 Volume=8로 보정해둔 트랙은
+--  이 스케일을 곱해야 실제로도 크게 들린다 - 그동안 SoundId만 복사하고 Volume은 무시해서
+--  모든 존이 항상 ZONE_VOLUME으로만 재생되던 버그가 있었다)
+local ZONE_VOLUME_REFERENCE = 0.5
+local ZONE_VOLUME_SCALE = ZONE_VOLUME / ZONE_VOLUME_REFERENCE
 local FADE_TIME = 0.6
 local ZONE_POLL_INTERVAL = 1.0
 
@@ -26,8 +33,8 @@ local ZONE_SOUND_NAMES = {
 	SLIME_HABITAT = "FOREST_BGM",          -- 슬라임 서식지
 	HORNEDLARVAZONE = "FOREST_BGM",        -- 애벌레의 숲 (대문자 변환 대응)
 	STUMP_ZONE = "FOREST_BGM",             -- 스텀프의 땅
-	STUMP_KING_ZONE = "FOREST_BGM",        -- 스텀프 킹의 안식처
-	CYCLOPS_BAT_ZONE = "FOREST_BGM",       -- 박쥐의 언덕
+	STUMP_KING_ZONE = "BOSS_BGM",          -- 스텀프 킹의 안식처 (보스 구역 공용 브금)
+	CYCLOPS_BAT_ZONE = "CAVE_BGM",         -- 박쥐의 언덕
 	SMALL_GOLEM_ZONE = "CAVE_BGM",         -- 스산한 동굴
 	EERIE_CAVE = "CAVE_BGM",               -- 스산한 동굴
 	SPIDER_ZONE = "CAVE_BGM",              -- 거미구역
@@ -37,7 +44,12 @@ local ZONE_SOUND_NAMES = {
 	SKY_ISLAND = "SKY_BGM",                -- 하늘섬
 	BLUE_FLAME_KNIGHT_ZONE = "BOSS_BGM",-- 푸른 신념 (최종 보스)
 	DESERTGUARDIANZONE = "BOSS_BGM",     -- 사막의 수호자 구역 (BOSS_BGM)
-	DEEPABYSS_NORTH_POSEIDON = "BOSS_BGM", -- 수중도시 포세이돈 레이드방
+	VOLCANIC_FIELD = "LAVA_BGM",           -- 화산 분지 (용암슬라임/파이어맨 구역)
+	UNDERWATER_CITY = "UNDERWATER_CITY_BGM", -- 클레이온 (수중도시)
+	DEEP_ABYSS = "UNDERWATER_CITY_BGM",     -- 심연의 협곡 (수중도시 사냥터, 본토와 동일 브금 사용)
+	KRAKEN_ZONE = "BOSS_BGM",              -- 크라켄의 심연
+	ABYSS_GUARDIAN_ZONE = "BOSS_BGM",      -- 수호자의 성소
+	POSEIDON_ZONE = "BOSS_BGM",            -- 포세이돈의 궁전
 
 	-- Legacy Zones
 	GRASSLAND = "FOREST_BGM",
@@ -108,9 +120,8 @@ local function stopZoneBGM()
 end
 
 local function playZoneBGM(zoneName: string?)
-	currentZoneName = zoneName
-
 	if not zoneName then
+		currentZoneName = nil
 		stopZoneBGM()
 		return
 	end
@@ -118,9 +129,14 @@ local function playZoneBGM(zoneName: string?)
 	local soundName = ZONE_SOUND_NAMES[string.upper(zoneName)] or (string.upper(zoneName) .. "_BGM")
 	local source = findSoundSourceByName(soundName)
 	if not source then
+		-- currentZoneName을 갱신하지 않아야 다음 폴링에서 다시 시도한다.
+		-- (여기서 zoneName을 세팅해버리면 애셋 스트리밍 지연 등으로 최초 탐색이 실패했을 때
+		--  영구히 재시도하지 않는 버그가 발생한다 - 죽음의 설산 SNOW_BGM 미재생 버그 원인)
 		stopZoneBGM()
 		return
 	end
+
+	currentZoneName = zoneName
 
 	print("[BGMController] playZoneBGM - Zone:", zoneName, "Sound:", soundName)
 
@@ -140,7 +156,9 @@ local function playZoneBGM(zoneName: string?)
 	if not sound.IsPlaying then
 		sound:Play()
 	end
-	tweenVolume(sound, ZONE_VOLUME)
+
+	local targetVolume = (source.Volume or ZONE_VOLUME_REFERENCE) * ZONE_VOLUME_SCALE
+	tweenVolume(sound, targetVolume)
 end
 
 local function refreshZoneBGM()

@@ -162,6 +162,44 @@ local ZONES = {
 		subName = "DESERT GUARDIAN ARENA",
 		priority = 30,
 	},
+	KRAKEN_ZONE = {
+		-- Workspace.UndergroundDungeon.DeepAbyss.RaidArena.ArenaFloor 실측 (center 748.4/65/197.6, size 170x6x160)
+		min = Vector2.new(663.4, 117.6),
+		max = Vector2.new(833.4, 277.6),
+		spawnPoint = Vector3.new(748.4, 100, 197.6),
+		displayName = "크라켄의 심연",
+		subName = "KRAKEN'S ABYSS",
+		priority = 30,
+	},
+	ABYSS_GUARDIAN_ZONE = {
+		-- Workspace.UndergroundDungeon.DeepAbyss_West.RaidArena.ArenaFloor 실측 (center -731/65/203.2, size 170x6x160)
+		min = Vector2.new(-816, 123.2),
+		max = Vector2.new(-646, 283.2),
+		spawnPoint = Vector3.new(-731, 100, 203.2),
+		displayName = "수호자의 성소",
+		subName = "GUARDIAN'S SANCTUM",
+		priority = 30,
+	},
+	POSEIDON_ZONE = {
+		-- Workspace.UndergroundDungeon.DeepAbyss_North.RaidArena.ArenaFloor 실측 (center -50.7/65/-411.8, size 160x6x170)
+		min = Vector2.new(-130.7, -496.8),
+		max = Vector2.new(29.3, -326.8),
+		spawnPoint = Vector3.new(-50.7, 100, -411.8),
+		displayName = "포세이돈의 궁전",
+		subName = "POSEIDON'S THRONE",
+		priority = 30,
+	},
+	VOLCANIC_FIELD = {
+		-- 용암슬라임/파이어맨 스폰 4꼭짓점(MobSpawnData LavaSlimeZone/FireManZone) 기준 바운딩 박스
+		min = Vector2.new(-961.977, -1220.3),
+		max = Vector2.new(-641.514, -902.067),
+		spawnPoint = Vector3.new(-800.0, 570.0, -1050.0),
+		displayName = "화산 분지",
+		subName = "VOLCANIC FIELD",
+		priority = 20,
+		minLevel = 41,
+		maxLevel = 45,
+	},
 
 	--========================================
 	-- [LEGACY] 이전 프로젝트 구역 데이터
@@ -283,6 +321,22 @@ local ZONE_CONFIGS = {
 		Harvests = {},
 	},
 	DesertGuardianZone = {
+		Creatures = {},
+		Harvests = {},
+	},
+	VOLCANIC_FIELD = {
+		Creatures = {},
+		Harvests = {},
+	},
+	KRAKEN_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	ABYSS_GUARDIAN_ZONE = {
+		Creatures = {},
+		Harvests = {},
+	},
+	POSEIDON_ZONE = {
 		Creatures = {},
 		Harvests = {},
 	},
