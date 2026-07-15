@@ -247,6 +247,7 @@ local MobSpawnData = {
 		-- 크라켄(레벨50 평균스펙 3인 파티 기준)을 기준선으로 삼고, 이 보스는 한 단계 더 어렵게.
 		level = 68,
 		mobModelName = "DesertGuardian",
+		dropTableId = "ABYSSGUARDIAN", -- [수정] 미지정 시 저레벨 사막의 수호자(DESERTGUARDIAN) 테이블과 겹쳐서 분리
 		mobDisplayName = "심연의 수호자",
 		maxHealth = 650000,
 		baseDamage = 600,

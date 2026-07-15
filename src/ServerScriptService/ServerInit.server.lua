@@ -244,6 +244,13 @@ for command, handler in pairs(DropRateInfoService.GetHandlers()) do
 end
 ServiceRegistry.Register("DropRateInfoService", DropRateInfoService)
 
+local LeaderboardService = require(Services.LeaderboardService)
+LeaderboardService.Init(NetController, PlayerStatService, InventoryService)
+for command, handler in pairs(LeaderboardService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
+ServiceRegistry.Register("LeaderboardService", LeaderboardService)
+
 local LevelTriggerService = require(Services.LevelTriggerService)
 LevelTriggerService.Init()
 ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)

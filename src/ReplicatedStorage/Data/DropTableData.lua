@@ -150,8 +150,22 @@ local DropTableData = {
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
 	},
 	-- [TODO] 전용 드롭 아이템은 아직 미정 - 우선 코인만 확정 지급. 추후 전용 아이템 추가 예정.
+	-- [수정] 포세이돈이 이 테이블을 임시로 재사용 중이라, 아래 악세서리 4종은 크라켄+포세이돈 둘 다에 적용됨.
 	["KRAKEN"] = {
 		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
+		{ itemId = "JELLYFISH_NECKLACE", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_EARRING", chance = 0.001, min = 1, max = 1 },
+	},
+	-- [심연의 수호자 전용] AbyssGuardianZone은 사막의 수호자와 모델을 재사용하지만 별개의 레이드
+	-- 보스이므로, 저레벨 사막 보스(DESERTGUARDIAN)와 드롭테이블을 분리함.
+	["ABYSSGUARDIAN"] = {
+		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
+		{ itemId = "JELLYFISH_NECKLACE", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_EARRING", chance = 0.001, min = 1, max = 1 },
 	},
 	["LAVASLIME"] = {
 		{ itemId = "LAVA_SLIME_GEL",    chance = 1.0, min = 2, max = 4 },
@@ -161,6 +175,14 @@ local DropTableData = {
 		{ itemId = "FIREMAN_EMBER",  chance = 1.0, min = 1, max = 3 },
 		{ itemId = "BOOK_BLAZE",     chance = 0.05, min = 1, max = 1 },
 		{ itemId = "FIREMAN_EARRING", chance = 0.03, min = 1, max = 1 },
+	},
+	["JELLYFISH"] = {
+		{ itemId = "JELLYFISH_TENTACLE", chance = 1.0, min = 1, max = 3 },
+		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_NECKLACE", chance = 0.0005, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_RING", chance = 0.0005, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.0005, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_EARRING", chance = 0.0005, min = 1, max = 1 },
 	},
 }
 

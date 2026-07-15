@@ -236,6 +236,15 @@ local function createAdminPanel()
 			UIManager.notify("퀘스트 초기화에 실패했습니다.", Color3.fromRGB(255, 120, 120))
 		end
 	end)
+
+	mkBtn("레벨랭킹 백필(1회용)", Color3.fromRGB(120, 100, 190), function()
+		local ok = NetClient.Request("Admin.LeaderboardBackfill.Request", {})
+		if ok then
+			UIManager.notify("레벨 랭킹 백필을 백그라운드에서 시작했습니다 (서버 콘솔에서 진행상황 확인).", Color3.fromRGB(150, 190, 255))
+		else
+			UIManager.notify("백필 요청에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
 end
 
 --========================================

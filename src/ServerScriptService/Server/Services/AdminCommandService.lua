@@ -139,6 +139,20 @@ local function handleSkillReset(player: Player, payload: any)
 	return { success = success }
 end
 
+local function handleLeaderboardBackfill(player: Player, payload: any)
+	local ok, LeaderboardService = pcall(function()
+		return require(game:GetService("ServerScriptService").Server.Services.LeaderboardService)
+	end)
+	if not ok or not LeaderboardService or not LeaderboardService.BackfillLevelsFromSaveData then
+		return { success = false }
+	end
+	-- 유저 수에 따라 오래 걸릴 수 있으므로 백그라운드로 실행하고 즉시 응답
+	task.spawn(function()
+		LeaderboardService.BackfillLevelsFromSaveData()
+	end)
+	return { success = true }
+end
+
 local function handleSetElement(player: Player, payload: any)
 	local el = payload and payload.element
 	if el then
@@ -234,6 +248,7 @@ function AdminCommandService.Init(_NetController, _PlayerStatService, _Inventory
 		NetController.RegisterHandler("Admin.GiveItem.Request", handleGiveItem)
 		NetController.RegisterHandler("Admin.SetElement.Request", handleSetElement)
 		NetController.RegisterHandler("Admin.SkillReset.Request", handleSkillReset)
+		NetController.RegisterHandler("Admin.LeaderboardBackfill.Request", handleLeaderboardBackfill)
 	end
 
 	Players.PlayerAdded:Connect(function(player)

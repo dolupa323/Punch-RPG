@@ -3605,6 +3605,275 @@ function UIManager.toggleQuest()
 end
 
 ----------------------------------------------------------------
+-- 랭킹 (Leaderboard: 레벨 / 전투력, 서버 통합)
+----------------------------------------------------------------
+local leaderboardOverlay = nil
+
+function UIManager.toggleLeaderboard()
+	if leaderboardOverlay then
+		leaderboardOverlay:Destroy()
+		leaderboardOverlay = nil
+		return
+	end
+
+	local C_Override = {}
+	for k, v in pairs(C) do C_Override[k] = v end
+	C_Override.BG_PANEL = Color3.fromRGB(10, 15, 25)
+	C_Override.BG_DARK = Color3.fromRGB(5, 5, 10)
+	C_Override.BG_SLOT = Color3.fromRGB(15, 20, 35)
+	C_Override.GOLD = Color3.fromRGB(255, 255, 255)
+	C_Override.GOLD_SEL = Color3.fromRGB(40, 80, 160)
+	C_Override.BORDER = Color3.fromRGB(60, 85, 130)
+
+	leaderboardOverlay = Utils.mkFrame({
+		name = "LeaderboardOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.6,
+		z = 100,
+		parent = mainGui
+	})
+
+	local winWidth = isMobile and 0.94 or 0.45
+	local winHeight = isMobile and 0.90 or 0.7
+	local maxW = isMobile and 760 or 520
+	local maxH = isMobile and 760 or 560
+
+	local main = Utils.mkWindow({
+		name = "LeaderboardWindow",
+		size = UDim2.new(winWidth, 0, winHeight, 0),
+		maxSize = Vector2.new(maxW, maxH),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = C_Override.BG_PANEL,
+		stroke = 2,
+		strokeC = C_Override.BORDER,
+		r = 10,
+		parent = leaderboardOverlay
+	})
+
+	local bgBtn = Instance.new("TextButton")
+	bgBtn.Size = UDim2.new(1, 0, 1, 0)
+	bgBtn.BackgroundTransparency = 1
+	bgBtn.Text = ""
+	bgBtn.ZIndex = 1
+	bgBtn.Parent = leaderboardOverlay
+	bgBtn.MouseButton1Click:Connect(function()
+		if leaderboardOverlay then
+			leaderboardOverlay:Destroy()
+			leaderboardOverlay = nil
+		end
+	end)
+
+	main.ZIndex = 2
+
+	Utils.mkLabel({
+		text = UILocalizer.Localize("랭킹"),
+		size = UDim2.new(1, 0, 0, isMobile and 58 or 50),
+		pos = UDim2.new(0, 0, 0, isMobile and 12 or 15),
+		ts = isMobile and 24 or 22,
+		font = F.TITLE,
+		color = Color3.fromRGB(255, 215, 0),
+		ax = Enum.TextXAlignment.Center,
+		parent = main
+	})
+
+	Utils.mkBtn({
+		name = "CloseBtn",
+		text = "X",
+		size = UDim2.new(0, isMobile and 40 or 30, 0, isMobile and 40 or 30),
+		pos = UDim2.new(1, isMobile and -10 or -15, 0, isMobile and 10 or 15),
+		anchor = Vector2.new(1, 0),
+		bgT = 1,
+		stroke = false,
+		ts = isMobile and 22 or 18,
+		font = F.TITLE,
+		color = Color3.fromRGB(200, 200, 200),
+		fn = function()
+			if leaderboardOverlay then
+				leaderboardOverlay:Destroy()
+				leaderboardOverlay = nil
+			end
+		end,
+		parent = main
+	})
+
+	-- 탭 (레벨 / 전투력)
+	local tabRow = Utils.mkFrame({
+		name = "TabRow",
+		size = UDim2.new(1, isMobile and -20 or -40, 0, isMobile and 44 or 36),
+		pos = UDim2.new(0.5, 0, 0, isMobile and 66 or 60),
+		anchor = Vector2.new(0.5, 0),
+		bg = C_Override.BG_DARK,
+		bgT = 0.3,
+		r = 6,
+		parent = main
+	})
+	local tabList = Instance.new("UIListLayout")
+	tabList.FillDirection = Enum.FillDirection.Horizontal
+	tabList.Padding = UDim.new(0, 6)
+	tabList.SortOrder = Enum.SortOrder.LayoutOrder
+	tabList.Parent = tabRow
+	local tabPad = Instance.new("UIPadding")
+	tabPad.PaddingLeft = UDim.new(0, 6)
+	tabPad.PaddingTop = UDim.new(0, 4)
+	tabPad.PaddingBottom = UDim.new(0, 4)
+	tabPad.Parent = tabRow
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, isMobile and -20 or -40, 1, isMobile and -142 or -142)
+	scroll.Position = UDim2.new(0.5, 0, 0, isMobile and 118 or 106)
+	scroll.AnchorPoint = Vector2.new(0.5, 0)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = isMobile and 8 or 4
+	scroll.ScrollBarImageColor3 = C_Override.BORDER
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	scroll.ClipsDescendants = true
+	scroll.Parent = main
+
+	local scrollPad = Instance.new("UIPadding")
+	scrollPad.PaddingTop = UDim.new(0, 5)
+	scrollPad.PaddingBottom = UDim.new(0, 5)
+	scrollPad.PaddingLeft = UDim.new(0, 10)
+	scrollPad.PaddingRight = UDim.new(0, 15)
+	scrollPad.Parent = scroll
+
+	local vList = Instance.new("UIListLayout")
+	vList.FillDirection = Enum.FillDirection.Vertical
+	vList.Padding = UDim.new(0, 8)
+	vList.Parent = scroll
+
+	local localUserId = Players.LocalPlayer.UserId
+
+	local function renderEntries(entries, valueLabel)
+		for _, child in ipairs(scroll:GetChildren()) do
+			if child:IsA("Frame") then child:Destroy() end
+		end
+
+		if not entries or #entries == 0 then
+			Utils.mkLabel({
+				text = UILocalizer.Localize("아직 랭킹 데이터가 없습니다."),
+				size = UDim2.new(1, 0, 0, 50),
+				pos = UDim2.new(0, 0, 0.4, 0),
+				ts = isMobile and 18 or 16,
+				font = F.TITLE,
+				color = Color3.fromRGB(150, 150, 150),
+				ax = Enum.TextXAlignment.Center,
+				parent = scroll
+			})
+			return
+		end
+
+		for _, entry in ipairs(entries) do
+			local isMe = (entry.userId == localUserId)
+			local row = Utils.mkFrame({
+				name = "RankRow",
+				size = UDim2.new(1, 0, 0, isMobile and 52 or 42),
+				bg = isMe and C_Override.GOLD_SEL or C_Override.BG_SLOT,
+				bgT = isMe and 0.1 or 0.2,
+				r = 6,
+				stroke = 1,
+				strokeC = C_Override.BORDER,
+				parent = scroll
+			})
+
+			Utils.mkLabel({
+				text = string.format("#%d", entry.rank),
+				size = UDim2.new(0, isMobile and 50 or 44, 1, 0),
+				pos = UDim2.new(0, 12, 0, 0),
+				ts = isMobile and 16 or 14,
+				font = F.NUM,
+				color = Color3.fromRGB(255, 215, 0),
+				ax = Enum.TextXAlignment.Left,
+				parent = row
+			})
+
+			Utils.mkLabel({
+				text = tostring(entry.name or "Unknown"),
+				size = UDim2.new(0.5, 0, 1, 0),
+				pos = UDim2.new(0, isMobile and 68 or 60, 0, 0),
+				ts = isMobile and 16 or 14,
+				font = F.TITLE,
+				color = C_Override.GOLD,
+				ax = Enum.TextXAlignment.Left,
+				parent = row
+			})
+
+			Utils.mkLabel({
+				text = string.format("%s %s", tostring(entry.value or 0), valueLabel),
+				size = UDim2.new(0.32, 0, 1, 0),
+				pos = UDim2.new(1, -15, 0, 0),
+				anchor = Vector2.new(1, 0),
+				ts = isMobile and 16 or 14,
+				font = F.NUM,
+				color = Color3.fromRGB(120, 220, 100),
+				ax = Enum.TextXAlignment.Right,
+				parent = row
+			})
+		end
+	end
+
+	local function loadTab(rtype, valueLabel)
+		Utils.mkLabel({
+			text = UILocalizer.Localize("불러오는 중..."),
+			size = UDim2.new(1, 0, 0, 50),
+			pos = UDim2.new(0, 0, 0.4, 0),
+			ts = isMobile and 18 or 16,
+			font = F.TITLE,
+			color = Color3.fromRGB(150, 150, 150),
+			ax = Enum.TextXAlignment.Center,
+			name = "LoadingLabel",
+			parent = scroll
+		})
+		task.spawn(function()
+			local ok, res = NetClient.Request("Leaderboard.GetTop.Request", { type = rtype })
+			if not leaderboardOverlay then return end -- 창이 닫힌 사이 응답이 온 경우
+			local entries = (ok and res and res.entries) or {}
+			renderEntries(entries, valueLabel)
+		end)
+	end
+
+	local activeTabBtn = nil
+	local function mkTab(name, label, order, rtype, valueLabel)
+		local btn = Utils.mkBtn({
+			name = name,
+			text = UILocalizer.Localize(label),
+			size = UDim2.new(0, isMobile and 110 or 100, 1, -8),
+			bg = C_Override.BG_SLOT,
+			bgT = 0.2,
+			r = 5,
+			ts = isMobile and 16 or 14,
+			font = F.TITLE,
+			color = C_Override.GOLD,
+			parent = tabRow
+		})
+		btn.LayoutOrder = order
+		btn.MouseButton1Click:Connect(function()
+			if activeTabBtn then
+				activeTabBtn.BackgroundColor3 = C_Override.BG_SLOT
+				activeTabBtn.BackgroundTransparency = 0.2
+			end
+			activeTabBtn = btn
+			btn.BackgroundColor3 = C_Override.GOLD_SEL
+			btn.BackgroundTransparency = 0.1
+			loadTab(rtype, valueLabel)
+		end)
+		return btn
+	end
+
+	local levelTab = mkTab("BtnLevelTab", "레벨", 1, "LEVEL", "Lv")
+	mkTab("BtnCombatPowerTab", "전투력", 2, "COMBAT_POWER", "전투력")
+
+	-- 기본으로 레벨 탭 열기
+	activeTabBtn = levelTab
+	levelTab.BackgroundColor3 = C_Override.GOLD_SEL
+	levelTab.BackgroundTransparency = 0.1
+	loadTab("LEVEL", "Lv")
+end
+
+----------------------------------------------------------------
 -- 프리미엄 상점 (Premium Shop)
 ----------------------------------------------------------------
 function UIManager.togglePremiumShop()

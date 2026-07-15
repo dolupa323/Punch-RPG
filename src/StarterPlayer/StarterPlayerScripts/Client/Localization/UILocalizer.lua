@@ -27,6 +27,10 @@ local function titleFromId(id: string?): string
 end
 
 local KO_TO_EN = {
+	["⚔ 전투력 랭킹"] = "⚔ Combat Power Ranking",
+	["★ 레벨 랭킹"] = "★ Level Ranking",
+	["랭킹"] = "Ranking",
+	["아직 랭킹 데이터가 없습니다"] = "No ranking data yet",
 	["하락 방지권"] = "Anti-Downgrade Scroll",
 	["하락방지권"] = "Anti-Downgrade Scroll",
 	["INVENTORY [Tab]"] = "INVENTORY [Tab]",

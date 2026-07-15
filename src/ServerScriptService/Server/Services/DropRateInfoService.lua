@@ -35,8 +35,10 @@ local MOB_LIST = {
 	{ dropTableId = "GHOSTWIZARD",       displayName = "유령 마법사" },
 	{ dropTableId = "BLUEFLAMEKNIGHT",   displayName = "푸른 불꽃 기사" },
 	{ dropTableId = "DESERTGUARDIAN",    displayName = "사막의 수호자" },
+	{ dropTableId = "ABYSSGUARDIAN",     displayName = "심연의 수호자" },
 	{ dropTableId = "KRAKEN",            displayName = "크라켄" },
 	{ dropTableId = "KRAKEN",            displayName = "포세이돈" }, -- 정식 드롭 테이블 확정 전까지 크라켄과 동일 드롭 재사용
+	{ dropTableId = "JELLYFISH",         displayName = "젤리피쉬" },
 }
 
 -- itemId -> itemName 조회 테이블 (1회 구축)

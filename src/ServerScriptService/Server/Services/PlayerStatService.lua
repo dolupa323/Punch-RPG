@@ -549,6 +549,14 @@ function PlayerStatService.applyStats(userId: number)
 		local fullStats = PlayerStatService.getStats(userId)
 		NetController.FireClient(player, "Player.Stats.Changed", fullStats)
 	end
+
+	-- 5. 랭킹 갱신 (레벨업/장비변경/스킬장착 등 스탯이 바뀔 때마다 여기로 모이므로 통합 훅 지점으로 사용)
+	local leaderboardService = ServiceRegistry.Get("LeaderboardService")
+	if leaderboardService and leaderboardService.RefreshPlayer then
+		task.spawn(function()
+			leaderboardService.RefreshPlayer(userId)
+		end)
+	end
 end
 
 --- 스탯 재계산 (에일리어스)

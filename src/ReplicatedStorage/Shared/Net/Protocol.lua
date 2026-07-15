@@ -240,6 +240,9 @@ Protocol.Commands = {
 	["DropInfo.GetTable.Request"] = true,
 	["DropInfo.OpenDialogue"]     = true,  -- S→C: 대화 열기
 
+	-- Leaderboard 명령어 (레벨/전투력 통합 랭킹)
+	["Leaderboard.GetTop.Request"] = true,
+
 	-- Admin 전용 명령어 (마케팅/테스트)
 	["Admin.FullReset.Request"] = true,
 	["Admin.SetLevel.Request"] = true,
@@ -247,6 +250,7 @@ Protocol.Commands = {
 	["Admin.GiveItem.Request"] = true,
 	["Admin.SetElement.Request"] = true,
 	["Admin.SkillReset.Request"] = true,
+	["Admin.LeaderboardBackfill.Request"] = true,
 
 	-- Enhancement 명령어 (연금 강화)
 	["Enhance.Request"] = true,

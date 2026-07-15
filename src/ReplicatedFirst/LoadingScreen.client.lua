@@ -10,7 +10,7 @@ local ContextActionService = game:GetService("ContextActionService")
 -- 로블록스 기본 로딩 스크린 비활성화
 ReplicatedFirst:RemoveDefaultLoadingScreen()
 
-local LOGO_ASSET_ID = "rbxassetid://101920974961399"
+local LOGO_ASSET_ID = "rbxassetid://131503705327117"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui", 30)
