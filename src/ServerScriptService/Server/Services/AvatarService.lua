@@ -415,13 +415,15 @@ function AvatarService.Init()
 						curDmg = finalCurDmg
 						
 						-- [XP Granting] 처치 시 경험치 지급 로직 직접 구현 (래거시 의존성 제거)
-						if hum.Health <= 0 then
+						-- [이중지급 방지] MobId가 설정된 대상(MobSpawnService.lua가 스폰한 몬스터)은
+						-- 그쪽의 Humanoid.Died 리스너가 사인과 무관하게 항상 자체적으로 경험치를 지급하므로,
+						-- 여기서는 그 리스너가 없는 대상(예: 허수아비)에 한해서만 지급해 이중 지급을 막는다.
+						if hum.Health <= 0 and not targetModel:GetAttribute("MobId") then
 							local xpReward = targetModel:GetAttribute("XPReward") or 25
 							if PlayerStatService and PlayerStatService.grantActionXP then
-								local mobId = targetModel:GetAttribute("MobId") or targetModel.Name
 								PlayerStatService.grantActionXP(player.UserId, xpReward, {
 									source = "CREATURE_KILL",
-									actionKey = "MOB:" .. tostring(mobId),
+									actionKey = "MOB:" .. tostring(targetModel.Name),
 									disableDiminishing = true -- [밸런스 보장]: 몬스터 처치 경험치는 반복 획득 시에도 감쇠율 면제! 100% RAW 지급 보장!
 								})
 								print(string.format("[AvatarService] Player %s killed %s! XP Granted (Full): %d", player.Name, targetModel.Name, xpReward))

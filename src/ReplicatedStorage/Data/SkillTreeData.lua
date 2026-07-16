@@ -713,6 +713,28 @@ SkillTreeData.RUNES = {
 		cooldown = 9.0,
 		description = "붉은 검기로 전방을 크게 베어낸 직후, 그 자리에서 거대한 폭염이 터져 나옵니다.",
 		effects = { { stat = "SKILL_DAMAGE_MULT", value = 2.2 } },
+	},
+	{
+		id = "SKILL_SWORDFALL",
+		name = "천검강하",
+		type = "ACTIVE",
+		icon = "Icon_Skill_SwordFall",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 10.0,
+		description = "하늘에서 거대한 검 4자루를 소환해 목표 지점에 내리꽂아 범위 안의 적을 짓눌러버립니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 1.6 } },
+	},
+	{
+		id = "SKILL_BLUEFIREBALL",
+		name = "청염구",
+		type = "ACTIVE",
+		icon = "Icon_Skill_BlueFireball",
+		reqLevel = 1,
+		spCost = 0,
+		cooldown = 10.0,
+		description = "푸른 화염구를 전방으로 쏘아 보내 명중 지점에서 거대한 청염 폭발을 일으킵니다.",
+		effects = { { stat = "SKILL_DAMAGE_MULT", value = 2.4 } },
 	}
 }
 

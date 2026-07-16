@@ -299,8 +299,8 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		progressArea.Parent = actionArea
 
 		local pctLabel = Instance.new("TextLabel")
-		pctLabel.Size = UDim2.new(1, 0, 0, 18)
-		pctLabel.Position = UDim2.new(0, 0, 0.5, -28)
+		pctLabel.Size = UDim2.new(1, 0, 0, 16)
+		pctLabel.Position = UDim2.new(0, 0, 0.5, -30)
 		pctLabel.BackgroundTransparency = 1
 		pctLabel.Text = "제작 중 (0%)"
 		pctLabel.Font = F.NUM
@@ -311,8 +311,8 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		pctLabel.Parent = progressArea
 
 		local barBack = Instance.new("Frame")
-		barBack.Size = UDim2.new(1, 0, 0, 10)
-		barBack.Position = UDim2.new(0, 0, 0.5, -6)
+		barBack.Size = UDim2.new(1, 0, 0, 8)
+		barBack.Position = UDim2.new(0, 0, 0.5, -10)
 		barBack.BackgroundColor3 = C.BG_DARK
 		barBack.BorderSizePixel = 0
 		barBack.ZIndex = 5
@@ -329,12 +329,12 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		local fillCorner = Instance.new("UICorner"); fillCorner.CornerRadius = UDim.new(0,3); fillCorner.Parent = barFill
 
 		local timeLabel = Instance.new("TextLabel")
-		timeLabel.Size = UDim2.new(1, 0, 0, 16)
-		timeLabel.Position = UDim2.new(0, 0, 0.5, 8)
+		timeLabel.Size = UDim2.new(1, 0, 0, 10)
+		timeLabel.Position = UDim2.new(0, 0, 0.5, 2)
 		timeLabel.BackgroundTransparency = 1
 		timeLabel.Text = ""
 		timeLabel.Font = F.NORMAL
-		timeLabel.TextSize = 12
+		timeLabel.TextSize = 10
 		timeLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
 		timeLabel.TextXAlignment = Enum.TextXAlignment.Center
 		timeLabel.ZIndex = 5
@@ -344,7 +344,7 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		local cancelBtn = Instance.new("TextButton")
 		cancelBtn.Name = "CancelBtn"
 		cancelBtn.Size = UDim2.new(0.48, 0, 0, 18)
-		cancelBtn.Position = UDim2.new(0, 0, 1, -20)
+		cancelBtn.Position = UDim2.new(0, 0, 0.5, 16)
 		cancelBtn.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
 		cancelBtn.BorderSizePixel = 0
 		cancelBtn.Text = "취소"
@@ -362,7 +362,7 @@ function CraftingUI.Refresh(items, playerItemCounts, getItemIcon, mode, UIManage
 		local instantBtn = Instance.new("TextButton")
 		instantBtn.Name = "InstantBtn"
 		instantBtn.Size = UDim2.new(0.48, 0, 0, 18)
-		instantBtn.Position = UDim2.new(1, 0, 1, -20)
+		instantBtn.Position = UDim2.new(1, 0, 0.5, 16)
 		instantBtn.AnchorPoint = Vector2.new(1, 0)
 		instantBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
 		instantBtn.BorderSizePixel = 0

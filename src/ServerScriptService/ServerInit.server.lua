@@ -251,9 +251,10 @@ for command, handler in pairs(LeaderboardService.GetHandlers()) do
 end
 ServiceRegistry.Register("LeaderboardService", LeaderboardService)
 
-local LevelTriggerService = require(Services.LevelTriggerService)
-LevelTriggerService.Init()
-ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)
+-- [비활성화] 부동심 스킬북 지급(바위 정상 터치 트리거) 기능 사용 중지 요청으로 Init 호출 제거
+-- local LevelTriggerService = require(Services.LevelTriggerService)
+-- LevelTriggerService.Init()
+-- ServiceRegistry.Register("LevelTriggerService", LevelTriggerService)
 
 local MobSpawnService = require(Services.MobSpawnService)
 MobSpawnService.Init()

@@ -133,6 +133,7 @@ local DropTableData = {
 	},
 	["GHOSTKNIGHT"] = {
 		{ itemId = "GHOST_KNIGHT_SOUL", chance = 1.0, min = 1, max = 2 },
+		{ itemId = "BOOK_SLASH", chance = 0.05, min = 1, max = 1 },
 	},
 	["GHOSTWIZARD"] = {
 		{ itemId = "GHOST_WIZARD_SOUL", chance = 1.0, min = 1, max = 2 },
@@ -140,10 +141,12 @@ local DropTableData = {
 	["GIANTGHOSTKNIGHT"] = {
 		{ itemId = "GHOST_GIANT_PRIDE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "GHOST_KNIGHT_EARRING", chance = 0.03, min = 1, max = 1 },
+		{ itemId = "BOOK_SWORDFALL", chance = 0.05, min = 1, max = 1 },
 	},
 	["BLUEFLAMEKNIGHT"] = {
 		{ itemId = "BLUE_FIRE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "BLUE_FIRE_RING", chance = 0.03, min = 1, max = 1 },
+		{ itemId = "BOOK_BLUEFIREBALL", chance = 0.05, min = 1, max = 1 },
 	},
 	["DESERTGUARDIAN"] = {
 		{ itemId = "BOOK_SLASH", chance = 0.05, min = 1, max = 1 },

@@ -765,13 +765,15 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							finalTickDamage = finalDamageCalculated
 							print(string.format("[SkillService][Aura] %s hit %s for %d", tostring(itemId), model.Name, finalTickDamage))
 
-							if wasAlive and targetHum.Health <= 0 then
+							-- [이중지급 방지] MobId가 있는 몹은 MobSpawnService.lua의 Humanoid.Died 리스너가
+							-- 이미 자체적으로 경험치를 지급하므로 (사인 무관, 항상 발동), 여기서는 그 리스너가
+							-- 없는 대상(MobId 미설정, 예: 허수아비)에 한해서만 지급한다.
+							if wasAlive and targetHum.Health <= 0 and not model:GetAttribute("MobId") then
 								local xpReward = model:GetAttribute("XPReward") or 25
 								if playerStatServiceModule and playerStatServiceModule.grantActionXP then
-									local mobId = model:GetAttribute("MobId") or model.Name
 									playerStatServiceModule.grantActionXP(userId, xpReward, {
 										source = "RUNE_AURA_KILL",
-										actionKey = "AURA:" .. tostring(itemId) .. ":" .. tostring(mobId),
+										actionKey = "AURA:" .. tostring(itemId) .. ":" .. tostring(model.Name),
 										disableDiminishing = true
 									})
 								end
@@ -825,7 +827,7 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		return
 	end
 
-	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" or baseItemId == "ICEBLADE" or baseItemId == "BLAZE" then
+	if baseItemId == "EMBER" or baseItemId == "DROPLET" or baseItemId == "NIGHT" or baseItemId == "SLASH" or baseItemId == "SLIMESHOT" or baseItemId == "OVERGROWTH" or baseItemId == "MAEHWA" or baseItemId == "ICEBLADE" or baseItemId == "BLAZE" or baseItemId == "SWORDFALL" or baseItemId == "BLUEFIREBALL" then
 		-- Rune VFX & Damage logic
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if not hrp then return end
@@ -898,6 +900,22 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 			dmgAmount = 450
 			skillMult = 1.0
 			skillColor = Color3.fromRGB(255, 60, 20)
+		elseif baseItemId == "SWORDFALL" then
+			-- 유령기사 거인 드롭: 목표 지점 주변에 거대한 검 4자루가 하늘에서 떨어져 내리꽂히는 광역기
+			-- 4타 판정(기본값)이라 매화낙락/빙화검무(8타, 총배율 4.96)보다는 약하고
+			-- 오버그로스(3타, 총배율 2.7)보다는 강하도록 설정 (per-hit 0.90 * 4 = 3.6)
+			vfxName = "SwordFall"
+			dmgAmount = 20
+			skillMult = 0.70
+			skillColor = Color3.fromRGB(210, 215, 235)
+		elseif baseItemId == "BLUEFIREBALL" then
+			-- 푸른 불꽃 기사(최종 보스급) 드롭: 플레이어 중심으로 운석 5개가 떨어지는 광역기.
+			-- [요청반영] 여태 스킬 중 가장 넓은 범위(반경 24, 매화낙락/빙화검무의 18보다 넓음)를
+			-- 커버하는 광역기로 설계. 5타 판정으로 분산하되 총배율(1.22*5=6.1)은 기존 단발 설계와 동일하게 유지.
+			vfxName = "BlueFireball"
+			dmgAmount = 22
+			skillMult = 1.0
+			skillColor = Color3.fromRGB(60, 160, 255)
 		end
 		
 		-- (클라이언트가 미리 캐스팅 애니메이션/VFX/사운드를 재생했으므로 서버 연출은 생략)
@@ -952,17 +970,21 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 		-- [VFX 발동 위치 고정] 플레이어가 캐스팅 후 이동해도 폭발 위치는 발사했던 시점의 도착지점으로 고정
 		-- 매화낙락은 자기 주변을 베는 광역기라 원거리 조준이 아니라 캐릭터 바로 앞(짧은 거리)을 중심으로 판정
 		-- 빙화검무는 매화낙락보다 살짝 더 앞쪽(8)에서 판정 중심이 형성되도록 함 (제자리 중심이 아니라 약간 전방)
-		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or (baseItemId == "MAEHWA" and 3 or (baseItemId == "ICEBLADE" and 8 or (baseItemId == "BLAZE" and 12 or 15))))))
+		-- 청염구는 플레이어 중심 광역기(운석 5개가 사방에 떨어짐)라 매화낙락과 동일하게 제자리(3) 중심 판정
+		local hitPos = hrp.Position + look * (baseItemId == "SLASH" and 10 or (baseItemId == "SLIMESHOT" and 12 or (baseItemId == "OVERGROWTH" and 15 or ((baseItemId == "MAEHWA" or baseItemId == "BLUEFIREBALL") and 3 or (baseItemId == "ICEBLADE" and 8 or (baseItemId == "BLAZE" and 13 or 15))))))
 
-		-- Damage logic (슬라임샷은 단발 폭발, 오버그로스 버스트는 나무 3그루=3타, 그 외는 4타 멀티 히트)
+		-- Damage logic (슬라임샷은 단발 폭발, 오버그로스 버스트는 나무 3그루=3타, 청염구는 운석 5개=5타, 그 외는 4타 멀티 히트)
 		task.spawn(function()
-			task.wait(0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
-			local maxHits = (baseItemId == "SLIMESHOT" or baseItemId == "BLAZE") and 1 or (baseItemId == "OVERGROWTH" and 3 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 8 or 4))
+			-- 청염구는 운석이 하늘에서 떨어지는 데 시간이 걸리므로(AvatarController.lua FALL_DURATION=1.3s),
+			-- 데미지 판정도 그만큼 늦춰서 "운석이 아직 낙하 중인데 데미지가 먼저 터지는" 어긋남을 방지한다.
+			-- 이후 히트 간격(0.15s)은 운석 착지 스태거링(STAGGER=0.15s)과 이미 일치한다.
+			task.wait(baseItemId == "BLUEFIREBALL" and 1.3 or 0.25) -- Cast VFX가 먼저 전방에 출력된 후 Hit와 데미지가 터지도록 엇박자 딜레이 보정
+			local maxHits = (baseItemId == "SLIMESHOT" or baseItemId == "BLAZE") and 1 or (baseItemId == "OVERGROWTH" and 3 or (baseItemId == "BLUEFIREBALL" and 5 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 8 or 4)))
 			-- [디버그] 실제 명중 타수/캐스트당 총 데미지를 정확히 추적하기 위한 집계용 변수
 			local debugHitCount = 0
 			local debugTotalDamage = 0
 			for hitIndex = 1, maxHits do
-				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or (baseItemId == "BLAZE" and 13 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 18 or 15)))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 폭염참은 전방 폭발 반경, 매화낙락/빙화검무는 광역기라 넓은 범위
+				local radius = (baseItemId == "SLASH") and 20 or (baseItemId == "SLIMESHOT" and 9 or (baseItemId == "OVERGROWTH" and 11 or (baseItemId == "BLAZE" and 13 or (baseItemId == "BLUEFIREBALL" and 24 or ((baseItemId == "MAEHWA" or baseItemId == "ICEBLADE") and 18 or 15))))) -- 슬래시 범위 대폭 확대, 슬라임샷은 작은 폭발 반경, 오버그로스는 마법진 범위, 폭염참은 전방 폭발 반경, 청염구는 역대 최대 범위(24), 매화낙락/빙화검무는 광역기라 넓은 범위
 				
 				local params = OverlapParams.new()
 				params.FilterType = Enum.RaycastFilterType.Exclude
@@ -1039,13 +1061,14 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 							print(string.format("[SkillService] %s hit %d/%d: %s | Dmg: %d | Crit: %s | 누적: %d타 / %d dmg", vfxName, hitIndex, maxHits, model.Name, finalHitDmg, tostring(hitCrit), debugHitCount, debugTotalDamage))
 							
 							-- 방금 일격으로 죽었을 때만 경험치 1회 지급 (시체 타격 중복 지급 방지)
-							if wasAlive and hum.Health <= 0 then
+							-- [이중지급 방지] MobId가 있는 몹은 MobSpawnService.lua의 Humanoid.Died 리스너가
+							-- 이미 자체적으로 경험치를 지급하므로, 여기서는 그 리스너가 없는 대상에 한해서만 지급한다.
+							if wasAlive and hum.Health <= 0 and not model:GetAttribute("MobId") then
 								local xpReward = model:GetAttribute("XPReward") or 25
 								if PlayerStatService and PlayerStatService.grantActionXP then
-									local mobId = model:GetAttribute("MobId") or model.Name
 									PlayerStatService.grantActionXP(player.UserId, xpReward, {
 										source = "CREATURE_KILL",
-										actionKey = "MOB:" .. tostring(mobId),
+										actionKey = "MOB:" .. tostring(model.Name),
 										disableDiminishing = true
 									})
 								end
@@ -1143,7 +1166,30 @@ local function handleUseSkill(player: Player, payload: any)
 	if not itemData or itemData.runeType ~= "ACTIVE" then
 		return { success = false, errorCode = "INVALID_SKILL" }
 	end
-	
+
+	-- [오버그로스 버스트] 지면에서 나무가 솟아오르는 연출이라, 나무/바위 등 지형지물 위에 올라탄 상태에서는 사용 불가
+	if baseItemId == "OVERGROWTH" then
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local rayParams = RaycastParams.new()
+			rayParams.FilterType = Enum.RaycastFilterType.Exclude
+			rayParams.FilterDescendantsInstances = { char }
+			local rayResult = workspace:Raycast(hrp.Position, Vector3.new(0, -10, 0), rayParams)
+			if rayResult then
+				local anc = rayResult.Instance
+				for _ = 1, 6 do
+					if not anc or anc == workspace then break end
+					local n = anc.Name:lower()
+					if n:find("tree") or n:find("rock") then
+						return { success = false, errorCode = "INVALID_GROUND" }
+					end
+					anc = anc.Parent
+				end
+			end
+		end
+	end
+
 	-- 3. 쿨다운 확인
 	local now = tick()
 	if not skillCooldowns[userId] then skillCooldowns[userId] = {} end

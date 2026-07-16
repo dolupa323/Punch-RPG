@@ -110,7 +110,19 @@ end
 --- 튜토리얼 라인(레벨 20 미만) 구간은 Balance.TUTORIAL_XP_DISCOUNT를 적용해 할인됨.
 --- totalXPTable 사전 계산과 _getXPForNextLevel(진행바 표시)이 반드시 이 함수 하나만
 --- 공유해야 두 값이 어긋나지 않음.
+-- [만렙 100 확장] 50레벨까지는 기존 지수 곡선(XP_SCALING^n)을 그대로 유지한다.
+-- 이 지수 곡선을 50레벨 너머까지 그대로 이어가면 레벨 99->100 한 구간에만 수십억 XP가
+-- 필요해져 사실상 도달 불가능해지므로, 50레벨 시점의 요구량을 기준선으로 고정하고
+-- 그 이후로는 완만한 선형 증가(레벨당 기준선의 +10%)로 전환한다.
+local SOFT_CAP_LEVEL = 50
+local POST_CAP_LINEAR_STEP = 0.10 -- 50레벨 이후 레벨당 기준선 대비 증가율
+
 local function _computeLevelXPRequirement(level: number): number
+	if level >= SOFT_CAP_LEVEL then
+		local baseline = math.floor(Balance.BASE_XP_PER_LEVEL * (Balance.XP_SCALING ^ (SOFT_CAP_LEVEL - 1)))
+		return math.floor(baseline * (1 + (level - SOFT_CAP_LEVEL) * POST_CAP_LINEAR_STEP))
+	end
+
 	local base = math.floor(Balance.BASE_XP_PER_LEVEL * (Balance.XP_SCALING ^ (level - 1)))
 	if level < (Balance.TUTORIAL_XP_LEVEL_CAP or 0) then
 		base = math.max(1, math.floor(base * (Balance.TUTORIAL_XP_DISCOUNT or 1)))
@@ -313,7 +325,14 @@ function PlayerStatService.grantActionXP(userId: number, baseAmount: number, pay
 	end
 
 	local multiplier = disableDiminishing and 1 or _getActionXPMultiplier(userId, bucketKey)
-	local finalAmount = math.max(1, math.floor(baseAmount * multiplier + 0.0001))
+
+	-- [몬스터 처치 경험치 랜덤화] 슬라임~포세이돈까지 모든 몬스터 처치 경험치가 고정값이 아니라
+	-- 기준치 대비 ±15% 범위로 랜덤 지급되도록 변동폭을 적용한다 (몬스터 처치 출처에만 한정,
+	-- 제작/건축/퀘스트 등 다른 경험치 출처는 그대로 고정값 유지).
+	local isCreatureKill = source == "CREATURE_KILL" or source == "RUNE_AURA_KILL"
+	local varianceFactor = isCreatureKill and (math.random(85, 115) / 100) or 1
+
+	local finalAmount = math.max(1, math.floor(baseAmount * varianceFactor * multiplier + 0.0001))
 	local leveledUp, level = PlayerStatService.addXP(userId, finalAmount, source)
 	return leveledUp, level, finalAmount
 end

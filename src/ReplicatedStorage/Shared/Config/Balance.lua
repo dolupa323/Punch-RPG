@@ -95,7 +95,9 @@ Balance.CRAFT_CANCEL_REFUND = 1.0      -- 취소 시 재료 환불 비율 (1.0 =
 --========================================
 -- 플레이어 레벨 & 경험치 (Phase 6)
 --========================================
-Balance.PLAYER_MAX_LEVEL = 50          -- 최대 레벨
+Balance.PLAYER_MAX_LEVEL = 100         -- 최대 레벨 (50->100 확장. 50레벨 이후 곡선은 PlayerStatService의
+                                        -- _computeLevelXPRequirement 참고 - 지수 증가를 그대로 이어가면
+                                        -- 폭증하므로 50레벨 이후는 완만한 선형 증가로 전환됨)
 Balance.BASE_XP_PER_LEVEL = 100        -- 레벨 1→2 필요 XP
 Balance.XP_SCALING = 1.2               -- 레벨당 필요 XP 증가율
 Balance.STAT_POINTS_PER_LEVEL = 3      -- 레벨업당 스탯 포인트 지급

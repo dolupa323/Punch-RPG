@@ -162,6 +162,12 @@ local function playZoneBGM(zoneName: string?)
 end
 
 local function refreshZoneBGM()
+	-- 로딩/타이틀 화면 동안에는 LoadingScreen.client.lua가 보스 브금을 직접 재생하므로
+	-- 마을 브금이 미리 새어 나오지 않도록 존 브금 갱신을 건너뛴다.
+	if Players.LocalPlayer:GetAttribute("LoadingScreenActive") then
+		return
+	end
+
 	local character = Players.LocalPlayer.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not hrp then

@@ -63,7 +63,7 @@ local function setupNPC(npc, objectText, actionText, isReturn)
 				isReturn = true,
 				canTravel = true,
 				npcName = "지상 인도자",
-				dialogue = "지상으로 돌아가시겠습니까?\n청운촌 입구 앞에 내려드리겠습니다.",
+				dialogue = "지상으로 돌아가시겠습니까?\n아르하임 입구 앞에 내려드리겠습니다.",
 				confirmText = "예, 돌아가겠습니다.",
 				declineText = "아직 괜찮습니다.",
 			})
@@ -173,7 +173,7 @@ local function handleTeleportRequest(player: Player, payload: any)
 	end
 
 	local targetPos = getTeleportPosition(isReturn)
-	local destName = isReturn and "지상(청운촌)" or "하늘섬"
+	local destName = isReturn and "지상(아르하임)" or "하늘섬"
 	
 	-- 1. 화면 페이드 연출 전파 (포탈의 훌륭한 로딩 트랜지션 연출 재사용)
 	if NetController then

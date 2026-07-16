@@ -1194,6 +1194,268 @@ local function playRockSmashEffect(pos: Vector3, radius: number)
 	Debris:AddItem(shockwave, 0.5)
 end
 
+-- 신성한 황금빛 충격 이펙트 (천검강하 낙하용 - playRockSmashEffect는 초록 슬라임 전용이라 재사용하지 않음)
+local function playStoneImpactEffect(pos: Vector3, radius: number)
+	local Debris = game:GetService("Debris")
+
+	-- 1. 바닥에 남는 황금빛 크레이터 링
+	local crater = Instance.new("Part")
+	crater.Name = "StoneCrater"
+	crater.Shape = Enum.PartType.Cylinder
+	crater.Size = Vector3.new(0.2, radius * 1.5, radius * 1.5)
+	crater.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	crater.Anchored = true
+	crater.CanCollide = false
+	crater.CastShadow = false
+	crater.Material = Enum.Material.Neon
+	crater.Color = Color3.fromRGB(255, 210, 110)
+	crater.Parent = workspace
+	TweenService:Create(crater, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+	Debris:AddItem(crater, 2.0)
+
+	-- 2. 황금 돌 파편 튀기기 (실제 물리 파츠)
+	for _ = 1, 10 do
+		local rock = Instance.new("Part")
+		rock.Shape = Enum.PartType.Ball
+		rock.Size = Vector3.new(1, 1, 1) * math.random(8, 16) / 10
+		rock.Position = pos + Vector3.new(math.random(-2, 2), 1, math.random(-2, 2))
+		rock.Material = Enum.Material.Neon
+		rock.Color = Color3.fromRGB(math.random(230, 255), math.random(195, 225), math.random(110, 160))
+		rock.CanCollide = false
+		rock.Anchored = false
+		rock.Parent = workspace
+
+		local angle = math.random() * math.pi * 2
+		local speed = math.random(20, 40)
+		rock.AssemblyLinearVelocity = Vector3.new(math.cos(angle) * speed, math.random(25, 45), math.sin(angle) * speed)
+		rock.AssemblyAngularVelocity = Vector3.new(math.random(-15, 15), math.random(-15, 15), math.random(-15, 15))
+
+		TweenService:Create(rock, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
+		Debris:AddItem(rock, 1.2)
+	end
+
+	-- 3. 흰 빛 가루 + 황금 스파클
+	local dustPart = Instance.new("Part")
+	dustPart.Size = Vector3.new(1, 1, 1)
+	dustPart.Position = pos
+	dustPart.Anchored = true
+	dustPart.CanCollide = false
+	dustPart.Transparency = 1
+	dustPart.Parent = workspace
+
+	local dust = Instance.new("ParticleEmitter")
+	dust.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	dust.Color = ColorSequence.new(Color3.fromRGB(255, 250, 235), Color3.fromRGB(255, 205, 110))
+	dust.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 2.5), NumberSequenceKeypoint.new(1, 0)})
+	dust.Transparency = NumberSequence.new(0.35, 1)
+	dust.Lifetime = NumberRange.new(0.6, 1.0)
+	dust.Rate = 60
+	dust.Speed = NumberRange.new(6, 16)
+	dust.SpreadAngle = Vector2.new(90, 90)
+	dust.Parent = dustPart
+
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Color = ColorSequence.new(Color3.fromRGB(255, 245, 200))
+	sparkle.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 0)})
+	sparkle.Transparency = NumberSequence.new(0.1, 1)
+	sparkle.Lifetime = NumberRange.new(0.5, 0.9)
+	sparkle.Rate = 40
+	sparkle.Speed = NumberRange.new(10, 22)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.LightEmission = 1
+	sparkle.Parent = dustPart
+
+	Debris:AddItem(dustPart, 2.0)
+	task.delay(0.3, function()
+		if dust then dust.Enabled = false end
+		if sparkle then sparkle.Enabled = false end
+	end)
+
+	-- 4. 확산되는 황금 충격파 고리 (이중 - 안쪽은 순백색으로 화사하게)
+	local shockwave = Instance.new("Part")
+	shockwave.Name = "StoneShockwave"
+	shockwave.Shape = Enum.PartType.Cylinder
+	shockwave.Size = Vector3.new(0.5, 1, 1)
+	shockwave.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	shockwave.Anchored = true
+	shockwave.CanCollide = false
+	shockwave.CastShadow = false
+	shockwave.Material = Enum.Material.Neon
+	shockwave.Color = Color3.fromRGB(255, 215, 130)
+	shockwave.Parent = workspace
+	TweenService:Create(shockwave, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.5, radius * 2, radius * 2),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(shockwave, 0.5)
+
+	local innerFlash = Instance.new("Part")
+	innerFlash.Name = "StoneShockwaveInner"
+	innerFlash.Shape = Enum.PartType.Cylinder
+	innerFlash.Size = Vector3.new(0.5, 1, 1)
+	innerFlash.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	innerFlash.Anchored = true
+	innerFlash.CanCollide = false
+	innerFlash.CastShadow = false
+	innerFlash.Material = Enum.Material.Neon
+	innerFlash.Color = Color3.fromRGB(255, 250, 240)
+	innerFlash.Parent = workspace
+	TweenService:Create(innerFlash, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.5, radius * 1.1, radius * 1.1),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(innerFlash, 0.4)
+end
+
+-- 천검강하: 목표 지점 주변에 거대한 검(Assets.VFX."big sword") 4자루가 하늘에서
+-- 각기 다른 각도로 엇갈려 떨어져 내리꽂히고, 착지마다 돌먼지 충격파가 터지는 광역기
+-- (유령기사 거인 드롭 스킬. SLIMESHOT의 CFrameValue+Tween 낙하 연출과 동일한 기법 사용)
+local function playSwordFallEffect(hrp: BasePart, targetCFrame: CFrame, char: Instance)
+	local Debris = game:GetService("Debris")
+
+	local swordTemplate = ReplicatedStorage:FindFirstChild("Assets")
+		and ReplicatedStorage.Assets:FindFirstChild("VFX")
+		and ReplicatedStorage.Assets.VFX:FindFirstChild("big sword")
+	if not swordTemplate then
+		warn("[VFX INFO] 'big sword' not found in Assets.VFX")
+		return
+	end
+
+	local aimDir = targetCFrame.LookVector
+	local flatAimDir = Vector3.new(aimDir.X, 0, aimDir.Z)
+	if flatAimDir.Magnitude < 0.01 then flatAimDir = Vector3.new(0, 0, -1) else flatAimDir = flatAimDir.Unit end
+	local castDistance = 13 -- SkillService.lua의 SWORDFALL hitPos 기본 거리(15)와 근접하게 맞춤
+	local centerTarget = Vector3.new(hrp.Position.X, hrp.Position.Y, hrp.Position.Z) + flatAimDir * castDistance
+
+	-- "big sword" 에셋은 원본 배치 기준 Orientation=(90,0,0)일 때 칼끝이 위(+Y)를 향하므로,
+	-- 칼끝이 아래로 향하도록 반대(-90)로 보정한 것을 기본 자세로 삼는다.
+	local BLADE_DOWN_BASE = CFrame.Angles(math.rad(-90), 0, 0)
+
+	local SWORD_COUNT = 4
+	local DROP_HEIGHT = 55
+	local FALL_DURATION = 0.45
+
+	for i = 1, SWORD_COUNT do
+		task.spawn(function(swordIndex)
+			task.wait((swordIndex - 1) * 0.08) -- 4자루가 약간씩 엇갈려 떨어지도록
+
+			local angle = math.rad((swordIndex - 1) * 90 + 45)
+			local ringOffset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * math.random(4, 9)
+			local landXZ = centerTarget + ringOffset
+
+			local rayParams = RaycastParams.new()
+			rayParams.FilterType = Enum.RaycastFilterType.Exclude
+			rayParams.FilterDescendantsInstances = getGroundRayExcludes(char)
+			local rayResult = workspace:Raycast(landXZ + Vector3.new(0, 50, 0), Vector3.new(0, -150, 0), rayParams)
+			local groundY = rayResult and rayResult.Position.Y or hrp.Position.Y
+			local landPos = Vector3.new(landXZ.X, groundY, landXZ.Z)
+
+			local sword = swordTemplate:Clone()
+			sword.Name = "SwordFallVFX"
+			if sword:IsA("BasePart") then
+				sword.Anchored = true
+				sword.CanCollide = false
+				sword.CanQuery = false
+				sword.CanTouch = false
+				sword.Size = sword.Size * 3.2 -- [요청반영] 원본이 너무 작아서 크게 확대
+			end
+			for _, d in ipairs(sword:GetDescendants()) do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+					d.CanCollide = false
+					d.CanQuery = false
+					d.CanTouch = false
+				end
+			end
+
+			-- [요청반영] 검마다 방향이 엇갈리도록 확실히 눈에 띄는 랜덤 기울기 부여
+			-- (IceBladePillar와 동일한 "랜덤 축으로 기울인 뒤 원위치로 되돌리기" 기법)
+			local yaw = math.random() * math.pi * 2
+			local leanAngle = math.rad(math.random(15, 35))
+			local leanAxisAngle = math.random() * math.pi * 2
+			local landCFrame = CFrame.new(landPos + Vector3.new(0, -1.5, 0))
+				* CFrame.Angles(0, yaw, 0)
+				* CFrame.Angles(0, 0, leanAxisAngle)
+				* CFrame.Angles(leanAngle, 0, 0)
+				* CFrame.Angles(0, 0, -leanAxisAngle)
+				* BLADE_DOWN_BASE
+			-- [요청반영] 검이 옆에서 날아오던 버그 수정: landCFrame 기준 로컬 Y로 띄우면 회전(기울기)
+			-- 방향으로 오프셋되어 대각선/옆에서 날아오는 것처럼 보였음. 회전은 그대로 유지한 채
+			-- 월드 좌표계의 수직(+Y) 방향으로만 시작 위치를 띄워 항상 "위에서 아래로" 떨어지도록 한다.
+			local landRotationOnly = landCFrame - landCFrame.Position
+			local startCFrame = landRotationOnly + (landCFrame.Position + Vector3.new(0, DROP_HEIGHT, 0))
+
+			sword:PivotTo(startCFrame)
+			sword.Parent = workspace
+
+			-- [요청반영] 화이트+골드 신성한 낙하 연출: 은은한 황금빛 + 낙하 궤적 트레일 + 반짝이는 가루
+			local glowHost = sword:IsA("BasePart") and sword or sword:FindFirstChildWhichIsA("BasePart", true)
+			if glowHost then
+				local light = Instance.new("PointLight")
+				light.Color = Color3.fromRGB(255, 220, 160)
+				light.Range = 18
+				light.Brightness = 4
+				light.Parent = glowHost
+
+				local topAttach = Instance.new("Attachment")
+				topAttach.Position = Vector3.new(0, glowHost.Size.Y / 2, 0)
+				topAttach.Parent = glowHost
+				local bottomAttach = Instance.new("Attachment")
+				bottomAttach.Position = Vector3.new(0, -glowHost.Size.Y / 2, 0)
+				bottomAttach.Parent = glowHost
+
+				local trail = Instance.new("Trail")
+				trail.Attachment0 = topAttach
+				trail.Attachment1 = bottomAttach
+				trail.Color = ColorSequence.new(Color3.fromRGB(255, 245, 220), Color3.fromRGB(255, 195, 90))
+				trail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+				trail.Lifetime = 0.35
+				trail.WidthScale = NumberSequence.new(1, 0.2)
+				trail.Parent = glowHost
+
+				local sparkleTrail = Instance.new("ParticleEmitter")
+				sparkleTrail.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+				sparkleTrail.Color = ColorSequence.new(Color3.fromRGB(255, 240, 190))
+				sparkleTrail.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0)})
+				sparkleTrail.Transparency = NumberSequence.new(0.2, 1)
+				sparkleTrail.Lifetime = NumberRange.new(0.3, 0.5)
+				sparkleTrail.Rate = 45
+				sparkleTrail.Speed = NumberRange.new(1, 3)
+				sparkleTrail.LightEmission = 1
+				sparkleTrail.Parent = glowHost
+
+				task.delay(FALL_DURATION + 0.15, function()
+					sparkleTrail.Enabled = false
+					trail.Enabled = false
+				end)
+			end
+
+			local cfProxy = Instance.new("CFrameValue")
+			cfProxy.Value = startCFrame
+			local fallConn
+			fallConn = cfProxy.Changed:Connect(function(val)
+				if sword and sword.Parent then
+					sword:PivotTo(val)
+				end
+			end)
+
+			local fallTween = TweenService:Create(cfProxy, TweenInfo.new(FALL_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Value = landCFrame,
+			})
+			fallTween:Play()
+			fallTween.Completed:Once(function()
+				fallConn:Disconnect()
+				cfProxy:Destroy()
+
+				playStoneImpactEffect(landPos, 5) -- 개별 착지 충격파 (검 1자루당)
+
+				Debris:AddItem(sword, 2.0) -- 잠시 꽂혀있다가 정리
+			end)
+		end, i)
+	end
+end
+
 -- 오버그로스 버스트: 목표 지점에 마법진(회전하는 이중 링)이 그려진 뒤,
 -- 그 안에서 나무 3그루가 대각선으로 기울어진 채 솟아올라 공격하고 다시 가라앉음
 local function playOvergrowthBurstEffect(hrp: BasePart, targetCFrame: CFrame, char: Instance)
@@ -1839,6 +2101,138 @@ local function playBlazeEffect(hrp: BasePart, targetCFrame: CFrame)
 	end
 end
 
+-- 청염구: 요청받은 VFX만 그대로 사용 - FireBall 5개가 플레이어 중심으로 운석처럼 하늘에서 떨어지고,
+-- 각자 착지하는 순간 BlueFire가 연속으로 터진다.
+-- [요청반영] 조준 방향과 무관하게 캐릭터 자신을 중심으로 퍼지는, 여태 스킬 중 가장 넓은 범위(반경 24)의 광역기
+-- (푸른 불꽃 기사 드롭 스킬. 추가 장식 없이 두 에셋 원본 그대로 재생)
+local function playBlueFireballEffect(hrp: BasePart, targetCFrame: CFrame)
+	local Debris = game:GetService("Debris")
+
+	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+	local vfxRoot = assetsFolder and assetsFolder:FindFirstChild("VFX")
+
+	local fireballTemplate = vfxRoot and vfxRoot:FindFirstChild("FireBall")
+	local blastTemplate = vfxRoot and vfxRoot:FindFirstChild("BlueFire")
+	if not fireballTemplate then
+		warn("[BlueFireballEffect] Assets/VFX/FireBall 파트를 찾을 수 없습니다.")
+		return
+	end
+	if not blastTemplate then
+		warn("[BlueFireballEffect] Assets/VFX/BlueFire 파트를 찾을 수 없습니다.")
+		return
+	end
+
+	-- 플레이어 자신을 중심으로 판정하므로(SkillService.lua hitPos와 동일하게 3으로 맞춤) 조준 방향은
+	-- 운석이 퍼지는 배치 각도의 기준으로만 사용한다.
+	local look = targetCFrame.LookVector
+	local flatLook = Vector3.new(look.X, 0, look.Z)
+	flatLook = (flatLook.Magnitude > 0.01) and flatLook.Unit or hrp.CFrame.LookVector
+	local centerPos = hrp.Position + flatLook * 3
+
+	local METEOR_COUNT = 5
+	local DROP_HEIGHT = 32          -- [요청반영] 낙하 시작 높이를 낮춰서 체공 시간 대비 궤적이 더 잘 보이도록
+	local FALL_DURATION = 1.3       -- [요청반영] 0.4초는 너무 빨라서 안 보임 -> 훨씬 느리게, 파티클이 유지되며 떨어지는 게 보이도록
+	local APPROACH_DIST = 18        -- 착지 지점 기준으로 사방 랜덤 방향에서 대각선으로 날아오는 수평 거리
+	local STAGGER = 0.15            -- 운석 5개가 약간씩 엇갈려 떨어지도록
+	local SPREAD_RADIUS = 22        -- SkillService.lua의 BLUEFIREBALL 판정 반경(24)에 맞춘 넓은 확산
+
+	for i = 1, METEOR_COUNT do
+		task.spawn(function(meteorIndex)
+			task.wait((meteorIndex - 1) * STAGGER)
+
+			local angle = math.rad((meteorIndex - 1) * 72 + math.random(-15, 15))
+			local ringOffset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * ((meteorIndex == 1) and 0 or math.random(9, SPREAD_RADIUS))
+			local landPos = centerPos + ringOffset
+
+			-- [요청반영] 전부 정확히 위에서만 떨어지지 않고, 각자 랜덤한 방위에서 대각선으로 날아와
+			-- "사방에서 떨어지는" 느낌이 나도록 착지 지점 기준 무작위 방향에서 출발시킨다.
+			local incomingAngle = math.random() * math.pi * 2
+			local incomingDir = Vector3.new(math.cos(incomingAngle), 0, math.sin(incomingAngle))
+			local startPos = landPos + incomingDir * APPROACH_DIST + Vector3.new(0, DROP_HEIGHT, 0)
+
+			-- [버그수정] 착지 시점 목표 CFrame을 CFrame.lookAt(landPos, landPos + incomingDir)로 잡았더니
+			-- incomingDir이 수평 벡터(Y=0)라 낙하 막바지에 운석이 옆을 보도록 회전해버리는 문제가 있었다.
+			-- 운석처럼 보이려면 낙하 내내 "진행 방향(대각선 아래)"을 계속 바라봐야 하므로,
+			-- 회전은 시작~끝 내내 고정하고 위치만 이동시킨다.
+			local travelVec = landPos - startPos
+			local travelDir = (travelVec.Magnitude > 0.01) and travelVec.Unit or Vector3.new(0, -1, 0)
+			local fixedRotation = CFrame.lookAt(Vector3.new(), travelDir) -- 위치는 원점 고정, 회전값만 사용
+
+			-- 1. FireBall이 운석처럼 대각선으로 날아와 떨어짐 (화려한 장식을 원하면 이 운석 파트 자체에 붙일 것)
+			local ball = fireballTemplate:Clone()
+			ball.Name = "BlueFireballMeteor"
+			ball.Anchored = true
+			ball.CanCollide = false
+			ball.CanQuery = false
+			ball.CanTouch = false
+			ball.CastShadow = false
+			ball.CFrame = fixedRotation + startPos
+			ball.Parent = workspace
+
+			local posProxy = Instance.new("CFrameValue")
+			posProxy.Value = ball.CFrame
+			local fallConn
+			fallConn = posProxy.Changed:Connect(function(val)
+				if ball and ball.Parent then
+					ball.CFrame = val
+				end
+			end)
+			local fallTween = TweenService:Create(posProxy, TweenInfo.new(FALL_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Value = fixedRotation + landPos,
+			})
+			fallTween:Play()
+			fallTween.Completed:Once(function()
+				fallConn:Disconnect()
+				posProxy:Destroy()
+				if ball and ball.Parent then ball:Destroy() end
+
+				-- 2. 착지하는 순간 BlueFire가 더 크고 진하게 터짐
+				local blast = blastTemplate:Clone()
+				blast.Name = "BlueFireBlast"
+				blast.Transparency = 1 -- [요청반영] 본체 파트가 반투명(0.75)으로 남아 "이상한 잔상"처럼 보이던 문제 제거
+				for _, d in ipairs(blast:GetDescendants()) do
+					if d:IsA("BasePart") then
+						d.Anchored = true
+						d.CanCollide = false
+						d.CanQuery = false
+						d.CanTouch = false
+						d.Transparency = 1
+					end
+				end
+				blast.CFrame = CFrame.new(landPos)
+				blast.Parent = workspace
+
+				-- [버그수정] 모든 파티클(연기 계열 포함)에 35~55개씩 강제 Emit를 했더니, 원래 소량만
+				-- 나오도록 설계된 연기(Smoke/Ash/Specks) 파티클까지 잔뜩 뿜어져 나와 뿌옇게 오래 남는
+				-- "잔상"처럼 보였다. 불꽃(Fire) 계열만 화려하게 많이 뿜고, 연기 계열은 소량만 짧게 유지한다.
+				for _, desc in ipairs(blast:GetDescendants()) do
+					if desc:IsA("ParticleEmitter") then
+						local n = string.lower(desc.Name)
+						local isSmoke = string.find(n, "smoke") or string.find(n, "ash") or string.find(n, "speck")
+						if isSmoke then
+							-- [버그수정] SmokeDark1 원본 Lifetime이 2~4초로 설정돼 있어서, 개수를 줄여도
+							-- 개별 연기 입자가 몇 초씩 화면에 남아 "잔상"처럼 보였다. 이 인스턴스에서만
+							-- 수명 자체를 짧게 덮어써서 불꽃과 비슷한 속도로 사라지게 한다.
+							desc.Lifetime = NumberRange.new(0.3, 0.5)
+							desc:Emit(math.random(4, 8))
+							task.delay(0.2, function()
+								if desc and desc.Parent then desc.Enabled = false end
+							end)
+						else
+							desc:Emit(math.random(35, 55))
+							task.delay(0.7, function()
+								if desc and desc.Parent then desc.Enabled = false end
+							end)
+						end
+					end
+				end
+
+				Debris:AddItem(blast, 1.6) -- 파티클이 끊긴 뒤 잔여 수명만큼만 유지하고 바로 정리해 잔상 방지
+			end)
+		end, i)
+	end
+end
+
 function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFrame: CFrame)
 	local char = hrp.Parent
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -1908,6 +2302,12 @@ function AvatarController.playSkillCast(itemId: string, hrp: BasePart, targetCFr
 	elseif assetKey == "BLAZE" then
 		-- 폭염참: 전방에 붉은 검기 1회 → 그 자리에서 Blast-Explosion-02 폭발 (파이어맨 드롭 스킬)
 		task.spawn(playBlazeEffect, hrp, targetCFrame)
+	elseif assetKey == "SWORDFALL" then
+		-- 천검강하: 목표 지점 주변에 거대한 검 4자루가 하늘에서 내리꽂히는 광역기 (유령기사 거인 드롭 스킬)
+		task.spawn(playSwordFallEffect, hrp, targetCFrame, char)
+	elseif assetKey == "BLUEFIREBALL" then
+		-- 청염구: 푸른 화염구 발사 → 명중 지점에서 BlueFire 연속 폭발 (푸른 불꽃 기사 드롭 스킬)
+		task.spawn(playBlueFireballEffect, hrp, targetCFrame)
 	elseif not isAuraRune then
 		local castVFXFolder = getElementVFXFolder("Cast")
 		if castVFXFolder then

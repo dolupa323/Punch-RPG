@@ -718,11 +718,6 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	end)
 	HUDUI.Refs.TradeTabButton = tradeBtn
 
-	HUDUI.Refs.LeaderboardTabButton = mkMenuCell("BtnRanking", UIManager.getItemIcon("Icon_Leaderboard"), "랭킹", 7, function()
-		print("[HUDUI] LeaderboardTabButton Clicked! calling UIManager.toggleLeaderboard")
-		if UIManager.toggleLeaderboard then UIManager.toggleLeaderboard() end
-	end)
-
 	local tradeLockOverlay = Instance.new("Frame")
 	tradeLockOverlay.Name = "LockOverlay"
 	tradeLockOverlay.Size = UDim2.new(1, 0, 1, 0)

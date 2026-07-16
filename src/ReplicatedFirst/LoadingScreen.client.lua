@@ -6,6 +6,8 @@ local ContentProvider = game:GetService("ContentProvider")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local ContextActionService = game:GetService("ContextActionService")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- 로블록스 기본 로딩 스크린 비활성화
 ReplicatedFirst:RemoveDefaultLoadingScreen()
@@ -14,6 +16,58 @@ local LOGO_ASSET_ID = "rbxassetid://131503705327117"
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui", 30)
+
+--=========================================
+-- 로딩/타이틀 화면 전용 보스 브금
+-- (마을 브금이 캐릭터 로드 시점에 새어 나오는 것을 막기 위해
+--  BGMController에는 LoadingScreenActive 속성으로 대기시키고, 여기서 별도 재생한다)
+--=========================================
+player:SetAttribute("LoadingScreenActive", true)
+
+local loadingBGM = nil
+task.spawn(function()
+	-- [버그수정] Assets 폴더 자체는 존재해도 그 하위(Sounds/BGM/BOSS_BGM)는 아직 스트리밍
+	-- 중일 수 있어, 일회성 FindFirstChild(recursive)로는 로딩 극초반에 못 찾는 경우가 있었다.
+	-- 각 단계를 WaitForChild로 실제로 기다리도록 수정.
+	local source = SoundService:FindFirstChild("BOSS_BGM")
+	if not source then
+		local ok, result = pcall(function()
+			local assets = ReplicatedStorage:WaitForChild("Assets", 10)
+			local sounds = assets:WaitForChild("Sounds", 10)
+			local bgm = sounds:WaitForChild("BGM", 10)
+			return bgm:WaitForChild("BOSS_BGM", 10)
+		end)
+		if ok then
+			source = result
+		end
+	end
+	if not source then
+		warn("[LoadingScreen] BOSS_BGM asset not found")
+		return
+	end
+
+	loadingBGM = Instance.new("Sound")
+	loadingBGM.Name = "LoadingScreenBGM"
+	loadingBGM.SoundId = source.SoundId
+	loadingBGM.Volume = source.Volume or 0.5
+	loadingBGM.Looped = true
+	loadingBGM.Parent = SoundService
+	loadingBGM:Play()
+end)
+
+local function stopLoadingBGMAndHandOff()
+	player:SetAttribute("LoadingScreenActive", false)
+	if loadingBGM then
+		local sound = loadingBGM
+		loadingBGM = nil
+		task.spawn(function()
+			local fadeOut = TweenService:Create(sound, TweenInfo.new(0.8, Enum.EasingStyle.Sine), { Volume = 0 })
+			fadeOut:Play()
+			fadeOut.Completed:Wait()
+			sound:Destroy()
+		end)
+	end
+end
 
 --=========================================
 -- UI 생성 헬퍼 함수
@@ -522,7 +576,10 @@ invisibleStartButton.Activated:Connect(function()
 	-- 클릭 시 텍스트 즉시 반응
 	touchToStartText.TextTransparency = 0
 	touchStroke.Transparency = 0
-	
+
+	-- 접속 완료: 보스 브금 정지하고 마을(존) 브금으로 정상 전환
+	stopLoadingBGMAndHandOff()
+
 	-- 화면 암전 혹은 페이드 아웃
 	local blackFrame = create("Frame", {
 		Name = "FadeFrame",

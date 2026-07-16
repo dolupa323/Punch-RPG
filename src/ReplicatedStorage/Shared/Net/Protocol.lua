@@ -214,6 +214,7 @@ Protocol.Commands = {
 	["WorldPortal.Teleport.Request"] = true,
 	["WorldPortal.OpenUI"] = true,         -- S→C: 마을 포탈 UI 오픈
 	["WorldPortal.Registered"] = true,     -- S→C: 등록 성공 알림
+
 	["SkyIsland.Teleport.Request"] = true,
 	["Trainer.QuestAction.Request"] = true,
 	["Trainer.GetIndicator.Request"] = true,

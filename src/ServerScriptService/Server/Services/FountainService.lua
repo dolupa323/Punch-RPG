@@ -244,7 +244,7 @@ local function handleReturnRequest(player, _payload)
 
 	-- 1. 페이드아웃 + 로딩화면
 	if NetController then
-		NetController.FireClient(player, "Portal.Teleporting", { destination = "청운촌" })
+		NetController.FireClient(player, "Portal.Teleporting", { destination = "아르하임" })
 	end
 
 	task.defer(function()

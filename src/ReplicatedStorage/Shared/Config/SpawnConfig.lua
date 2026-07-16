@@ -16,8 +16,8 @@ local ZONES = {
 		max = Vector2.new(162.5, 543.238),
 		minY = 170,  -- 지하 수중도시와 분리
 		spawnPoint = Vector3.new(0, 245, 309),
-		displayName = "청운촌",
-		subName = "CHEONGUN VILLAGE",
+		displayName = "아르하임",
+		subName = "ARHEIM VILLAGE",
 		priority = 10, -- 최우선 순위: 슬라임 서식지 내부에 위치하므로 먼저 판정되어야 함
 	},
 	UNDERWATER_CITY = {
