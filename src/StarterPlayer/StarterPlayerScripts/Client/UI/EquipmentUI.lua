@@ -207,28 +207,49 @@ function EquipmentUI.Init(parent, UIManager, Enums, isMobile)
 		-- 스텟 라인 크기 비율화 (배경 제거)
 		local line = Utils.mkFrame({size=UDim2.new(1, 0, 0, 60), bgT=1, parent=statsScroll})
 		Utils.mkLabel({text=UILocalizer.Localize(s.name), size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0,10,0,0), ts=20, ax=Enum.TextXAlignment.Left, parent=line})
-		local val = Utils.mkLabel({text="0", size=UDim2.new(0.4,0,1,0), pos=UDim2.new(0.8,-40,0,0), anchor=Vector2.new(1,0), ts=21, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=line})
-		
+
+		-- [버그수정] "+"/"MAX" 버튼이 차지하는 폭만큼 값 라벨의 오른쪽 경계를 좁아지게 해서,
+		-- 좁은 모바일 화면에서 값 숫자가 버튼 뒤에 가려지지 않도록 함(버튼 폭에 맞춰 동적 계산).
+		local bSize = isSmall and 50 or 44
+		local maxBtnW = isSmall and 46 or 40
+		local buttonZoneW = s.up and (10 + bSize + 6 + maxBtnW + 8) or 10
+		local val = Utils.mkLabel({text="0", size=UDim2.new(0.4,0,1,0), pos=UDim2.new(1,-buttonZoneW,0,0), anchor=Vector2.new(1,0), ts=21, font=F.NUM, ax=Enum.TextXAlignment.Right, parent=line})
+
 		-- 강화 버튼: 필요한 스탯에만 노출
 		local btn = nil
 		if s.up then
-			local bSize = isSmall and 50 or 44
 			btn = Utils.mkBtn({
-				text="+", 
+				text="+",
 				size=UDim2.new(0, bSize, 0.8, 0), -- 가로 오프셋 고정, 세로 비율 유지
-				pos=UDim2.new(1, -10, 0.5, 0), 
-				anchor=Vector2.new(1, 0.5), 
-				bg=C.GOLD_SEL, 
-				ts=isSmall and 30 or 26, 
-				font=F.NUM, 
+				pos=UDim2.new(1, -10, 0.5, 0),
+				anchor=Vector2.new(1, 0.5),
+				bg=C.GOLD_SEL,
+				ts=isSmall and 30 or 26,
+				font=F.NUM,
 				parent=line
 			})
-			
+
 			-- 텍스트가 잘리지 않도록 설정
 			btn.TextScaled = false
 			btn.TextWrapped = false
-	
+
 			btn.MouseButton1Click:Connect(function() UIManager.addPendingStat(s.id) end)
+
+			-- [추가] 남은 포인트를 전부 몰아서 투자하는 "MAX" 버튼 - "+"를 여러 번 누르지 않아도 되도록
+			local maxBtn = Utils.mkBtn({
+				text="MAX",
+				size=UDim2.new(0, maxBtnW, 0.65, 0),
+				pos=UDim2.new(1, -10 - bSize - 6, 0.5, 0),
+				anchor=Vector2.new(1, 0.5),
+				bg=C.BTN_GRAY,
+				isNegative=true,
+				ts=isSmall and 13 or 12,
+				font=F.TITLE,
+				parent=line
+			})
+			maxBtn.TextScaled = false
+			maxBtn.TextWrapped = false
+			maxBtn.MouseButton1Click:Connect(function() UIManager.addMaxPendingStat(s.id) end)
 		else
 			-- 강화 불가 스탯은 값 라벨을 오른쪽 끝으로 정렬
 			val.Position = UDim2.new(1, -10, 0, 0)

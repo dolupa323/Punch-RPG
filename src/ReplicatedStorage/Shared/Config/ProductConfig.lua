@@ -10,6 +10,13 @@ local ProductConfig = {
 			gamePassId = 1864732763,
 			iconName = "Icon_Shop",
 		},
+		["1919168387"] = {
+			name = "경험치 2배 패스",
+			description = "몬스터 처치 시 획득하는 경험치가 영구적으로 2배 증가합니다.",
+			rewardType = "GAMEPASS",
+			gamePassId = 1919168387,
+			iconName = "Icon_Shop",
+		},
 		["3602119011"] = {
 			name = "초보자 스타터 팩",
 			description = "일정 레벨 이하에서만 구매할 수 있는 초보자 지원 팩입니다.",
@@ -42,6 +49,14 @@ local ProductConfig = {
 			itemId = "3602118498",
 			amount = 10,
 			iconName = "ProtectScroll_Down",
+		},
+		["3610317647"] = {
+			name = "스텟초기화권",
+			description = "사용 시 투자된 모든 스탯을 초기화하고 사용한 모든 스탯 포인트를 환급해줍니다.",
+			rewardType = "ITEM",
+			itemId = "3587362100",
+			amount = 1,
+			iconName = "RESET_TICKET_STAT",
 		},
 		["3602118281"] = {
 			name = "100Gold",

@@ -271,6 +271,29 @@ function SkillService.grantRuneSkill(userId: number, runeItemId: string, equipme
 	end
 end
 
+--- 스킬북 등 외부 시스템(InventoryService의 아이템 사용 처리 등)에서 스킬을 직접 해금시킬 때 사용.
+-- [버그수정] InventoryService.lua가 SkillService의 런타임 캐시(playerSkillCache)를 거치지 않고
+-- SaveService state.unlockedSkills를 직접 건드리는 바람에, 이후 SkillService 경유로 다시 조회할 때
+-- (스킬창 재조회 등) 캐시가 다른 테이블을 참조하고 있으면 방금 습득한 스킬이 사라져 보이는 문제가 있었음.
+-- 반드시 이 함수를 거쳐서 캐시/세이브/클라이언트 알림을 한 곳에서 일관되게 처리하도록 함.
+function SkillService.unlockSkillById(userId: number, skillId: string): boolean
+	_initPlayerSkills(userId)
+	local cache = playerSkillCache[userId]
+	if not cache or cache.unlockedSkills[skillId] then
+		return false
+	end
+
+	cache.unlockedSkills[skillId] = true
+	_syncToSave(userId)
+
+	local player = game:GetService("Players"):GetPlayerByUserId(userId)
+	if player and NetController then
+		local data = _getClientSkillData(userId)
+		NetController.FireClient(player, "Skill.Data.Updated", data)
+	end
+	return true
+end
+
 --- 룬 해제 시 스킬 회수
 function SkillService.revokeRuneSkill(userId: number, runeItemId: string)
 	_initPlayerSkills(userId)
@@ -1126,6 +1149,28 @@ local function executeSkillEffect(player: Player, itemId: string, payload: any)
 	end
 end
 
+-- [오버그로스 지면 판정용] 나무/바위 등 장식용 지형지물 컨테이너 목록을 1회만 스캔해서 캐싱.
+-- 이름 문자열만으로 "지금 서 있는 파트"를 직접 차단하는 대신, 이 목록을 레이캐스트에서
+-- 제외해 "실제 지면 높이"를 별도로 찾아내고, 두 높이를 비교하는 방식의 보조 데이터로만 쓴다.
+local groundDecorExcludeCache = nil
+local function getGroundDecorExcludes()
+	if groundDecorExcludeCache then
+		return groundDecorExcludeCache
+	end
+	local list = {}
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if inst:IsA("Folder") or inst:IsA("Model") then
+			local n = inst.Name:lower()
+			-- "Bedrock" 같은 정상 지반 이름까지 걸리지 않도록 명시적으로 제외
+			if (n:find("tree") or n:find("rock")) and not n:find("bedrock") then
+				table.insert(list, inst)
+			end
+		end
+	end
+	groundDecorExcludeCache = list
+	return list
+end
+
 --- 스킬 사용 요청 처리
 local function handleUseSkill(player: Player, payload: any)
 	local userId = player.UserId
@@ -1168,23 +1213,36 @@ local function handleUseSkill(player: Player, payload: any)
 	end
 
 	-- [오버그로스 버스트] 지면에서 나무가 솟아오르는 연출이라, 나무/바위 등 지형지물 위에 올라탄 상태에서는 사용 불가
+	-- [설계 변경] 이름 문자열만으로 "서 있는 파트"를 직접 판정하면 "Bedrock"처럼 우연히 이름이 겹치는
+	-- 정상 지형까지 오탐하는 문제가 반복될 수 있다. 대신 실제 지면 높이를 두 갈래로 측정해서 비교한다:
+	-- (A) 지금 서 있는 표면의 실제 높이, (B) 장식용 나무/바위를 무시했을 때의 "진짜 지면" 높이.
+	-- 두 높이가 크게 차이나면(장식물 위에 올라탄 경우) 차단하고, 같으면(진짜 지면) 허용한다.
 	if baseItemId == "OVERGROWTH" then
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		if hrp then
-			local rayParams = RaycastParams.new()
-			rayParams.FilterType = Enum.RaycastFilterType.Exclude
-			rayParams.FilterDescendantsInstances = { char }
-			local rayResult = workspace:Raycast(hrp.Position, Vector3.new(0, -10, 0), rayParams)
-			if rayResult then
-				local anc = rayResult.Instance
-				for _ = 1, 6 do
-					if not anc or anc == workspace then break end
-					local n = anc.Name:lower()
-					if n:find("tree") or n:find("rock") then
+			-- (A) 지금 서 있는 표면
+			local standParams = RaycastParams.new()
+			standParams.FilterType = Enum.RaycastFilterType.Exclude
+			standParams.FilterDescendantsInstances = { char }
+			local standResult = workspace:Raycast(hrp.Position, Vector3.new(0, -10, 0), standParams)
+
+			if standResult then
+				-- (B) 장식용 나무/바위를 제외하고 다시 찾은 "진짜 지면"
+				local groundExcludes = { char }
+				for _, inst in ipairs(getGroundDecorExcludes()) do
+					table.insert(groundExcludes, inst)
+				end
+				local groundParams = RaycastParams.new()
+				groundParams.FilterType = Enum.RaycastFilterType.Exclude
+				groundParams.FilterDescendantsInstances = groundExcludes
+				local groundResult = workspace:Raycast(hrp.Position + Vector3.new(0, 50, 0), Vector3.new(0, -200, 0), groundParams)
+
+				if groundResult then
+					local heightDiff = standResult.Position.Y - groundResult.Position.Y
+					if heightDiff > 4 then -- 장식물 위에 명확히 올라탄 경우만 차단 (오차 허용치 4 스터드)
 						return { success = false, errorCode = "INVALID_GROUND" }
 					end
-					anc = anc.Parent
 				end
 			end
 		end

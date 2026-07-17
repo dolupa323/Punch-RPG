@@ -67,10 +67,13 @@ local function showPortalSelectUI(registered)
 	sg.IgnoreGuiInset = true
 	sg.Parent         = playerGui
 
-	-- 메인 윈도우: 데스크톱=절대 440px 폭, 모바일=95% 상대
+	-- [버그수정] AutomaticSize.Y로 콘텐츠 양만큼 무한정 늘어나던 창이 모바일 화면 높이를
+	-- 넘어가면서 위/아래가 잘리고 X 버튼까지 가려지던 문제. 모바일에서는 화면 비율 기반
+	-- 고정 높이로 전환하고, 내부 스크롤 영역이 남은 공간을 채우도록 해서 항상 화면 안에 들어오게 한다.
+	-- 데스크톱=절대 440px 폭 + 콘텐츠에 맞춰 자동 높이, 모바일=화면 비율 기반 고정 크기
 	local main = Utils.mkWindow({
 		name    = "Main",
-		size    = isMobile and UDim2.new(0.95, 0, 0, 0) or UDim2.new(0, 440, 0, 0),
+		size    = isMobile and UDim2.new(0.95, 0, 0.82, 0) or UDim2.new(0, 440, 0, 0),
 		maxSize = Vector2.new(440, 620),
 		pos     = UDim2.new(0.5, 0, 0.5, 0),
 		anchor  = Vector2.new(0.5, 0.5),
@@ -81,7 +84,9 @@ local function showPortalSelectUI(registered)
 		strokeC = C.BORDER,
 		parent  = sg,
 	})
-	main.AutomaticSize = Enum.AutomaticSize.Y
+	if not isMobile then
+		main.AutomaticSize = Enum.AutomaticSize.Y
+	end
 
 	-- ── 헤더 (CraftingUI: bgT=1, 높이 50) ──
 	local header = Utils.mkFrame({
@@ -117,19 +122,23 @@ local function showPortalSelectUI(registered)
 	})
 
 	-- ── 콘텐츠 영역 (CraftingUI: pos y=55, size h=-65) ──
+	-- 모바일에서는 main이 이미 화면 비율로 고정 높이라, 콘텐츠 영역도 남은 공간을 그대로
+	-- 채우게 해서(1,-65) 스크롤이 그 안에서 알아서 넘치는 부분을 처리하도록 한다.
 	local canvasWrapper = Utils.mkFrame({
 		name   = "CanvasWrap",
-		size   = UDim2.new(1, -20, 0, 0),
+		size   = isMobile and UDim2.new(1, -20, 1, -65) or UDim2.new(1, -20, 0, 0),
 		pos    = UDim2.new(0, 10, 0, 55),
 		bgT    = 1,
 		parent = main,
 	})
-	canvasWrapper.AutomaticSize = Enum.AutomaticSize.Y
+	if not isMobile then
+		canvasWrapper.AutomaticSize = Enum.AutomaticSize.Y
+	end
 
 	-- 스크롤 (CraftingUI 동일 방식)
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name                 = "PortalScroll"
-	scroll.Size                 = UDim2.new(1, 0, 0, math.min(#PORTAL_DEFS * 82 + 16, isMobile and 360 or 420))
+	scroll.Size                 = isMobile and UDim2.new(1, 0, 1, 0) or UDim2.new(1, 0, 0, math.min(#PORTAL_DEFS * 82 + 16, 420))
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel      = 0
 	scroll.ScrollBarThickness   = 4

@@ -587,10 +587,12 @@ function HUDUI.Init(parent, UIManager, InputManager, isMobile)
 	-- Placeholder replaced by Consumable Hotbar
 
 	-- 3. Left Menu Panel (Vertical layout on left edge) - Mobile Responsive Sizes
-	local menuWidth = isMobile and 58 or 72
-	local cellSize = isMobile and 46 or 56
-	local menuHeight = isMobile and 330 or 440
-	local menuPadding = isMobile and 6 or 8
+	-- [버그수정] 모바일 버튼이 데스크톱보다 오히려 더 작게(46<56) 설정돼 있어서 터치하기
+	-- 어려울 정도로 작아 보였음. 터치 타겟은 마우스보다 커야 하므로 데스크톱과 같거나 더 크게 조정.
+	local menuWidth = isMobile and 76 or 72
+	local cellSize = isMobile and 60 or 56
+	local menuHeight = isMobile and 412 or 440
+	local menuPadding = isMobile and 8 or 8
 	local menuY = isMobile and 80 or 100
 	local toggleY = menuY + (menuHeight / 2)
 

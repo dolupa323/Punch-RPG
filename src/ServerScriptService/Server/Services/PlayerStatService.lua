@@ -332,7 +332,16 @@ function PlayerStatService.grantActionXP(userId: number, baseAmount: number, pay
 	local isCreatureKill = source == "CREATURE_KILL" or source == "RUNE_AURA_KILL"
 	local varianceFactor = isCreatureKill and (math.random(85, 115) / 100) or 1
 
-	local finalAmount = math.max(1, math.floor(baseAmount * varianceFactor * multiplier + 0.0001))
+	-- [경험치 2배 패스] 몬스터 처치 경험치에 한해, 패스를 보유한 플레이어의 XPMultiplier 속성(기본 1, 패스 보유 시 2)을 적용
+	local xpPassMultiplier = 1
+	if isCreatureKill then
+		local player = game:GetService("Players"):GetPlayerByUserId(userId)
+		if player then
+			xpPassMultiplier = tonumber(player:GetAttribute("XPMultiplier")) or 1
+		end
+	end
+
+	local finalAmount = math.max(1, math.floor(baseAmount * varianceFactor * multiplier * xpPassMultiplier + 0.0001))
 	local leveledUp, level = PlayerStatService.addXP(userId, finalAmount, source)
 	return leveledUp, level, finalAmount
 end

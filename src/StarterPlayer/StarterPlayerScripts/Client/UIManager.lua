@@ -96,6 +96,9 @@ local WEAPON_CRAFTER_RECIPE_ORDER = {
 	"CraftSoulSword",
 	"CraftSwordOfJustice",
 	"CraftBlueFlameSword",
+	"CraftKrakenSword",
+	"CraftAbyssSword",
+	"CraftPoseidonSword",
 }
 
 local function collectWeaponCrafterRecipes(recipeData)
@@ -705,6 +708,36 @@ function UIManager.addPendingStat(statId)
 	else
 		UIManager.notify("강화 포인트가 부족합니다.", C.RED)
 	end
+end
+
+--- 남은 강화 포인트를 전부 한 스탯에 몰아서 투자 ("+" 버튼을 여러 번 누를 필요 없이 한 번에 올인)
+function UIManager.addMaxPendingStat(statId)
+	local available = (cachedStats and cachedStats.statPointsAvailable or 0)
+	local currentTotalPending = 0
+	for _, v in pairs(pendingStats) do currentTotalPending = currentTotalPending + (v or 0) end
+	local remaining = available - currentTotalPending
+
+	if remaining <= 0 then
+		UIManager.notify("강화 포인트가 부족합니다.", C.RED)
+		return
+	end
+
+	-- 인벤토리 칸 스탯: 120칸 상한을 넘지 않는 선까지만 몰아주기
+	if statId == Enums.StatId.INV_SLOTS then
+		local calc = cachedStats and cachedStats.calculated or {}
+		local currentMaxSlots = calc.maxSlots or Balance.BASE_INV_SLOTS
+		local pendingSlots = (pendingStats[Enums.StatId.INV_SLOTS] or 0) * Balance.SLOTS_PER_POINT
+		local roomSlots = Balance.MAX_INV_SLOTS - currentMaxSlots - pendingSlots
+		local maxPointsForSlots = math.floor(roomSlots / Balance.SLOTS_PER_POINT)
+		remaining = math.min(remaining, maxPointsForSlots)
+		if remaining <= 0 then
+			UIManager.notify("인벤토리 최대 칸수(" .. Balance.MAX_INV_SLOTS .. "칸)에 도달했습니다.", C.RED)
+			return
+		end
+	end
+
+	pendingStats[statId] = (pendingStats[statId] or 0) + remaining
+	UIManager.refreshStats()
 end
 
 function UIManager.cancelPendingStats()
@@ -2926,6 +2959,11 @@ local function setupEventListeners()
 			end
 		end)
 
+		-- 룬스톤 일일보상: 무엇을 받았는지 아이콘+이름+개수로 보여주는 팝업
+		NetClient.On("RuneStone.RewardShown", function(data)
+			UIManager.showRuneStoneReward(data)
+		end)
+
 		-- 무기 장인 대화창 (TrainerController/MagicianController와 동일 컨벤션)
 		NetClient.On("WeaponCrafter.OpenDialogue", function(_data)
 			local playerGui = player:WaitForChild("PlayerGui")
@@ -4614,6 +4652,151 @@ function UIManager.showDropConfirm(params)
 			if params.onConfirm then params.onConfirm() end
 		end,
 		parent = btnWrap
+	})
+end
+
+--========================================
+-- 룬스톤 일일보상 획득 팝업 (지급 즉시 소지품에만 조용히 반영되던 것을,
+-- 무엇을 받았는지 아이콘+이름+개수로 보여주는 UI로 대체)
+--========================================
+function UIManager.showRuneStoneReward(data)
+	-- [색상 통일] 인벤토리/제작/포탈 등 다른 UI와 동일한 네이비+블루 팔레트로 고정
+	-- (Theme.Colors 기본값을 그대로 쓰면 게임 전체 컨벤션과 다른 색이 나옴)
+	local RC = {
+		BG_PANEL = Color3.fromRGB(10, 15, 25),
+		BG_SLOT  = Color3.fromRGB(15, 20, 35),
+		TEXT     = Color3.fromRGB(255, 255, 255),
+		ACCENT   = Color3.fromRGB(40, 80, 160),
+		ACCENT_H = Color3.fromRGB(60, 100, 180),
+		BORDER   = Color3.fromRGB(60, 85, 130),
+	}
+
+	local items = (data and data.items) or {}
+	local gold = (data and data.gold) or 0
+
+	local overlay = Utils.mkFrame({
+		name = "RuneStoneRewardOverlay",
+		size = UDim2.new(1, 0, 1, 0),
+		bg = Color3.fromRGB(0, 0, 0),
+		bgT = 0.5,
+		z = 2000,
+		parent = mainGui
+	})
+
+	-- [모바일 반응형] 고정 픽셀 폭만 쓰면 다른 팝업들과 다르게 모바일에서 비율이 안 맞으므로,
+	-- 인벤토리/포탈 UI와 동일하게 모바일=화면 비율, 데스크톱=절대 폭 컨벤션을 따른다.
+	local win = Utils.mkWindow({
+		name = "RuneStoneRewardWindow",
+		size = isMobile and UDim2.new(0.86, 0, 0, 0) or UDim2.new(0, 360, 0, 0),
+		maxSize = Vector2.new(360, 500),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = RC.BG_PANEL,
+		stroke = 2,
+		strokeC = RC.BORDER,
+		r = 10,
+		parent = overlay
+	})
+	win.AutomaticSize = Enum.AutomaticSize.Y
+
+	Utils.mkLabel({
+		text = UILocalizer.Localize("일일보상 획득!"),
+		size = UDim2.new(1, 0, 0, 44),
+		pos = UDim2.new(0.5, 0, 0, 14),
+		anchor = Vector2.new(0.5, 0),
+		ts = isMobile and 20 or 22,
+		font = Theme.Fonts.TITLE,
+		color = RC.TEXT,
+		parent = win
+	})
+
+	local rowWrap = Utils.mkFrame({
+		name = "RewardRows",
+		size = UDim2.new(1, -40, 0, 0),
+		pos = UDim2.new(0.5, 0, 0, 64),
+		anchor = Vector2.new(0.5, 0),
+		bgT = 1,
+		parent = win
+	})
+	rowWrap.AutomaticSize = Enum.AutomaticSize.Y
+
+	local rowList = Instance.new("UIListLayout")
+	rowList.SortOrder = Enum.SortOrder.LayoutOrder
+	rowList.Padding = UDim.new(0, 8)
+	rowList.Parent = rowWrap
+
+	local rowHeight = isMobile and 62 or 56
+
+	local function addRewardRow(iconImg, label, layoutOrder)
+		local row = Utils.mkFrame({
+			name = "Row",
+			size = UDim2.new(1, 0, 0, rowHeight),
+			bg = RC.BG_SLOT,
+			bgT = 0.15,
+			r = 8,
+			stroke = 1,
+			strokeC = RC.BORDER,
+			parent = rowWrap
+		})
+		row.LayoutOrder = layoutOrder
+
+		if iconImg and iconImg ~= "" then
+			local icon = Instance.new("ImageLabel")
+			icon.BackgroundTransparency = 1
+			icon.Size = UDim2.new(0, 40, 0, 40)
+			icon.Position = UDim2.new(0, 8, 0.5, 0)
+			icon.AnchorPoint = Vector2.new(0, 0.5)
+			icon.Image = iconImg
+			icon.Parent = row
+		end
+
+		Utils.mkLabel({
+			text = label,
+			size = UDim2.new(1, -60, 1, 0),
+			pos = UDim2.new(0, 56, 0, 0),
+			ts = isMobile and 17 or 16,
+			font = Theme.Fonts.TITLE,
+			color = RC.TEXT,
+			ax = Enum.TextXAlignment.Left,
+			parent = row
+		})
+	end
+
+	local order = 1
+	for _, item in ipairs(items) do
+		local itemName = item.name or (DataHelper and DataHelper.GetData("ItemData", item.itemId) and DataHelper.GetData("ItemData", item.itemId).name) or item.itemId
+		local countText = (item.count and item.count > 1) and string.format("%s x%d", itemName, item.count) or itemName
+		addRewardRow(getItemIcon(item.itemId), countText, order)
+		order += 1
+	end
+
+	if gold > 0 then
+		addRewardRow(nil, string.format("골드 +%d", gold), order)
+		order += 1
+	end
+
+	-- [레이아웃] AutomaticSize인 win 하단에 버튼을 절대좌표로 앵커링하면 자동 높이 계산에
+	-- 반영되지 않아 버튼이 콘텐츠와 겹친다. rowWrap의 UIListLayout 흐름 안에 마지막 항목으로
+	-- 넣어서 항상 콘텐츠 바로 아래에 자연스럽게 배치되도록 한다.
+	local btnRow = Utils.mkFrame({
+		name = "ConfirmRow",
+		size = UDim2.new(1, 0, 0, isMobile and 80 or 72),
+		bgT = 1,
+		parent = rowWrap
+	})
+	btnRow.LayoutOrder = order
+
+	Utils.mkBtn({
+		text = UILocalizer.Localize("확인"),
+		size = isMobile and UDim2.new(0, 160, 0, 48) or UDim2.new(0, 140, 0, 40),
+		pos = UDim2.new(0.5, 0, 0.5, 0),
+		anchor = Vector2.new(0.5, 0.5),
+		bg = RC.ACCENT,
+		hbg = RC.ACCENT_H,
+		color = RC.TEXT,
+		ts = isMobile and 17 or 16,
+		fn = function() overlay:Destroy() end,
+		parent = btnRow
 	})
 end
 

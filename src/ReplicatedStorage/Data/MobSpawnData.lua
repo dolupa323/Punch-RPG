@@ -360,7 +360,7 @@ local MobSpawnData = {
 		-- [밸런스 재조정] 크라켄 < 심연의 수호자 < 포세이돈 순서에서 가장 강한 최종 보스.
 		level = 72,
 		mobModelName = "Poseidon",
-		dropTableId = "KRAKEN", -- 임시로 크라켄 드롭 재사용 (정식 드롭 테이블 확정 전까지)
+		dropTableId = "POSEIDON", -- [수정] 전용 재료아이템(포세이돈의 정수) 추가로 크라켄과 드롭테이블 분리
 		mobDisplayName = "포세이돈",
 		maxHealth = 900000,
 		baseDamage = 750,
@@ -484,17 +484,17 @@ local MobSpawnData = {
 		xpReward = 380,
 
 		spawnAsPolygon = true,
-		spawnCount = 6, -- 스폰 마리수 6마리로 증가
+		spawnCount = 12, -- 스폰 마리수 12마리로 증가
 		isIndoor = true, -- 상공의 하늘섬 지형 간섭 방지 (Y축 레이캐스트 보정)
 		raycastStartOffsetY = 150, -- 하늘섬(Y=500)을 피해 Y=130대에서 높이 시작하여 땅속에 묻히지 않게 보장
 		raycastDepth = -300,
 
-		-- 유저 제공 Properties 4개 꼭짓점 좌표 반영
+		-- 유저 제공 Properties 4개 꼭짓점 좌표 반영 (재측정)
 		spawnPositions = {
-			{x = -149.68, y = 416.38, z = -1026.644},
-			{x = -93.685, y = 419.295, z = -1332.117},
-			{x = -375.734, y = 407.381, z = -1297.102},
-			{x = -350.584, y = 416.036, z = -1035.45}
+			{x = -132.105, y = 415.624, z = -1068.604},
+			{x = -83.118, y = 418.539, z = -1275.295},
+			{x = -381.862, y = 415.28, z = -1095.37},
+			{x = -348.258, y = 423.028, z = -1290.442}
 		}
 	},
 

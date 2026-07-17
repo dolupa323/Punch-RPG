@@ -6903,12 +6903,14 @@ local function createMobModel(areaId, index, config)
 									end
 								end)
 
-								-- 적/흑 참격 폭풍 비주얼 (네모난 종이 형태 제거 ➔ 가느다란 검기 선들이 끊임없이 플래시하며 난도질 연출)
+								-- [고도화] 매화낙락(플레이어 스킬)과 동일한 구조 - 판정 반경 전체에 실제 Assets/VFX/Slash
+								-- 참격 에셋을 흩뿌리는 방식 - 을 그대로 계승하되, 꽃잎은 완전히 제거하고 검기를
+								-- 적/흑으로 물들여 "검기폭풍" 느낌으로 재구성
 								local whirlwindModel = Instance.new("Model")
 								whirlwindModel.Name = "SamuraiWhirlwind"
 								whirlwindModel.Parent = workspace
 
-								-- 고속 회전 적/흑 참격 바람 파티클 (시전자 중심)
+								-- 고속 회전 적/흑 참격 바람 파티클 (시전자 중심, 배경 소용돌이 역할)
 								local peWind = Instance.new("ParticleEmitter")
 								peWind.Texture = "rbxasset://textures/particles/smoke_main.dds"
 								peWind.Color = ColorSequence.new(Color3.fromRGB(180, 0, 0), Color3.fromRGB(15, 15, 15)) -- 적/흑 칼바람
@@ -6932,74 +6934,91 @@ local function createMobModel(areaId, index, config)
 								peWind.EmissionDirection = Enum.NormalId.Top
 								peWind.Parent = hrp
 
-								-- 흩날리는 어두운 적색 불꽃 스파크
-								local peBlossom = Instance.new("ParticleEmitter")
-								peBlossom.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-								peBlossom.Color = ColorSequence.new(Color3.fromRGB(220, 0, 0), Color3.fromRGB(20, 20, 20)) -- 적/흑 기운
-								peBlossom.Size = NumberSequence.new({
+								-- 흩날리는 적/흑 스파크 (배경 질감 보강)
+								local peSpark = Instance.new("ParticleEmitter")
+								peSpark.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+								peSpark.Color = ColorSequence.new(Color3.fromRGB(220, 0, 0), Color3.fromRGB(20, 20, 20)) -- 적/흑 기운
+								peSpark.Size = NumberSequence.new({
 									NumberSequenceKeypoint.new(0, 1.6),
 									NumberSequenceKeypoint.new(1, 0)
 								})
-								peBlossom.Rate = 150
-								peBlossom.Speed = NumberRange.new(8, 20)
-								peBlossom.SpreadAngle = Vector2.new(360, 360)
-								peBlossom.Lifetime = NumberRange.new(0.6, 1.0)
-								peBlossom.Parent = hrp
+								peSpark.Rate = 150
+								peSpark.Speed = NumberRange.new(8, 20)
+								peSpark.SpreadAngle = Vector2.new(360, 360)
+								peSpark.Lifetime = NumberRange.new(0.6, 1.0)
+								peSpark.Parent = hrp
 
-								-- 1.5초 동안 비주얼 스레드 실행
+								-- 매화낙락과 동일한 Assets/VFX/Slash 참격 에셋을 판정 반경(telegraphRadius) 전체에
+								-- 무작위 위치/시점으로 흩뿌리되, 원본 분홍색 대신 적/흑 절반씩 물들여서 사용
+								local slashVfxFolder = ReplicatedStorage:FindFirstChild("Assets")
+								slashVfxFolder = slashVfxFolder and slashVfxFolder:FindFirstChild("VFX")
+								local slashTemplate = slashVfxFolder and slashVfxFolder:FindFirstChild("Slash")
+
 								local duration = 1.5
-								local startVal = os.clock()
+								local slashCount = 40
 
-								task.spawn(function()
-									while os.clock() - startVal < duration and isAlive do
-										-- 프레임마다 여러 개의 가느다란 참격 선(Line) 생성
-										for i = 1, 3 do
-											local blade = Instance.new("Part")
-											blade.Shape = Enum.PartType.Block
-											-- 두께와 높이는 예리하게 가느다란(0.05), 길이만 길쭉한(10~22 studs) 선형 파트 생성
-											local length = math.random(10, 22)
-											blade.Size = Vector3.new(0.05, 0.05, length)
-											blade.Color = (math.random() > 0.5) and Color3.fromRGB(230, 0, 0) or Color3.fromRGB(15, 15, 15) -- 적/흑
-											blade.Material = Enum.Material.Neon
-											blade.Transparency = 0.1
-											blade.Anchored = true
-											blade.CanCollide = false
-											blade.Parent = whirlwindModel
+								if slashTemplate then
+									for i = 1, slashCount do
+										local posTheta = math.random() * math.pi * 2
+										local posPhi = math.acos(2 * math.random() - 1)
+										local posDir = Vector3.new(math.sin(posPhi) * math.cos(posTheta), math.cos(posPhi) * 0.4, math.sin(posPhi) * math.sin(posTheta))
+										local posDist = math.random(2, telegraphRadius)
+										local slashPos = hrp.Position + posDir * posDist
+										slashPos = Vector3.new(slashPos.X, math.max(slashPos.Y, floorY + 1), slashPos.Z)
 
-											-- 시전자 주변 반경 20 studs 내 무작위 위치 및 임의의 3D 방향 설정
-											local radius = math.random(2, 20)
-											local angle = math.random() * math.pi * 2
-											local offsetX = math.cos(angle) * radius
-											local offsetZ = math.sin(angle) * radius
-											local randomY = floorY + math.random(1, 8)
+										local appearDelay = math.random() * duration
 
-											local centerPos = hrp.Position + Vector3.new(offsetX, randomY - hrp.Position.Y, offsetZ)
+										task.delay(appearDelay, function()
+											if not isAlive or not whirlwindModel.Parent then return end
 
-											-- 임의의 3D 회전 적용
-											blade.CFrame = CFrame.new(centerPos) * CFrame.Angles(
-												math.random() * math.pi,
-												math.random() * math.pi,
-												math.random() * math.pi
-											)
+											local slash = slashTemplate:Clone()
+											slash.Name = "SamuraiSlashMark"
+											slash.Anchored = true
+											slash.CanCollide = false
+											slash.CanQuery = false
+											slash.CanTouch = false
+											slash.CastShadow = false
 
-											-- 빠르게 페이드 아웃시키고 삭제
-											task.spawn(function()
-												local tInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-												local tween = ts:Create(blade, tInfo, {
-													Transparency = 1,
-													Size = Vector3.new(0.01, 0.01, length * 1.3) -- 베면서 늘어나는 느낌
-												})
-												tween:Play()
-												tween.Completed:Wait()
-												blade:Destroy()
-											end)
-										end
-										task.wait(0.05) -- 매우 빠르게 생성 주기 반복 (영화의 난도질 기법 연출)
+											local scale = math.random(20, 34) / 10
+											slash.CFrame = CFrame.new(slashPos)
+												* CFrame.Angles(math.random() * math.pi * 2, math.random() * math.pi * 2, math.random() * math.pi * 2)
+											slash.Parent = whirlwindModel
+											Debris:AddItem(slash, 1.0)
+
+											-- 절반은 붉게, 절반은 칠흑으로 물들여 적/흑 대비되는 "검기폭풍" 느낌을 줌
+											local bladeColor = (math.random() > 0.5) and Color3.fromRGB(230, 0, 0) or Color3.fromRGB(10, 10, 10)
+											local emitters = {}
+											for _, desc in ipairs(slash:GetDescendants()) do
+												if desc:IsA("ParticleEmitter") then
+													desc.Color = ColorSequence.new(bladeColor)
+													local nsSeq = {}
+													for _, kp in ipairs(desc.Size.Keypoints) do
+														table.insert(nsSeq, NumberSequenceKeypoint.new(kp.Time, kp.Value * scale, kp.Envelope * scale))
+													end
+													desc.Size = NumberSequence.new(nsSeq)
+													local spd = math.random(6, 14)
+													desc.Speed = NumberRange.new(spd, spd)
+													desc.Rate = 0
+													table.insert(emitters, desc)
+												end
+											end
+
+											-- [버그수정] 새로 Clone/Parent한 인스턴스에 같은 프레임에서 바로 :Emit()을 호출하면
+											-- 클라이언트에 아직 복제되기 전이라 방출 신호가 씹혀서 슬래시가 안 보이는 현상이
+											-- 있었음(지속 방출인 peWind/peSpark만 보이고 일회성 Emit인 슬래시만 안 보였던 원인).
+											-- 복제될 시간을 한 프레임 확보한 뒤 Emit.
+											task.wait()
+											for _, desc in ipairs(emitters) do
+												desc:Emit(1)
+											end
+										end)
 									end
+								end
 
+								task.delay(duration + 0.6, function()
 									if peWind then peWind:Destroy() end
-									if peBlossom then peBlossom:Destroy() end
-									whirlwindModel:Destroy()
+									if peSpark then peSpark:Destroy() end
+									if whirlwindModel then whirlwindModel:Destroy() end
 								end)
 
 								-- 다단 참격 데미지 판정 (0.3초 간격 총 4회 타격, 각 20 데미지 = 총 80 데미지)

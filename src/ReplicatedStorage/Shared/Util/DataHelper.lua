@@ -210,7 +210,10 @@ local WEAPON_TIERS = {
 	"KNIGHT_SWORD",
 	"SOUL_SWORD",
 	"SWORD_OF_JUSTICE",
-	"BLUE_FLAME_SWORD"
+	"BLUE_FLAME_SWORD",
+	"KRAKEN_SWORD",
+	"ABYSS_SWORD",
+	"POSEIDON_SWORD"
 }
 
 function DataHelper.GetQualityAdjustedWeaponDamage(itemId: string, quality: number): number

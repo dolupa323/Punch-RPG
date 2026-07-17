@@ -223,6 +223,57 @@ local WeaponComboData = {
 			[3] = { angle = 40, duration = 0.08 }
 		}
 	},
+	["KRAKEN_SWORD"] = {
+		id = "KRAKEN_SWORD",
+		baseDamage = 2150,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "AttackSword_Swing_1",
+			[2] = "AttackSword_Swing_2",
+			[3] = "AttackSword_Swing_3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
+	["ABYSS_SWORD"] = {
+		id = "ABYSS_SWORD",
+		baseDamage = 2650,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "AttackSword_Swing_1",
+			[2] = "AttackSword_Swing_2",
+			[3] = "AttackSword_Swing_3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
+	["POSEIDON_SWORD"] = {
+		id = "POSEIDON_SWORD",
+		baseDamage = 3260,
+		maxCombo = 3,
+		comboWindow = 0.8,
+		cooldown = 0.38,
+		animations = {
+			[1] = "AttackSword_Swing_1",
+			[2] = "AttackSword_Swing_2",
+			[3] = "AttackSword_Swing_3"
+		},
+		fallbackVisuals = {
+			[1] = { angle = 30, duration = 0.08 },
+			[2] = { angle = -30, duration = 0.08 },
+			[3] = { angle = 40, duration = 0.08 }
+		}
+	},
 	["KATANA"] = {
 		id = "KATANA",
 		baseDamage = 446,

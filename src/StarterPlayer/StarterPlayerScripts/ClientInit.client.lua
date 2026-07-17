@@ -128,6 +128,26 @@ local function createAdminPanel()
 		end
 	end)
 
+	mkBtn("경험치 패스 적용", Color3.fromRGB(90, 140, 220), function()
+		local ok, data = NetClient.Request("GamePass.DebugForceApply.Request", { gamePassId = 1919168387 })
+		if ok then
+			UIManager.notify("경험치 2배 패스를 강제 적용했습니다.", Color3.fromRGB(120, 190, 255))
+			refreshPremiumShopIfOpen()
+		else
+			UIManager.notify("패스 적용에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
+
+	mkBtn("경험치 패스 해제", Color3.fromRGB(80, 80, 95), function()
+		local ok, data = NetClient.Request("GamePass.DebugForceDisable.Request", { gamePassId = 1919168387 })
+		if ok then
+			UIManager.notify("경험치 2배 패스를 해제했습니다.", Color3.fromRGB(180, 180, 200))
+			refreshPremiumShopIfOpen()
+		else
+			UIManager.notify("패스 해제에 실패했습니다.", Color3.fromRGB(255, 120, 120))
+		end
+	end)
+
 	mkBtn("튜토리얼 초기화", Color3.fromRGB(85, 115, 180), function()
 		local ok, data = NetClient.Request("Tutorial.Admin.Reset.Request", {})
 		if ok and data then
@@ -152,6 +172,12 @@ local function createAdminPanel()
 
 	mkBtn("푸른 화염 +100", Color3.fromRGB(80, 180, 220), function()
 		NetClient.Request("Admin.GiveItem.Request", { itemId = "BLUE_FIRE", count = 100 })
+	end)
+
+	mkBtn("심해보스 3종 재료 획득", Color3.fromRGB(60, 140, 200), function()
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "KRAKEN_HEART", count = 50 })
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "ABYSS_GUARDIAN_STONE", count = 50 })
+		NetClient.Request("Admin.GiveItem.Request", { itemId = "POSEIDON_ESSENCE", count = 50 })
 	end)
 
 

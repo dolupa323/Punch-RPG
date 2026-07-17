@@ -124,16 +124,16 @@ local DropTableData = {
 	["ICEDRAGON"] = {
 		{ itemId = "DRAGON_CLAW", chance = 1.0, min = 1, max = 2 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
-		{ itemId = "BOOK_ICEBLADE", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_ICEBLADE", chance = 0.01, min = 1, max = 1 },
 	},
 	["ICEKNIGHT"] = {
 		{ itemId = "CHILLING_ICE", chance = 1.0, min = 2, max = 3 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
-		{ itemId = "BOOK_ICEBLADE", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_ICEBLADE", chance = 0.01, min = 1, max = 1 },
 	},
 	["GHOSTKNIGHT"] = {
 		{ itemId = "GHOST_KNIGHT_SOUL", chance = 1.0, min = 1, max = 2 },
-		{ itemId = "BOOK_SLASH", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_SLASH", chance = 0.01, min = 1, max = 1 },
 	},
 	["GHOSTWIZARD"] = {
 		{ itemId = "GHOST_WIZARD_SOUL", chance = 1.0, min = 1, max = 2 },
@@ -141,21 +141,22 @@ local DropTableData = {
 	["GIANTGHOSTKNIGHT"] = {
 		{ itemId = "GHOST_GIANT_PRIDE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "GHOST_KNIGHT_EARRING", chance = 0.03, min = 1, max = 1 },
-		{ itemId = "BOOK_SWORDFALL", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_SWORDFALL", chance = 0.01, min = 1, max = 1 },
 	},
 	["BLUEFLAMEKNIGHT"] = {
 		{ itemId = "BLUE_FIRE", chance = 1.0, min = 1, max = 3 },
 		{ itemId = "BLUE_FIRE_RING", chance = 0.03, min = 1, max = 1 },
-		{ itemId = "BOOK_BLUEFIREBALL", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_BLUEFIREBALL", chance = 0.01, min = 1, max = 1 },
 	},
 	["DESERTGUARDIAN"] = {
-		{ itemId = "BOOK_SLASH", chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_SLASH", chance = 0.01, min = 1, max = 1 },
 		{ itemId = "BOOK_HEAVEN", chance = 0.05, min = 1, max = 1 },
 	},
-	-- [TODO] 전용 드롭 아이템은 아직 미정 - 우선 코인만 확정 지급. 추후 전용 아이템 추가 예정.
-	-- [수정] 포세이돈이 이 테이블을 임시로 재사용 중이라, 아래 악세서리 4종은 크라켄+포세이돈 둘 다에 적용됨.
+	-- [무기 재료] 크라켄 전용 재료아이템(크라켄의 심장) 추가.
+	-- [수정] 포세이돈은 더 이상 이 테이블을 재사용하지 않고 아래 별도 ["POSEIDON"] 테이블을 사용함.
 	["KRAKEN"] = {
 		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
+		{ itemId = "KRAKEN_HEART", chance = 1.0, min = 2, max = 4 },
 		{ itemId = "JELLYFISH_NECKLACE", chance = 0.001, min = 1, max = 1 },
 		{ itemId = "JELLYFISH_RING", chance = 0.001, min = 1, max = 1 },
 		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.001, min = 1, max = 1 },
@@ -163,8 +164,20 @@ local DropTableData = {
 	},
 	-- [심연의 수호자 전용] AbyssGuardianZone은 사막의 수호자와 모델을 재사용하지만 별개의 레이드
 	-- 보스이므로, 저레벨 사막 보스(DESERTGUARDIAN)와 드롭테이블을 분리함.
+	-- [무기 재료] 심연 수호자 전용 재료아이템(심연 수호자의 결정) 추가.
 	["ABYSSGUARDIAN"] = {
 		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
+		{ itemId = "ABYSS_GUARDIAN_STONE", chance = 1.0, min = 3, max = 5 },
+		{ itemId = "JELLYFISH_NECKLACE", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.001, min = 1, max = 1 },
+		{ itemId = "JELLYFISH_EARRING", chance = 0.001, min = 1, max = 1 },
+	},
+	-- [포세이돈 전용] 그동안 KRAKEN 테이블을 임시로 재사용하던 것을 분리.
+	-- [무기 재료] 포세이돈 전용 재료아이템(포세이돈의 정수) 추가.
+	["POSEIDON"] = {
+		{ itemId = "COIN", chance = 1.0, min = 500, max = 800 },
+		{ itemId = "POSEIDON_ESSENCE", chance = 1.0, min = 4, max = 6 },
 		{ itemId = "JELLYFISH_NECKLACE", chance = 0.001, min = 1, max = 1 },
 		{ itemId = "JELLYFISH_RING", chance = 0.001, min = 1, max = 1 },
 		{ itemId = "JELLYFISH_PEARL_RING", chance = 0.001, min = 1, max = 1 },
@@ -176,7 +189,7 @@ local DropTableData = {
 	},
 	["FIREMAN"] = {
 		{ itemId = "FIREMAN_EMBER",  chance = 1.0, min = 1, max = 3 },
-		{ itemId = "BOOK_BLAZE",     chance = 0.05, min = 1, max = 1 },
+		{ itemId = "BOOK_BLAZE",     chance = 0.01, min = 1, max = 1 },
 		{ itemId = "FIREMAN_EARRING", chance = 0.03, min = 1, max = 1 },
 	},
 	["JELLYFISH"] = {

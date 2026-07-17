@@ -173,6 +173,10 @@ function DropRateUI.Open(rows)
 	scroll.ScrollBarImageColor3    = C.BORDER
 	scroll.CanvasSize              = UDim2.new(0, 0, 0, 0)
 	scroll.AutomaticCanvasSize     = Enum.AutomaticSize.Y
+	-- [버그수정] 방향 제한이 없으면 모바일에서 살짝 대각선으로 스와이프할 때 스크롤이
+	-- 세로/가로를 오락가락 판정해 뚝뚝 끊기는 느낌을 준다. 세로 전용으로 고정.
+	scroll.ScrollingDirection      = Enum.ScrollingDirection.Y
+	scroll.ElasticBehavior         = Enum.ElasticBehavior.WhenScrollable
 	scroll.Parent                  = body
 
 	local list = Instance.new("UIListLayout")

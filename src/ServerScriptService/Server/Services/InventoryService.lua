@@ -2120,27 +2120,18 @@ local function handleUse(player: Player, payload: any)
 		-- 인벤토리에서 스킬북 1개 소모
 		InventoryService.removeItemFromSlot(userId, slot, 1)
 
-		-- 스킬 습득
-		state.unlockedSkills = state.unlockedSkills or {}
-		state.unlockedSkills[skillId] = true
-		SaveService.markPlayerDirty(userId)
-
-		-- 클라이언트에 스킬 데이터 업데이트
+		-- 스킬 습득 (SkillService의 런타임 캐시를 거쳐서 일관되게 처리 - 직접 state를 건드리면
+		-- SkillService가 갖고 있는 별도의 캐시 테이블과 어긋나서 나중에 스킬이 사라져 보이는 문제가 있었음)
 		local okSkill, SkillService = pcall(function()
 			return require(game:GetService("ServerScriptService").Server.Services.SkillService)
 		end)
-		if okSkill and SkillService and NetController then
-			local data = {
-				unlockedSkills    = state.unlockedSkills or {},
-				combatTreeId      = state.combatTreeId,
-				spAvailable       = SkillService.getAvailableSP(userId),
-				spSpent           = state.skillPointsSpent or 0,
-				activeSkillSlots  = state.activeSkillSlots or { nil, nil, nil, nil },
-				level             = (PlayerStatService and PlayerStatService.getLevel(userId)) or 1,
-				skillBooks        = state.skillBooks,
-				equippedPassives  = state.equippedPassives or {},
-			}
-			NetController.FireClient(player, "Skill.Data.Updated", data)
+		if okSkill and SkillService and SkillService.unlockSkillById then
+			SkillService.unlockSkillById(userId, skillId)
+		else
+			-- SkillService 로드 실패 시 최후 수단으로 state에라도 직접 반영
+			state.unlockedSkills = state.unlockedSkills or {}
+			state.unlockedSkills[skillId] = true
+			SaveService.markPlayerDirty(userId)
 		end
 
 		if NetController then

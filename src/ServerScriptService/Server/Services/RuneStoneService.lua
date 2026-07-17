@@ -196,7 +196,14 @@ local function bindRuneStoneModel(model: Instance)
 		prompt.Triggered:Connect(function(player)
 			local success, err = claimDailyReward(player)
 			if success then
-				notify(player, "일일보상으로 강화 하락방지권과 100골드를 획득했습니다!")
+				-- [요청반영] 지급 즉시 소지품에만 조용히 반영하지 않고, 무엇을 받았는지
+				-- 아이콘+이름+개수로 보여주는 팝업 UI를 클라이언트에 띄운다.
+				if NetController then
+					NetController.FireClient(player, "RuneStone.RewardShown", {
+						items = { { itemId = "3602118498", count = 1 } },
+						gold = 100,
+					})
+				end
 			else
 				if err == "ALREADY_CLAIMED" then
 					notify(player, "이미 오늘의 일일보상을 수령했습니다.")
