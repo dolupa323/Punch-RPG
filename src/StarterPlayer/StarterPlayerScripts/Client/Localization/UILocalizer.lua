@@ -419,6 +419,15 @@ local KO_TO_EN = {
 	["골드 1000이 지급됩니다."] = "Grants 1000 Gold.",
 	["제작 즉시 완료"] = "Instant Crafting",
 	["진행 중인 제작 작업을 즉시 완료합니다."] = "Instantly completes the in-progress crafting work.",
+	["경험치 2배 패스"] = "Double XP Pass",
+	["몬스터 처치 시 획득하는 경험치가 영구적으로 2배 증가합니다."] = "Permanently doubles the XP gained from monster kills.",
+	["스텟초기화권"] = "Stat Reset Ticket",
+	["사용 시 투자된 모든 스탯을 초기화하고 사용한 모든 스탯 포인트를 환급해줍니다."] = "Resets all invested stats and refunds all spent stat points when used.",
+
+	-- Premium Shop redesign (category tabs, badges)
+	["추천"] = "Recommended",
+	["패스"] = "Passes",
+	["아이템"] = "Goods",
 
 	-- Tamed creatures, traits, options
 	["생명"] = "HP",
@@ -655,6 +664,58 @@ local KO_TO_EN = {
 	["퀘스트를 수락합니다."] = "I accept the quest.",
 	["다음에 하겠습니다."] = "Maybe later.",
 	["감사합니다."] = "Thank you.",
+
+	-- ── 1:1 Trade UI (TradeUI.lua) ──
+	["수락"] = "Accept",
+	["거절"] = "Decline",
+	["거래할 플레이어 선택"] = "Select Player to Trade",
+	["주변에 거래 가능한 플레이어가 없습니다."] = "No tradable players nearby.",
+	["요청"] = "Request",
+	["1:1 거래"] = "1:1 Trade",
+	["내 제안"] = "My Offer",
+	["골드:"] = "Gold:",
+	["내 인벤토리 (클릭해서 추가/제거)"] = "My Inventory (Click to add/remove)",
+	["상대 제안"] = "Their Offer",
+	["※ 상대 제안은 실시간으로만 확인할 수 있으며 직접 수정할 수 없습니다."] = "※ The other player's offer updates in real time and cannot be edited directly.",
+	["교환하기"] = "Trade",
+	["상대방: 대기 중"] = "Opponent: Waiting",
+	["거래 취소"] = "Cancel Trade",
+
+	-- ── Totem/Base UI gaps ──
+	["거점 토템"] = "Base Totem",
+	["보유 골드: --"] = "Gold: --",
+	["확장 정보: 확인 중"] = "Expansion Info: Checking...",
+	["⛺ 거점 관리"] = "⛺ Base Management",
+
+	-- ── Crafting / Dismantle / Inventory gaps ──
+	["무기 제작 (Weapon Crafting)"] = "Weapon Crafting",
+	["무기 이름"] = "Weapon Name",
+	["설명 정보"] = "Description",
+	["아이템 상세"] = "Item Details",
+	["아이템 효과"] = "Item Effect",
+	["단축 1"] = "Quick 1",
+	["단축 2"] = "Quick 2",
+	["단축 3"] = "Quick 3",
+	["0 마리"] = "0 creatures",
+
+	-- ── HUD gaps ──
+	["퀘스트"] = "Quest",
+	["[ 튜토리얼 ]"] = "[ TUTORIAL ]",
+	["클릭하여 완료"] = "Click to Complete",
+	["사막의 수호자"] = "Desert Guardian",
+
+	-- ── Material Select / Portal / Shop gaps ──
+	["무속성"] = "No Element",
+	["포탈 활성화"] = "Activate Portal",
+	["포탈을 활성화하기 위해 골드가 필요합니다."] = "Gold is required to activate the portal.",
+	["골드 기부하기"] = "Donate Gold",
+	["총 0 G"] = "Total 0 G",
+	["포탈 이동"] = "Portal Travel",
+	["이동"] = "Travel",
+
+	-- ── Skill Tree section headers ──
+	["액티브 스킬 (Active Skills)"] = "Active Skills",
+	["패시브 스킬 (Passive Skills)"] = "Passive Skills",
 
 	-- ── WeaponCrafter Dialogue ──
 	["어서 오십시오, 모험가님!\n저는 이 마을의 무기 장인입니다.\n좋은 무기 하나가 전장에서 목숨을 구하지요.\n무엇을 도와드릴까요?"] = "Welcome, adventurer!\nI am the Weapon Crafter of this village.\nA good weapon can save your life on the battlefield.\nHow may I help you?",
