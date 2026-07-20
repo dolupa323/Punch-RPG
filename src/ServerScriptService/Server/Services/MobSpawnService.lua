@@ -118,8 +118,6 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		return
 	end
 
-	print(string.format("[MobSpawnService] Processing loot drop for '%s' at %s. Table entries: %d", mobName, tostring(pos), #dropTable))
-
 	for i, entry in ipairs(dropTable) do
 		-- [중복 방지] 이미 배운 패시브 스킬의 스킬북은 드롭되지 않도록 제외
 		-- (예: "하늘의 자격"(SKILL_RUNE_HEAVEN)을 이미 장착/습득한 플레이어에게는 BOOK_HEAVEN이 드롭되지 않음)
@@ -142,7 +140,6 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 		chance = math.clamp(chance * dropMultiplier, 0, 1)
 		if roll <= chance then
 			local count = math.random(entry.min or 1, entry.max or 1)
-			print(string.format("[MobSpawnService] -> Roll success (%.2f <= %.2f): Spawning %d of '%s'", roll, chance, count, entry.itemId))
 
 			if entry.itemId == "GOLD" or entry.itemId == "GOLD_COIN" then
 				local ok, err = WorldDropService.spawnGoldDrop(pos, count)
@@ -179,7 +176,6 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 					local InventoryService = require(Services:WaitForChild("InventoryService"))
 					if InventoryService and InventoryService.addItem then
 						local added, remaining = InventoryService.addItem(targetPlayer.UserId, entry.itemId, count)
-						print(string.format("[MobSpawnService] Direct Resource Add - Player: %s, Item: %s, Added: %d, Remaining: %d", targetPlayer.Name, entry.itemId, added, remaining))
 
 						-- [명품 UI 피드백]: 획득 알림 전송!
 						if added > 0 then
@@ -196,24 +192,17 @@ local function spawnLoot(mobName: string, pos: Vector3, killerPlayer: Player?)
 
 						-- 인벤토리가 가득 찬 특수 예외 상황 시에는 땅바닥에 Failsafe용 주머니(Pouch) 드롭으로 처리!
 						if remaining > 0 then
-							local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, remaining, nil, nil, "DISCARD")
-							if ok then
-								print("[MobSpawnService] Inventory full! Spawned remaining resource as backup discard drop.")
-							end
+							WorldDropService.spawnDrop(pos, entry.itemId, remaining, nil, nil, "DISCARD")
 						end
 					end
 				else
 					-- 그 외의 슬라임 귀고리(SLIME_EARRING), 뿔 애벌레 반지(HORNED_LARVA_RING) 등 특별 악세사리 및 무기는 월드 드롭 생성
-					local ok, err, data = WorldDropService.spawnDrop(pos, entry.itemId, count)
+					local ok, err = WorldDropService.spawnDrop(pos, entry.itemId, count)
 					if not ok then
 						warn(string.format("[MobSpawnService] Failed to spawn item drop '%s': %s", entry.itemId, tostring(err)))
-					else
-						print(string.format("[MobSpawnService] Successfully spawned drop '%s' (Count: %d). Details: %s", entry.itemId, count, game:GetService("HttpService"):JSONEncode(data)))
 					end
 				end
 			end
-		else
-			print(string.format("[MobSpawnService] -> Roll failed (%.2f > %.2f) for '%s'", roll, chance, entry.itemId))
 		end
 	end
 
@@ -472,7 +461,6 @@ local function createMobModel(areaId, index, config)
 	if config.modelScale and config.modelScale > 0 then
 		pcall(function()
 			model:ScaleTo(config.modelScale)
-			print(string.format("[MobSpawnService Scale] Applied scale %f to '%s'", config.modelScale, model.Name))
 		end)
 	end
 
@@ -5665,7 +5653,6 @@ local function createMobModel(areaId, index, config)
 														if dXZ >= (currentRadius - 2.5) and dXZ <= (currentRadius + 1.0) and dY < 3.2 then
 															hitPlayers[p.UserId] = true
 															dealDamageToHumanoid(phum, 180) -- 즉사급 데미지로 대폭 상향 (기믹 1)
-															print(string.format("[Gimmick 1 DEBUG] Player %s hit by WaveRing! Damage: 180", p.Name))
 
 															-- 넉백 처리
 															local bounceDir = (pRoot.Position - ringFloorPos)
@@ -5845,7 +5832,6 @@ local function createMobModel(areaId, index, config)
 													if not lastLaserHitTick[uId] or nowHit - lastLaserHitTick[uId] >= 0.8 then
 														lastLaserHitTick[uId] = nowHit
 														dealDamageToHumanoid(phum, 350) -- [데미지 즉사급 상향] 레이저 데미지 350
-														print(string.format("[Gimmick 2 DEBUG] Player %s hit by Laser! Damage: 350", p.Name))
 
 														-- 경미한 Stun
 														local bounceDir = playerDirXZ.Unit
@@ -9563,7 +9549,6 @@ local function createMobModel(areaId, index, config)
 											if success and attackTrack then
 												attackTrack.Priority = Enum.AnimationPriority.Action
 												attackTrack:Play()
-												print(string.format("[MobSpawnService] Successfully playing dynamic Attack Animation for '%s'", config.mobModelName))
 											end
 										end
 									end
@@ -9968,25 +9953,6 @@ local function createMobModel(areaId, index, config)
 		end)
 	end
 
-	-- [DEBUG] 최종 스폰된 몬스터의 정확한 월드 피벗 및 물리 속성 정밀 진단 (도배 방지를 위해 비활성화)
-	--[[
-	task.spawn(function()
-		task.wait(0.5) -- 완전히 안착할 시간을 준 후 진단
-		if model and model.Parent then
-			local finalCF = model:GetPivot()
-			local hrp = model:FindFirstChild("HumanoidRootPart")
-			local hum = model:FindFirstChildOfClass("Humanoid")
-			print(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) Final World Pos: %s, HipHeight: %s, HRP Size: %s, Active: %s",
-				model.Name, areaId, index, tostring(finalCF.Position),
-				tostring(hum and hum.HipHeight or "NoHum"),
-				tostring(hrp and hrp.Size or "NoHRP"),
-				tostring(hum and hum.Health > 0)))
-		else
-			warn(string.format("[MobSpawnService DEBUG] Mob '%s' (%s_%d) is ALREADY DESTROYED OR NIL after 0.5s!", config.mobModelName, areaId, index))
-		end
-	end)
-	--]]
-
 	return model
 end
 
@@ -9997,14 +9963,8 @@ function MobSpawnService.Init()
 		task.wait(4.0) -- 에셋 로드 대기
 		local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
 		local monstersFolder = assetsFolder and assetsFolder:FindFirstChild("Monsters")
-		if monstersFolder then
-			local names = {}
-			for _, child in ipairs(monstersFolder:GetChildren()) do
-				table.insert(names, child.Name)
-			end
-			print("[MobSpawnService DEBUG] Available models in ReplicatedStorage.Assets.Monsters: " .. table.concat(names, ", "))
-		else
-			warn("[MobSpawnService DEBUG] Monsters folder NOT found in ReplicatedStorage.Assets!")
+		if not monstersFolder then
+			warn("[MobSpawnService] Monsters folder NOT found in ReplicatedStorage.Assets!")
 		end
 	end)
 

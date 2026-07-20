@@ -3,8 +3,17 @@
 
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Balance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("Balance"))
 
 local GamePassService = {}
+
+-- [보안] 어드민 패널 버튼은 클라이언트에서 숨겨져 있을 뿐이라, 서버에서도 반드시 권한을 검증해야
+-- 익스플로잇으로 RemoteEvent를 직접 호출해 패스를 무료로 강제 적용하는 것을 막을 수 있음
+local function isAdmin(player: Player): boolean
+	return RunService:IsStudio() or (Balance.ADMIN_IDS and Balance.ADMIN_IDS[player.UserId] == true)
+end
 
 local DROP_RATE_2X_GAMEPASS_ID = 1864732763
 local XP_2X_GAMEPASS_ID = 1919168387
@@ -98,6 +107,9 @@ end
 function GamePassService.GetHandlers()
 	return {
 		["GamePass.DebugForceApply.Request"] = function(player: Player, payload: any)
+			if not isAdmin(player) then
+				return { success = false, errorCode = "UNAUTHORIZED" }
+			end
 			local targetId = tonumber(payload and payload.gamePassId) or DROP_RATE_2X_GAMEPASS_ID
 			local cfg = MANAGED_GAMEPASSES[targetId]
 			if not cfg then
@@ -115,6 +127,9 @@ function GamePassService.GetHandlers()
 			}
 		end,
 		["GamePass.DebugForceDisable.Request"] = function(player: Player, payload: any)
+			if not isAdmin(player) then
+				return { success = false, errorCode = "UNAUTHORIZED" }
+			end
 			local targetId = tonumber(payload and payload.gamePassId) or DROP_RATE_2X_GAMEPASS_ID
 			local cfg = MANAGED_GAMEPASSES[targetId]
 			if not cfg then
