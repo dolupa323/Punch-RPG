@@ -1,5 +1,5 @@
 -- Protocol.lua
--- 네트워크 프로토콜 정의
+-- 네트워크 프로토콜 정의 (Command 화이트리스트 + 압축 규칙)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -194,6 +194,8 @@ Protocol.Commands = {
 
 	-- Skill 명령어 (스킬 트리 시스템)
 	["Skill.Unlock.Request"] = true,
+	["Attendance.GetData.Request"] = true,
+	["Attendance.Claim.Request"] = true,
 	["Skill.GetData.Request"] = true,
 	["Skill.SetSlot.Request"] = true,
 	["Skill.Use.Request"] = true,
