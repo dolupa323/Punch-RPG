@@ -793,8 +793,11 @@ local function handleLMBAttack()
 	end
 
 	-- [VFX] 기본 공격 Cast VFX 재생 (애니메이션 시작과 동시 재생)
-	local castVFXFolder = getElementVFXFolder("Cast")
+	-- [비활성화] 평타 타격 시 Slash 검기 + Default_Attack_Hit VFX만 사용하기로 하여
+	-- 스윙 시점의 Cast VFX 출력은 끔. 추후 필요 시 아래 주석을 복원하면 됨.
 	local spawnedVFX = nil
+	--[[
+	local castVFXFolder = getElementVFXFolder("Cast")
 	if castVFXFolder then
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		if hrp then
@@ -816,6 +819,7 @@ local function handleLMBAttack()
 			end
 		end
 	end
+	]]
 
 	-- [정확한 순서 동기화] 임의의 딜레이나 추정값을 사용하지 않고, 이벤트 기반으로 정확히 제어합니다.
 	if currentAttackTrack then
@@ -1036,8 +1040,19 @@ function AvatarController.Init()
 										end
 									end
 
-									-- [VFX 재생] 기본 히트 파티클 대신 매화낙락/빙화검무와 동일한 흰색 검기(Slash) 사용
+									-- [VFX 재생] 매화낙락/빙화검무와 동일한 흰색 검기(Slash) 사용
 									playDefaultHitSlash(pos)
+
+									-- [VFX 재생] 몬스터 피격 지점에 공용 Default_Attack_Hit 파티클 추가 재생
+									local hitVFXFolder = getElementVFXFolder("Hit")
+									if hitVFXFolder then
+										local hitVfxTemplate = hitVFXFolder:FindFirstChild("Default_Attack_Hit")
+											or hitVFXFolder:FindFirstChild("Base_Attack_Hit")
+										if hitVfxTemplate then
+											local adjustedPos = pos + Vector3.new(0, 3, 0)
+											spawnCombatVFX(hitVfxTemplate, CFrame.new(adjustedPos), 2.0)
+										end
+									end
 								end)
 								if not ok then
 									warn("[AvatarController] Default hit VFX/sound failed:", err)

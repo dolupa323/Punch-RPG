@@ -43,6 +43,7 @@ local EquipmentUI = require(UI:WaitForChild("EquipmentUI"))
 local StorageUI = require(UI:WaitForChild("StorageUI"))
 local MaterialSelectUI = require(UI:WaitForChild("MaterialSelectUI"))
 local PremiumShopUI = require(UI:WaitForChild("PremiumShopUI"))
+local AttendanceUI = require(UI:WaitForChild("AttendanceUI"))
 
 local SkillTreeUI = require(UI:WaitForChild("SkillTreeUI"))
 local PromptUI = require(UI:WaitForChild("PromptUI"))
@@ -186,6 +187,22 @@ end
 
 function UIManager.closeEnhance()
 	WindowManager.close("ENHANCE")
+end
+
+function UIManager._onOpenAttendance()
+	AttendanceUI.SetVisible(true)
+end
+
+function UIManager._onCloseAttendance()
+	AttendanceUI.SetVisible(false)
+end
+
+function UIManager.openAttendance()
+	WindowManager.open("ATTENDANCE")
+end
+
+function UIManager.closeAttendance()
+	WindowManager.close("ATTENDANCE")
 end
 
 function UIManager.requestTutorialStepComplete()
@@ -2959,9 +2976,12 @@ local function setupEventListeners()
 			end
 		end)
 
-		-- 룬스톤 일일보상: 무엇을 받았는지 아이콘+이름+개수로 보여주는 팝업
-		NetClient.On("RuneStone.RewardShown", function(data)
-			UIManager.showRuneStoneReward(data)
+		-- 시즌 출석: 접속 시 서버가 자동으로 출석 판정 후 미수령 보상이 있으면 패널을 띄움
+		NetClient.On("Attendance.Show", function(data)
+			if AttendanceUI then
+				AttendanceUI.Refresh(data)
+				WindowManager.open("ATTENDANCE")
+			end
 		end)
 
 		-- 무기 장인 대화창 (TrainerController/MagicianController와 동일 컨벤션)
@@ -3291,6 +3311,7 @@ function UIManager.Init()
 	safeInit("StorageUI", StorageUI, mainGui, UIManager, isMobile)
 	safeInit("MaterialSelectUI", MaterialSelectUI, mainGui, UIManager)
 	safeInit("PremiumShopUI", PremiumShopUI, mainGui, UIManager)
+	safeInit("AttendanceUI", AttendanceUI, mainGui, UIManager)
 	safeInit("TradeUI", TradeUI, mainGui, UIManager, isMobile)
 
 	safeInit("PortalUI", PortalUI, mainGui, UIManager, isMobile)
@@ -3357,6 +3378,7 @@ function UIManager.Init()
 	WindowManager.register("ENHANCE", UIManager._onOpenEnhance, UIManager._onCloseEnhance)
 	WindowManager.register("DISMANTLE", UIManager._onOpenDismantle, UIManager._onCloseDismantle)
 	WindowManager.register("TRADE", UIManager._onOpenTradeUI, UIManager._onCloseTradeUI)
+	WindowManager.register("ATTENDANCE", UIManager._onOpenAttendance, UIManager._onCloseAttendance)
 
 	-- [NEW] 상호작용 방사형 UI 등록
 	WindowManager.register("PORTAL_RADIAL", function(...) PortalRadialUI:Open(...) end, PortalRadialUI.Close)
@@ -3398,6 +3420,7 @@ function UIManager.Init()
 		WindowManager.registerFrame("ENHANCE", EnhanceUI.Refs.Frame)
 		WindowManager.registerFrame("DISMANTLE", DismantleUI.Refs.Frame)
 		WindowManager.registerFrame("TENT_UI", TentUI.Refs.Window)
+		WindowManager.registerFrame("ATTENDANCE", AttendanceUI.Refs.Main)
 	end)
 
 	-- [Refactor] DragDropController 초기화

@@ -196,6 +196,9 @@ ServiceRegistry.Register("AvatarService", AvatarService)
 
 local RuneStoneService = require(Services.RuneStoneService)
 RuneStoneService.Init(NetController)
+for command, handler in pairs(RuneStoneService.GetHandlers()) do
+	NetController.RegisterHandler(command, handler)
+end
 ServiceRegistry.Register("RuneStoneService", RuneStoneService)
 
 local GamePassService = require(Services.GamePassService)

@@ -6,9 +6,11 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local InsertService = game:GetService("InsertService")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Appearance = require(Shared.Config.Appearance)
+local PlayerStatService = require(ServerScriptService.Server.Services.PlayerStatService)
 
 local CharacterSetupService = {}
 
@@ -83,9 +85,75 @@ end
 local function setupCharacterAttributes(player: Player, character)
 	-- 플레이어 데이터 연동 시 여기에 속성 설정
 	-- 예: 부족, 레벨 등에 따른 외형 변화
-	
+
 	character:SetAttribute("SetupComplete", true)
 	character:SetAttribute("CharacterStyle", "PREHISTORIC")
+end
+
+--========================================
+-- 닉네임 + 레벨 네임태그 (BillboardGui)
+--========================================
+
+--- [실시간 갱신] 레벨업 등으로 값이 바뀔 때 즉시 반영하기 위해, 현재 살아있는
+-- 네임태그 라벨을 유저ID 기준으로 찾아둔다. 캐릭터가 바뀌면(리스폰) 자동으로 교체됨.
+local activeNameTagLabels: { [number]: TextLabel } = {}
+
+local function refreshNameTagText(player: Player)
+	local label = activeNameTagLabels[player.UserId]
+	if not label or not label.Parent then
+		activeNameTagLabels[player.UserId] = nil
+		return
+	end
+
+	local ok, level = pcall(PlayerStatService.getLevel, player.UserId)
+	if not ok or type(level) ~= "number" then
+		local character = player.Character
+		level = (character and character:GetAttribute("Level")) or 1
+	end
+	local nickname = (player.DisplayName ~= "" and player.DisplayName) or player.Name
+	label.Text = string.format('<font color="#FFFFFF">%s</font>  <font color="#5FD4FF">Lv.%d</font>', nickname, level)
+end
+
+--- 로블록스 기본 닉네임/체력바를 끄고, 닉네임+레벨을 보여주는 커스텀 네임태그를 부착
+local function attachNameTag(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	local head = character:WaitForChild("Head", 5)
+	if not humanoid or not head then return end
+
+	-- 로블록스 기본 닉네임/체력바 표시 끄기 (MobSpawnService 등 다른 캐릭터들과 동일한 컨벤션)
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+
+	local existing = head:FindFirstChild("PlayerNameTag")
+	if existing then
+		existing:Destroy()
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PlayerNameTag"
+	billboard.Size = UDim2.new(0, 220, 0, 36)
+	billboard.StudsOffset = Vector3.new(0, 2.6, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 100
+	billboard.Parent = head
+
+	local label = Instance.new("TextLabel")
+	label.Name = "NameLevelLabel"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.RichText = true
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0.3
+	label.Parent = billboard
+
+	activeNameTagLabels[player.UserId] = label
+	refreshNameTagText(player)
+
+	-- 캐릭터 속성이 바뀌는 경우(리스폰 등)도 보조 트리거로 유지. 레벨업 실시간 갱신의
+	-- 주 트리거는 CharacterSetupService.Init()에서 PlayerStatService.SetLevelUpCallback으로 연결.
+	character:GetAttributeChangedSignal("Level"):Connect(function()
+		refreshNameTagText(player)
+	end)
 end
 
 --========================================
@@ -123,6 +191,7 @@ local function onCharacterAdded(player: Player, character)
 	-- 물리 및 속성 적용 (위치가 이미 확정된 후, Anchor 상태에서 안전하게 처리)
 	applyCharacterPhysics(player, character)
 	setupCharacterAttributes(player, character)
+	attachNameTag(player, character)
 
 	-- applyCharacterPhysics 완료 후 Anchor 해제 (내부에 task.wait()이 있음)
 	local hrpFinal = character:FindFirstChild("HumanoidRootPart")
@@ -159,15 +228,42 @@ end
 
 function CharacterSetupService.Init()
 	if initialized then return end
-	
+
+	-- [실시간 네임태그 갱신] 레벨업 시 캐릭터 속성 변경을 기다리지 않고 즉시 반영.
+	-- (PlayerStatService.SetLevelUpCallback은 현재 다른 곳에서 쓰지 않아 안전하게 사용 가능)
+	PlayerStatService.SetLevelUpCallback(function(userId, _reachedLevel, _oldLevel, _newLevel)
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			refreshNameTagText(player)
+		end
+	end)
+
 	-- 기존 플레이어 처리
 	for _, player in ipairs(Players:GetPlayers()) do
 		onPlayerAdded(player)
 	end
-	
+
 	-- 새 플레이어 처리
 	Players.PlayerAdded:Connect(onPlayerAdded)
-	
+
+	Players.PlayerRemoving:Connect(function(player)
+		activeNameTagLabels[player.UserId] = nil
+	end)
+
+	-- [안전망] 이벤트 기반 갱신(레벨업 콜백/속성변경)이 어떤 이유로든 놓치는 경우를 대비해,
+	-- 주기적으로 모든 살아있는 네임태그를 authoritative 레벨과 강제로 재동기화한다.
+	task.spawn(function()
+		while true do
+			task.wait(2)
+			for userId in pairs(activeNameTagLabels) do
+				local player = Players:GetPlayerByUserId(userId)
+				if player then
+					refreshNameTagText(player)
+				end
+			end
+		end
+	end)
+
 	initialized = true
 	print("[CharacterSetupService] Initialized")
 end

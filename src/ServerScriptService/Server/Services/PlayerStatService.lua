@@ -569,7 +569,10 @@ function PlayerStatService.applyStats(userId: number)
 		character:SetAttribute("AttackMult", calc.attackMult)
 		character:SetAttribute("Defense", calc.defense)
 		character:SetAttribute("SpeedMult", calc.speedMult or 0)
-		character:SetAttribute("Level", calc.level or 1)
+		-- [버그수정] GetCalculatedStats()가 반환하는 calc 테이블에는 "level" 필드가 아예 없어서
+		-- calc.level은 항상 nil이었고, 그 결과 이 속성이 항상 1로 고정 설정되고 있었다.
+		-- authoritative level은 playerStats[userId].level(=PlayerStatService.getLevel)에서 가져온다.
+		character:SetAttribute("Level", PlayerStatService.getLevel(userId))
 	end
 	
 	-- 4. 클라이언트에 최종 스탯 전송
