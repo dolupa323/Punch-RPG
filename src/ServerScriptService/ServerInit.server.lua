@@ -1,5 +1,5 @@
 -- ServerInit.server.lua
--- 서버 초기화 스크립트
+-- 서버 초기화 스크립트 (Services require + Init 순서 관리)
 
 local Players = game:GetService("Players")
 local ServerScriptService = game:GetService("ServerScriptService")
