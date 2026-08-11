@@ -1,5 +1,6 @@
 -- RuneStoneService.lua
 -- 시즌 출석 보상 서비스 (게임 접속 시 자동으로 출석이 찍히고, 유저가 직접 각 일차 보상을 수령)
+-- 관련 UI: AttendanceUI.lua
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
