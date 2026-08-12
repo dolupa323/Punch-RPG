@@ -1,6 +1,7 @@
 -- CharacterSetupService.lua
 -- 플레이어 캐릭터 외형 설정 (선사시대 스타일)
 -- 원시/부족 테마 의상 및 액세서리 적용
+-- 닉네임+레벨 네임태그 부착도 여기서 처리
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
