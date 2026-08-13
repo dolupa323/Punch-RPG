@@ -1,6 +1,7 @@
 -- PlayerStatService.lua
 -- 플레이어 성장 서비스 (Phase 6)
 -- 경험치 획득, 레벨업, 기술 포인트 관리
+-- authoritative 레벨 조회는 getLevel(userId) 사용
 
 local PlayerStatService = {}
 
