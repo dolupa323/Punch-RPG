@@ -1,5 +1,6 @@
 -- AvatarController.lua
 -- 아바타 검술 RPG: 원소 속성 선택 UI, 실물 나무검(Accessory) 연계, 3단 연타 평타 콤보 및 타격 VFX 클라이언트 컨트롤러
+-- 평타 Cast VFX는 비활성화 상태 (handleLMBAttack 내부 주석 처리 블록 참고)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
